@@ -2,11 +2,13 @@
 FROM osrf/ros:humble-desktop
 
 # Set working directory for inside container
-WORKDIR /ros2_sample_workspace
+WORKDIR /workspace
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \
         python3-pip \
+        nano \
+        vim \
         && rm -rf /var/lib/apt/lists/*
         # - "update": Updates package metadata
         # - "install": Installs specified packages
