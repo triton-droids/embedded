@@ -5,7 +5,7 @@
 - - [MacOS](#macos)
 - - [Windows](#windows)
 - - [Linux](#linux)
-- [Mounting Directories[(#mounting-directories)
+- [Mounting Directories](#mounting-directories)
 - [X11 GUI Forwarding](#x11-gui-forwarding)
 
 
