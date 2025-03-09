@@ -1,0 +1,22 @@
+System Information:
+- IPv4 Address: 192.168.113.206
+- Remote SSH: ssh triton-droids@192.168.113.206
+
+Installed:
+- sudo apt install net-tools (basic networking utilities)
+- sudo apt install openssh-server (SSH service)
+
+Commands:
+- sudo vcgencmd measure_temp (display CPU temperature)
+- sudo watch -n 1 vcgencmd measure_temp (display CPU temperature continuously)
+   - example: watch (repeat command), -n (interval parameter), 1 (1 second intervals)
+- ifconfig (display network interfaces, including IPv4 address)
+- sudo systemctl status ssh (check if ssh service is installed)
+- sudo systemctl start ssh
+- sudo systemctl enable ssh
+- sudo systemctl status ssh
+- ping 192.168.113.206 (from external device, check if Pi5 is reachable)
+
+General Notes:
+- vcgencmd (access/monitor system information, specific to Raspberry Pi)
+- systemctl (manage system services on Linux, including SSH)
