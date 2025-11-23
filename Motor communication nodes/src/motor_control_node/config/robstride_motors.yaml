@@ -1,0 +1,13 @@
+# src/motor_control_node/config/robstride_motors.yaml
+
+motor_control_node:
+  ros__parameters:
+    default_can_interface: "can0"
+    default_master_id: 255
+
+    motors:
+      shoulder_pitch:
+        can_interface: "can0"
+        master_id: 255
+        motor_id: 127
+        actuator_type: 2

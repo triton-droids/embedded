@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>motor_control_node</name>
+  <version>0.0.1</version>
+  <description>ROS2 Python package for RobStride motor control</description>
+
+  <maintainer email="maintainer@example.com">Your Name</maintainer>
+  <license>TODO</license>
+
+  <!-- Python node, so use rclpy instead of rclcpp, no ament_cmake buildtool -->
+  <depend>rclpy</depend>
+  <depend>std_msgs</depend>
+  <depend>can_msgs</depend>
+  <depend>sensor_msgs</depend>
+
+  <build_depend>rosidl_default_generators</build_depend>
+  <exec_depend>rosidl_default_runtime</exec_depend>
+  <member_of_group>rosidl_interface_packages</member_of_group>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

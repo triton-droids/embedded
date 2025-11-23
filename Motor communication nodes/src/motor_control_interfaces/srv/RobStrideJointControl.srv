@@ -1,0 +1,31 @@
+# ===== Request =====
+
+uint8 CMD_ENABLE        = 0
+uint8 CMD_DISABLE       = 1
+uint8 CMD_VELOCITY      = 2
+uint8 CMD_POSITION_PP   = 3
+uint8 CMD_CURRENT       = 4
+uint8 CMD_MOTION        = 5
+uint8 CMD_READ_STATUS   = 6
+
+string joint_name       # motor name in yaml
+uint8 command_type      # from above
+float64 position        # rad
+float64 velocity        # rad/s
+float64 torque          # Nm
+float64 iq              # A
+float64 id              # A
+float64 acceleration    # rad/s^2
+float64 kp              #PID coefs
+float64 kd
+
+---
+# ===== Response =====
+
+bool success
+string message
+
+float64 position        # rad
+float64 velocity        # rad/s
+float64 torque          # Nm
+float64 temperature     # deg C
