@@ -13,22 +13,27 @@ setup(
          ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/config', glob('config/*.yaml')),
-        ('share/' + package_name + '/launch', ['launch/motor_control.launch.py']),
+
+        # 安装所有 launch 文件（不只 motor_control.launch.py）
+        ('share/' + package_name + '/launch', glob('launch/*.launch.py')),
+        # 如果你把 setup_can0.sh 也放在 launch/ 里，需要一起安装
+        ('share/' + package_name + '/launch', glob('launch/*.sh')),
     ],
 
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='your_name',
     maintainer_email='you@example.com',
-    description='ROS2 Python package for RobStride motor control',
+    description='ROS2 Python package for RobStride motor control + IMU DR',
     license='TODO',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
             'motor_control_test = motor_control_node.motor_control_node:main',
             'motor_control_demo = motor_control_node.motor_control:main',
-            "motor_control = motor_control_node.controller_node:main",
-            "motor_service = motor_control_node.can_node:main"
+            'motor_control = motor_control_node.controller_node:main',
+            'motor_service = motor_control_node.can_node:main',
+            'imu_dr_rk4_node = motor_control_node.imu_dr_rk4_node:main',
         ],
     },
 )
