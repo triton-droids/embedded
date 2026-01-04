@@ -78,6 +78,13 @@ def send_frame(bus: can.Bus, comm_type: int, extra_data: int, device_id: int, da
     )
     bus.send(msg)
 
+def set_zero_position(bus: can.Bus, device_id: int):
+    # Usually no payload; follow repo pattern DLC=8 zeros
+    send_frame(bus, CommunicationType.SET_ZERO_POSITION, HOST_ID, device_id)
+
+def save_parameters(bus: can.Bus, device_id: int):
+    send_frame(bus, CommunicationType.SAVE_PARAMETERS, HOST_ID, device_id)
+
 
 def write_parameter_mode(bus: can.Bus, device_id: int, mode: int):
     # Matches your bus.write(): data = <HH> + <bBH> for int8
@@ -148,7 +155,7 @@ def decode_status(model: str, extra_data: int, data: bytes):
     return device_id, pos, vel, tq, temp
 
 
-def main():
+def movement_test():
     ap = argparse.ArgumentParser()
     ap.add_argument("--channel", default="can0")
     ap.add_argument("--bitrate", type=int, default=1_000_000)
@@ -246,6 +253,37 @@ def main():
             pass
         print("[+] Done.")
 
+def set_zeros():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--channel", default="can0")
+    ap.add_argument("--bitrate", type=int, default=1_000_000)
+    ap.add_argument("--id", type=int, required=True, help="Motor CAN_ID (1..255)")
+    args = ap.parse_args()
+
+    device_id = int(args.id)
+
+    bus = can.interface.Bus(interface="socketcan", channel=args.channel, bitrate=args.bitrate)
+
+    try:
+        print(f"[+] Using {args.channel} @ {args.bitrate} bps")
+        print(f"[+] Motor ID={device_id}")
+        print("[+] Setting zero position…")
+        set_zero_position(bus, device_id)
+        time.sleep(0.15)
+
+        print("[+] Saving parameters…")
+        save_parameters(bus, device_id)
+        time.sleep(0.15)
+
+    finally:
+        try:
+            bus.shutdown()
+        except Exception:
+            pass
+        print("[+] Done.")
+
+def main():
+    movement_test()
 
 if __name__ == "__main__":
     main()

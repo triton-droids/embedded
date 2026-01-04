@@ -1,520 +1,957 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-RobStride MIT-Mode Motor Tuner (10 motors) with live plotting.
+RobStride MIT Gain Tuner (Mode 0) + LIVE PLOTS (mac-safe main-thread control)
++ inversion array + joint limits + temperature protection (RL-safe: NO kp/kd scaling)
++ per-motor model map (RS02/RS03/RS04 mixed)
 
-Requires:
-  pip install numpy matplotlib
-  (and your robstride python package providing robstride_dynamics.RobstrideBus)
+Key design:
+- Control loop runs in matplotlib animation callback (main thread) to avoid macOS GUI starvation.
+- Inversion array pre-sets st.direction for CAN IDs 1..10.
+- Joint limits (radians) are enforced on target commands and during ramping (logical space).
+- Temperature safety supervisor:
+    OK -> DERATE (slow ramp) -> HOLD (freeze) -> DISABLED (disable motor)
+  Gains are never scaled.
+- Motor model is configured per CAN ID in MOTOR_MODEL_BY_ID.
 
-Usage examples:
-  python3 robstride_tuner.py --iface can0
-  python3 robstride_tuner.py --iface can0 --hz 100
-  python3 robstride_tuner.py --iface can0 --log_csv tune_log.csv
-
-Keyboard (focus the plot window):
-  q / ESC : quit (safe coast attempt)
-  SPACE   : pause/resume sending commands
-  [ / ]   : previous/next motor
-  m       : cycle mode: HOLD -> SINE -> STEP
-  r       : re-zero base position to current position (hold around current)
-  c       : clear plot buffer
-
-  UP/DOWN : increase/decrease KP
-  LEFT/RIGHT: increase/decrease KD
-
-  a / z   : increase/decrease sine amplitude (rad)
-  f / v   : increase/decrease sine frequency (Hz)
-
-  s       : apply STEP (in STEP mode): toggles step sign (+/- step_amp)
-  e       : set step_amp to current sine amp (quick convenience)
-
-Notes:
-- Default motor_id mapping is 1..10 in the order you provided. Edit MOTOR_MAP if needed.
-- Clamps KP/KD to per-model maximums from your table.
+Run:
+  sudo ip link set can0 type can bitrate 1000000
+  sudo ip link set up can0
+  python3 robstride_gain_tuner_liveplot_mac_safe.py
 """
 
-import argparse
-import math
 import sys
+import os
 import time
+import math
+import struct
 import threading
+import signal
+from dataclasses import dataclass, field
+from typing import Optional, Dict, Set, List, Tuple
 from collections import deque
-from dataclasses import dataclass
 
-import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
-# ---- RobStride bus import (as per your docs) ----
+# -------------------- RobStride SDK imports --------------------
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 try:
-    from robstride_dynamics import RobstrideBus
-except Exception as e:
-    RobstrideBus = None
-    _import_error = e
+    from robstride_dynamics import RobstrideBus, Motor, ParameterType, CommunicationType
+except ImportError:
+    try:
+        from bus import RobstrideBus, Motor
+        from protocol import ParameterType, CommunicationType
+    except ImportError as e:
+        print(f"Failed to import RobStride SDK: {e}")
+        sys.exit(1)
 
 
-# ----------------------- User motor ordering -----------------------
-# IMPORTANT: Update motor_id values if your CAN motor IDs differ.
-MOTOR_MAP = [
-    ("left_hip1_joint",   1, "RS-04"),
-    ("left_hip2_joint",   2, "RS-03"),
-    ("left_thigh_joint",  3, "RS-03"),
-    ("left_knee_joint",   4, "RS-04"),
-    ("left_ankle_joint",  5, "RS-02"),
-    ("right_hip1_joint",  6, "RS-04"),
-    ("right_hip2_joint",  7, "RS-03"),
-    ("right_thigh_joint", 8, "RS-03"),
-    ("right_knee_joint",  9, "RS-04"),
-    ("right_ankle_joint", 10, "RS-02"),
-]
+def clamp(x: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, x))
 
-# Per your table
-MODEL_LIMITS = {
-    "RS-00": {"kp_max": 500.0,  "kd_max": 5.0},
-    "RS-01": {"kp_max": 500.0,  "kd_max": 5.0},
-    "RS-02": {"kp_max": 500.0,  "kd_max": 5.0},
-    "RS-03": {"kp_max": 5000.0, "kd_max": 100.0},
-    "RS-04": {"kp_max": 5000.0, "kd_max": 100.0},
-    "RS-05": {"kp_max": 500.0,  "kd_max": 5.0},
-    "RS-06": {"kp_max": 5000.0, "kd_max": 100.0},
+
+# -------------------- Your provided config --------------------
+# Inversion array interpreted sequentially for CAN IDs 1-10
+INVERSION_ARRAY = [1, 1, 1, 1, 1, -1, -1, -1, -1, -1]
+INVERSION_BY_ID: Dict[int, int] = {i + 1: INVERSION_ARRAY[i] for i in range(len(INVERSION_ARRAY))}
+
+# Joint limits in radians (logical joint space)
+JOINT_LIMITS: Dict[int, Tuple[float, float]] = {
+    1: (-1.57, 1.57),            # left_hip1_joint
+    2: (-1.57, 0.436332),        # left_hip2_joint
+    3: (-0.785398, 0.785398),    # left_thigh_joint
+    4: (-2.0944, 0.0),           # left_knee_joint
+    5: (-0.6, 0.6),              # left_ankle_joint
+    6: (-1.57, 1.57),            # right_hip1_joint
+    7: (-0.436332, 1.57),        # right_hip2_joint
+    8: (-0.785398, 0.785398),    # right_thigh_joint
+    9: (-2.0944, 0.0),           # right_knee_joint
+    10: (-0.6, 0.6),             # right_ankle_joint
 }
+
+# Per-motor model mapping (from your list)
+MOTOR_MODEL_BY_ID: Dict[int, str] = {
+    1: "rs-04",
+    2: "rs-03",
+    3: "rs-03",
+    4: "rs-04",
+    5: "rs-02",
+    6: "rs-04",
+    7: "rs-03",
+    8: "rs-03",
+    9: "rs-04",
+    10: "rs-02",
+}
+
+# Temperature protection thresholds (°C) — tune to your motor’s real safe limits
+TEMP_DERATE_START_C = 65.0   # start slowing motion
+TEMP_HOLD_C = 75.0           # freeze at current pose
+TEMP_DISABLE_C = 85.0        # disable motor
+TEMP_REENABLE_C = 70.0       # must cool below this to re-enable (hysteresis)
+
+DERATE_MIN_SCALE = 0.20      # minimum motion scale at/above disable threshold
+DISABLE_COOLDOWN_S = 2.0     # how long to stay disabled before trying to re-enable
 
 
 @dataclass
-class TunerParams:
-    kp: float = 30.0
-    kd: float = 0.5
-    t_ff: float = 0.0
-
-    mode: str = "HOLD"     # HOLD | SINE | STEP
-    sine_amp: float = 0.10 # rad
-    sine_hz: float = 0.50  # Hz
-
-    step_amp: float = 0.10 # rad
-    step_sign: int = 1     # +1 or -1
-    paused: bool = False
+class Excitation:
+    mode: str = "none"          # "none" | "sine"
+    amp_rad: float = 0.0
+    freq_hz: float = 0.0
+    t0: float = 0.0
+    duration_s: Optional[float] = None
+    center_rad: float = 0.0
 
 
-class RingBuffer:
-    def __init__(self, seconds: float, hz: float):
-        self.maxlen = int(max(1, seconds * hz))
-        self.t = deque(maxlen=self.maxlen)
-        self.p = deque(maxlen=self.maxlen)
-        self.p_cmd = deque(maxlen=self.maxlen)
-        self.v = deque(maxlen=self.maxlen)
-        self.tau = deque(maxlen=self.maxlen)
+@dataclass
+class MotorState:
+    id: int
+    name: str
+    model: str
 
-    def append(self, t, p, p_cmd, v, tau):
-        self.t.append(t)
-        self.p.append(p)
-        self.p_cmd.append(p_cmd)
-        self.v.append(v)
-        self.tau.append(tau)
+    # Telemetry (physical)
+    position: float = 0.0       # rad
+    velocity: float = 0.0       # rad/s
+    torque: float = 0.0         # Nm
+    temperature: float = 0.0    # C
 
-    def clear(self):
-        self.t.clear()
-        self.p.clear()
-        self.p_cmd.clear()
-        self.v.clear()
-        self.tau.clear()
+    # Gains
+    kp: float = 10.0
+    kd: float = 0.2
+
+    # Mount direction (1 normal, -1 inverted)
+    direction: int = 1
+
+    # Joint limits (logical space)
+    limit_lo: float = -math.inf
+    limit_hi: float = math.inf
+
+    # Targets (logical, pre-direction)
+    target_rad: float = 0.0
+    commanded_target_rad: float = 0.0
+    hold_center_rad: float = 0.0
+
+    # Excitation state
+    excitation: Excitation = field(default_factory=Excitation)
+
+    # Temp safety state
+    temp_state: str = "OK"           # "OK" | "DERATE" | "HOLD" | "DISABLED"
+    enabled: bool = True
+    last_disable_t: float = 0.0
+
+    last_error: Optional[str] = None
 
 
-class RobStrideMitTuner:
-    def __init__(self, iface: str, hz: float, window_s: float, log_csv: str | None):
-        self.iface = iface
+class GainTunerMIT:
+    def __init__(
+        self,
+        motor_ids: List[int],
+        channel: str = "can0",
+        bitrate: int = 1_000_000,
+        model: str = "rs-03",   # fallback if ID not in MOTOR_MODEL_BY_ID
+        hz: float = 50.0,
+        ramp_deg_s: float = 30.0,
+    ):
+        self.channel = channel
+        self.bitrate = bitrate
+        self.model = model.lower()
+
         self.hz = float(hz)
         self.dt = 1.0 / self.hz
-        self.window_s = float(window_s)
-        self.log_csv = log_csv
+        self.ramp_rad_s_nominal = math.radians(float(ramp_deg_s))
 
-        self.params = TunerParams()
-        self.selected_idx = 0
+        self.motor_states: Dict[int, MotorState] = {}
+        for mid in motor_ids:
+            mmodel = MOTOR_MODEL_BY_ID.get(mid, self.model)
+            st = MotorState(id=mid, name=f"motor_{mid}", model=mmodel)
 
-        self.running = False
-        self._lock = threading.Lock()
+            # Apply inversion array for IDs 1..10, otherwise default 1
+            st.direction = int(INVERSION_BY_ID.get(mid, 1))
 
-        self.base_pos = 0.0
-        self.last_status = None
+            # Apply joint limits if provided, else infinite
+            if mid in JOINT_LIMITS:
+                st.limit_lo, st.limit_hi = JOINT_LIMITS[mid]
 
-        self.buf = RingBuffer(seconds=self.window_s, hz=self.hz)
+            self.motor_states[mid] = st
 
-        self.csv_rows = []  # optionally saved at end
+        self.selected: Set[int] = set(motor_ids)
 
-        if RobstrideBus is None:
-            raise RuntimeError(
-                "Failed to import robstride_dynamics.RobstrideBus. "
-                f"Import error: {_import_error}"
-            )
-        self.bus = RobstrideBus(self.iface)
+        self.bus: Optional[RobstrideBus] = None
+        self.lock = threading.Lock()
 
-        self._sync_base_pos_on_start = True
-
-    @property
-    def selected_motor(self):
-        name, mid, model = MOTOR_MAP[self.selected_idx]
-        return name, mid, model
-
-    def clamp_gains(self, kp: float, kd: float, model: str):
-        lim = MODEL_LIMITS.get(model, {"kp_max": 500.0, "kd_max": 5.0})
-        kp = float(np.clip(kp, 0.0, lim["kp_max"]))
-        kd = float(np.clip(kd, 0.0, lim["kd_max"]))
-        return kp, kd
-
-    def try_enable_all(self):
-        ids = [mid for _, mid, _ in MOTOR_MAP]
-        if hasattr(self.bus, "enable_motors"):
-            self.bus.enable_motors(ids)
-        else:
-            # Best effort: some libs enable implicitly; if yours requires explicit enable,
-            # use enable_motors from the official python implementation.
-            pass
-
-    def try_disable_all(self):
-        ids = [mid for _, mid, _ in MOTOR_MAP]
-        if hasattr(self.bus, "disable_motors"):
-            self.bus.disable_motors(ids)
-
-    def read_status(self, motor_id: int):
-        # Your doc suggests bus.read_frame(motor_id) -> dict with position/velocity/torque
-        try:
-            return self.bus.read_frame(motor_id)
-        except Exception:
-            return None
-
-    def write_cmd(self, motor_id: int, p_des: float, v_des: float, kp: float, kd: float, t_ff: float):
-        # Your doc: bus.write_operation_frame(motor_id, p_des, v_des, kp, kd, t_ff)
-        self.bus.write_operation_frame(
-            motor_id=motor_id,
-            p_des=float(p_des),
-            v_des=float(v_des),
-            kp=float(kp),
-            kd=float(kd),
-            t_ff=float(t_ff),
-        )
-
-    def compute_command(self, t_now: float, base_pos: float, params: TunerParams):
-        if params.mode == "HOLD":
-            return base_pos
-        if params.mode == "SINE":
-            return base_pos + params.sine_amp * math.sin(2.0 * math.pi * params.sine_hz * t_now)
-        if params.mode == "STEP":
-            return base_pos + params.step_sign * params.step_amp
-        return base_pos
-
-    def set_selected_motor(self, new_idx: int):
-        with self._lock:
-            self.selected_idx = int(np.clip(new_idx, 0, len(MOTOR_MAP) - 1))
-            self._sync_base_pos_on_start = True
-            self.buf.clear()
-
-    def re_zero_base_pos(self):
-        with self._lock:
-            st = self.last_status
-            if st and "position" in st:
-                self.base_pos = float(st["position"])
-
-    def coast_selected(self, seconds: float = 0.25):
-        """Best-effort 'coast': kp=0,kd=0,t_ff=0 around current pos."""
-        name, mid, model = self.selected_motor
-        st = self.read_status(mid)
-        p0 = self.base_pos
-        if st and "position" in st:
-            p0 = float(st["position"])
-        t_end = time.perf_counter() + seconds
-        while time.perf_counter() < t_end:
-            try:
-                self.write_cmd(mid, p0, 0.0, 0.0, 0.0, 0.0)
-            except Exception:
-                break
-            time.sleep(0.01)
-
-    def control_loop(self):
         self.running = True
-        self.try_enable_all()
+        self.connected = False
 
-        t0 = time.perf_counter()
-        next_time = time.perf_counter()
+    def _clamp_to_limits(self, st: MotorState, logical_rad: float) -> float:
+        return clamp(logical_rad, st.limit_lo, st.limit_hi)
 
-        while self.running:
-            next_time += self.dt
-            now = time.perf_counter()
-            t_rel = now - t0
+    def _set_mode_raw(self, mode: int, motor_id: int):
+        motor_name = f"motor_{motor_id}"
+        device_id = self.bus.motors[motor_name].id
+        param_id, _, _ = ParameterType.MODE  # MODE is int8
+        value_buffer = struct.pack("<bBH", int(mode), 0, 0)
+        data = struct.pack("<HH", param_id, 0x00) + value_buffer
+        self.bus.transmit(CommunicationType.WRITE_PARAMETER, self.bus.host_id, device_id, data)
+        time.sleep(0.1)
 
-            with self._lock:
-                name, mid, model = self.selected_motor
-                params = self.params
+    def _motion_scale_from_temp(self, temp_c: float) -> float:
+        """
+        Motion derating scale for ramp rate (NOT gains).
+        1.0 until TEMP_DERATE_START_C, then linearly down to DERATE_MIN_SCALE at TEMP_DISABLE_C.
+        """
+        if temp_c <= TEMP_DERATE_START_C:
+            return 1.0
+        if temp_c >= TEMP_DISABLE_C:
+            return DERATE_MIN_SCALE
+        frac = (temp_c - TEMP_DERATE_START_C) / (TEMP_DISABLE_C - TEMP_DERATE_START_C)
+        return clamp(1.0 - frac * (1.0 - DERATE_MIN_SCALE), DERATE_MIN_SCALE, 1.0)
 
-            # read status
-            st = self.read_status(mid)
-            if st is not None:
-                self.last_status = st
-                if self._sync_base_pos_on_start and "position" in st:
-                    with self._lock:
-                        self.base_pos = float(st["position"])
-                        self._sync_base_pos_on_start = False
-
-            with self._lock:
-                base_pos = float(self.base_pos)
-                kp, kd = self.clamp_gains(params.kp, params.kd, model)
-                mode = params.mode
-                paused = params.paused
-                t_ff = params.t_ff
-
-            p_cmd = self.compute_command(t_rel, base_pos, self.params)
-
-            if not paused:
-                try:
-                    self.write_cmd(mid, p_cmd, 0.0, kp, kd, t_ff)
-                except Exception:
-                    pass
-
-            # append to buffer
-            if st is not None:
-                p = float(st.get("position", np.nan))
-                v = float(st.get("velocity", np.nan))
-                tau = float(st.get("torque", np.nan))
+    def _update_temp_state_pre(self, st: MotorState, now: float):
+        """
+        Use last-known temperature to transition state BEFORE sending.
+        (Fast reaction requires at least one-cycle latency unless your driver provides async temp.)
+        """
+        t = st.temperature
+        if st.temp_state != "DISABLED":
+            if t >= TEMP_DISABLE_C:
+                st.temp_state = "DISABLED"
+                st.last_disable_t = now
+            elif t >= TEMP_HOLD_C:
+                st.temp_state = "HOLD"
+            elif t >= TEMP_DERATE_START_C:
+                st.temp_state = "DERATE"
             else:
-                p, v, tau = np.nan, np.nan, np.nan
+                st.temp_state = "OK"
 
-            self.buf.append(t_rel, p, p_cmd, v, tau)
+        # Auto re-enable logic is checked in control_step()
 
-            if self.log_csv is not None:
-                self.csv_rows.append((t_rel, name, mid, model, mode, kp, kd, t_ff, p_cmd, p, v, tau))
+    def connect(self) -> bool:
+        # IMPORTANT: use per-motor model here
+        motors = {
+            f"motor_{mid}": Motor(id=mid, model=self.motor_states[mid].model)
+            for mid in self.motor_states.keys()
+        }
+        calibration = {
+            f"motor_{mid}": {"direction": 1, "homing_offset": 0.0}
+            for mid in self.motor_states.keys()
+        }
 
-            # timing
-            sleep_for = next_time - time.perf_counter()
-            if sleep_for > 0:
-                time.sleep(sleep_for)
-            else:
-                # overrun: don't sleep
+        try:
+            try:
+                self.bus = RobstrideBus(self.channel, motors, calibration, bitrate=self.bitrate)
+            except TypeError:
+                self.bus = RobstrideBus(self.channel, motors, calibration)
+
+            print(f"Connecting to {self.channel} (bitrate={self.bitrate}) ...")
+            self.bus.connect(handshake=True)
+
+            with self.lock:
+                for mid, st in self.motor_states.items():
+                    print(
+                        f"[ID {mid}] model={st.model} enable + MIT mode | dir={st.direction:+d} "
+                        f"| limits=[{st.limit_lo:.4f},{st.limit_hi:.4f}] rad"
+                    )
+                    self.bus.enable(st.name)
+                    st.enabled = True
+                    time.sleep(0.25)
+
+                    self._set_mode_raw(0, mid)
+
+                    # Read once; set targets to current pose (no motion)
+                    try:
+                        pos, vel, tq, temp = self.bus.read_operation_frame(st.name)
+                        st.position, st.velocity, st.torque, st.temperature = pos, vel, tq, temp
+
+                        logical = pos / float(st.direction)  # pre-direction (logical)
+                        # IMPORTANT: do NOT clamp initial hold (could cause motion on connect).
+                        st.target_rad = logical
+                        st.commanded_target_rad = logical
+                        st.hold_center_rad = logical
+
+                        # If out of limits, just warn (future commands will be clamped)
+                        if not (st.limit_lo <= logical <= st.limit_hi):
+                            print(
+                                f"  WARN: current logical pos {logical:.4f} rad is outside limits; holding anyway (no motion)."
+                            )
+
+                        st.last_error = None
+                    except Exception as e:
+                        st.last_error = str(e)
+                        st.target_rad = 0.0
+                        st.commanded_target_rad = 0.0
+                        st.hold_center_rad = 0.0
+
+                    # Send an initial "hold"
+                    physical_target = st.commanded_target_rad * float(st.direction)
+                    self.bus.write_operation_frame(st.name, physical_target, st.kp, st.kd, 0.0, 0.0)
+                    time.sleep(0.05)
+
+            self.connected = True
+            self.running = True
+            print("Connected. Motors are holding their current position (no motion).")
+            return True
+
+        except Exception as e:
+            print(f"Connection failed: {e}")
+            self.connected = False
+            return False
+
+    def _disable_motor_locked(self, st: MotorState, now: float):
+        if not st.enabled:
+            return
+        try:
+            # Freeze command state before disable
+            st.excitation = Excitation()
+            logical = st.position / float(st.direction)
+            st.target_rad = logical
+            st.commanded_target_rad = logical
+            st.hold_center_rad = logical
+
+            self.bus.disable(st.name)
+            st.enabled = False
+            st.last_disable_t = now
+            print(f"[TEMP] DISABLED motor {st.id} at {st.temperature:.1f}C")
+        except Exception as e:
+            st.last_error = f"disable failed: {e}"
+
+    def _reenable_motor_locked(self, st: MotorState, now: float):
+        if st.enabled:
+            return
+        try:
+            self.bus.enable(st.name)
+            time.sleep(0.05)
+            self._set_mode_raw(0, st.id)
+
+            # Re-sync hold to current position after re-enable
+            try:
+                pos, vel, tq, temp = self.bus.read_operation_frame(st.name)
+                st.position, st.velocity, st.torque, st.temperature = pos, vel, tq, temp
+            except Exception:
                 pass
 
-        # try to coast on exit
-        try:
-            self.coast_selected()
-        except Exception:
-            pass
-        try:
-            self.try_disable_all()
-        except Exception:
-            pass
+            logical = st.position / float(st.direction)
+            st.excitation = Excitation()
+            st.target_rad = logical
+            st.commanded_target_rad = logical
+            st.hold_center_rad = logical
 
-    def save_csv(self):
-        if not self.log_csv:
+            physical_target = logical * float(st.direction)
+            self.bus.write_operation_frame(st.name, physical_target, float(st.kp), float(st.kd), 0.0, 0.0)
+
+            st.enabled = True
+            st.temp_state = "HOLD"  # come back in HOLD; user/policy can move again when cool
+            print(f"[TEMP] RE-ENABLED motor {st.id} at {st.temperature:.1f}C (state=HOLD)")
+        except Exception as e:
+            st.last_error = f"reenable failed: {e}"
+
+    def control_step(self, dt: float):
+        """
+        One control cycle (excitation+ramp+send+read) driven by plot callback.
+        Safety order:
+          - decide temp states based on last temperature (pre)
+          - apply HOLD/DISABLE actions
+          - compute target (with limit clamp) + ramp (with temp derate)
+          - send (if enabled)
+          - read telemetry
+          - if temp now critical, disable immediately for next cycles
+        """
+        if not (self.running and self.connected and self.bus):
             return
-        import csv
-        header = ["t", "joint", "motor_id", "model", "mode", "kp", "kd", "t_ff", "p_cmd", "p", "v", "tau"]
-        with open(self.log_csv, "w", newline="") as f:
-            w = csv.writer(f)
-            w.writerow(header)
-            w.writerows(self.csv_rows)
 
-    def start(self):
-        th = threading.Thread(target=self.control_loop, daemon=True)
-        th.start()
-        return th
+        dt = float(clamp(dt, 0.0, 0.05))
+        now = time.time()
+
+        with self.lock:
+            # --- temp state update (pre-send) ---
+            for st in self.motor_states.values():
+                self._update_temp_state_pre(st, now)
+
+            # --- handle DISABLED transitions / auto re-enable ---
+            for st in self.motor_states.values():
+                if st.temp_state == "DISABLED":
+                    if st.enabled:
+                        self._disable_motor_locked(st, now)
+                else:
+                    if (not st.enabled) and (st.temperature <= TEMP_REENABLE_C) and (
+                        (now - st.last_disable_t) >= DISABLE_COOLDOWN_S
+                    ):
+                        self._reenable_motor_locked(st, now)
+
+            # --- handle HOLD state: freeze target at current pose (no excitation) ---
+            for st in self.motor_states.values():
+                if st.temp_state == "HOLD":
+                    st.excitation = Excitation()
+                    logical = st.position / float(st.direction)
+                    st.target_rad = logical
+                    st.commanded_target_rad = logical
+                    st.hold_center_rad = logical
+
+            # --- excitation + clamp + ramp ---
+            for st in self.motor_states.values():
+                if not st.enabled:
+                    continue  # disabled: don't update commands
+
+                ex = st.excitation
+                if ex.mode == "sine" and st.temp_state != "HOLD":
+                    if ex.duration_s is not None and (now - ex.t0) >= ex.duration_s:
+                        st.excitation = Excitation()
+                        st.target_rad = st.hold_center_rad
+                    else:
+                        st.target_rad = ex.center_rad + ex.amp_rad * math.sin(
+                            2.0 * math.pi * ex.freq_hz * (now - ex.t0)
+                        )
+
+                # enforce joint limits in logical space for any motion command
+                st.target_rad = self._clamp_to_limits(st, st.target_rad)
+
+                # ramp (derate motion if hot)
+                motion_scale = 1.0
+                if st.temp_state == "DERATE":
+                    motion_scale = self._motion_scale_from_temp(st.temperature)
+
+                max_step = self.ramp_rad_s_nominal * dt * motion_scale
+                delta = st.target_rad - st.commanded_target_rad
+                if abs(delta) <= max_step:
+                    st.commanded_target_rad = st.target_rad
+                else:
+                    st.commanded_target_rad += math.copysign(max_step, delta)
+
+                # also ensure commanded stays within limits
+                st.commanded_target_rad = self._clamp_to_limits(st, st.commanded_target_rad)
+
+            # --- send frames (fixed gains; RL-safe) ---
+            for st in self.motor_states.values():
+                if not st.enabled:
+                    continue
+                try:
+                    physical_target = st.commanded_target_rad * float(st.direction)
+                    self.bus.write_operation_frame(
+                        st.name, physical_target, float(st.kp), float(st.kd), 0.0, 0.0
+                    )
+                except Exception as e:
+                    if "No response" not in str(e):
+                        st.last_error = str(e)
+
+            # --- read frames ---
+            for st in self.motor_states.values():
+                if not st.enabled:
+                    continue
+                try:
+                    pos, vel, tq, temp = self.bus.read_operation_frame(st.name)
+                    st.position, st.velocity, st.torque, st.temperature = pos, vel, tq, temp
+                    st.last_error = None
+                except Exception as e:
+                    if "No response" not in str(e):
+                        st.last_error = str(e)
+
+            # --- immediate post-read critical check (affects next cycle) ---
+            for st in self.motor_states.values():
+                if st.enabled and st.temperature >= TEMP_DISABLE_C:
+                    st.temp_state = "DISABLED"
+                    st.last_disable_t = now
+                    self._disable_motor_locked(st, now)
+
+    # -------------------- commands --------------------
+    def _confirm_large_change(self, delta_deg: float) -> bool:
+        if abs(delta_deg) <= 15.0:
+            return True
+        print("WARNING: Large change requested.")
+        print(f"Delta: {delta_deg:+.1f} deg (>|15| requires confirmation)")
+        ans = input("Proceed? (y/n): ").strip().lower()
+        return ans in ("y", "yes")
+
+    def select(self, motor_id: Optional[int]):
+        if motor_id is None:
+            self.selected = set(self.motor_states.keys())
+            print(f"Selected all motors: {sorted(self.selected)}")
+            return
+        if motor_id not in self.motor_states:
+            print(f"Motor {motor_id} not found. Available: {sorted(self.motor_states.keys())}")
+            return
+        self.selected = {motor_id}
+        print(f"Selected motor: {motor_id}")
+
+    def invert(self, ids: Set[int]):
+        """
+        Manual override toggle (in addition to initial INVERSION_BY_ID preset).
+        This changes sign mapping immediately; we re-hold to avoid motion.
+        """
+        with self.lock:
+            for mid in ids:
+                if mid not in self.motor_states:
+                    continue
+                st = self.motor_states[mid]
+                st.direction *= -1
+                # keep logical target matching current physical pose to avoid motion
+                logical = st.position / float(st.direction)
+                st.target_rad = logical
+                st.commanded_target_rad = logical
+                st.hold_center_rad = logical
+                st.excitation = Excitation()
+        print(f"Toggled direction for motors: {sorted(ids)}")
+
+    def set_kp(self, kp: float):
+        kp = float(kp)
+        if not (0.0 <= kp <= 5000.0):
+            print("kp out of range (0..5000).")
+            return
+        with self.lock:
+            for mid in self.selected:
+                self.motor_states[mid].kp = kp
+        print(f"Set kp={kp:.1f} for motors: {sorted(self.selected)}")
+
+    def set_kd(self, kd: float):
+        kd = float(kd)
+        if not (0.0 <= kd <= 100.0):
+            print("kd out of range (0..100).")
+            return
+        with self.lock:
+            for mid in self.selected:
+                self.motor_states[mid].kd = kd
+        print(f"Set kd={kd:.2f} for motors: {sorted(self.selected)}")
+
+    def hold(self):
+        with self.lock:
+            for mid in self.selected:
+                st = self.motor_states[mid]
+                st.excitation = Excitation()
+                logical = st.position / float(st.direction)
+                st.target_rad = logical
+                st.commanded_target_rad = logical
+                st.hold_center_rad = logical
+        print(f"Hold set for motors: {sorted(self.selected)}")
+
+    def step(self, delta_deg: float):
+        delta_deg = float(clamp(delta_deg, -90.0, 90.0))
+        if not self._confirm_large_change(delta_deg):
+            print("Cancelled.")
+            return
+        with self.lock:
+            for mid in self.selected:
+                st = self.motor_states[mid]
+                st.excitation = Excitation()
+                st.target_rad = self._clamp_to_limits(st, st.target_rad + math.radians(delta_deg))
+        print(f"Step {delta_deg:+.1f} deg (clamped to limits) for motors: {sorted(self.selected)}")
+
+    def goto(self, angle_deg: float):
+        angle_deg = float(clamp(angle_deg, -720.0, 720.0))
+        mids = sorted(self.selected)
+        if mids:
+            cur_deg = math.degrees(self.motor_states[mids[0]].target_rad)
+            if not self._confirm_large_change(angle_deg - cur_deg):
+                print("Cancelled.")
+                return
+        with self.lock:
+            for mid in self.selected:
+                st = self.motor_states[mid]
+                st.excitation = Excitation()
+                st.target_rad = self._clamp_to_limits(st, math.radians(angle_deg))
+        print(f"Goto {angle_deg:+.1f} deg (clamped to limits) for motors: {sorted(self.selected)}")
+
+    def sine(self, amp_deg: float, freq_hz: float, duration_s: Optional[float]):
+        amp_deg = float(clamp(amp_deg, 0.0, 30.0))
+        freq_hz = float(clamp(freq_hz, 0.1, 5.0))
+        if duration_s is not None:
+            duration_s = float(clamp(duration_s, 0.2, 30.0))
+        with self.lock:
+            now = time.time()
+            for mid in self.selected:
+                st = self.motor_states[mid]
+                center = self._clamp_to_limits(st, st.target_rad)
+                st.target_rad = center
+                st.hold_center_rad = center
+                st.excitation = Excitation(
+                    mode="sine",
+                    amp_rad=math.radians(amp_deg),
+                    freq_hz=freq_hz,
+                    t0=now,
+                    duration_s=duration_s,
+                    center_rad=center,
+                )
+        dstr = f"{duration_s:.2f}s" if duration_s is not None else "infinite"
+        print(
+            f"Sine excite: amp={amp_deg:.2f}deg freq={freq_hz:.2f}Hz duration={dstr} "
+            f"(limits enforced) for motors: {sorted(self.selected)}"
+        )
+
+    def stop_excitation(self):
+        with self.lock:
+            for mid in self.selected:
+                self.motor_states[mid].excitation = Excitation()
+        print(f"Stopped excitation for motors: {sorted(self.selected)}")
+
+    def status(self):
+        with self.lock:
+            print("-" * 132)
+            print(
+                f"{'ID':<4} {'Sel':<4} {'Model':<6} {'Pos(deg)':<10} {'Cmd(deg)':<10} {'Vel':<10} {'Tq':<10} "
+                f"{'Temp':<8} {'State':<9} {'Kp':<8} {'Kd':<8} {'Dir':<4} {'Lim(rad)':<22}"
+            )
+            print("-" * 132)
+            for mid in sorted(self.motor_states.keys()):
+                st = self.motor_states[mid]
+                sel = "*" if mid in self.selected else ""
+                pos_deg = math.degrees(st.position)
+                cmd_deg = math.degrees(st.commanded_target_rad * float(st.direction))
+                dir_str = "INV" if st.direction == -1 else "NOR"
+                lim_str = f"[{st.limit_lo:.3f},{st.limit_hi:.3f}]"
+                print(
+                    f"{mid:<4} {sel:<4} {st.model:<6} {pos_deg:<10.2f} {cmd_deg:<10.2f} {st.velocity:<10.3f} "
+                    f"{st.torque:<10.3f} {st.temperature:<8.1f} {st.temp_state:<9} {st.kp:<8.1f} {st.kd:<8.2f} "
+                    f"{dir_str:<4} {lim_str:<22}"
+                )
+                if st.last_error:
+                    print(f"     error: {st.last_error}")
+            print("-" * 132)
+
+    def shutdown(self):
+        print("Shutting down...")
+        self.running = False
+
+        if self.bus and self.connected:
+            with self.lock:
+                # Hold current pose briefly (only for enabled motors), then disable
+                for st in self.motor_states.values():
+                    if not st.enabled:
+                        continue
+                    try:
+                        logical = st.position / float(st.direction)
+                        physical_target = logical * float(st.direction)
+                        self.bus.write_operation_frame(st.name, physical_target, st.kp, st.kd, 0.0, 0.0)
+                    except Exception:
+                        pass
+                time.sleep(0.2)
+
+                for st in self.motor_states.values():
+                    try:
+                        if st.enabled:
+                            self.bus.disable(st.name)
+                    except Exception:
+                        pass
+            try:
+                self.bus.disconnect()
+            except Exception:
+                pass
+
+        self.connected = False
+        print("Done.")
+
+
+# -------------------- Motor ID parsing / scan --------------------
+def parse_motor_ids_or_scan() -> List[int]:
+    print("Enter motor IDs (space-separated, e.g. '1 2 3')")
+    print("Or press Enter to scan CAN bus.")
+    s = input("Motor IDs: ").strip()
+
+    if s:
+        ids = [int(x) for x in s.split()]
+        if not ids:
+            raise SystemExit("No ids provided.")
+        if len(set(ids)) != len(ids):
+            raise SystemExit("Duplicate ids.")
+        if any(i < 1 or i > 255 for i in ids):
+            raise SystemExit("Ids must be 1..255.")
+        return ids
+
+    channel = "can0"
+    print(f"Scanning {channel} for motors (IDs 1..255) ...")
+    found = RobstrideBus.scan_channel(channel, start_id=1, end_id=255)
+    if not found:
+        raise SystemExit("No motors found.")
+    ids = sorted(found.keys())
+    print(f"Found motors: {ids}")
+    return ids
+
+
+# -------------------- Live plotter (drives control in main thread) --------------------
+class LivePlotter:
+    def __init__(self, tuner: GainTunerMIT, window_s: float = 10.0, ui_hz: float = 30.0):
+        self.tuner = tuner
+        self.window_s = float(window_s)
+        self.ui_interval_ms = int(1000.0 / float(ui_hz))
+
+        maxlen = int(window_s * ui_hz) + 200
+        self.t = deque(maxlen=maxlen)
+        self.pos_deg = deque(maxlen=maxlen)
+        self.cmd_deg = deque(maxlen=maxlen)
+        self.err_deg = deque(maxlen=maxlen)
+        self.vel_deg_s = deque(maxlen=maxlen)
+        self.tq = deque(maxlen=maxlen)
+        self.temp_c = deque(maxlen=maxlen)
+
+        self.fig, self.ax = plt.subplots(5, 1, sharex=True, figsize=(10, 9))
+        try:
+            self.fig.canvas.manager.set_window_title("RobStride Gain Tuner - Live Plots")
+        except Exception:
+            pass
+
+        (self.l_pos,) = self.ax[0].plot([], [], label="pos (deg)")
+        (self.l_cmd,) = self.ax[0].plot([], [], label="cmd (deg)")
+        self.ax[0].set_ylabel("deg")
+        self.ax[0].legend(loc="upper right")
+
+        (self.l_err,) = self.ax[1].plot([], [], label="err (deg)")
+        self.ax[1].set_ylabel("deg")
+        self.ax[1].legend(loc="upper right")
+
+        (self.l_vel,) = self.ax[2].plot([], [], label="vel (deg/s)")
+        self.ax[2].set_ylabel("deg/s")
+        self.ax[2].legend(loc="upper right")
+
+        (self.l_tq,) = self.ax[3].plot([], [], label="torque (Nm)")
+        self.ax[3].set_ylabel("Nm")
+        self.ax[3].legend(loc="upper right")
+
+        (self.l_temp,) = self.ax[4].plot([], [], label="temp (C)")
+        self.ax[4].set_ylabel("C")
+        self.ax[4].set_xlabel("time (s)")
+        self.ax[4].legend(loc="upper right")
+
+        self._t0 = time.time()
+        self._last_update_t = time.time()
+        self._accum = 0.0
+        self._max_control_iters_per_ui = 6
+
+        self.fig.canvas.mpl_connect("close_event", self._on_close)
+        self._ani = None
+
+        # header spacing
+        self.fig.subplots_adjust(top=0.90)
+
+    def _on_close(self, _evt):
+        try:
+            self.tuner.shutdown()
+        finally:
+            os._exit(0)
+
+    def _choose_motor_to_plot(self) -> int:
+        with self.tuner.lock:
+            if len(self.tuner.selected) == 1:
+                return next(iter(self.tuner.selected))
+            if len(self.tuner.selected) > 0:
+                return sorted(self.tuner.selected)[0]
+            return sorted(self.tuner.motor_states.keys())[0]
+
+    def _append_sample(self, mid: int):
+        now_s = time.time() - self._t0
+
+        with self.tuner.lock:
+            st = self.tuner.motor_states[mid]
+            pos = st.position
+            vel = st.velocity
+            tq = st.torque
+            temp = st.temperature
+            cmd_phys = st.commanded_target_rad * float(st.direction)
+            err = cmd_phys - pos
+            kp = st.kp
+            kd = st.kd
+            exmode = st.excitation.mode
+            state = st.temp_state
+            enabled = st.enabled
+            lim_lo, lim_hi = st.limit_lo, st.limit_hi
+            motion_scale = self.tuner._motion_scale_from_temp(temp) if state == "DERATE" else 1.0
+            model = st.model
+
+        self.t.append(now_s)
+        self.pos_deg.append(math.degrees(pos))
+        self.cmd_deg.append(math.degrees(cmd_phys))
+        self.err_deg.append(math.degrees(err))
+        self.vel_deg_s.append(math.degrees(vel))
+        self.tq.append(tq)
+        self.temp_c.append(temp)
+
+        en_str = "EN" if enabled else "DIS"
+        self.fig.suptitle(
+            f"Motor {mid} ({en_str}) model={model} | kp={kp:.2f} kd={kd:.2f} | ex={exmode} | "
+            f"temp={temp:.1f}C state={state} | motion_scale={motion_scale:.2f} | "
+            f"limits=[{lim_lo:.3f},{lim_hi:.3f}] rad | dir={st.direction:+d}",
+            y=0.985,
+            fontsize=10.5,
+        )
+
+    def _update(self, _frame):
+        # Drive control in main thread
+        now = time.time()
+        dt_wall = now - self._last_update_t
+        self._last_update_t = now
+        dt_wall = clamp(dt_wall, 0.0, 0.1)
+
+        self._accum += dt_wall
+        iters = 0
+        while self._accum >= self.tuner.dt and iters < self._max_control_iters_per_ui:
+            self.tuner.control_step(self.tuner.dt)
+            self._accum -= self.tuner.dt
+            iters += 1
+        if iters >= self._max_control_iters_per_ui:
+            self._accum = 0.0
+
+        mid = self._choose_motor_to_plot()
+        self._append_sample(mid)
+
+        if len(self.t) < 2:
+            return (self.l_pos, self.l_cmd, self.l_err, self.l_vel, self.l_tq, self.l_temp)
+
+        x = list(self.t)
+        self.l_pos.set_data(x, list(self.pos_deg))
+        self.l_cmd.set_data(x, list(self.cmd_deg))
+        self.l_err.set_data(x, list(self.err_deg))
+        self.l_vel.set_data(x, list(self.vel_deg_s))
+        self.l_tq.set_data(x, list(self.tq))
+        self.l_temp.set_data(x, list(self.temp_c))
+
+        xmax = x[-1]
+        xmin = max(0.0, xmax - self.window_s)
+        self.ax[-1].set_xlim(xmin, xmax)
+
+        for a in self.ax:
+            a.relim()
+            a.autoscale_view(scalex=False, scaley=True)
+
+        return (self.l_pos, self.l_cmd, self.l_err, self.l_vel, self.l_tq, self.l_temp)
+
+    def show(self):
+        self._ani = FuncAnimation(
+            self.fig,
+            self._update,
+            interval=self.ui_interval_ms,
+            blit=False,
+            cache_frame_data=False,
+        )
+        plt.tight_layout(rect=[0, 0, 1, 0.94])
+        plt.show()
+
+
+# -------------------- CLI thread --------------------
+def command_loop(tuner: GainTunerMIT):
+    print("\nCommands:")
+    print("  select <id> | select all")
+    print("  invert <id...> | invert all")
+    print("  kp <value> | kd <value>")
+    print("  hold")
+    print("  step <deg>")
+    print("  goto <deg>")
+    print("  sine <amp_deg> <freq_hz> [duration_s]")
+    print("  stop")
+    print("  status")
+    print("  q\n")
+
+    while True:
+        try:
+            if len(tuner.selected) == len(tuner.motor_states):
+                sel_str = "ALL"
+            else:
+                sel_str = ",".join(str(x) for x in sorted(tuner.selected))
+            cmd = input(f"[{sel_str}] >> ").strip().lower()
+            if not cmd:
+                continue
+
+            if cmd in ("q", "quit", "exit"):
+                tuner.shutdown()
+                os._exit(0)
+
+            if cmd == "status":
+                tuner.status()
+                continue
+
+            if cmd == "hold":
+                tuner.hold()
+                continue
+
+            if cmd == "stop":
+                tuner.stop_excitation()
+                continue
+
+            if cmd.startswith("select "):
+                parts = cmd.split()
+                if len(parts) != 2:
+                    print("Usage: select <id> or select all")
+                    continue
+                if parts[1] == "all":
+                    tuner.select(None)
+                else:
+                    tuner.select(int(parts[1]))
+                continue
+
+            if cmd.startswith("invert"):
+                parts = cmd.split()
+                if len(parts) < 2:
+                    print("Usage: invert <id...> or invert all")
+                    continue
+                if "all" in parts[1:]:
+                    tuner.invert(set(tuner.motor_states.keys()))
+                else:
+                    ids = set()
+                    for p in parts[1:]:
+                        try:
+                            ids.add(int(p))
+                        except ValueError:
+                            pass
+                    tuner.invert(ids)
+                continue
+
+            if cmd.startswith("kp "):
+                tuner.set_kp(float(cmd.split()[1]))
+                continue
+
+            if cmd.startswith("kd "):
+                tuner.set_kd(float(cmd.split()[1]))
+                continue
+
+            if cmd.startswith("step "):
+                tuner.step(float(cmd.split()[1]))
+                continue
+
+            if cmd.startswith("goto "):
+                tuner.goto(float(cmd.split()[1]))
+                continue
+
+            if cmd.startswith("sine "):
+                parts = cmd.split()
+                if len(parts) not in (3, 4):
+                    print("Usage: sine <amp_deg> <freq_hz> [duration_s]")
+                    continue
+                amp = float(parts[1])
+                freq = float(parts[2])
+                dur = float(parts[3]) if len(parts) == 4 else None
+                tuner.sine(amp, freq, dur)
+                continue
+
+            print("Unknown command. Try: status, hold, step, goto, sine, kp, kd, select, invert, stop, q")
+
+        except KeyboardInterrupt:
+            tuner.shutdown()
+            os._exit(0)
+        except Exception as e:
+            print(f"Error: {e}")
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--iface", default="can0", help="SocketCAN interface, e.g., can0")
-    ap.add_argument("--hz", type=float, default=100.0, help="Control frequency (Hz)")
-    ap.add_argument("--window_s", type=float, default=10.0, help="Plot time window (seconds)")
-    ap.add_argument("--log_csv", default=None, help="Optional path to save CSV log on exit")
-    args = ap.parse_args()
+    motor_ids = parse_motor_ids_or_scan()
 
-    tuner = RobStrideMitTuner(args.iface, args.hz, args.window_s, args.log_csv)
-    ctrl_thread = tuner.start()
+    tuner = GainTunerMIT(
+        motor_ids=motor_ids,
+        channel="can0",
+        bitrate=1_000_000,
+        model="rs-03",   # fallback only (per-ID models used automatically)
+        hz=50.0,
+        ramp_deg_s=30.0,
+    )
 
-    # ---- Matplotlib live plot ----
-    plt.rcParams["toolbar"] = "toolmanager"
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(11, 8), sharex=True)
-    fig.canvas.manager.set_window_title("RobStride MIT Tuner")
+    def _sig(_signum=None, _frame=None):
+        tuner.shutdown()
+        os._exit(0)
 
-    # Lines
-    (line_p,) = ax1.plot([], [], label="position (meas)")
-    (line_pc,) = ax1.plot([], [], label="position (cmd)")
-    ax1.set_ylabel("rad")
-    ax1.legend(loc="upper right")
-    ax1.grid(True)
+    signal.signal(signal.SIGINT, _sig)
+    signal.signal(signal.SIGTERM, _sig)
 
-    (line_v,) = ax2.plot([], [], label="velocity (meas)")
-    ax2.set_ylabel("rad/s")
-    ax2.legend(loc="upper right")
-    ax2.grid(True)
+    if not tuner.connect():
+        sys.exit(1)
 
-    (line_tau,) = ax3.plot([], [], label="torque (meas)")
-    ax3.set_ylabel("Nm")
-    ax3.set_xlabel("time (s)")
-    ax3.legend(loc="upper right")
-    ax3.grid(True)
+    threading.Thread(target=command_loop, args=(tuner,), daemon=True).start()
 
-    def update_title():
-        name, mid, model = tuner.selected_motor
-        with tuner._lock:
-            p = tuner.params
-            kp, kd = tuner.clamp_gains(p.kp, p.kd, model)
-            mode = p.mode
-            amp = p.sine_amp
-            hz = p.sine_hz
-            paused = p.paused
-            step_amp = p.step_amp
-            step_sign = p.step_sign
-        fig.suptitle(
-            f"{name} (id={mid}, {model})  |  mode={mode}  |  kp={kp:.2f} kd={kd:.3f}  "
-            f"|  sine amp={amp:.3f}rad f={hz:.2f}Hz  |  step={step_sign*step_amp:.3f}rad  "
-            f"|  {'PAUSED' if paused else 'RUNNING'}"
-        )
-
-    def animate(_):
-        # pull buffer data
-        t = np.array(tuner.buf.t, dtype=float)
-        if t.size == 0:
-            return (line_p, line_pc, line_v, line_tau)
-
-        p = np.array(tuner.buf.p, dtype=float)
-        pc = np.array(tuner.buf.p_cmd, dtype=float)
-        v = np.array(tuner.buf.v, dtype=float)
-        tau = np.array(tuner.buf.tau, dtype=float)
-
-        line_p.set_data(t, p)
-        line_pc.set_data(t, pc)
-        line_v.set_data(t, v)
-        line_tau.set_data(t, tau)
-
-        # autoscale x to window
-        ax1.set_xlim(max(0.0, t[-1] - tuner.window_s), t[-1])
-
-        # autoscale y with some padding (robust to NaNs)
-        def autoscale(ax, y):
-            y = y[np.isfinite(y)]
-            if y.size < 2:
-                return
-            ymin, ymax = float(np.min(y)), float(np.max(y))
-            if abs(ymax - ymin) < 1e-6:
-                ymin -= 1.0
-                ymax += 1.0
-            pad = 0.1 * (ymax - ymin)
-            ax.set_ylim(ymin - pad, ymax + pad)
-
-        autoscale(ax1, np.concatenate([p, pc]))
-        autoscale(ax2, v)
-        autoscale(ax3, tau)
-
-        update_title()
-        return (line_p, line_pc, line_v, line_tau)
-
-    ani = FuncAnimation(fig, animate, interval=50, blit=False)
-
-    # ---- Keyboard controls ----
-    def on_key(event):
-        key = event.key
-        with tuner._lock:
-            name, mid, model = tuner.selected_motor
-            p = tuner.params
-
-            def set_kp(new_kp):
-                p.kp = float(new_kp)
-
-            def set_kd(new_kd):
-                p.kd = float(new_kd)
-
-            def clamp_now():
-                p.kp, p.kd = tuner.clamp_gains(p.kp, p.kd, model)
-
-            # Gain step sizes (tweak as you like)
-            kp_step = 10.0 if (event.shift is False) else 50.0
-            kd_step = 0.05 if (event.shift is False) else 0.25
-
-            if key in ["escape", "q"]:
-                tuner.running = False
-                plt.close(fig)
-                return
-
-            if key == " ":
-                p.paused = not p.paused
-                return
-
-            if key == "[":
-                tuner.set_selected_motor(tuner.selected_idx - 1)
-                return
-            if key == "]":
-                tuner.set_selected_motor(tuner.selected_idx + 1)
-                return
-
-            if key == "m":
-                p.mode = {"HOLD": "SINE", "SINE": "STEP", "STEP": "HOLD"}.get(p.mode, "HOLD")
-                return
-
-            if key == "r":
-                # base position = current measured
-                tuner.re_zero_base_pos()
-                return
-
-            if key == "c":
-                tuner.buf.clear()
-                return
-
-            # Gains
-            if key == "up":
-                set_kp(p.kp + kp_step)
-                clamp_now()
-                return
-            if key == "down":
-                set_kp(p.kp - kp_step)
-                clamp_now()
-                return
-            if key == "right":
-                set_kd(p.kd + kd_step)
-                clamp_now()
-                return
-            if key == "left":
-                set_kd(p.kd - kd_step)
-                clamp_now()
-                return
-
-            # Sine amplitude / frequency
-            if key == "a":
-                p.sine_amp = float(np.clip(p.sine_amp + 0.01, 0.0, 1.5))
-                return
-            if key == "z":
-                p.sine_amp = float(np.clip(p.sine_amp - 0.01, 0.0, 1.5))
-                return
-            if key == "f":
-                p.sine_hz = float(np.clip(p.sine_hz + 0.05, 0.01, 5.0))
-                return
-            if key == "v":
-                p.sine_hz = float(np.clip(p.sine_hz - 0.05, 0.01, 5.0))
-                return
-
-            # Step helpers
-            if key == "s":
-                p.step_sign *= -1
-                return
-            if key == "e":
-                p.step_amp = p.sine_amp
-                return
-
-    fig.canvas.mpl_connect("key_press_event", on_key)
-
-    # Console hint
-    print("\nRobStride MIT Tuner running.")
-    print("Focus the plot window and use keys: q/ESC quit, SPACE pause, [/] motor, m mode, arrows kp/kd, a/z amp, f/v freq.\n")
-
-    try:
-        plt.show()
-    finally:
-        tuner.running = False
-        try:
-            ctrl_thread.join(timeout=1.0)
-        except Exception:
-            pass
-        try:
-            tuner.save_csv()
-            if args.log_csv:
-                print(f"Saved log: {args.log_csv}")
-        except Exception as e:
-            print(f"Failed to save CSV: {e}", file=sys.stderr)
+    plotter = LivePlotter(tuner, window_s=10.0, ui_hz=30.0)
+    plotter.show()
 
 
 if __name__ == "__main__":
