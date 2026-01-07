@@ -30,6 +30,10 @@ import signal
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Set, List, Tuple
 from collections import deque
+import traceback
+import faulthandler
+import logging
+
 
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
@@ -45,6 +49,58 @@ except ImportError:
     except ImportError as e:
         print(f"Failed to import RobStride SDK: {e}")
         sys.exit(1)
+
+
+# -------------------- Debug / logging --------------------
+LOG_PATH = os.path.join(os.getcwd(), "robstride_gain_tuner_debug.log")
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(threadName)s | %(message)s",
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler(LOG_PATH, mode="a", encoding="utf-8"),
+    ],
+)
+log = logging.getLogger("robstride_gain_tuner")
+
+# Print tracebacks even on "silent" crashes / segfaults (and include all threads)
+try:
+    faulthandler.enable(all_threads=True)
+except Exception as e:
+    print(f"[WARN] faulthandler.enable failed: {e}")
+
+def _print_full_exception(prefix: str, exc: BaseException):
+    """Prints a full traceback to console + log file."""
+    tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    msg = f"{prefix}\n--- TRACEBACK START ---\n{tb}--- TRACEBACK END ---\nLog file: {LOG_PATH}"
+    print(msg)
+    try:
+        log.error(msg)
+    except Exception:
+        pass
+
+def _sys_excepthook(exc_type, exc, tb):
+    # This catches exceptions on the main thread that would otherwise just exit.
+    msg = "".join(traceback.format_exception(exc_type, exc, tb))
+    print(f"\n[FATAL] Unhandled exception on main thread:\n{msg}\nLog file: {LOG_PATH}\n")
+    try:
+        log.critical(msg)
+    except Exception:
+        pass
+
+sys.excepthook = _sys_excepthook
+
+# Python 3.8+ thread exception hook (very useful here)
+if hasattr(threading, "excepthook"):
+    def _thread_excepthook(args):
+        msg = "".join(traceback.format_exception(args.exc_type, args.exc_value, args.exc_traceback))
+        print(f"\n[FATAL] Unhandled exception in thread '{args.thread.name}':\n{msg}\nLog file: {LOG_PATH}\n")
+        try:
+            log.critical(msg)
+        except Exception:
+            pass
+    threading.excepthook = _thread_excepthook
 
 
 def clamp(x: float, lo: float, hi: float) -> float:
@@ -470,6 +526,11 @@ class GainTunerMIT:
             print(f"Motor {motor_id} not found. Available: {sorted(self.motor_states.keys())}")
             return
         self.selected = {motor_id}
+
+        st = self.motor_states[motor_id]
+        if st.last_error:
+            print(f"[WARN] Motor {motor_id} has last_error: {st.last_error} (see also {LOG_PATH})")
+
         print(f"Selected motor: {motor_id}")
 
     def invert(self, ids: Set[int]):
@@ -771,44 +832,54 @@ class LivePlotter:
         )
 
     def _update(self, _frame):
-        # Drive control in main thread
-        now = time.time()
-        dt_wall = now - self._last_update_t
-        self._last_update_t = now
-        dt_wall = clamp(dt_wall, 0.0, 0.1)
+        try:
+            # Drive control in main thread
+            now = time.time()
+            dt_wall = now - self._last_update_t
+            self._last_update_t = now
+            dt_wall = clamp(dt_wall, 0.0, 0.1)
 
-        self._accum += dt_wall
-        iters = 0
-        while self._accum >= self.tuner.dt and iters < self._max_control_iters_per_ui:
-            self.tuner.control_step(self.tuner.dt)
-            self._accum -= self.tuner.dt
-            iters += 1
-        if iters >= self._max_control_iters_per_ui:
-            self._accum = 0.0
+            self._accum += dt_wall
+            iters = 0
+            while self._accum >= self.tuner.dt and iters < self._max_control_iters_per_ui:
+                self.tuner.control_step(self.tuner.dt)
+                self._accum -= self.tuner.dt
+                iters += 1
+            if iters >= self._max_control_iters_per_ui:
+                self._accum = 0.0
 
-        mid = self._choose_motor_to_plot()
-        self._append_sample(mid)
+            mid = self._choose_motor_to_plot()
+            self._append_sample(mid)
 
-        if len(self.t) < 2:
+            if len(self.t) < 2:
+                return (self.l_pos, self.l_cmd, self.l_err, self.l_vel, self.l_tq, self.l_temp)
+
+            x = list(self.t)
+            self.l_pos.set_data(x, list(self.pos_deg))
+            self.l_cmd.set_data(x, list(self.cmd_deg))
+            self.l_err.set_data(x, list(self.err_deg))
+            self.l_vel.set_data(x, list(self.vel_deg_s))
+            self.l_tq.set_data(x, list(self.tq))
+            self.l_temp.set_data(x, list(self.temp_c))
+
+            xmax = x[-1]
+            xmin = max(0.0, xmax - self.window_s)
+            self.ax[-1].set_xlim(xmin, xmax)
+
+            for a in self.ax:
+                a.relim()
+                a.autoscale_view(scalex=False, scaley=True)
+
             return (self.l_pos, self.l_cmd, self.l_err, self.l_vel, self.l_tq, self.l_temp)
 
-        x = list(self.t)
-        self.l_pos.set_data(x, list(self.pos_deg))
-        self.l_cmd.set_data(x, list(self.cmd_deg))
-        self.l_err.set_data(x, list(self.err_deg))
-        self.l_vel.set_data(x, list(self.vel_deg_s))
-        self.l_tq.set_data(x, list(self.tq))
-        self.l_temp.set_data(x, list(self.temp_c))
+        except Exception as e:
+            _print_full_exception("[PLOT] Exception in LivePlotter._update (matplotlib callback)", e)
+            try:
+                self.tuner.shutdown()
+            finally:
+                # Exit non-silently with code 1 so you see the printed traceback.
+                os._exit(1)
 
-        xmax = x[-1]
-        xmin = max(0.0, xmax - self.window_s)
-        self.ax[-1].set_xlim(xmin, xmax)
-
-        for a in self.ax:
-            a.relim()
-            a.autoscale_view(scalex=False, scaley=True)
-
-        return (self.l_pos, self.l_cmd, self.l_err, self.l_vel, self.l_tq, self.l_temp)
 
     def show(self):
         self._ani = FuncAnimation(
@@ -923,7 +994,8 @@ def command_loop(tuner: GainTunerMIT):
             tuner.shutdown()
             os._exit(0)
         except Exception as e:
-            print(f"Error: {e}")
+            _print_full_exception("[CLI] Exception while processing command", e)
+
 
 
 def main():
