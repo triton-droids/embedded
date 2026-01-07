@@ -35,6 +35,9 @@ import faulthandler
 import logging
 
 
+import matplotlib
+matplotlib.use("QtAgg")
+
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
