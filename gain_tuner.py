@@ -991,6 +991,7 @@ def command_loop(tuner: GainTunerMIT):
             print("Unknown command. Try: status, hold, step, goto, sine, kp, kd, select, invert, stop, q")
 
         except KeyboardInterrupt:
+            print("keyboard interrupt")
             tuner.shutdown()
             os._exit(0)
         except Exception as e:
