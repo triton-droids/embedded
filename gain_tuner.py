@@ -36,7 +36,7 @@ import logging
 
 
 import matplotlib
-matplotlib.use("QtAgg")
+matplotlib.use("TkAgg")
 
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
