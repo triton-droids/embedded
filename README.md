@@ -108,10 +108,19 @@ Commands:
 `cd python`
 
 ### 2) Create and activate venv + install packages
-Commands:
-`python3 -m venv venv`  
-`source venv/bin/activate`  
-`pip install -r requirements.txt`
+
+> Recommended: create the venv inside `embedded/` (or a top-level workspace that encompasses your cloned repos).
+
+From your workspace directory (this example uses `embedded/`):
+
+`cd ~/Documents/embedded`
+`python3 -m venv venv`
+`source venv/bin/activate`
+
+Install RobStride SDK Python deps (from the RobStride_Control requirements file):
+
+`pip install -r ~/Documents/RobStride_Control/python/requirements.txt`
+
 
 ---
 
