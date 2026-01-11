@@ -247,22 +247,38 @@ class GainTunerMIT:
 
 # -------------------- IMU Thread --------------------
 def imu_worker(tuner):
-    if not IMU_AVAILABLE: return
-    print(f"Starting IMU stream on {IMU_PORT}...")
+	if not IMU_AVAILABLE: 
+        print("IMU Worker: Library not available.")
+        return
+
+    print(f"--- IMU WORKER STARTED on {IMU_PORT} @ {IMU_BAUD} ---")
+    
     try:
-        # Using serial mode, no integrator needed for simple roll/pitch from Arduino
-        for sample in iter_imu_samples(source="serial", port=IMU_PORT, baud=IMU_BAUD):
+        # We manually iterate to catch parser errors
+        from imu_read import iter_imu_samples
+        
+        # Enable 'include_all=True' to ensure we see raw data if needed
+        iterator = iter_imu_samples(source="serial", port=IMU_PORT, baud=IMU_BAUD, include_all=True)
+        
+        for sample in iterator:
             if not tuner.running: break
             
+            # DEBUG PRINT: Uncomment this to see everything coming from Arduino
+            # print(f"RAW SAMPLE KEYS: {list(sample.keys())}") 
+
             raw_val = sample.get(IMU_TARGET_AXIS)
+            
             if raw_val is not None:
                 with tuner.lock:
                     tuner.imu_connected = True
-                    # Store relative value
                     tuner.imu_val_deg = raw_val - tuner.imu_offset_deg
+            else:
+                # If we get a sample but our target key is missing, warn us!
+                print(f"WARNING: Got data, but '{IMU_TARGET_AXIS}' is missing!")
+                print(f"Available keys: {list(sample.keys())}")
+                
     except Exception as e:
-        print(f"IMU Error: {e}")
-
+        print(f"\n!!! IMU THREAD CRASHED: {e} !!!\n")
 # -------------------- Live Plotter --------------------
 class LivePlotter:
     def __init__(self, tuner):
