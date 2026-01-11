@@ -6,8 +6,42 @@ motor_control_node:
     default_master_id: 255
 
     motors:
+      # ---- existing example ----
       shoulder_pitch:
         can_interface: "can0"
         master_id: 255
         motor_id: 127
         actuator_type: 2
+
+      # ---- from leg_swing_test.py: motor IDs 4/5/9/10 ----
+      left_knee:
+        can_interface: "can0"
+        master_id: 255
+        motor_id: 4
+        actuator_type: 2         # TODO: 确认 rs-04 对应的 actuator_type（先用 2 也能跑通驱动创建）
+        model: "rs-04"           # 备注字段：当前 can_node 不会用
+        direction: +1            # 备注字段：当前 can_node 不会用（leg_swing_test 里 4 为 +1）
+
+      left_ankle:
+        can_interface: "can0"
+        master_id: 255
+        motor_id: 5
+        actuator_type: 2         # TODO: 确认 rs-02 对应的 actuator_type
+        model: "rs-02"
+        direction: +1            # leg_swing_test 里 5 为 +1
+
+      right_knee:
+        can_interface: "can0"
+        master_id: 255
+        motor_id: 9
+        actuator_type: 2         # TODO: 确认 rs-04 对应的 actuator_type
+        model: "rs-04"
+        direction: -1            # leg_swing_test 里 9 为 -1
+
+      right_ankle:
+        can_interface: "can0"
+        master_id: 255
+        motor_id: 10
+        actuator_type: 2         # TODO: 确认 rs-02 对应的 actuator_type
+        model: "rs-02"
+        direction: -1            # leg_swing_test 里 10 为 -1
