@@ -55,7 +55,7 @@ K1 = L1 / L4
 K2 = L1 / L2
 K3 = (L2**2 - L3**2 + L4**2 + L1**2) / (2 * L2 * L4)
 
-def solve_foot_to_motor(target_foot_deg):
+def solve_foot_to_motor(target_foot_deg, t2_guess_rad=None):
     """
     Given a desired foot angle (theta4), solve for required motor angle (theta2).
     Returns radians for the motor.
@@ -65,9 +65,11 @@ def solve_foot_to_motor(target_foot_deg):
     def linkage_constraint(t2):
         return K1 * np.cos(theta4) - K2 * np.cos(t2) - np.cos(t2 - theta4) + K3
 
-    # Guess: motor roughly tracks foot
-    theta2_sol = fsolve(linkage_constraint, theta4)[0]
-    return theta2_sol
+    if t2_guess_rad is None:
+        t2_guess_rad = float(theta4)  # fallback guess
+
+    theta2_sol = fsolve(linkage_constraint, t2_guess_rad)[0]
+    return float(theta2_sol)
 
 def clamp(x, lo, hi):
     return max(lo, min(hi, x))
@@ -121,10 +123,12 @@ class MotorState:
     temp_state: str = "OK"
     enabled: bool = True
     is_ankle: bool = False  # Enables Freudenstein math
+    motor_offset_rad: float = 0.0     # added
+    last_t2_guess_rad: float = 0.0    # added
 
 # -------------------- Main Tuner Class --------------------
 class GainTunerMIT:
-    def __init__(self, motor_ids, channel="can0"):
+    def __init__(self, motor_ids, channel="can0", hz=50.0):
         self.motor_states = {}
         for mid in motor_ids:
             model = MOTOR_MODEL_BY_ID.get(mid, "rs-03")
@@ -142,6 +146,10 @@ class GainTunerMIT:
         self.running = True
         self.connected = False
         self.channel = channel
+        
+        # Control rate
+        self.hz = float(hz)
+        self.dt = 1.0 / self.hz
         
         # IMU Data
         self.imu_val_deg = 0.0
@@ -172,13 +180,23 @@ class GainTunerMIT:
                 # Initialize Logical Targets
                 logical_pos = p / float(st.direction) 
                 
-                # If ankle, we assume motor 0 = foot 0 for startup, 
-                # but ideally we should reverse solve Freudenstein here.
-                # For safety on startup, we just hold current motor pos.
                 if st.is_ankle:
-                    # Just sync commanded to 0 to be safe, or estimate based on linear
-                    st.target_rad = 0.0 
-                    st.commanded_target_rad = 0.0
+                    motor_now_logical = p / float(st.direction)   # motor angle in logical sign
+                    st.last_t2_guess_rad = motor_now_logical
+
+                    # choose foot reference at startup
+                    foot_deg0 = 0.0
+                    if self.imu_connected:
+                        foot_deg0 = float(self.imu_val_deg)       # already minus offset
+
+                    # set foot targets to current foot reference (so plots align)
+                    st.target_rad = math.radians(foot_deg0)
+                    st.commanded_target_rad = math.radians(foot_deg0)
+                    st.hold_center_rad = st.commanded_target_rad
+
+                    # calibrate offset so (foot_deg0) -> current motor angle (no jump)
+                    motor_for_foot0 = solve_foot_to_motor(foot_deg0, t2_guess_rad=motor_now_logical)
+                    st.motor_offset_rad = motor_now_logical - motor_for_foot0
                 else:
                     st.target_rad = logical_pos
                     st.commanded_target_rad = logical_pos
@@ -218,7 +236,10 @@ class GainTunerMIT:
                 
                 if st.is_ankle:
                     # Convert Foot Deg -> Motor Rads (Non-Linear)
-                    motor_rad_target = solve_foot_to_motor(logical_deg)
+                    motor_rad_target = solve_foot_to_motor(logical_deg, t2_guess_rad=st.last_t2_guess_rad)
+                    st.last_t2_guess_rad = motor_rad_target  # keep continuity
+
+                    motor_rad_target = motor_rad_target + st.motor_offset_rad
                     physical_target = motor_rad_target * float(st.direction)
                 else:
                     # 1:1 Mapping
@@ -233,13 +254,26 @@ class GainTunerMIT:
                     pass
 
     def tare_imu(self):
-        """Sets current IMU reading as 0 degrees"""
+        """Sets current IMU reading as 0 degrees and re-aligns ankle mapping"""
         with self.lock:
-            # We assume the current reading is the offset, so subsequent readings - offset = 0
-            # But actually, we want reading - offset = current_target (if we trust the robot is at target)
-            # Simplest: Make current IMU reading 0.
-            self.imu_offset_deg = self.imu_val_deg + self.imu_offset_deg 
+            # make current IMU reading become 0
+            self.imu_offset_deg += self.imu_val_deg
+            self.imu_val_deg = 0.0
             print(f"IMU Tared. Offset: {self.imu_offset_deg:.2f}")
+
+            # ALSO re-anchor ankle mapping so foot=0 => current motor position
+            for st in self.motor_states.values():
+                if not st.is_ankle:
+                    continue
+                motor_now_logical = st.position / float(st.direction)
+                st.last_t2_guess_rad = motor_now_logical
+
+                motor_for_foot0 = solve_foot_to_motor(0.0, t2_guess_rad=motor_now_logical)
+                st.motor_offset_rad = motor_now_logical - motor_for_foot0
+
+                st.target_rad = 0.0
+                st.commanded_target_rad = 0.0
+                st.hold_center_rad = 0.0
 
     def shutdown(self):
         self.running = False
@@ -247,7 +281,7 @@ class GainTunerMIT:
 
 # -------------------- IMU Thread --------------------
 def imu_worker(tuner):
-	if not IMU_AVAILABLE: 
+    if not IMU_AVAILABLE: 
         print("IMU Worker: Library not available.")
         return
 
@@ -304,10 +338,31 @@ class LivePlotter:
         self.imu_data = deque(maxlen=200)
         self.err_data = deque(maxlen=200)
         self.start_t = time.time()
+        
+        # Timing control
+        self._last_update_t = time.time()
+        self._accum = 0.0
+        self._max_control_iters_per_ui = 6
 
     def update(self, frame):
-        # Run Control Loop
-        self.tuner.control_step(0.02) 
+        # Run Control Loop with accumulator pattern
+        now = time.time()
+        dt_wall = now - self._last_update_t
+        self._last_update_t = now
+
+        # clamp so if GUI stalls you don't take a giant step
+        dt_wall = max(0.0, min(0.1, dt_wall))
+
+        self._accum += dt_wall
+        iters = 0
+        while self._accum >= self.tuner.dt and iters < self._max_control_iters_per_ui:
+            self.tuner.control_step(self.tuner.dt)
+            self._accum -= self.tuner.dt
+            iters += 1
+
+        if iters >= self._max_control_iters_per_ui:
+            # drop backlog if UI can't keep up
+            self._accum = 0.0
         
         # Get Data
         t = time.time() - self.start_t
@@ -379,7 +434,7 @@ def command_loop(tuner):
 # -------------------- Main --------------------
 if __name__ == "__main__":
     ids = [5] # Default to left ankle
-    tuner = GainTunerMIT(ids)
+    tuner = GainTunerMIT(ids, hz=50.0)
     
     # Start IMU Thread
     t_imu = threading.Thread(target=imu_worker, args=(tuner,), daemon=True)
