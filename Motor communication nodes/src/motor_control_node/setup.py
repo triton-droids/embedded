@@ -34,6 +34,7 @@ setup(
             'motor_control = motor_control_node.controller_node:main',
             'motor_service = motor_control_node.can_node:main',
             'imu_dr_rk4_node = motor_control_node.imu_dr_rk4_node:main',
+            'swing_leg_node = motor_control_node.swing_leg_node:main',
         ],
     },
 )
