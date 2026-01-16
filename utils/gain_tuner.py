@@ -114,7 +114,7 @@ def clamp(x: float, lo: float, hi: float) -> float:
 
 # -------------------- Your provided config --------------------
 # Inversion array interpreted sequentially for CAN IDs 1-10
-INVERSION_ARRAY = [1, 1, 1, 1, 1, -1, -1, -1, -1, -1]
+INVERSION_ARRAY = [1, 1, 1, 1, 1, 1, -1, -1, -1, -1]
 INVERSION_BY_ID: Dict[int, int] = {i + 1: INVERSION_ARRAY[i] for i in range(len(INVERSION_ARRAY))}
 
 # Joint limits in radians (logical joint space)
