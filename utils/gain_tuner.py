@@ -33,6 +33,8 @@ from collections import deque
 import traceback
 import faulthandler
 import logging
+import numpy as np
+from time import perf_counter
 
 
 import matplotlib
@@ -152,6 +154,11 @@ TEMP_REENABLE_C = 70.0       # must cool below this to re-enable (hysteresis)
 DERATE_MIN_SCALE = 0.20      # minimum motion scale at/above disable threshold
 DISABLE_COOLDOWN_S = 2.0     # how long to stay disabled before trying to re-enable
 
+# -------------------- Delay measurement knobs --------------------
+STEP_CMD_EPS_RAD = 0.005     # detect "command started moving" (~0.29 deg)
+STEP_POS_EPS_RAD = 0.010     # detect "position started moving" (~0.57 deg)
+STEP_TIMEOUT_S = 2.0         # give up if no motion seen in this time
+
 
 @dataclass
 class Excitation:
@@ -201,6 +208,19 @@ class MotorState:
 
     last_error: Optional[str] = None
 
+    # -------------------- Timing / delay metrics --------------------
+    loop_dt_ms: float = 0.0        # wall-time between control_step calls (jitter indicator)
+    write_dt_ms: float = 0.0       # duration of write_operation_frame() call
+    read_dt_ms: float = 0.0        # duration of read_operation_frame() call
+    io_gap_ms: float = 0.0         # (read_end - write_end) in ms (same-cycle IO gap)
+    last_write_end_t: float = 0.0  # epoch seconds (time.time()) when last write finished
+    last_read_end_t: float = 0.0   # epoch seconds when last read finished
+    prev_sent_phys_target: float = 0.0
+    step_pending: bool = False
+    step_cmd_t: float = 0.0        # epoch seconds when first changed command was sent
+    step_pos0: float = 0.0         # position at that time
+    last_step_delay_s: float = math.nan
+
 
 class GainTunerMIT:
     def __init__(
@@ -209,7 +229,7 @@ class GainTunerMIT:
         channel: str = "can0",
         bitrate: int = 1_000_000,
         model: str = "rs-03",   # fallback if ID not in MOTOR_MODEL_BY_ID
-        hz: float = 50.0,
+        hz: float = 60.0,
         ramp_deg_s: float = 30.0,
     ):
         self.channel = channel
@@ -241,6 +261,7 @@ class GainTunerMIT:
 
         self.running = True
         self.connected = False
+        self._last_control_step_t = time.time()
 
     def _clamp_to_limits(self, st: MotorState, logical_rad: float) -> float:
         return clamp(logical_rad, st.limit_lo, st.limit_hi)
@@ -344,6 +365,12 @@ class GainTunerMIT:
                     # Send an initial "hold"
                     physical_target = st.commanded_target_rad * float(st.direction)
                     self.bus.write_operation_frame(st.name, physical_target, st.kp, st.kd, 0.0, 0.0)
+
+                    # --- delay-metrics init (avoid arming a fake step on first cycle) ---
+                    st.prev_sent_phys_target = physical_target
+                    st.step_pending = False
+                    st.last_step_delay_s = math.nan
+
                     time.sleep(0.05)
 
             self.connected = True
@@ -398,6 +425,11 @@ class GainTunerMIT:
             physical_target = logical * float(st.direction)
             self.bus.write_operation_frame(st.name, physical_target, float(st.kp), float(st.kd), 0.0, 0.0)
 
+            # --- delay-metrics init (avoid arming a fake step on first cycle) ---
+            st.prev_sent_phys_target = physical_target
+            st.step_pending = False
+            st.last_step_delay_s = math.nan
+
             st.enabled = True
             st.temp_state = "HOLD"  # come back in HOLD; user/policy can move again when cool
             print(f"[TEMP] RE-ENABLED motor {st.id} at {st.temperature:.1f}C (state=HOLD)")
@@ -421,7 +453,14 @@ class GainTunerMIT:
         dt = float(clamp(dt, 0.0, 0.05))
         now = time.time()
 
+        # --- loop timing (jitter indicator) ---
+        loop_dt = now - self._last_control_step_t
+        self._last_control_step_t = now
+
         with self.lock:
+            for st in self.motor_states.values():
+                st.loop_dt_ms = float(loop_dt) * 1000.0
+
             # --- temp state update (pre-send) ---
             for st in self.motor_states.values():
                 self._update_temp_state_pre(st, now)
@@ -479,27 +518,65 @@ class GainTunerMIT:
                 # also ensure commanded stays within limits
                 st.commanded_target_rad = self._clamp_to_limits(st, st.commanded_target_rad)
 
-            # --- send frames (fixed gains; RL-safe) ---
+            # --- send frames (fixed gains; RL-safe) + IO timing + step-delay arming ---
             for st in self.motor_states.values():
                 if not st.enabled:
                     continue
                 try:
                     physical_target = st.commanded_target_rad * float(st.direction)
+                    arm_step = (
+                        st.excitation.mode != "sine"
+                        and (not st.step_pending)
+                        and abs(physical_target - st.prev_sent_phys_target) >= STEP_CMD_EPS_RAD
+                    )
+
+                    t0 = perf_counter()
                     self.bus.write_operation_frame(
                         st.name, physical_target, float(st.kp), float(st.kd), 0.0, 0.0
                     )
+                    t1 = perf_counter()
+
+                    st.write_dt_ms = (t1 - t0) * 1000.0
+                    st.last_write_end_t = time.time()
+
+                    if arm_step:
+                        st.step_pending = True
+                        st.step_cmd_t = st.last_write_end_t
+                        st.step_pos0 = st.position
+                        st.last_step_delay_s = math.nan
+
+                    st.prev_sent_phys_target = physical_target
+
                 except Exception as e:
                     if "No response" not in str(e):
                         st.last_error = str(e)
 
-            # --- read frames ---
+            # --- read frames + IO timing + step-delay completion ---
             for st in self.motor_states.values():
                 if not st.enabled:
                     continue
                 try:
+                    t0 = perf_counter()
                     pos, vel, tq, temp = self.bus.read_operation_frame(st.name)
+                    t1 = perf_counter()
+
+                    st.read_dt_ms = (t1 - t0) * 1000.0
+                    st.last_read_end_t = time.time()
+
                     st.position, st.velocity, st.torque, st.temperature = pos, vel, tq, temp
                     st.last_error = None
+
+                    if st.last_write_end_t > 0.0:
+                        st.io_gap_ms = (st.last_read_end_t - st.last_write_end_t) * 1000.0
+
+                    if st.step_pending:
+                        if (st.last_read_end_t - st.step_cmd_t) > STEP_TIMEOUT_S:
+                            st.step_pending = False
+                        else:
+                            if abs(st.position - st.step_pos0) >= STEP_POS_EPS_RAD:
+                                st.last_step_delay_s = (st.last_read_end_t - st.step_cmd_t)
+                                st.step_pending = False
+
                 except Exception as e:
                     if "No response" not in str(e):
                         st.last_error = str(e)
@@ -614,7 +691,7 @@ class GainTunerMIT:
         print(f"Goto {angle_deg:+.1f} deg (clamped to limits) for motors: {sorted(self.selected)}")
 
     def sine(self, amp_deg: float, freq_hz: float, duration_s: Optional[float]):
-        amp_deg = float(clamp(amp_deg, 0.0, 30.0))
+        amp_deg = float(clamp(amp_deg, 0.0, 90.0))
         freq_hz = float(clamp(freq_hz, 0.1, 5.0))
         if duration_s is not None:
             duration_s = float(clamp(duration_s, 0.2, 30.0))
@@ -775,7 +852,7 @@ class LivePlotter:
         self._t0 = time.time()
         self._last_update_t = time.time()
         self._accum = 0.0
-        self._max_control_iters_per_ui = 6
+        self._max_control_iters_per_ui = 20
 
         self.fig.canvas.mpl_connect("close_event", self._on_close)
         self._ani = None
@@ -797,6 +874,56 @@ class LivePlotter:
                 return sorted(self.tuner.selected)[0]
             return sorted(self.tuner.motor_states.keys())[0]
 
+    def _wrap_to_pi(self, x: float) -> float:
+        return (x + math.pi) % (2.0 * math.pi) - math.pi
+
+    def _estimate_sine_delay(self, freq_hz: float):
+        """
+        Estimate cmd->pos effective delay at freq_hz using phase lag (least-squares fit).
+        Returns (delay_s, phase_lag_rad) or (None, None).
+        """
+        if freq_hz is None or freq_hz <= 0.0:
+            return (None, None)
+        if len(self.t) < 60:
+            return (None, None)
+
+        t = np.asarray(self.t, dtype=float)
+        cmd = np.asarray(self.cmd_deg, dtype=float) * (math.pi / 180.0)
+        pos = np.asarray(self.pos_deg, dtype=float) * (math.pi / 180.0)
+
+        cmd = cmd - np.mean(cmd)
+        pos = pos - np.mean(pos)
+
+        w = 2.0 * math.pi * float(freq_hz)
+        tt = t - t[0]
+
+        S = np.sin(w * tt)
+        C = np.cos(w * tt)
+        A = np.stack([S, C], axis=1)
+
+        try:
+            (a_cmd, b_cmd), *_ = np.linalg.lstsq(A, cmd, rcond=None)
+            (a_pos, b_pos), *_ = np.linalg.lstsq(A, pos, rcond=None)
+        except Exception:
+            return (None, None)
+
+        amp_cmd = math.hypot(a_cmd, b_cmd)
+        amp_pos = math.hypot(a_pos, b_pos)
+        if amp_cmd < 1e-4 or amp_pos < 1e-4:
+            return (None, None)
+
+        phi_cmd = math.atan2(b_cmd, a_cmd)
+        phi_pos = math.atan2(b_pos, a_pos)
+
+        phase_lag = self._wrap_to_pi(phi_cmd - phi_pos)
+        delay_s = phase_lag / w
+
+        T = 1.0 / float(freq_hz)
+        if delay_s < 0.0:
+            delay_s += T
+
+        return (delay_s, phase_lag)
+
     def _append_sample(self, mid: int):
         now_s = time.time() - self._t0
 
@@ -816,7 +943,14 @@ class LivePlotter:
             lim_lo, lim_hi = st.limit_lo, st.limit_hi
             motion_scale = self.tuner._motion_scale_from_temp(temp) if state == "DERATE" else 1.0
             model = st.model
+            write_ms = st.write_dt_ms
+            read_ms = st.read_dt_ms
+            iogap_ms = st.io_gap_ms
+            loop_ms = st.loop_dt_ms
+            step_delay_s = st.last_step_delay_s
+            exfreq = st.excitation.freq_hz if st.excitation.mode == "sine" else None
 
+        # ---- store samples for plotting + delay estimation ----
         self.t.append(now_s)
         self.pos_deg.append(math.degrees(pos))
         self.cmd_deg.append(math.degrees(cmd_phys))
@@ -825,13 +959,28 @@ class LivePlotter:
         self.tq.append(tq)
         self.temp_c.append(temp)
 
+        step_ms_str = "N/A"
+        if not math.isnan(step_delay_s):
+            step_ms_str = f"{step_delay_s * 1000.0:.1f} ms"
+
+        sine_ms_str = "N/A"
+        phase_deg_str = "N/A"
+        if exmode == "sine" and exfreq is not None:
+            d_s, ph = self._estimate_sine_delay(exfreq)
+            if d_s is not None:
+                sine_ms_str = f"{d_s * 1000.0:.1f} ms"
+                phase_deg_str = f"{math.degrees(ph):.1f} deg"
+
         en_str = "EN" if enabled else "DIS"
         self.fig.suptitle(
-            f"Motor {mid} ({en_str}) model={model} | kp={kp:.2f} kd={kd:.2f} | ex={exmode} | "
-            f"temp={temp:.1f}C state={state} | motion_scale={motion_scale:.2f} | "
-            f"limits=[{lim_lo:.3f},{lim_hi:.3f}] rad | dir={st.direction:+d}",
+            f"Motor {mid} ({en_str}) model={model} | kp={kp:.2f} kd={kd:.2f} | ex={exmode}"
+            + (f"@{exfreq:.2f}Hz" if exfreq is not None else "")
+            + f" | IO: write={write_ms:.2f}ms read={read_ms:.2f}ms gap={iogap_ms:.2f}ms loop={loop_ms:.2f}ms"
+            + f" | step_delay={step_ms_str} | sine_delay={sine_ms_str} phase_lag={phase_deg_str}"
+            + f" | temp={temp:.1f}C state={state} | motion_scale={motion_scale:.2f}"
+            + f" | limits=[{lim_lo:.3f},{lim_hi:.3f}] rad | dir={st.direction:+d}",
             y=0.985,
-            fontsize=10.5,
+            fontsize=10.0,
         )
 
     def _update(self, _frame):
@@ -1010,7 +1159,7 @@ def main():
         channel="can0",
         bitrate=1_000_000,
         model="rs-03",   # fallback only (per-ID models used automatically)
-        hz=50.0,
+        hz=60.0,
         ramp_deg_s=30.0,
     )
 
@@ -1026,7 +1175,7 @@ def main():
 
     threading.Thread(target=command_loop, args=(tuner,), daemon=True).start()
 
-    plotter = LivePlotter(tuner, window_s=10.0, ui_hz=30.0)
+    plotter = LivePlotter(tuner, window_s=30.0, ui_hz=60.0)
     plotter.show()
 
 
