@@ -21,7 +21,7 @@ class RobStrideCanNode(Node):
     """
 
     def __init__(self):
-        super().__init__('motor_control_node')
+        super().__init__('motor_control_node_debug')
 
         # 读取 YAML 文件路径（由 launch 传进来）
         self.declare_parameter('motor_config_file', '')

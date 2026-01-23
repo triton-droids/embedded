@@ -1,0 +1,36 @@
+motor_control_node:
+  ros__parameters:
+    default_can_interface: "can0"
+    default_master_id: 255
+
+    motors:
+      # Example configuration - adjust to your setup
+      shoulder_pitch:
+        can_interface: "can0"
+        master_id: 255
+        motor_id: 127
+        actuator_type: 2
+
+      left_knee:
+        can_interface: "can0"
+        master_id: 255
+        motor_id: 4
+        actuator_type: 2
+
+      left_ankle:
+        can_interface: "can0"
+        master_id: 255
+        motor_id: 5
+        actuator_type: 2
+
+      right_knee:
+        can_interface: "can0"
+        master_id: 255
+        motor_id: 9
+        actuator_type: 2
+
+      right_ankle:
+        can_interface: "can0"
+        master_id: 255
+        motor_id: 10
+        actuator_type: 2

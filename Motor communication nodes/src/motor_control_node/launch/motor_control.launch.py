@@ -55,7 +55,7 @@ def generate_launch_description():
     motor_service_node = Node(
         package='motor_control_node',
         executable='motor_service',
-        name='motor_control_node',
+        name='motor_control_node_debug',
         output='screen',
         parameters=[{'motor_config_file': config_file}],
         condition=enable_can_cond,
