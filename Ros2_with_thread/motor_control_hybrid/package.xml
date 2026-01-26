@@ -18,6 +18,9 @@
   <build_depend>std_msgs</build_depend>
   <build_export_depend>std_msgs</build_export_depend>
   <exec_depend>std_msgs</exec_depend>
+  <build_depend>motor_control_interfaces</build_depend>
+  <build_export_depend>motor_control_interfaces</build_export_depend>
+  <exec_depend>motor_control_interfaces</exec_depend>
 
   <!-- C++ dependencies -->
   <depend>rclcpp</depend>

@@ -22,6 +22,7 @@ import os
 from typing import Dict, Tuple, Optional
 
 from sensor_msgs.msg import JointState
+from motor_control_interfaces.msg import MotorCommand
 
 # Import motor driver from local copy
 from motor_control_hybrid.robstride_motor_linux import RobStrideMotorLinux
@@ -119,7 +120,7 @@ class PythonCanNode(Node):
         )
         
         self.cmd_sub = self.create_subscription(
-            JointState, 'joint_commands',
+            MotorCommand, 'motor_commands',
             self._cmd_callback, 10
         )
         
@@ -173,20 +174,20 @@ class PythonCanNode(Node):
                     continue
                 
                 motor = self.drivers[joint_name]
-                cmd_type = cmd['type']
+                mode = cmd['mode']
                 
                 try:
-                    if cmd_type == 'velocity':
+                    if mode == MotorCommand.MODE_VELOCITY:
                         motor.send_velocity_mode_command(
                             velocity_rad_s=cmd['velocity']
                         )
-                    elif cmd_type == 'position':
+                    elif mode == MotorCommand.MODE_POSITION:
                         motor.pos_pp_control(
                             speed_rad_s=cmd.get('velocity', 0.0),
                             acceleration_rad_s2=cmd.get('acceleration', 0.0),
                             angle_rad=cmd['position']
                         )
-                    elif cmd_type == 'motion':
+                    elif mode == MotorCommand.MODE_MOTION:
                         motor.send_motion_command(
                             torque=cmd.get('torque', 0.0),
                             position_rad=cmd['position'],
@@ -194,9 +195,9 @@ class PythonCanNode(Node):
                             kp=cmd.get('kp', 40.0),
                             kd=cmd.get('kd', 1.5)
                         )
-                    elif cmd_type == 'enable':
+                    elif mode == MotorCommand.MODE_ENABLE:
                         motor.enable_motor()
-                    elif cmd_type == 'disable':
+                    elif mode == MotorCommand.MODE_DISABLE:
                         motor.disable_motor()
                 
                 except Exception as e:
@@ -207,35 +208,49 @@ class PythonCanNode(Node):
             except queue.Empty:
                 continue
     
-    def _cmd_callback(self, msg: JointState):
+    def _cmd_callback(self, msg: MotorCommand):
         """
         ROS2 callback: Receives commands and puts them in queue.
         Non-blocking, just enqueues commands.
+        
+        Parses joint_name[] and mode[]:
+        - If mode size == 1, broadcast to all joints in joint_name[]
+        - If mode is empty, default to MODE_VELOCITY
         """
-        if not msg.name:
+        if not msg.joint_name:
             return
         
-        for i, joint in enumerate(msg.name):
+        # Determine mode: if size==1, broadcast; if empty, default to VELOCITY
+        modes = []
+        if len(msg.mode) == 1:
+            # Broadcast mode to all joints
+            modes = [msg.mode[0]] * len(msg.joint_name)
+        elif len(msg.mode) == 0:
+            # Default to VELOCITY mode
+            modes = [MotorCommand.MODE_VELOCITY] * len(msg.joint_name)
+        else:
+            # Use mode array as-is (must match joint_name length)
+            modes = msg.mode
+        
+        # Process each joint
+        for i, joint in enumerate(msg.joint_name):
             if joint not in self.drivers:
                 continue
             
-            # Determine command type from message
-            # Simple heuristic: if position is set, use position control
-            # Otherwise use velocity control
+            # Get mode for this joint (safe array access)
+            mode = modes[i] if i < len(modes) else MotorCommand.MODE_VELOCITY
+            
+            # Build command dict with safe array access and defaults
             cmd = {
                 'joint': joint,
-                'type': 'velocity',  # default
+                'mode': mode,
+                'position': msg.position[i] if i < len(msg.position) else 0.0,
+                'velocity': msg.velocity[i] if i < len(msg.velocity) else 0.0,
+                'acceleration': msg.acceleration[i] if i < len(msg.acceleration) else 0.0,
+                'torque': msg.torque[i] if i < len(msg.torque) else 0.0,
+                'kp': msg.kp[i] if i < len(msg.kp) else 40.0,
+                'kd': msg.kd[i] if i < len(msg.kd) else 1.5,
             }
-            
-            if i < len(msg.position) and msg.position[i] != 0.0:
-                cmd['type'] = 'position'
-                cmd['position'] = msg.position[i]
-            
-            if i < len(msg.velocity):
-                cmd['velocity'] = msg.velocity[i]
-            
-            if i < len(msg.effort):
-                cmd['torque'] = msg.effort[i]
             
             # Put command in queue (non-blocking if queue is full)
             try:
