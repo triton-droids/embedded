@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 """
-Python CAN Node (ROS2) with per-motor RX threads + one TX thread.
+Python CAN Node (ROS2) with per-motor RX threads + one TX thread. (SAFE RT VERSION)
 
+Architecture:
 - RX: one thread per motor reads status frames and updates shared state_buffer
 - TX: one thread reads commands from a queue and sends CAN commands
 - ROS2: subscribes JointState commands, publishes JointState states
+
+Fix:
+- Removed ctypes + pthread_setschedparam (was causing SIGSEGV due to wrong pthread_t usage)
+- Use os.sched_setscheduler(0, ...) to set RT scheduling for the CURRENT thread safely.
+  If no permission, it fails with PermissionError and we just warn (no crash).
 """
 
 import os
@@ -12,11 +18,9 @@ import time
 import math
 import yaml
 import queue
-import ctypes
-import ctypes.util
 import threading
 from dataclasses import dataclass
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple
 
 import rclpy
 from rclpy.node import Node
@@ -26,35 +30,25 @@ from motor_control_hybrid.robstride_motor_linux import RobStrideMotorLinux
 
 
 # -----------------------------
-# Real-time scheduling (Linux)
+# Real-time scheduling (Linux) - SAFE
 # -----------------------------
-SCHED_FIFO = 1
-SCHED_OTHER = 0
-
-_libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
-
-
-class sched_param(ctypes.Structure):
-    _fields_ = [("sched_priority", ctypes.c_int)]
-
-
-_libc.pthread_self.argtypes = []
-_libc.pthread_self.restype = ctypes.c_void_p
-
-_libc.pthread_setschedparam.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.POINTER(sched_param)]
-_libc.pthread_setschedparam.restype = ctypes.c_int
+SCHED_FIFO = os.SCHED_FIFO
+SCHED_OTHER = os.SCHED_OTHER
 
 
 def set_thread_priority(priority: int, policy: int = SCHED_FIFO) -> bool:
-    """Set RT scheduling for CURRENT thread. Returns False typically on EPERM (no permission)."""
+    """
+    Set scheduling for CURRENT thread (pid=0 => calling thread).
+    Safe: no segfault; returns False on EPERM/EINVAL/etc.
+    """
     if priority <= 0:
         return True
     try:
-        tid = _libc.pthread_self()
-        param = sched_param(int(priority))
-        rc = _libc.pthread_setschedparam(tid, int(policy), ctypes.byref(param))
-        return rc == 0
-    except Exception:
+        os.sched_setscheduler(0, policy, os.sched_param(int(priority)))
+        return True
+    except PermissionError:
+        return False
+    except OSError:
         return False
 
 
@@ -84,14 +78,25 @@ class PythonCanNode(Node):
         self.declare_parameter("motor_config_file", "")
         self.declare_parameter("publish_rate_hz", 50.0)
         self.declare_parameter("command_queue_size", 200)
-        # 兼容你原逻辑：position==0.0 代表“不发 position 指令”
-        # 如果你要允许 position=0 也能作为目标位置发送，把这个设为 False
+
+        # Compatibility with your original logic:
+        # position == 0.0 means "no position command" if True
         self.declare_parameter("use_zero_as_no_position", True)
+
+        # RT options
+        self.declare_parameter("rt_enable", True)
+        self.declare_parameter("rt_base_priority", 80)   # 80-89 typical
+        self.declare_parameter("rt_policy", "fifo")      # "fifo" or "other"
 
         cfg_path = self.get_parameter("motor_config_file").value
         publish_rate = float(self.get_parameter("publish_rate_hz").value)
         qsize = int(self.get_parameter("command_queue_size").value)
         self.use_zero_as_no_position = bool(self.get_parameter("use_zero_as_no_position").value)
+
+        self.rt_enable = bool(self.get_parameter("rt_enable").value)
+        self.rt_base_priority = int(self.get_parameter("rt_base_priority").value)
+        rt_policy_str = str(self.get_parameter("rt_policy").value).lower().strip()
+        self.rt_policy = SCHED_FIFO if rt_policy_str != "other" else SCHED_OTHER
 
         # Drivers
         self.drivers: Dict[str, RobStrideMotorLinux] = self._load_drivers(cfg_path)
@@ -112,7 +117,7 @@ class PythonCanNode(Node):
 
         # Threads
         self.rx_threads: Dict[str, threading.Thread] = {}
-        self._start_rx_threads(base_priority=80)
+        self._start_rx_threads(base_priority=self.rt_base_priority)
         self.tx_thread = self._start_thread(self._tx_loop, name="CAN_TX", daemon=True)
 
         # ROS2 pub/sub
@@ -125,7 +130,8 @@ class PythonCanNode(Node):
 
         self.get_logger().info(
             f"Python CAN node started: motors={len(self.drivers)}, "
-            f"rx_threads={len(self.rx_threads)}, qsize={qsize}"
+            f"rx_threads={len(self.rx_threads)}, qsize={qsize}, "
+            f"rt_enable={self.rt_enable}, rt_policy={rt_policy_str}, rt_base_prio={self.rt_base_priority}"
         )
 
     # -------- config / init --------
@@ -152,7 +158,7 @@ class PythonCanNode(Node):
             actuator_type = int(cfg.get("actuator_type", 0))
 
             self.get_logger().info(
-                f"Init motor: {joint_name} iface={iface} master={master_id} motor_id={motor_id}"
+                f"Initializing motor: {joint_name} on {iface}, master={master_id}, motor_id={motor_id}"
             )
             try:
                 drivers[joint_name] = RobStrideMotorLinux(
@@ -172,7 +178,9 @@ class PythonCanNode(Node):
         return t
 
     def _start_rx_threads(self, base_priority: int = 80):
-        for idx, (joint, motor) in enumerate(self.drivers.items()):
+        # Deterministic order: sort keys so priority assignment is stable across runs
+        for idx, joint in enumerate(sorted(self.drivers.keys())):
+            motor = self.drivers[joint]
             prio = base_priority + (idx % 10)  # 80-89
             t = self._start_thread(
                 target=self._rx_loop_one_motor,
@@ -192,20 +200,25 @@ class PythonCanNode(Node):
 
     # -------- RX / TX loops --------
     def _rx_loop_one_motor(self, joint: str, motor: RobStrideMotorLinux, priority: int):
-        if set_thread_priority(priority, SCHED_FIFO):
-            self.get_logger().info(f"RX {joint}: SCHED_FIFO prio={priority}")
+        # Safe RT scheduling: will never segfault
+        if self.rt_enable:
+            if set_thread_priority(priority, self.rt_policy):
+                self.get_logger().info(f"RX {joint}: RT set (policy={'FIFO' if self.rt_policy==SCHED_FIFO else 'OTHER'} prio={priority})")
+            else:
+                self._throttle_warn(f"rt_{joint}", f"RX {joint}: failed to set RT (EPERM/EINVAL likely).", 5.0)
         else:
-            self._throttle_warn(f"rt_{joint}", f"RX {joint}: failed to set RT (EPERM likely).", 5.0)
+            self.get_logger().info(f"RX {joint}: RT disabled")
 
         while (not self.stop_event.is_set()) and rclpy.ok():
             try:
+                # timeout small; on vcan/no device this likely times out and raises/returns error
                 pos, vel, tq, temp = motor.receive_status_frame(timeout=0.01)
                 with self.state_lock:
                     self.state_buffer[joint] = (pos, vel, tq, temp, time.time())
             except Exception:
-                self._throttle_warn(f"rx_err_{joint}", f"RX {joint}: receive_status_frame failed.", 1.0)
+                self._throttle_warn(f"rx_err_{joint}", f"RX {joint}: receive_status_frame failed (no response expected on vcan).", 1.0)
 
-            time.sleep(0.001) 
+            time.sleep(0.001)
 
     def _tx_loop(self):
         self.get_logger().info("TX thread started")
@@ -251,6 +264,13 @@ class PythonCanNode(Node):
 
     # -------- ROS callbacks --------
     def _cmd_callback(self, msg: JointState):
+        """
+        Heuristic:
+          - Default cmd_type is velocity using msg.velocity[i]
+          - If position is present:
+              - if use_zero_as_no_position=True and position==0.0 -> keep velocity mode
+              - else -> position mode
+        """
         if not msg.name:
             return
 
@@ -265,8 +285,9 @@ class PythonCanNode(Node):
 
             if i < len(msg.position):
                 pos = msg.position[i]
-                if (not self.use_zero_as_no_position) or (pos != 0.0) or math.isnan(pos):
-                    if not math.isnan(pos):
+                # allow NaN sentinel to mean "no position" if you ever use it
+                if not math.isnan(pos):
+                    if (not self.use_zero_as_no_position) or (pos != 0.0):
                         cmd_type = "position"
 
             cmd = MotorCommand(
