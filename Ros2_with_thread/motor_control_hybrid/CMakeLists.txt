@@ -34,6 +34,10 @@ target_include_directories(control_core PUBLIC
 # =========================
 add_executable(cpp_control_node src/cpp_control_node.cpp)
 
+set_target_properties(cpp_control_node PROPERTIES
+  BUILD_RPATH "$ORIGIN"
+  INSTALL_RPATH "$ORIGIN"
+)
 ament_target_dependencies(cpp_control_node
   rclcpp
   sensor_msgs
@@ -89,6 +93,11 @@ install(PROGRAMS
   motor_control_hybrid/python_can_node.py
   DESTINATION lib/${PROJECT_NAME}
   RENAME python_can_node
+)
+install(PROGRAMS
+  motor_control_hybrid/target_gateway_node.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME target_gateway_node
 )
 
 ament_package()

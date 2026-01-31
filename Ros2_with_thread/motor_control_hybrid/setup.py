@@ -25,6 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'python_can_node = motor_control_hybrid.python_can_node:main',
+            'target_gateway_node = motor_control_hybrid.target_gateway_node:main',
         ],
     },
 )
