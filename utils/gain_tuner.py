@@ -13,6 +13,7 @@ Key design:
     OK -> DERATE (slow ramp) -> HOLD (freeze) -> DISABLED (disable motor)
   Gains are never scaled.
 - Motor model is configured per CAN ID in MOTOR_MODEL_BY_ID.
+- NOTE: To hold motor 2 or 7 at zero, select it and use `goto 0` or `hold`.
 
 Run:
   sudo ip link set can0 type can bitrate 1000000
@@ -114,7 +115,7 @@ def clamp(x: float, lo: float, hi: float) -> float:
 
 # -------------------- Your provided config --------------------
 # Inversion array interpreted sequentially for CAN IDs 1-10
-INVERSION_ARRAY = [1, 1, 1, 1, 1, 1, -1, -1, -1, -1]
+INVERSION_ARRAY = [-1, 1, 1, 1, 1, 1, -1, -1, -1, -1]
 INVERSION_BY_ID: Dict[int, int] = {i + 1: INVERSION_ARRAY[i] for i in range(len(INVERSION_ARRAY))}
 
 # Joint limits in radians (logical joint space)
