@@ -1,0 +1,54 @@
+{
+  "urdf": "human_offset_corrected.urdf",
+  "mode": "contact",
+  "hz": 400.0,
+  "duration": 30.0,
+  "dt": 0.0025,
+  "step_freq": 0.6,
+  "ax": 0.1,
+  "az": 0.015,
+  "gamma": 1.8,
+  "air_clearance": 0.03,
+  "ramp_time": 2.0,
+  "ik": {
+    "iters": 30,
+    "tol": 0.0001,
+    "damping": 0.02,
+    "alpha": 0.6,
+    "posture_gain": 0.02
+  },
+  "left_joint_order": [
+    "left_hip1_joint",
+    "left_hip2_joint",
+    "left_thigh_joint",
+    "left_knee_joint",
+    "left_ankle_joint"
+  ],
+  "right_joint_order": [
+    "right_hip1_joint",
+    "right_hip2_joint",
+    "right_thigh_joint",
+    "right_knee_joint",
+    "right_ankle_joint"
+  ],
+  "left_neutral_foot": [
+    0.2829940263579761,
+    -0.16168911145757567,
+    0.1506539926958198
+  ],
+  "right_neutral_foot": [
+    -0.5942650263579761,
+    -0.16168911145757567,
+    0.1506539926958198
+  ],
+  "left_foot_offset": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "right_foot_offset": [
+    0.0,
+    0.0,
+    0.0
+  ]
+}

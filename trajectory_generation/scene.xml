@@ -1,0 +1,284 @@
+<mujoco model="ch_robot">
+  <!-- Meshes in the URDF live in ./robot_meshes (relative to this MJCF). -->
+  <compiler angle="radian" coordinate="local" meshdir="robot_meshes"/>
+
+  <option timestep="0.002" gravity="0 0 -9.81" integrator="implicitfast" cone="elliptic"/>
+
+  <default>
+    <!-- <joint limited="true" damping="1.0" frictionloss="0.15" armature="0.01"/> -->
+    <joint limited="true" damping="1.0" frictionloss="0.05" armature="0.0"/>
+    <default class="servo">
+      <position kp="1" kv="1"/>
+    </default>
+    <default class="contact_surface">
+      <geom condim="3"
+            friction="1.0 0.02 0.002"
+            margin="0.002"
+            solref="0.008 1"
+            solimp="0.95 0.99 0.001"/>
+    </default>
+    <geom type="mesh" contype="0" conaffinity="0" group="0"/>
+  </default>
+
+  <!-- ===================== -->
+  <!--        ASSETS          -->
+  <!-- ===================== -->
+  <asset>
+    <!-- Collision meshes (URDF: robot_meshes/*.stl) -->
+    <mesh name="hip"        file="hip_ch.stl"        scale="0.001 0.001 0.001"/>
+    <mesh name="left_leg1"  file="left_leg1_ch.stl"  scale="0.001 0.001 0.001"/>
+    <mesh name="left_leg2"  file="left_leg2_ch.stl"  scale="0.001 0.001 0.001"/>
+    <mesh name="left_leg3"  file="left_leg3_ch.stl"  scale="0.001 0.001 0.001"/>
+    <mesh name="left_leg4"  file="left_leg4_ch.stl"  scale="0.001 0.001 0.001"/>
+
+    <mesh name="right_leg1" file="right_leg1_ch.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="right_leg2" file="right_leg2_ch.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="right_leg3" file="right_leg3_ch.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="right_leg4" file="right_leg4_ch.stl" scale="0.001 0.001 0.001"/>
+
+    <!-- Visual meshes (URDF: robot_meshes/visual/*.stl) -->
+    <mesh name="torso_visual"           file="visual/battery_box.stl"       scale="0.001 0.001 0.001"/>
+    <mesh name="hip_visual"             file="visual/hip_dumb2.stl"         scale="0.001 0.001 0.001"/>
+
+    <mesh name="left_leg1_visual"       file="visual/left_leg1_dumb.stl"    scale="0.001 0.001 0.001"/>
+    <mesh name="left_leg2_visual"       file="visual/left_leg2_dumb.stl"    scale="0.001 0.001 0.001"/>
+    <mesh name="left_leg3_visual"       file="visual/left_leg3_dumb.stl"    scale="0.001 0.001 0.001"/>
+    <mesh name="left_leg4_visual"       file="visual/left_leg4_dumb.stl"    scale="0.001 0.001 0.001"/>
+    <mesh name="left_foot_visual"       file="visual/left_foot.stl"         scale="0.001 0.001 0.001"/>
+    <mesh name="left_foot_sole_visual"  file="visual/left_foot_sole.stl"    scale="0.001 0.001 0.001"/>
+
+    <mesh name="right_leg1_visual"      file="visual/right_leg1_dumb.stl"   scale="0.001 0.001 0.001"/>
+    <mesh name="right_leg2_visual"      file="visual/right_leg2_dumb.stl"   scale="0.001 0.001 0.001"/>
+    <mesh name="right_leg3_visual"      file="visual/right_leg3_dumb.stl"   scale="0.001 0.001 0.001"/>
+    <mesh name="right_leg4_visual"      file="visual/right_leg4_dumb.stl"   scale="0.001 0.001 0.001"/>
+    <mesh name="right_foot_visual"      file="visual/right_foot.stl"        scale="0.001 0.001 0.001"/>
+    <mesh name="right_foot_sole_visual" file="visual/right_foot_sole.stl"   scale="0.001 0.001 0.001"/>
+
+    <texture name="grid" type="2d" builtin="checker" width="512" height="512"
+             rgb1="0.2 0.3 0.4" rgb2="0.3 0.4 0.5"/>
+    <material name="grid" texture="grid" texrepeat="1 1" texuniform="true" reflectance="0.2"/>
+
+    <material name="metal_silver"
+              rgba="0.55 0.55 0.60 1"
+              specular="1.0"
+              shininess="1.0"
+              reflectance="0.5"/>
+  </asset>
+
+  <!-- <keyframe>
+    <key name="standing_pose" time="0"
+        qpos="0 0 0.017 1 0 0 0 0.3611 0 0 -0.60080008 0.2512 0.3611 0 0 -0.60080008 0.2512"
+        qvel="0 0 0  0 0 0   0 0 0 0 0 0 0 0 0 0"
+        ctrl="0.3611 0 0 -0.60080008 0.2512 0.3611 0 0 -0.60080008 0.2512"/>
+  </keyframe> -->
+
+  <!-- <keyframe>
+    <key name="locomotion_standing_pose" time="0"
+        qpos="0 0 -0.02  0.70710678 0 0 -0.70710678 0.3 0 0 -0.8 0.5 0.3 0 0 -0.8 0.5"
+        qvel="0 0 0  0 0 0   0 0 0 0 0 0 0 0 0 0"
+        ctrl="0.3 0 0 -0.8 0.5 0.3 0 0 -0.8 0.5"/>
+  </keyframe> -->
+
+  <keyframe>
+    <key name="locomotion_standing_pose" time="0"
+        qpos="0.3 0 0 -0.8 0.5 0.3 0 0 -0.8 0.5"
+        qvel="0 0 0 0 0 0 0 0 0 0"
+        ctrl="0.3 0 0 -0.8 0.5 0.3 0 0 -0.8 0.5"/>
+  </keyframe>
+
+
+  <!-- ===================== -->
+  <!--        WORLD           -->
+  <!-- ===================== -->
+  <worldbody>
+    <light pos="0 0 3" dir="0 0 -1" diffuse="0.8 0.8 0.8" specular="0.2 0.2 0.2" directional="false"/>
+    <light pos="2 2 3" dir="-0.5 -0.5 -1" diffuse="0.5 0.5 0.5" specular="0.1 0.1 0.1" directional="false"/>
+    <light pos="-2 2 3" dir="0.5 -0.5 -1" diffuse="0.5 0.5 0.5" specular="0.1 0.1 0.1" directional="false"/>
+
+    <geom name="floor" type="plane" size="5 5 0.1" material="grid"
+      class="contact_surface" contype="1" conaffinity="1"/>
+
+
+    <!-- TORSO (URDF: link "torso") -->
+    <body name="torso" pos="0 0 0.03">
+      <site name="imu" pos="-0.155 -0.016 0.63" size="0.01" rgba="1 0 0 1"/>
+      <freejoint name="root"/>
+
+      <geom mesh="torso_visual" material="metal_silver"/>
+
+      <!-- URDF torso collision box: size="0.28 0.12 0.096" at origin xyz="-0.154672 -0.03 0.6962"
+           MuJoCo box 'size' is HALF-lengths -->
+      <geom name="torso_collision_box" type="box" size="0.14 0.06 0.048"
+            pos="-0.154672 -0.03 0.6962" contype="1" conaffinity="1" group="1" material="metal_silver"/>
+
+      <inertial pos="-0.15417 -0.030012 0.697219"
+                mass="3.175"
+                fullinertia="0.005173 0.01947 0.02099 3.126e-17 1.463904e-6 -1.478e-16"/>
+
+      <!-- HIP (URDF: link "hip") -->
+      <body name="hip" pos="0 0 0">
+        <geom mesh="hip" contype="1" conaffinity="1" group="1"/>
+        <geom mesh="hip_visual" material="metal_silver"/>
+
+        <inertial pos="-0.155587 -0.02906 0.584318"
+                  mass="5.159055"
+                  fullinertia="0.0156 0.02377 0.02517 0.000178966 0.000001857794 -0.000043706028"/>
+
+        <!-- LEFT LEG -->
+        <body name="left_leg1" pos="0 0 0">
+          <joint name="left_hip1_joint" type="hinge" axis="1 0 0" range="-1.57 1.57" pos="-0.068372 -0.029495 0.577401"/>
+          <geom mesh="left_leg1" contype="1" conaffinity="1" group="1"/>
+          <geom mesh="left_leg1_visual" material="metal_silver"/>
+          <inertial pos="-0.005945 -0.035287 0.577433"
+                    mass="2.189611"
+                    fullinertia="0.002609 0.003137 0.003391 0.000081259088 0.000001365266 0.000000223227"/>
+
+          <body name="left_leg2" pos="0 0 0">
+            <joint name="left_hip2_joint" type="hinge" axis="0 1 0" range="-1.57 0.436332" pos="-0.000048 -0.029495 0.577401"/>
+            <geom mesh="left_leg2" contype="1" conaffinity="1" group="1"/>
+            <geom mesh="left_leg2_visual" material="metal_silver"/>
+            <inertial pos="-0.000018 -0.025475 0.486173"
+                      mass="1.709674"
+                      fullinertia="0.006082 0.005232 0.002818 0.000025844041 0.000000765045 -0.0005798"/>
+
+            <body name="left_leg3" pos="0 0 0">
+              <joint name="left_thigh_joint" type="hinge" axis="0 0 -1" range="-0.785398 0.785398" pos="-0.000048 -0.029495 0.463816"/>
+              <geom mesh="left_leg3" contype="1" conaffinity="1" group="1"/>
+              <geom mesh="left_leg3_visual" material="metal_silver"/>
+              <inertial pos="0.005174 -0.030248 0.318931"
+                        mass="3.156742"
+                        fullinertia="0.009368 0.0081 0.004377 0.000046968418 0.0002014 -0.000049473856"/>
+
+              <body name="left_leg4" pos="0 0 0">
+                <joint name="left_knee_joint" type="hinge" axis="1 0 0" range="-2.0944 0" pos="-0.000048 -0.029495 0.306338"/>
+                <geom mesh="left_leg4" contype="1" conaffinity="1" group="1"/>
+                <geom mesh="left_leg4_visual" material="metal_silver"/>
+                <inertial pos="0.001337 -0.031134 0.183938"
+                          mass="1.980828"
+                          fullinertia="0.01171 0.01193 0.002972 -0.000022781438 0.0002839 -0.0002341"/>
+
+                <body name="left_foot" pos="0 0 0">
+                  <joint name="left_ankle_joint" type="hinge" axis="1 0 0" range="-0.6 0.6" pos="0.00958 -0.03 0.031528"/>
+
+                  <!-- Foot collision box positioned to match URDF *in the mesh/body frame*:
+                       left: urdf_collision(-0.01, 0.025, -0.035) - urdf_visual(-0.00958, 0.03, -0.031528)
+                             = (-0.00042, -0.005, -0.003472) -->
+                  <geom name="left_foot_collision_box" type="box" size="0.04 0.105 0.00763"
+                        pos="-0.00042 -0.005 -0.0045" class="contact_surface" contype="1" conaffinity="1" group="1"/>
+
+                  <!-- Foot visuals -->
+                  <geom mesh="left_foot_visual" material="metal_silver"/>
+                  <!-- relative shift = (URDF sole origin) - (URDF foot visual origin) = 0.30958 -->
+                  <geom mesh="left_foot_sole_visual" material="metal_silver" pos="0.30958 0 0"/>
+
+                  <inertial pos="-0.00053 -0.020276 0.011109"
+                            mass="0.765723"
+                            fullinertia="0.002071 0.0004678 0.002213 -0.000017795772 0.000002818065 0.0001167"/>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+
+        <!-- RIGHT LEG -->
+        <body name="right_leg1" pos="0 0 0">
+          <joint name="right_hip1_joint" type="hinge" axis="1 0 0" range="-1.57 1.57" pos="-0.24290 -0.029495 0.577401"/>
+          <geom mesh="right_leg1" contype="1" conaffinity="1" group="1"/>
+          <geom mesh="right_leg1_visual" material="metal_silver"/>
+          <inertial pos="-0.305326 -0.035287 0.577434"
+                    mass="2.189548"
+                    fullinertia="0.002609 0.003137 0.003391 -0.000081252869 -0.00000135392 0.00000024481"/>
+
+          <body name="right_leg2" pos="0 0 0">
+            <joint name="right_hip2_joint" type="hinge" axis="0 1 0" range="-0.436332 1.57" pos="-0.311223 -0.029495 0.577401"/>
+            <geom mesh="right_leg2" contype="1" conaffinity="1" group="1"/>
+            <geom mesh="right_leg2_visual" material="metal_silver"/>
+            <inertial pos="-0.311252 -0.025506 0.485714"
+                      mass="1.72284"
+                      fullinertia="0.006132 0.005281 0.002822 -0.000025837194 -0.000000742612 -0.000583"/>
+
+            <body name="right_leg3" pos="0 0 0">
+              <joint name="right_thigh_joint" type="hinge" axis="0 0 1" range="-0.785398 0.785398" pos="-0.311223 -0.029495 0.463816"/>
+              <geom mesh="right_leg3" contype="1" conaffinity="1" group="1"/>
+              <geom mesh="right_leg3_visual" material="metal_silver"/>
+              <inertial pos="-0.317293 -0.030266 0.31875"
+                        mass="3.074969"
+                        fullinertia="0.009174 0.007824 0.004262 -0.000045044639 -0.0002255 -0.000049133206"/>
+
+              <body name="right_leg4" pos="0 0 0">
+                <joint name="right_knee_joint" type="hinge" axis="1 0 0" range="-2.0944 0" pos="-0.311223 -0.029495 0.306338"/>
+                <geom mesh="right_leg4" contype="1" conaffinity="1" group="1"/>
+                <geom mesh="right_leg4_visual" material="metal_silver"/>
+                <inertial pos="-0.312608 -0.031134 0.183938"
+                          mass="1.980828"
+                          fullinertia="0.01171 0.01193 0.002972 0.000022781459 -0.0002839 -0.0002341"/>
+
+                <body name="right_foot" pos="0 0 0">
+                  <joint name="right_ankle_joint" type="hinge" axis="1 0 0" range="-0.6 0.6" pos="-0.320851 -0.03 0.031528"/>
+
+                  <!-- Foot collision box positioned to match URDF *in the mesh/body frame*:
+                       right: urdf_collision(0.01, 0.025, -0.035) - urdf_visual(0.320851, 0.03, -0.031528)
+                              = (-0.310851, -0.005, -0.003472) -->
+                  <geom name="right_foot_collision_box" type="box" size="0.04 0.105 0.00763"
+                        pos="-0.310851 -0.005 -0.0045" class="contact_surface" contype="1" conaffinity="1" group="1"/>
+
+                  <!-- Foot visuals -->
+                  <geom mesh="right_foot_visual" material="metal_silver"/>
+                  <!-- relative shift = (URDF sole origin) - (URDF foot visual origin) = -0.310851 -->
+                  <geom mesh="right_foot_sole_visual" material="metal_silver" pos="-0.310851 0 0"/>
+
+                  <inertial pos="-0.310741 -0.020276 0.011109"
+                            mass="0.765723"
+                            fullinertia="0.002071 0.0004678 0.002213 0.000017795772 -0.000002818065 0.0001167"/>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+
+      </body>
+    </body>
+
+  </worldbody>
+
+  <!-- ===================== -->
+  <!--        ACTUATORS       -->
+  <!-- ===================== -->
+  <actuator>
+    <position name="left_hip1_act"  joint="left_hip1_joint"  kp="300" kv="15" forcelimited="true" forcerange="-120 120" gear="1"/>
+    <position name="left_hip2_act"  joint="left_hip2_joint"  kp="300" kv="15" forcelimited="true" forcerange="-120 120" gear="1"/>
+    <position name="left_thigh_act" joint="left_thigh_joint" kp="300" kv="15" forcelimited="true" forcerange="-120 120" gear="1"/>
+    <position name="left_knee_act"  joint="left_knee_joint"  kp="340" kv="17" forcelimited="true" forcerange="-120 120" gear="1"/>
+    <position name="left_ankle_act" joint="left_ankle_joint" kp="160" kv="8"  forcelimited="true" forcerange="-120 120" gear="1"/>
+
+    <!-- Right -->
+    <position name="right_hip1_act"  joint="right_hip1_joint"  kp="300" kv="15" forcelimited="true" forcerange="-120 120" gear="1"/>
+    <position name="right_hip2_act"  joint="right_hip2_joint"  kp="300" kv="15" forcelimited="true" forcerange="-120 120" gear="1"/>
+    <position name="right_thigh_act" joint="right_thigh_joint" kp="300" kv="15" forcelimited="true" forcerange="-120 120" gear="1"/>
+    <position name="right_knee_act"  joint="right_knee_joint"  kp="340" kv="17" forcelimited="true" forcerange="-120 120" gear="1"/>
+    <position name="right_ankle_act" joint="right_ankle_joint" kp="160" kv="8"  forcelimited="true" forcerange="-120 120" gear="1"/>
+  </actuator>
+
+
+  <contact>
+    <pair geom1="left_foot_collision_box"  geom2="floor" condim="3"/>
+    <pair geom1="right_foot_collision_box" geom2="floor" condim="3"/>
+
+    <exclude body1="torso" body2="hip"/>
+
+    <!-- No collisions between neighboring links of the left leg -->
+    <exclude body1="hip" body2="left_leg1"/>
+    <exclude body1="left_leg1" body2="left_leg2"/>
+    <exclude body1="left_leg2" body2="left_leg3"/>
+    <exclude body1="left_leg3" body2="left_leg4"/>
+    <exclude body1="left_leg4" body2="left_foot"/>
+
+    <!-- Same idea for the right leg -->
+    <exclude body1="hip" body2="right_leg1"/>
+    <exclude body1="right_leg1" body2="right_leg2"/>
+    <exclude body1="right_leg2" body2="right_leg3"/>
+    <exclude body1="right_leg3" body2="right_leg4"/>
+    <exclude body1="right_leg4" body2="right_foot"/>
+  </contact>
+
+</mujoco>
