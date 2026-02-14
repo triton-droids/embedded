@@ -1,0 +1,1 @@
+for i in {1..10}; do cansend can0 $(printf "0600FE%02X#0100000000000000" $i); sleep 0.05; done; echo "Set mechanical zeros"

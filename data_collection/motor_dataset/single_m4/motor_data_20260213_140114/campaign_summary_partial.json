@@ -1,0 +1,1084 @@
+[
+  {
+    "started_at": "2026-02-13T14:01:30",
+    "family": "single",
+    "pose": "air",
+    "condition": "clean",
+    "active_motor_ids": [
+      4
+    ],
+    "trajectory_type": "sine",
+    "trajectory_name": "sine_amp12.0deg_f0.25Hz",
+    "trajectory_params": {
+      "amp_rad": 0.20944,
+      "amp_deg": 12.000028061219961,
+      "freq_hz": 0.25
+    },
+    "duration_s_planned": 12.0,
+    "sample_hz_target": 400.0,
+    "fields": [
+      "commanded_position_rad",
+      "actual_position_rad",
+      "motor_velocity_rads",
+      "motor_torque_nm",
+      "motor_temperature_c",
+      "commanded_timestamp_ns",
+      "feedback_timestamp_ns",
+      "cycle_idx",
+      "motor_id"
+    ],
+    "joint_limits_rad": {
+      "4": [
+        -2.0944,
+        0.0
+      ]
+    },
+    "motor_models": {
+      "4": "rs-04"
+    },
+    "notes": "single motor excitation",
+    "ended_at": "2026-02-13T14:01:45",
+    "duration_s_actual": 11.998708782994072,
+    "cycles_executed": 4800,
+    "rows_logged": 4800,
+    "achieved_cycle_hz": 400.04304519858863,
+    "overrun_cycles": 0,
+    "early_stop_reason": null,
+    "log_file_npz": "log.npz",
+    "log_file_csv": "log.csv",
+    "resume_key": "single|air|clean|4|sine_amp12.0deg_f0.25Hz"
+  },
+  {
+    "started_at": "2026-02-13T14:01:54",
+    "family": "single",
+    "pose": "air",
+    "condition": "clean",
+    "active_motor_ids": [
+      4
+    ],
+    "trajectory_type": "sine",
+    "trajectory_name": "sine_amp12.0deg_f0.50Hz",
+    "trajectory_params": {
+      "amp_rad": 0.20944,
+      "amp_deg": 12.000028061219961,
+      "freq_hz": 0.5
+    },
+    "duration_s_planned": 12.0,
+    "sample_hz_target": 400.0,
+    "fields": [
+      "commanded_position_rad",
+      "actual_position_rad",
+      "motor_velocity_rads",
+      "motor_torque_nm",
+      "motor_temperature_c",
+      "commanded_timestamp_ns",
+      "feedback_timestamp_ns",
+      "cycle_idx",
+      "motor_id"
+    ],
+    "joint_limits_rad": {
+      "4": [
+        -2.0944,
+        0.0
+      ]
+    },
+    "motor_models": {
+      "4": "rs-04"
+    },
+    "notes": "single motor excitation",
+    "ended_at": "2026-02-13T14:02:09",
+    "duration_s_actual": 11.99899218200153,
+    "cycles_executed": 4800,
+    "rows_logged": 4800,
+    "achieved_cycle_hz": 400.0335967549002,
+    "overrun_cycles": 0,
+    "early_stop_reason": null,
+    "log_file_npz": "log.npz",
+    "log_file_csv": "log.csv",
+    "resume_key": "single|air|clean|4|sine_amp12.0deg_f0.50Hz"
+  },
+  {
+    "started_at": "2026-02-13T14:02:39",
+    "family": "single",
+    "pose": "air",
+    "condition": "clean",
+    "active_motor_ids": [
+      4
+    ],
+    "trajectory_type": "sine",
+    "trajectory_name": "sine_amp12.0deg_f1.00Hz",
+    "trajectory_params": {
+      "amp_rad": 0.20944,
+      "amp_deg": 12.000028061219961,
+      "freq_hz": 1.0
+    },
+    "duration_s_planned": 12.0,
+    "sample_hz_target": 400.0,
+    "fields": [
+      "commanded_position_rad",
+      "actual_position_rad",
+      "motor_velocity_rads",
+      "motor_torque_nm",
+      "motor_temperature_c",
+      "commanded_timestamp_ns",
+      "feedback_timestamp_ns",
+      "cycle_idx",
+      "motor_id"
+    ],
+    "joint_limits_rad": {
+      "4": [
+        -2.0944,
+        0.0
+      ]
+    },
+    "motor_models": {
+      "4": "rs-04"
+    },
+    "notes": "single motor excitation",
+    "ended_at": "2026-02-13T14:02:54",
+    "duration_s_actual": 11.998353035996843,
+    "cycles_executed": 4800,
+    "rows_logged": 4800,
+    "achieved_cycle_hz": 400.05490633583514,
+    "overrun_cycles": 0,
+    "early_stop_reason": null,
+    "log_file_npz": "log.npz",
+    "log_file_csv": "log.csv",
+    "resume_key": "single|air|clean|4|sine_amp12.0deg_f1.00Hz"
+  },
+  {
+    "started_at": "2026-02-13T14:03:03",
+    "family": "single",
+    "pose": "air",
+    "condition": "clean",
+    "active_motor_ids": [
+      4
+    ],
+    "trajectory_type": "sine",
+    "trajectory_name": "sine_amp24.0deg_f0.25Hz",
+    "trajectory_params": {
+      "amp_rad": 0.41888,
+      "amp_deg": 24.000056122439922,
+      "freq_hz": 0.25
+    },
+    "duration_s_planned": 12.0,
+    "sample_hz_target": 400.0,
+    "fields": [
+      "commanded_position_rad",
+      "actual_position_rad",
+      "motor_velocity_rads",
+      "motor_torque_nm",
+      "motor_temperature_c",
+      "commanded_timestamp_ns",
+      "feedback_timestamp_ns",
+      "cycle_idx",
+      "motor_id"
+    ],
+    "joint_limits_rad": {
+      "4": [
+        -2.0944,
+        0.0
+      ]
+    },
+    "motor_models": {
+      "4": "rs-04"
+    },
+    "notes": "single motor excitation",
+    "ended_at": "2026-02-13T14:03:18",
+    "duration_s_actual": 11.998558983999828,
+    "cycles_executed": 4800,
+    "rows_logged": 4800,
+    "achieved_cycle_hz": 400.048039635496,
+    "overrun_cycles": 0,
+    "early_stop_reason": null,
+    "log_file_npz": "log.npz",
+    "log_file_csv": "log.csv",
+    "resume_key": "single|air|clean|4|sine_amp24.0deg_f0.25Hz"
+  },
+  {
+    "started_at": "2026-02-13T14:03:38",
+    "family": "single",
+    "pose": "air",
+    "condition": "clean",
+    "active_motor_ids": [
+      4
+    ],
+    "trajectory_type": "sine",
+    "trajectory_name": "sine_amp24.0deg_f0.50Hz",
+    "trajectory_params": {
+      "amp_rad": 0.41888,
+      "amp_deg": 24.000056122439922,
+      "freq_hz": 0.5
+    },
+    "duration_s_planned": 12.0,
+    "sample_hz_target": 400.0,
+    "fields": [
+      "commanded_position_rad",
+      "actual_position_rad",
+      "motor_velocity_rads",
+      "motor_torque_nm",
+      "motor_temperature_c",
+      "commanded_timestamp_ns",
+      "feedback_timestamp_ns",
+      "cycle_idx",
+      "motor_id"
+    ],
+    "joint_limits_rad": {
+      "4": [
+        -2.0944,
+        0.0
+      ]
+    },
+    "motor_models": {
+      "4": "rs-04"
+    },
+    "notes": "single motor excitation",
+    "ended_at": "2026-02-13T14:03:54",
+    "duration_s_actual": 11.998818088002736,
+    "cycles_executed": 4800,
+    "rows_logged": 4800,
+    "achieved_cycle_hz": 400.03940094727983,
+    "overrun_cycles": 0,
+    "early_stop_reason": null,
+    "log_file_npz": "log.npz",
+    "log_file_csv": "log.csv",
+    "resume_key": "single|air|clean|4|sine_amp24.0deg_f0.50Hz"
+  },
+  {
+    "started_at": "2026-02-13T14:04:04",
+    "family": "single",
+    "pose": "air",
+    "condition": "clean",
+    "active_motor_ids": [
+      4
+    ],
+    "trajectory_type": "sine",
+    "trajectory_name": "sine_amp24.0deg_f1.00Hz",
+    "trajectory_params": {
+      "amp_rad": 0.41888,
+      "amp_deg": 24.000056122439922,
+      "freq_hz": 1.0
+    },
+    "duration_s_planned": 12.0,
+    "sample_hz_target": 400.0,
+    "fields": [
+      "commanded_position_rad",
+      "actual_position_rad",
+      "motor_velocity_rads",
+      "motor_torque_nm",
+      "motor_temperature_c",
+      "commanded_timestamp_ns",
+      "feedback_timestamp_ns",
+      "cycle_idx",
+      "motor_id"
+    ],
+    "joint_limits_rad": {
+      "4": [
+        -2.0944,
+        0.0
+      ]
+    },
+    "motor_models": {
+      "4": "rs-04"
+    },
+    "notes": "single motor excitation",
+    "ended_at": "2026-02-13T14:04:19",
+    "duration_s_actual": 11.998703199002193,
+    "cycles_executed": 4800,
+    "rows_logged": 4800,
+    "achieved_cycle_hz": 400.04323137180074,
+    "overrun_cycles": 0,
+    "early_stop_reason": null,
+    "log_file_npz": "log.npz",
+    "log_file_csv": "log.csv",
+    "resume_key": "single|air|clean|4|sine_amp24.0deg_f1.00Hz"
+  },
+  {
+    "started_at": "2026-02-13T14:04:25",
+    "family": "single",
+    "pose": "air",
+    "condition": "clean",
+    "active_motor_ids": [
+      4
+    ],
+    "trajectory_type": "sine",
+    "trajectory_name": "sine_amp36.0deg_f0.25Hz",
+    "trajectory_params": {
+      "amp_rad": 0.6283199999999999,
+      "amp_deg": 36.00008418365988,
+      "freq_hz": 0.25
+    },
+    "duration_s_planned": 12.0,
+    "sample_hz_target": 400.0,
+    "fields": [
+      "commanded_position_rad",
+      "actual_position_rad",
+      "motor_velocity_rads",
+      "motor_torque_nm",
+      "motor_temperature_c",
+      "commanded_timestamp_ns",
+      "feedback_timestamp_ns",
+      "cycle_idx",
+      "motor_id"
+    ],
+    "joint_limits_rad": {
+      "4": [
+        -2.0944,
+        0.0
+      ]
+    },
+    "motor_models": {
+      "4": "rs-04"
+    },
+    "notes": "single motor excitation",
+    "ended_at": "2026-02-13T14:04:40",
+    "duration_s_actual": 11.998612572002457,
+    "cycles_executed": 4800,
+    "rows_logged": 4800,
+    "achieved_cycle_hz": 400.04625294763764,
+    "overrun_cycles": 0,
+    "early_stop_reason": null,
+    "log_file_npz": "log.npz",
+    "log_file_csv": "log.csv",
+    "resume_key": "single|air|clean|4|sine_amp36.0deg_f0.25Hz"
+  },
+  {
+    "started_at": "2026-02-13T14:05:21",
+    "family": "single",
+    "pose": "air",
+    "condition": "clean",
+    "active_motor_ids": [
+      4
+    ],
+    "trajectory_type": "sine",
+    "trajectory_name": "sine_amp36.0deg_f0.50Hz",
+    "trajectory_params": {
+      "amp_rad": 0.6283199999999999,
+      "amp_deg": 36.00008418365988,
+      "freq_hz": 0.5
+    },
+    "duration_s_planned": 12.0,
+    "sample_hz_target": 400.0,
+    "fields": [
+      "commanded_position_rad",
+      "actual_position_rad",
+      "motor_velocity_rads",
+      "motor_torque_nm",
+      "motor_temperature_c",
+      "commanded_timestamp_ns",
+      "feedback_timestamp_ns",
+      "cycle_idx",
+      "motor_id"
+    ],
+    "joint_limits_rad": {
+      "4": [
+        -2.0944,
+        0.0
+      ]
+    },
+    "motor_models": {
+      "4": "rs-04"
+    },
+    "notes": "single motor excitation",
+    "ended_at": "2026-02-13T14:05:36",
+    "duration_s_actual": 11.998390091001056,
+    "cycles_executed": 4800,
+    "rows_logged": 4800,
+    "achieved_cycle_hz": 400.053670833728,
+    "overrun_cycles": 0,
+    "early_stop_reason": null,
+    "log_file_npz": "log.npz",
+    "log_file_csv": "log.csv",
+    "resume_key": "single|air|clean|4|sine_amp36.0deg_f0.50Hz"
+  },
+  {
+    "started_at": "2026-02-13T14:05:55",
+    "family": "single",
+    "pose": "air",
+    "condition": "clean",
+    "active_motor_ids": [
+      4
+    ],
+    "trajectory_type": "sine",
+    "trajectory_name": "sine_amp36.0deg_f1.00Hz",
+    "trajectory_params": {
+      "amp_rad": 0.6283199999999999,
+      "amp_deg": 36.00008418365988,
+      "freq_hz": 1.0
+    },
+    "duration_s_planned": 12.0,
+    "sample_hz_target": 400.0,
+    "fields": [
+      "commanded_position_rad",
+      "actual_position_rad",
+      "motor_velocity_rads",
+      "motor_torque_nm",
+      "motor_temperature_c",
+      "commanded_timestamp_ns",
+      "feedback_timestamp_ns",
+      "cycle_idx",
+      "motor_id"
+    ],
+    "joint_limits_rad": {
+      "4": [
+        -2.0944,
+        0.0
+      ]
+    },
+    "motor_models": {
+      "4": "rs-04"
+    },
+    "notes": "single motor excitation",
+    "ended_at": "2026-02-13T14:06:10",
+    "duration_s_actual": 11.9988643100005,
+    "cycles_executed": 4800,
+    "rows_logged": 4800,
+    "achieved_cycle_hz": 400.03785991641075,
+    "overrun_cycles": 0,
+    "early_stop_reason": null,
+    "log_file_npz": "log.npz",
+    "log_file_csv": "log.csv",
+    "resume_key": "single|air|clean|4|sine_amp36.0deg_f1.00Hz"
+  },
+  {
+    "started_at": "2026-02-13T14:06:20",
+    "family": "single",
+    "pose": "air",
+    "condition": "clean",
+    "active_motor_ids": [
+      4
+    ],
+    "trajectory_type": "chirp",
+    "trajectory_name": "chirp_amp15.0deg_0.05to0.50Hz",
+    "trajectory_params": {
+      "amp_rad": 0.2618,
+      "amp_deg": 15.00003507652495,
+      "f0_hz": 0.05,
+      "f1_hz": 0.5
+    },
+    "duration_s_planned": 20.0,
+    "sample_hz_target": 400.0,
+    "fields": [
+      "commanded_position_rad",
+      "actual_position_rad",
+      "motor_velocity_rads",
+      "motor_torque_nm",
+      "motor_temperature_c",
+      "commanded_timestamp_ns",
+      "feedback_timestamp_ns",
+      "cycle_idx",
+      "motor_id"
+    ],
+    "joint_limits_rad": {
+      "4": [
+        -2.0944,
+        0.0
+      ]
+    },
+    "motor_models": {
+      "4": "rs-04"
+    },
+    "notes": "single motor excitation",
+    "ended_at": "2026-02-13T14:06:43",
+    "duration_s_actual": 19.998904826999933,
+    "cycles_executed": 8000,
+    "rows_logged": 8000,
+    "achieved_cycle_hz": 400.0219046594709,
+    "overrun_cycles": 2,
+    "early_stop_reason": null,
+    "log_file_npz": "log.npz",
+    "log_file_csv": "log.csv",
+    "resume_key": "single|air|clean|4|chirp_amp15.0deg_0.05to0.50Hz"
+  },
+  {
+    "started_at": "2026-02-13T14:07:00",
+    "family": "single",
+    "pose": "air",
+    "condition": "clean",
+    "active_motor_ids": [
+      4
+    ],
+    "trajectory_type": "random",
+    "trajectory_name": "random_steple20deg_seed1238",
+    "trajectory_params": {
+      "max_step_rad": 0.17453292519943295,
+      "max_step_deg": 10.0,
+      "seed": 1238,
+      "keyframe_hz": 20.0
+    },
+    "duration_s_planned": 20.0,
+    "sample_hz_target": 400.0,
+    "fields": [
+      "commanded_position_rad",
+      "actual_position_rad",
+      "motor_velocity_rads",
+      "motor_torque_nm",
+      "motor_temperature_c",
+      "commanded_timestamp_ns",
+      "feedback_timestamp_ns",
+      "cycle_idx",
+      "motor_id"
+    ],
+    "joint_limits_rad": {
+      "4": [
+        -2.0944,
+        0.0
+      ]
+    },
+    "motor_models": {
+      "4": "rs-04"
+    },
+    "notes": "single motor excitation",
+    "ended_at": "2026-02-13T14:07:23",
+    "duration_s_actual": 19.998866385998554,
+    "cycles_executed": 8000,
+    "rows_logged": 8000,
+    "achieved_cycle_hz": 400.02267356518246,
+    "overrun_cycles": 0,
+    "early_stop_reason": null,
+    "log_file_npz": "log.npz",
+    "log_file_csv": "log.csv",
+    "resume_key": "single|air|clean|4|random_steple20deg_seed1238"
+  },
+  {
+    "started_at": "2026-02-13T14:07:35",
+    "family": "single",
+    "pose": "air",
+    "condition": "disturbed",
+    "active_motor_ids": [
+      4
+    ],
+    "trajectory_type": "sine",
+    "trajectory_name": "sine_amp12.0deg_f0.25Hz",
+    "trajectory_params": {
+      "amp_rad": 0.20944,
+      "amp_deg": 12.000028061219961,
+      "freq_hz": 0.25
+    },
+    "duration_s_planned": 12.0,
+    "sample_hz_target": 400.0,
+    "fields": [
+      "commanded_position_rad",
+      "actual_position_rad",
+      "motor_velocity_rads",
+      "motor_torque_nm",
+      "motor_temperature_c",
+      "commanded_timestamp_ns",
+      "feedback_timestamp_ns",
+      "cycle_idx",
+      "motor_id"
+    ],
+    "joint_limits_rad": {
+      "4": [
+        -2.0944,
+        0.0
+      ]
+    },
+    "motor_models": {
+      "4": "rs-04"
+    },
+    "notes": "single motor excitation",
+    "ended_at": "2026-02-13T14:07:45",
+    "duration_s_actual": 6.593019571999321,
+    "cycles_executed": 2597,
+    "rows_logged": 2597,
+    "achieved_cycle_hz": 393.9014546581218,
+    "overrun_cycles": 0,
+    "early_stop_reason": "read failure on motor 4: No response from motor motor_4 (ID 4)",
+    "log_file_npz": "log.npz",
+    "log_file_csv": "log.csv",
+    "resume_key": "single|air|disturbed|4|sine_amp12.0deg_f0.25Hz"
+  },
+  {
+    "started_at": "2026-02-13T14:07:51",
+    "family": "single",
+    "pose": "air",
+    "condition": "disturbed",
+    "active_motor_ids": [
+      4
+    ],
+    "trajectory_type": "sine",
+    "trajectory_name": "sine_amp12.0deg_f0.50Hz",
+    "trajectory_params": {
+      "amp_rad": 0.20944,
+      "amp_deg": 12.000028061219961,
+      "freq_hz": 0.5
+    },
+    "duration_s_planned": 12.0,
+    "sample_hz_target": 400.0,
+    "fields": [
+      "commanded_position_rad",
+      "actual_position_rad",
+      "motor_velocity_rads",
+      "motor_torque_nm",
+      "motor_temperature_c",
+      "commanded_timestamp_ns",
+      "feedback_timestamp_ns",
+      "cycle_idx",
+      "motor_id"
+    ],
+    "joint_limits_rad": {
+      "4": [
+        -2.0944,
+        0.0
+      ]
+    },
+    "motor_models": {
+      "4": "rs-04"
+    },
+    "notes": "single motor excitation",
+    "ended_at": "2026-02-13T14:08:00",
+    "duration_s_actual": 5.633425455001998,
+    "cycles_executed": 2213,
+    "rows_logged": 2213,
+    "achieved_cycle_hz": 392.8338126911835,
+    "overrun_cycles": 0,
+    "early_stop_reason": "read failure on motor 4: No response from motor motor_4 (ID 4)",
+    "log_file_npz": "log.npz",
+    "log_file_csv": "log.csv",
+    "resume_key": "single|air|disturbed|4|sine_amp12.0deg_f0.50Hz"
+  },
+  {
+    "started_at": "2026-02-13T14:08:08",
+    "family": "single",
+    "pose": "air",
+    "condition": "disturbed",
+    "active_motor_ids": [
+      4
+    ],
+    "trajectory_type": "sine",
+    "trajectory_name": "sine_amp12.0deg_f1.00Hz",
+    "trajectory_params": {
+      "amp_rad": 0.20944,
+      "amp_deg": 12.000028061219961,
+      "freq_hz": 1.0
+    },
+    "duration_s_planned": 12.0,
+    "sample_hz_target": 400.0,
+    "fields": [
+      "commanded_position_rad",
+      "actual_position_rad",
+      "motor_velocity_rads",
+      "motor_torque_nm",
+      "motor_temperature_c",
+      "commanded_timestamp_ns",
+      "feedback_timestamp_ns",
+      "cycle_idx",
+      "motor_id"
+    ],
+    "joint_limits_rad": {
+      "4": [
+        -2.0944,
+        0.0
+      ]
+    },
+    "motor_models": {
+      "4": "rs-04"
+    },
+    "notes": "single motor excitation",
+    "ended_at": "2026-02-13T14:08:23",
+    "duration_s_actual": 11.998770284000784,
+    "cycles_executed": 4800,
+    "rows_logged": 4800,
+    "achieved_cycle_hz": 400.04099473429727,
+    "overrun_cycles": 0,
+    "early_stop_reason": null,
+    "log_file_npz": "log.npz",
+    "log_file_csv": "log.csv",
+    "resume_key": "single|air|disturbed|4|sine_amp12.0deg_f1.00Hz"
+  },
+  {
+    "started_at": "2026-02-13T14:08:28",
+    "family": "single",
+    "pose": "air",
+    "condition": "disturbed",
+    "active_motor_ids": [
+      4
+    ],
+    "trajectory_type": "sine",
+    "trajectory_name": "sine_amp24.0deg_f0.25Hz",
+    "trajectory_params": {
+      "amp_rad": 0.41888,
+      "amp_deg": 24.000056122439922,
+      "freq_hz": 0.25
+    },
+    "duration_s_planned": 12.0,
+    "sample_hz_target": 400.0,
+    "fields": [
+      "commanded_position_rad",
+      "actual_position_rad",
+      "motor_velocity_rads",
+      "motor_torque_nm",
+      "motor_temperature_c",
+      "commanded_timestamp_ns",
+      "feedback_timestamp_ns",
+      "cycle_idx",
+      "motor_id"
+    ],
+    "joint_limits_rad": {
+      "4": [
+        -2.0944,
+        0.0
+      ]
+    },
+    "motor_models": {
+      "4": "rs-04"
+    },
+    "notes": "single motor excitation",
+    "ended_at": "2026-02-13T14:08:43",
+    "duration_s_actual": 11.998488740005996,
+    "cycles_executed": 4800,
+    "rows_logged": 4800,
+    "achieved_cycle_hz": 400.050381678118,
+    "overrun_cycles": 0,
+    "early_stop_reason": null,
+    "log_file_npz": "log.npz",
+    "log_file_csv": "log.csv",
+    "resume_key": "single|air|disturbed|4|sine_amp24.0deg_f0.25Hz"
+  },
+  {
+    "started_at": "2026-02-13T14:08:48",
+    "family": "single",
+    "pose": "air",
+    "condition": "disturbed",
+    "active_motor_ids": [
+      4
+    ],
+    "trajectory_type": "sine",
+    "trajectory_name": "sine_amp24.0deg_f0.50Hz",
+    "trajectory_params": {
+      "amp_rad": 0.41888,
+      "amp_deg": 24.000056122439922,
+      "freq_hz": 0.5
+    },
+    "duration_s_planned": 12.0,
+    "sample_hz_target": 400.0,
+    "fields": [
+      "commanded_position_rad",
+      "actual_position_rad",
+      "motor_velocity_rads",
+      "motor_torque_nm",
+      "motor_temperature_c",
+      "commanded_timestamp_ns",
+      "feedback_timestamp_ns",
+      "cycle_idx",
+      "motor_id"
+    ],
+    "joint_limits_rad": {
+      "4": [
+        -2.0944,
+        0.0
+      ]
+    },
+    "motor_models": {
+      "4": "rs-04"
+    },
+    "notes": "single motor excitation",
+    "ended_at": "2026-02-13T14:09:03",
+    "duration_s_actual": 11.998614231997635,
+    "cycles_executed": 4800,
+    "rows_logged": 4800,
+    "achieved_cycle_hz": 400.0461976016753,
+    "overrun_cycles": 0,
+    "early_stop_reason": null,
+    "log_file_npz": "log.npz",
+    "log_file_csv": "log.csv",
+    "resume_key": "single|air|disturbed|4|sine_amp24.0deg_f0.50Hz"
+  },
+  {
+    "started_at": "2026-02-13T14:09:17",
+    "family": "single",
+    "pose": "air",
+    "condition": "disturbed",
+    "active_motor_ids": [
+      4
+    ],
+    "trajectory_type": "sine",
+    "trajectory_name": "sine_amp24.0deg_f1.00Hz",
+    "trajectory_params": {
+      "amp_rad": 0.41888,
+      "amp_deg": 24.000056122439922,
+      "freq_hz": 1.0
+    },
+    "duration_s_planned": 12.0,
+    "sample_hz_target": 400.0,
+    "fields": [
+      "commanded_position_rad",
+      "actual_position_rad",
+      "motor_velocity_rads",
+      "motor_torque_nm",
+      "motor_temperature_c",
+      "commanded_timestamp_ns",
+      "feedback_timestamp_ns",
+      "cycle_idx",
+      "motor_id"
+    ],
+    "joint_limits_rad": {
+      "4": [
+        -2.0944,
+        0.0
+      ]
+    },
+    "motor_models": {
+      "4": "rs-04"
+    },
+    "notes": "single motor excitation",
+    "ended_at": "2026-02-13T14:09:32",
+    "duration_s_actual": 11.800977222002984,
+    "cycles_executed": 4680,
+    "rows_logged": 4680,
+    "achieved_cycle_hz": 396.57732677206724,
+    "overrun_cycles": 0,
+    "early_stop_reason": "read failure on motor 4: No response from motor motor_4 (ID 4)",
+    "log_file_npz": "log.npz",
+    "log_file_csv": "log.csv",
+    "resume_key": "single|air|disturbed|4|sine_amp24.0deg_f1.00Hz"
+  },
+  {
+    "started_at": "2026-02-13T14:09:36",
+    "family": "single",
+    "pose": "air",
+    "condition": "disturbed",
+    "active_motor_ids": [
+      4
+    ],
+    "trajectory_type": "sine",
+    "trajectory_name": "sine_amp36.0deg_f0.25Hz",
+    "trajectory_params": {
+      "amp_rad": 0.6283199999999999,
+      "amp_deg": 36.00008418365988,
+      "freq_hz": 0.25
+    },
+    "duration_s_planned": 12.0,
+    "sample_hz_target": 400.0,
+    "fields": [
+      "commanded_position_rad",
+      "actual_position_rad",
+      "motor_velocity_rads",
+      "motor_torque_nm",
+      "motor_temperature_c",
+      "commanded_timestamp_ns",
+      "feedback_timestamp_ns",
+      "cycle_idx",
+      "motor_id"
+    ],
+    "joint_limits_rad": {
+      "4": [
+        -2.0944,
+        0.0
+      ]
+    },
+    "motor_models": {
+      "4": "rs-04"
+    },
+    "notes": "single motor excitation",
+    "ended_at": "2026-02-13T14:09:45",
+    "duration_s_actual": 5.330787496000994,
+    "cycles_executed": 2092,
+    "rows_logged": 2092,
+    "achieved_cycle_hz": 392.43732779994684,
+    "overrun_cycles": 0,
+    "early_stop_reason": "read failure on motor 4: No response from motor motor_4 (ID 4)",
+    "log_file_npz": "log.npz",
+    "log_file_csv": "log.csv",
+    "resume_key": "single|air|disturbed|4|sine_amp36.0deg_f0.25Hz"
+  },
+  {
+    "started_at": "2026-02-13T14:09:49",
+    "family": "single",
+    "pose": "air",
+    "condition": "disturbed",
+    "active_motor_ids": [
+      4
+    ],
+    "trajectory_type": "sine",
+    "trajectory_name": "sine_amp36.0deg_f0.50Hz",
+    "trajectory_params": {
+      "amp_rad": 0.6283199999999999,
+      "amp_deg": 36.00008418365988,
+      "freq_hz": 0.5
+    },
+    "duration_s_planned": 12.0,
+    "sample_hz_target": 400.0,
+    "fields": [
+      "commanded_position_rad",
+      "actual_position_rad",
+      "motor_velocity_rads",
+      "motor_torque_nm",
+      "motor_temperature_c",
+      "commanded_timestamp_ns",
+      "feedback_timestamp_ns",
+      "cycle_idx",
+      "motor_id"
+    ],
+    "joint_limits_rad": {
+      "4": [
+        -2.0944,
+        0.0
+      ]
+    },
+    "motor_models": {
+      "4": "rs-04"
+    },
+    "notes": "single motor excitation",
+    "ended_at": "2026-02-13T14:10:05",
+    "duration_s_actual": 11.998870941002679,
+    "cycles_executed": 4800,
+    "rows_logged": 4800,
+    "achieved_cycle_hz": 400.0376388412834,
+    "overrun_cycles": 0,
+    "early_stop_reason": null,
+    "log_file_npz": "log.npz",
+    "log_file_csv": "log.csv",
+    "resume_key": "single|air|disturbed|4|sine_amp36.0deg_f0.50Hz"
+  },
+  {
+    "started_at": "2026-02-13T14:10:10",
+    "family": "single",
+    "pose": "air",
+    "condition": "disturbed",
+    "active_motor_ids": [
+      4
+    ],
+    "trajectory_type": "sine",
+    "trajectory_name": "sine_amp36.0deg_f1.00Hz",
+    "trajectory_params": {
+      "amp_rad": 0.6283199999999999,
+      "amp_deg": 36.00008418365988,
+      "freq_hz": 1.0
+    },
+    "duration_s_planned": 12.0,
+    "sample_hz_target": 400.0,
+    "fields": [
+      "commanded_position_rad",
+      "actual_position_rad",
+      "motor_velocity_rads",
+      "motor_torque_nm",
+      "motor_temperature_c",
+      "commanded_timestamp_ns",
+      "feedback_timestamp_ns",
+      "cycle_idx",
+      "motor_id"
+    ],
+    "joint_limits_rad": {
+      "4": [
+        -2.0944,
+        0.0
+      ]
+    },
+    "motor_models": {
+      "4": "rs-04"
+    },
+    "notes": "single motor excitation",
+    "ended_at": "2026-02-13T14:10:19",
+    "duration_s_actual": 5.420658973001991,
+    "cycles_executed": 2128,
+    "rows_logged": 2128,
+    "achieved_cycle_hz": 392.5721965906115,
+    "overrun_cycles": 0,
+    "early_stop_reason": "read failure on motor 4: No response from motor motor_4 (ID 4)",
+    "log_file_npz": "log.npz",
+    "log_file_csv": "log.csv",
+    "resume_key": "single|air|disturbed|4|sine_amp36.0deg_f1.00Hz"
+  },
+  {
+    "started_at": "2026-02-13T14:10:26",
+    "family": "single",
+    "pose": "air",
+    "condition": "disturbed",
+    "active_motor_ids": [
+      4
+    ],
+    "trajectory_type": "chirp",
+    "trajectory_name": "chirp_amp15.0deg_0.05to0.50Hz",
+    "trajectory_params": {
+      "amp_rad": 0.2618,
+      "amp_deg": 15.00003507652495,
+      "f0_hz": 0.05,
+      "f1_hz": 0.5
+    },
+    "duration_s_planned": 20.0,
+    "sample_hz_target": 400.0,
+    "fields": [
+      "commanded_position_rad",
+      "actual_position_rad",
+      "motor_velocity_rads",
+      "motor_torque_nm",
+      "motor_temperature_c",
+      "commanded_timestamp_ns",
+      "feedback_timestamp_ns",
+      "cycle_idx",
+      "motor_id"
+    ],
+    "joint_limits_rad": {
+      "4": [
+        -2.0944,
+        0.0
+      ]
+    },
+    "motor_models": {
+      "4": "rs-04"
+    },
+    "notes": "single motor excitation",
+    "ended_at": "2026-02-13T14:10:49",
+    "duration_s_actual": 19.998734205997607,
+    "cycles_executed": 8000,
+    "rows_logged": 8000,
+    "achieved_cycle_hz": 400.02531748238374,
+    "overrun_cycles": 0,
+    "early_stop_reason": null,
+    "log_file_npz": "log.npz",
+    "log_file_csv": "log.csv",
+    "resume_key": "single|air|disturbed|4|chirp_amp15.0deg_0.05to0.50Hz"
+  },
+  {
+    "started_at": "2026-02-13T14:10:59",
+    "family": "single",
+    "pose": "air",
+    "condition": "disturbed",
+    "active_motor_ids": [
+      4
+    ],
+    "trajectory_type": "random",
+    "trajectory_name": "random_steple20deg_seed1238",
+    "trajectory_params": {
+      "max_step_rad": 0.17453292519943295,
+      "max_step_deg": 10.0,
+      "seed": 1238,
+      "keyframe_hz": 20.0
+    },
+    "duration_s_planned": 20.0,
+    "sample_hz_target": 400.0,
+    "fields": [
+      "commanded_position_rad",
+      "actual_position_rad",
+      "motor_velocity_rads",
+      "motor_torque_nm",
+      "motor_temperature_c",
+      "commanded_timestamp_ns",
+      "feedback_timestamp_ns",
+      "cycle_idx",
+      "motor_id"
+    ],
+    "joint_limits_rad": {
+      "4": [
+        -2.0944,
+        0.0
+      ]
+    },
+    "motor_models": {
+      "4": "rs-04"
+    },
+    "notes": "single motor excitation",
+    "ended_at": "2026-02-13T14:11:09",
+    "duration_s_actual": 5.990934704997926,
+    "cycles_executed": 2356,
+    "rows_logged": 2356,
+    "achieved_cycle_hz": 393.260837584244,
+    "overrun_cycles": 0,
+    "early_stop_reason": "read failure on motor 4: No response from motor motor_4 (ID 4)",
+    "log_file_npz": "log.npz",
+    "log_file_csv": "log.csv",
+    "resume_key": "single|air|disturbed|4|random_steple20deg_seed1238"
+  }
+]

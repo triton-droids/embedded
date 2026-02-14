@@ -1,0 +1,78 @@
+2026-02-12 20:53:36,706 | INFO | MainThread | Created a socket
+2026-02-12 20:53:37,818 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-02-12 20:54:16,237 | INFO | MainThread | Created a socket
+2026-02-12 20:54:17,346 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-02-12 20:54:28,250 | INFO | MainThread | Created a socket
+2026-02-12 20:54:42,148 | INFO | MainThread | Created a socket
+2026-02-12 20:54:42,351 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-02-12 20:54:50,715 | INFO | MainThread | Created a socket
+2026-02-12 21:48:30,946 | INFO | MainThread | Created a socket
+2026-02-12 21:48:31,148 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-02-12 21:48:42,786 | INFO | MainThread | Created a socket
+2026-02-12 21:48:42,989 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-02-12 21:49:37,388 | INFO | MainThread | Created a socket
+2026-02-12 21:49:37,593 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-02-12 21:50:19,653 | INFO | MainThread | Created a socket
+2026-02-13 12:06:48,269 | INFO | MainThread | Created a socket
+2026-02-13 12:06:48,473 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-02-13 12:15:02,984 | INFO | MainThread | Created a socket
+2026-02-13 12:15:05,324 | CRITICAL | MainThread | Traceback (most recent call last):
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 1184, in <module>
+    main()
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 1156, in main
+    motor_ids = parse_motor_ids_or_scan()
+                ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 801, in parse_motor_ids_or_scan
+    found = RobstrideBus.scan_channel(channel, start_id=1, end_id=255)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/droids/Documents/embedded/robstride_dynamics/bus.py", line 140, in scan_channel
+    response = bus.ping_by_id(device_id, timeout=0.1)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/droids/Documents/embedded/robstride_dynamics/bus.py", line 380, in ping_by_id
+    response = self.receive(timeout)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/droids/Documents/embedded/robstride_dynamics/bus.py", line 262, in receive
+    frame = self.channel_handler.recv(timeout=timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/droids/Documents/RobStride_Control/python/venv/lib/python3.12/site-packages/can/bus.py", line 121, in recv
+    msg, already_filtered = self._recv_internal(timeout=time_left)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/droids/Documents/RobStride_Control/python/venv/lib/python3.12/site-packages/can/interfaces/socketcan/socketcan.py", line 827, in _recv_internal
+    ready_receive_sockets, _, _ = select.select([self.socket], [], [], timeout)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+
+2026-02-13 12:15:13,221 | INFO | MainThread | Created a socket
+2026-02-13 12:24:26,197 | INFO | MainThread | Created a socket
+2026-02-13 12:25:31,889 | INFO | MainThread | Created a socket
+2026-02-13 12:27:09,675 | INFO | MainThread | Created a socket
+2026-02-13 12:32:50,713 | INFO | MainThread | Created a socket
+2026-02-13 12:34:00,999 | INFO | MainThread | Created a socket
+2026-02-13 12:39:44,608 | INFO | MainThread | Created a socket
+2026-02-13 12:41:14,089 | INFO | MainThread | Created a socket
+2026-02-13 12:53:08,533 | INFO | MainThread | Created a socket
+2026-02-13 12:53:45,164 | INFO | MainThread | Created a socket
+2026-02-13 12:55:52,279 | INFO | MainThread | Created a socket
+2026-02-13 12:56:11,803 | INFO | MainThread | Created a socket
+2026-02-13 13:03:22,589 | INFO | MainThread | Created a socket
+2026-02-13 13:03:50,048 | INFO | MainThread | Created a socket
+2026-02-13 13:04:05,905 | INFO | MainThread | Created a socket
+2026-02-13 13:05:01,556 | INFO | MainThread | Created a socket
+2026-02-13 13:05:39,257 | INFO | MainThread | Created a socket
+2026-02-13 13:13:49,927 | INFO | MainThread | Created a socket
+2026-02-13 13:40:33,532 | INFO | MainThread | Created a socket
+2026-02-13 14:41:37,350 | INFO | MainThread | Created a socket
+2026-02-13 14:41:37,554 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-02-13 14:41:40,948 | INFO | MainThread | Created a socket
+2026-02-13 14:41:41,152 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-02-13 14:41:44,215 | INFO | MainThread | Created a socket
+2026-02-13 15:12:51,008 | INFO | MainThread | Created a socket
+2026-02-13 15:13:15,935 | INFO | MainThread | Created a socket
+2026-02-13 15:15:43,434 | INFO | MainThread | Created a socket
+2026-02-13 15:15:55,703 | INFO | MainThread | Created a socket
+2026-02-13 15:53:07,622 | INFO | MainThread | Created a socket
+2026-02-13 15:53:49,068 | INFO | MainThread | Created a socket
+2026-02-13 15:54:45,691 | INFO | MainThread | Created a socket
+2026-02-13 15:56:22,482 | INFO | MainThread | Created a socket
+2026-02-13 15:57:57,298 | INFO | MainThread | Created a socket
+2026-02-13 15:58:28,632 | INFO | MainThread | Created a socket

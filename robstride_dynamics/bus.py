@@ -262,7 +262,6 @@ class RobstrideBus:
             frame = self.channel_handler.recv(timeout=timeout)
 
             if not frame:
-                print("WARNING: Received no response from the motor")
                 return None
 
             if not frame.is_extended_id:
@@ -279,85 +278,98 @@ class RobstrideBus:
 
         return communication_type, extra_data, host_id, frame.data
 
-    def receive_status_frame(self, motor: str) -> tuple[float, float, float, float]:
+    def receive_status_frame(self, motor: str, timeout: float = 0.1) -> tuple[float, float, float, float]:
         """
         Receives the response frame and update the status of the motor.
 
         Returns:
             tuple: (position, velocity, torque, temperature)
         """
-        received_frame = self.receive(timeout=0.1)
-        if not received_frame:
-            raise RuntimeError(f"No response from the motor {motor}")
-        communication_type, extra_data, host_id, data = received_frame
-
+        expected_id = self.motors[motor].id
         model = self.motors[motor].model
-        # unpack the extra data field
-        # since we already pre-unpacked the extra data field out, the shifting
-        # will be 8 less than the number specified in the datasheet
-        # status_mode = (extra_data >> 14) & 0x03
-        status_uncalibrated = (extra_data >> 13) & 0x01
-        status_stall = (extra_data >> 12) & 0x01
-        status_magnetic_encoder_fault = (extra_data >> 11) & 0x01
-        status_overtemperature = (extra_data >> 10) & 0x01
-        status_overcurrent = (extra_data >> 9) & 0x01
-        status_undervoltage = (extra_data >> 8) & 0x01
-        device_id = (extra_data >> 0) & 0xFF
+        deadline = time.time() + timeout
 
-        if status_uncalibrated:
-            print(f"WARNING: {motor} is uncalibrated")
-        if status_stall:
-            print(f"WARNING: {motor} is stalled")
-        if status_magnetic_encoder_fault:
-            print(f"WARNING: {motor} has a magnetic encoder fault")
-        if status_overtemperature:
-            print(f"WARNING: {motor} is overtemperature")
-        if status_overcurrent:
-            print(f"WARNING: {motor} is overcurrent")
-        if status_undervoltage:
-            print(f"WARNING: {motor} is undervoltage")
-        if device_id != self.motors[motor].id:
-            print(f"WARNING: Invalid device ID, got {device_id}, expected {self.motors[motor].id}")
+        while True:
+            remaining = max(0.0, deadline - time.time())
+            received_frame = self.receive(timeout=remaining)
+            if not received_frame:
+                raise RuntimeError(f"No response from motor {motor} (ID {expected_id})")
+            communication_type, extra_data, host_id, data = received_frame
 
-        assert (
-            (communication_type in [CommunicationType.OPERATION_STATUS, CommunicationType.FAULT_REPORT])
-        ), f"Invalid communication type, got {communication_type}"
+            if communication_type not in [CommunicationType.OPERATION_STATUS, CommunicationType.FAULT_REPORT]:
+                continue
 
-        if communication_type == CommunicationType.FAULT_REPORT:
-            fault_value, warning_value = struct.unpack("<LL", data)
-            warning_motor_overtemperature = (warning_value >> 0) & 0x01
-            fault_stall_current = (warning_value >> 14) & 0x01
-            fault_encoder_uncalibrated = (fault_value >> 7) & 0x01
-            fault_overvoltage = (fault_value >> 3) & 0x01
-            fault_undervoltage = (fault_value >> 2) & 0x01
-            fault_gate = (fault_value >> 1) & 0x01
-            fault_motor_overtemperature = (fault_value >> 0) & 0x01
+            # unpack the extra data field
+            # since we already pre-unpacked the extra data field out, the shifting
+            # will be 8 less than the number specified in the datasheet
+            # status_mode = (extra_data >> 14) & 0x03
+            status_uncalibrated = (extra_data >> 13) & 0x01
+            status_stall = (extra_data >> 12) & 0x01
+            status_magnetic_encoder_fault = (extra_data >> 11) & 0x01
+            status_overtemperature = (extra_data >> 10) & 0x01
+            status_overcurrent = (extra_data >> 9) & 0x01
+            status_undervoltage = (extra_data >> 8) & 0x01
+            device_id = (extra_data >> 0) & 0xFF
 
-            if fault_motor_overtemperature:
-                print(f"FAULT: {motor} overtemperature")
-            if fault_gate:
-                print(f"FAULT: {motor} drive gate fault")
-            if fault_undervoltage:
-                print(f"FAULT: {motor} undervoltage")
-            if fault_overvoltage:
-                print(f"FAULT: {motor} overvoltage")
-            if fault_encoder_uncalibrated:
-                print(f"FAULT: {motor} uncalibrated")
-            if fault_stall_current:
-                print(f"FAULT: {motor} stalled")
-            if warning_motor_overtemperature:
-                print(f"WARNING: {motor} overtemperature")
-            raise RuntimeError(f"Received fault frame from {motor}: {data}")
+            if device_id != expected_id:
+                # Another motor responded first; keep waiting for the expected motor.
+                if communication_type == CommunicationType.FAULT_REPORT:
+                    print(
+                        f"WARNING: Received fault frame from motor ID {device_id} "
+                        f"while waiting for motor ID {expected_id}; skipping"
+                    )
+                if time.time() >= deadline:
+                    raise RuntimeError(f"Timed out waiting for motor {motor} (ID {expected_id}) status frame")
+                continue
 
-        # unpack the data
-        position_u16, velocity_u16, torque_i16, temperature_u16 = struct.unpack(">HHHH", data)
+            if status_uncalibrated:
+                print(f"WARNING: {motor} is uncalibrated")
+            if status_stall:
+                print(f"WARNING: {motor} is stalled")
+            if status_magnetic_encoder_fault:
+                print(f"WARNING: {motor} has a magnetic encoder fault")
+            if status_overtemperature:
+                print(f"WARNING: {motor} is overtemperature")
+            if status_overcurrent:
+                print(f"WARNING: {motor} is overcurrent")
+            if status_undervoltage:
+                print(f"WARNING: {motor} is undervoltage")
 
-        # normalize the data
-        position = (float(position_u16) / 0x7FFF - 1.) * MODEL_MIT_POSITION_TABLE[model]
-        velocity = (float(velocity_u16) / 0x7FFF - 1.) * MODEL_MIT_VELOCITY_TABLE[model]
-        torque = (float(torque_i16) / 0x7FFF - 1.) * MODEL_MIT_TORQUE_TABLE[model]
-        temperature = float(temperature_u16) * 0.1
-        return position, velocity, torque, temperature
+            if communication_type == CommunicationType.FAULT_REPORT:
+                fault_value, warning_value = struct.unpack("<LL", data)
+                warning_motor_overtemperature = (warning_value >> 0) & 0x01
+                fault_stall_current = (warning_value >> 14) & 0x01
+                fault_encoder_uncalibrated = (fault_value >> 7) & 0x01
+                fault_overvoltage = (fault_value >> 3) & 0x01
+                fault_undervoltage = (fault_value >> 2) & 0x01
+                fault_gate = (fault_value >> 1) & 0x01
+                fault_motor_overtemperature = (fault_value >> 0) & 0x01
+
+                if fault_motor_overtemperature:
+                    print(f"FAULT: {motor} overtemperature")
+                if fault_gate:
+                    print(f"FAULT: {motor} drive gate fault")
+                if fault_undervoltage:
+                    print(f"FAULT: {motor} undervoltage")
+                if fault_overvoltage:
+                    print(f"FAULT: {motor} overvoltage")
+                if fault_encoder_uncalibrated:
+                    print(f"FAULT: {motor} uncalibrated")
+                if fault_stall_current:
+                    print(f"FAULT: {motor} stalled")
+                if warning_motor_overtemperature:
+                    print(f"WARNING: {motor} overtemperature")
+                raise RuntimeError(f"Received fault frame from {motor}: {data}")
+
+            # unpack the data
+            position_u16, velocity_u16, torque_i16, temperature_u16 = struct.unpack(">HHHH", data)
+
+            # normalize the data
+            position = (float(position_u16) / 0x7FFF - 1.) * MODEL_MIT_POSITION_TABLE[model]
+            velocity = (float(velocity_u16) / 0x7FFF - 1.) * MODEL_MIT_VELOCITY_TABLE[model]
+            torque = (float(torque_i16) / 0x7FFF - 1.) * MODEL_MIT_TORQUE_TABLE[model]
+            temperature = float(temperature_u16) * 0.1
+            return position, velocity, torque, temperature
 
     def receive_read_frame(self) -> bytes:
         """
@@ -470,7 +482,7 @@ class RobstrideBus:
 
         self.transmit(CommunicationType.OPERATION_CONTROL, torque_u16, device_id, data)
 
-    def read_operation_frame(self, motor: str) -> tuple[float, float, float, float]:
+    def read_operation_frame(self, motor: str, timeout: float = 0.1) -> tuple[float, float, float, float]:
         """
         Receive the MIT status frame from the motor.
 
@@ -478,7 +490,7 @@ class RobstrideBus:
             tuple: (position, velocity, torque, temperature)
         """
         # receive the status frame
-        status = self.receive_status_frame(motor)
+        status = self.receive_status_frame(motor, timeout=timeout)
         position, velocity, torque, temperature = status
 
         if self.calibration:

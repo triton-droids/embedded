@@ -13,6 +13,7 @@ from __future__ import annotations
 import math
 import struct
 import sys
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,9 +29,11 @@ if str(REPO_ROOT) not in sys.path:
 
 try:
     from robstride_dynamics import RobstrideBus, Motor, ParameterType, CommunicationType
+    from utils.actuation_safety import ActuationSafetyMonitor
 except ImportError:
     from bus import RobstrideBus, Motor
     from protocol import ParameterType, CommunicationType
+    from utils.actuation_safety import ActuationSafetyMonitor
 
 try:
     from scipy.optimize import fsolve  # type: ignore
@@ -260,6 +263,69 @@ class RobotInterface:
 
         self.bus: RobstrideBus | None = None
         self.connected = False
+        self.lock = threading.RLock()
+        self._state_by_mid: dict[int, JointMotorState] = {st.motor_id: st for st in self.states}
+
+        self.safety_enabled = bool(cfg.get("safety_enabled", True))
+        self.safety_read_hz = cfg.get("safety_read_hz", None)
+        self.safety_max_jump_deg = float(cfg.get("safety_max_jump_deg", 90.0))
+        self.safety_monitor: ActuationSafetyMonitor | None = None
+        self.safety_tripped = False
+        self.safety_reason: str | None = None
+
+    def _trip_safety(self, reason: str) -> None:
+        if self.safety_tripped:
+            return
+        self.safety_tripped = True
+        self.safety_reason = reason
+        print(reason)
+
+    def _assert_safe(self) -> None:
+        if self.safety_tripped:
+            raise RuntimeError(self.safety_reason or "Safety monitor tripped")
+
+    def _read_logical_for_safety(self, mid: int) -> float:
+        assert self.bus is not None
+        st = self._state_by_mid[mid]
+        acquired = self.lock.acquire(timeout=0.001)
+        if not acquired:
+            raise TimeoutError("safety read skipped: control lock busy")
+        try:
+            p, v, tq, temp = self.bus.read_operation_frame(st.motor_name, timeout=0.005)
+        finally:
+            self.lock.release()
+        st.position_phys = to_scalar_float(p)
+        st.velocity_phys = to_scalar_float(v)
+        st.torque_nm = to_scalar_float(tq)
+        st.temp_c = to_scalar_float(temp)
+        motor_logical = st.position_phys / float(st.direction)
+        if st.is_ankle:
+            guess = st.joint_pos
+            return self.ankle_mapper.motor_logical_rad_to_ankle_rad(motor_logical, guess)
+        return motor_logical
+
+    def _start_safety_monitor(self, control_hz_guess: float = 60.0) -> None:
+        if not self.safety_enabled:
+            return
+        read_hz = None if self.safety_read_hz is None else float(self.safety_read_hz)
+        limits = {st.motor_id: (st.limit_lo, st.limit_hi) for st in self.states}
+        self.safety_monitor = ActuationSafetyMonitor(
+            name="run_policy",
+            motor_ids=[st.motor_id for st in self.states],
+            joint_limits_by_id=limits,
+            read_logical_pos_fn=self._read_logical_for_safety,
+            halt_fn=self._trip_safety,
+            control_hz=float(control_hz_guess),
+            read_hz=read_hz,
+            max_step_deg=self.safety_max_jump_deg,
+        )
+        self.safety_monitor.start()
+        per_motor_hz = self.safety_monitor.read_hz / max(1, len(self.states))
+        print(
+            f"[SAFETY] monitor started: control_hz={float(control_hz_guess):.1f}, "
+            f"read_hz_total={self.safety_monitor.read_hz:.1f}, per_motor~{per_motor_hz:.1f}, "
+            f"max_jump_deg={self.safety_max_jump_deg:.1f}"
+        )
 
     def connect(self) -> bool:
         motors = {st.motor_name: Motor(id=st.motor_id, model=st.model) for st in self.states}
@@ -269,18 +335,21 @@ class RobotInterface:
                 self.bus = RobstrideBus(self.can_channel, motors, calibration, bitrate=self.bitrate)
             except TypeError:
                 self.bus = RobstrideBus(self.can_channel, motors, calibration)
-            self.bus.connect(handshake=True)
+            with self.lock:
+                self.bus.connect(handshake=True)
 
             for st in self.states:
                 print(
                     f"[CONNECT] {st.joint_name} id={st.motor_id} model={st.model} "
                     f"dir={st.direction:+d} limits=[{st.limit_lo:.3f},{st.limit_hi:.3f}]"
                 )
-                self.bus.enable(st.motor_name)
+                with self.lock:
+                    self.bus.enable(st.motor_name)
                 time.sleep(0.10)
                 self._set_mode_zero(st)
 
-                p, v, tq, temp = self.bus.read_operation_frame(st.motor_name)
+                with self.lock:
+                    p, v, tq, temp = self.bus.read_operation_frame(st.motor_name)
                 st.position_phys = to_scalar_float(p)
                 st.velocity_phys = to_scalar_float(v)
                 st.torque_nm = to_scalar_float(tq)
@@ -291,10 +360,12 @@ class RobotInterface:
                 st.last_cmd_phys = st.position_phys
 
                 if not self.dry_run:
-                    self.bus.write_operation_frame(st.motor_name, st.position_phys, st.kp, st.kd, 0.0, 0.0)
+                    with self.lock:
+                        self.bus.write_operation_frame(st.motor_name, st.position_phys, st.kp, st.kd, 0.0, 0.0)
                 time.sleep(0.03)
 
             self.connected = True
+            self._start_safety_monitor(control_hz_guess=float(self.cfg.get("control_hz", 60.0)))
             print(f"Robot interface connected on {self.can_channel} @ {self.bitrate}. dry_run={self.dry_run}")
             return True
         except Exception as exc:
@@ -303,34 +374,42 @@ class RobotInterface:
             return False
 
     def shutdown(self) -> None:
+        if self.safety_monitor is not None:
+            self.safety_monitor.stop()
+            self.safety_monitor = None
         if self.bus and self.connected:
             try:
                 if not self.dry_run:
                     for st in self.states:
                         try:
-                            self.bus.write_operation_frame(st.motor_name, st.position_phys, st.kp, st.kd, 0.0, 0.0)
+                            with self.lock:
+                                self.bus.write_operation_frame(st.motor_name, st.position_phys, st.kp, st.kd, 0.0, 0.0)
                         except Exception:
                             pass
                     time.sleep(0.05)
                     for st in self.states:
                         try:
-                            self.bus.disable(st.motor_name)
+                            with self.lock:
+                                self.bus.disable(st.motor_name)
                         except Exception:
                             pass
                 try:
-                    self.bus.disconnect(disable_torque=False)
+                    with self.lock:
+                        self.bus.disconnect(disable_torque=False)
                 except Exception:
                     pass
             finally:
                 self.connected = False
 
     def read_feedback(self) -> None:
+        self._assert_safe()
         if not self.connected or self.bus is None:
             return
         now = time.time()
         for st in self.states:
             try:
-                p, v, tq, temp = self.bus.read_operation_frame(st.motor_name)
+                with self.lock:
+                    p, v, tq, temp = self.bus.read_operation_frame(st.motor_name)
                 st.position_phys = to_scalar_float(p)
                 st.velocity_phys = to_scalar_float(v)
                 st.torque_nm = to_scalar_float(tq)
@@ -341,6 +420,7 @@ class RobotInterface:
                 st.last_error = str(exc)
 
     def write_joint_targets(self, joint_targets_real: np.ndarray) -> None:
+        self._assert_safe()
         if not self.connected or self.bus is None:
             return
         targets = np.asarray(joint_targets_real, dtype=float).reshape(-1)
@@ -352,7 +432,8 @@ class RobotInterface:
             try:
                 physical_target = self._joint_command_to_motor_physical(st, joint_cmd)
                 if not self.dry_run:
-                    self.bus.write_operation_frame(st.motor_name, physical_target, st.kp, st.kd, 0.0, 0.0)
+                    with self.lock:
+                        self.bus.write_operation_frame(st.motor_name, physical_target, st.kp, st.kd, 0.0, 0.0)
                 st.commanded_joint = joint_cmd
                 st.last_cmd_phys = physical_target
                 st.last_error = None
@@ -376,7 +457,8 @@ class RobotInterface:
         value_buffer = struct.pack("<bBH", int(0), 0, 0)
         data = struct.pack("<HH", param_id, 0x00) + value_buffer
         device_id = self.bus.motors[st.motor_name].id
-        self.bus.transmit(CommunicationType.WRITE_PARAMETER, self.bus.host_id, device_id, data)
+        with self.lock:
+            self.bus.transmit(CommunicationType.WRITE_PARAMETER, self.bus.host_id, device_id, data)
         time.sleep(0.05)
 
     def _update_joint_from_motor(self, st: JointMotorState, now: float, initialize: bool = False) -> None:

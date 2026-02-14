@@ -29,6 +29,7 @@ import os
 import signal
 import struct
 import sys
+import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -41,10 +42,12 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 try:
     from robstride_dynamics import RobstrideBus, Motor, ParameterType, CommunicationType
+    from utils.actuation_safety import ActuationSafetyMonitor
 except ImportError:
     try:
         from bus import RobstrideBus, Motor
         from protocol import ParameterType, CommunicationType
+        from utils.actuation_safety import ActuationSafetyMonitor
     except ImportError as e:
         raise SystemExit(f"Failed to import RobStride SDK: {e}")
 
@@ -66,6 +69,20 @@ JOINT_LIMITS: Dict[int, Tuple[float, float]] = {
     10: (-0.6, 0.6),
 }
 
+# Mirrors run_policy_config.json -> default_joint_pos_real_rad_by_joint mapped by motor ID.
+DEFAULT_JOINT_POS_BY_ID: Dict[int, float] = {
+    1: 0.3,
+    2: 0.0,
+    3: 0.0,
+    4: -0.8,
+    5: 0.5,
+    6: 0.3,
+    7: 0.0,
+    8: 0.0,
+    9: -0.8,
+    10: 0.5,
+}
+
 MOTOR_MODEL_BY_ID: Dict[int, str] = {
     1: "rs-04",
     2: "rs-03",
@@ -79,8 +96,23 @@ MOTOR_MODEL_BY_ID: Dict[int, str] = {
     10: "rs-02",
 }
 
+# Per-motor MIT gains from latest gain-tuner values.
+# Note: ID 6 appeared twice in the provided list; this map uses the later entry (kp=200, kd=5).
+GAINS_BY_ID: Dict[int, Tuple[float, float]] = {
+    1: (200.0, 5.0),
+    2: (200.0, 5.0),
+    3: (100.0, 2.0),
+    4: (100.0, 5.0),
+    5: (35.0, 0.8),
+    6: (200.0, 5.0),
+    7: (200.0, 5.0),
+    8: (100.0, 2.0),
+    9: (100.0, 5.0),
+    10: (45.0, 1.0),
+}
+
 TEMP_ABORT_C = 88.0
-MAX_RANDOM_STEP_RAD = math.radians(20.0)  # <= 20 deg between random commanded positions
+MAX_RANDOM_STEP_RAD = math.radians(10.0)  # <= 10 deg between random commanded positions
 
 
 def clamp(x: float, lo: float, hi: float) -> float:
@@ -125,14 +157,25 @@ class RobstrideController:
         bitrate: int,
         kp: float,
         kd: float,
+        control_hz: float,
+        safety_read_hz: float | None,
+        safety_max_jump_deg: float,
     ):
         self.channel = channel
         self.bitrate = bitrate
         self.motor_ids = sorted(motor_ids)
 
         self.states: Dict[int, MotorState] = {}
+        self.lock = threading.RLock()
+        self.control_hz = float(control_hz)
+        self.safety_read_hz = None if safety_read_hz is None else float(safety_read_hz)
+        self.safety_max_jump_deg = float(safety_max_jump_deg)
+        self.safety_tripped = False
+        self.safety_reason: Optional[str] = None
+        self.safety_monitor: Optional[ActuationSafetyMonitor] = None
         for mid in self.motor_ids:
             lo, hi = JOINT_LIMITS.get(mid, (-math.inf, math.inf))
+            tuned_kp, tuned_kd = GAINS_BY_ID.get(mid, (float(kp), float(kd)))
             st = MotorState(
                 mid=mid,
                 name=f"motor_{mid}",
@@ -140,13 +183,57 @@ class RobstrideController:
                 direction=int(INVERSION_BY_ID.get(mid, 1)),
                 lim_lo=lo,
                 lim_hi=hi,
-                kp=float(kp),
-                kd=float(kd),
+                kp=float(tuned_kp),
+                kd=float(tuned_kd),
             )
             self.states[mid] = st
 
         self.bus: Optional[RobstrideBus] = None
         self.connected = False
+
+    def _trip_safety(self, reason: str):
+        if self.safety_tripped:
+            return
+        self.safety_tripped = True
+        self.safety_reason = reason
+        print(reason)
+
+    def _assert_safe(self):
+        if self.safety_tripped:
+            raise RuntimeError(self.safety_reason or "Safety monitor tripped")
+
+    def _read_logical_for_safety(self, mid: int) -> float:
+        assert self.bus is not None
+        st = self.states[mid]
+        acquired = self.lock.acquire(timeout=0.001)
+        if not acquired:
+            raise TimeoutError("safety read skipped: control lock busy")
+        try:
+            pos, vel, tq, temp = self.bus.read_operation_frame(st.name, timeout=0.005)
+            st.pos, st.vel, st.tq, st.temp = pos, vel, tq, temp
+            return float(pos) / float(st.direction)
+        finally:
+            self.lock.release()
+
+    def _start_safety_monitor(self):
+        joint_limits = {mid: (self.states[mid].lim_lo, self.states[mid].lim_hi) for mid in self.motor_ids}
+        self.safety_monitor = ActuationSafetyMonitor(
+            name="collect_dataset",
+            motor_ids=self.motor_ids,
+            joint_limits_by_id=joint_limits,
+            read_logical_pos_fn=self._read_logical_for_safety,
+            halt_fn=self._trip_safety,
+            control_hz=self.control_hz,
+            read_hz=self.safety_read_hz,
+            max_step_deg=self.safety_max_jump_deg,
+        )
+        self.safety_monitor.start()
+        per_motor_hz = self.safety_monitor.read_hz / max(1, len(self.motor_ids))
+        print(
+            f"[SAFETY] monitor started: control_hz={self.control_hz:.1f}, "
+            f"read_hz_total={self.safety_monitor.read_hz:.1f}, per_motor~{per_motor_hz:.1f}, "
+            f"max_jump_deg={self.safety_max_jump_deg:.1f}"
+        )
 
     def _set_mode_raw(self, mid: int, mode: int = 0):
         assert self.bus is not None
@@ -155,7 +242,19 @@ class RobstrideController:
         value_buffer = struct.pack("<bBH", int(mode), 0, 0)
         data = struct.pack("<HH", param_id, 0x00) + value_buffer
         self.bus.transmit(CommunicationType.WRITE_PARAMETER, self.bus.host_id, dev_id, data)
-        time.sleep(0.05)
+        time.sleep(0.1)
+
+    def _read_operation_frame_retry(self, motor_name: str, attempts: int = 3, delay_s: float = 0.03):
+        assert self.bus is not None
+        last_exc: Optional[Exception] = None
+        for i in range(max(1, attempts)):
+            try:
+                return self.bus.read_operation_frame(motor_name)
+            except Exception as e:
+                last_exc = e
+                if i + 1 < attempts:
+                    time.sleep(delay_s)
+        raise RuntimeError(f"read_operation_frame failed for {motor_name}: {last_exc}")
 
     def connect(self):
         motors = {f"motor_{mid}": Motor(id=mid, model=self.states[mid].model) for mid in self.motor_ids}
@@ -169,37 +268,67 @@ class RobstrideController:
 
             for mid in self.motor_ids:
                 st = self.states[mid]
-                self.bus.enable(st.name)
-                time.sleep(0.2)
-                self._set_mode_raw(mid, 0)
+                with self.lock:
+                    self.bus.enable(st.name)
+                    time.sleep(0.25)
+                    self._set_mode_raw(mid, 0)
 
-                pos, vel, tq, temp = self.bus.read_operation_frame(st.name)
-                st.pos, st.vel, st.tq, st.temp = pos, vel, tq, temp
-                logical = pos / float(st.direction)
-                st.cmd_logical = logical
+                # Match gain_tuner behavior: do not fail whole connection if first read is noisy.
+                try:
+                    pos, vel, tq, temp = self._read_operation_frame_retry(st.name, attempts=3, delay_s=0.03)
+                    st.pos, st.vel, st.tq, st.temp = pos, vel, tq, temp
+                    logical = pos / float(st.direction)
+                    st.cmd_logical = logical
+                except Exception as e:
+                    print(f"WARNING: initial read failed on {st.name}: {e}; holding at 0.0 rad")
+                    st.pos = 0.0
+                    st.vel = 0.0
+                    st.tq = 0.0
+                    st.temp = 0.0
+                    st.cmd_logical = 0.0
 
                 # initial hold
-                self.bus.write_operation_frame(st.name, logical * st.direction, st.kp, st.kd, 0.0, 0.0)
-                time.sleep(0.01)
+                with self.lock:
+                    self.bus.write_operation_frame(
+                        st.name,
+                        st.cmd_logical * float(st.direction),
+                        st.kp,
+                        st.kd,
+                        0.0,
+                        0.0,
+                    )
+                time.sleep(0.05)
 
             self.connected = True
+            self._start_safety_monitor()
         except Exception as e:
             raise RuntimeError(f"connect failed: {e}")
 
     def read(self, mid: int) -> Tuple[float, float, float, float]:
+        self._assert_safe()
         assert self.bus is not None
         st = self.states[mid]
-        pos, vel, tq, temp = self.bus.read_operation_frame(st.name)
-        st.pos, st.vel, st.tq, st.temp = pos, vel, tq, temp
-        return pos, vel, tq, temp
+        last_exc: Optional[Exception] = None
+        for _ in range(3):
+            try:
+                with self.lock:
+                    pos, vel, tq, temp = self.bus.read_operation_frame(st.name, timeout=0.01)
+                st.pos, st.vel, st.tq, st.temp = pos, vel, tq, temp
+                return pos, vel, tq, temp
+            except Exception as exc:
+                last_exc = exc
+                time.sleep(0.001)
+        raise RuntimeError(f"read failed on {st.name}: {last_exc}")
 
     def write_logical(self, mid: int, logical_target: float):
+        self._assert_safe()
         assert self.bus is not None
         st = self.states[mid]
         t = clamp(logical_target, st.lim_lo, st.lim_hi)
         st.cmd_logical = t
         phys = t * float(st.direction)
-        self.bus.write_operation_frame(st.name, phys, st.kp, st.kd, 0.0, 0.0)
+        with self.lock:
+            self.bus.write_operation_frame(st.name, phys, st.kp, st.kd, 0.0, 0.0)
 
     def read_all_once(self):
         for mid in self.motor_ids:
@@ -218,12 +347,26 @@ class RobstrideController:
             self.write_logical(mid, st.cmd_logical)
 
     def move_to_targets(self, targets: Dict[int, float], duration_s: float = 1.0, hz: float = 200.0):
-        """Smoothly interpolate logical commands to targets (no logging)."""
-        steps = max(1, int(duration_s * hz))
+        """Smoothly interpolate logical commands to targets (no logging, time-based)."""
+        self._assert_safe()
+        duration_s = max(0.0, float(duration_s))
+        hz = max(1.0, float(hz))
         self.read_all_once()
         start = {mid: self.states[mid].cmd_logical for mid in targets.keys()}
-        for i in range(steps):
-            a = (i + 1) / steps
+        if duration_s <= 1e-6:
+            for mid, tgt in targets.items():
+                self.write_logical(mid, tgt)
+            self.read_all_once()
+            return
+
+        t0 = time.perf_counter()
+        next_t = t0
+        dt = 1.0 / hz
+
+        while True:
+            now = time.perf_counter()
+            elapsed = now - t0
+            a = clamp(elapsed / duration_s, 0.0, 1.0)
             for mid, tgt in targets.items():
                 cmd = (1.0 - a) * start[mid] + a * tgt
                 self.write_logical(mid, cmd)
@@ -232,7 +375,15 @@ class RobstrideController:
                     self.read(mid)
                 except Exception:
                     pass
-            time.sleep(max(0.0, 1.0 / hz))
+            if a >= 1.0:
+                break
+
+            next_t += dt
+            now2 = time.perf_counter()
+            if now2 < next_t:
+                time.sleep(next_t - now2)
+            else:
+                next_t = now2
 
     def max_temp(self, mids: List[int]) -> float:
         vals = [self.states[mid].temp for mid in mids]
@@ -241,15 +392,23 @@ class RobstrideController:
     def shutdown(self):
         if not self.connected or self.bus is None:
             return
+        if self.safety_monitor is not None:
+            self.safety_monitor.stop()
+            self.safety_monitor = None
         try:
-            self.hold_positions()
+            try:
+                self.hold_positions()
+            except Exception:
+                pass
             time.sleep(0.2)
             for mid in self.motor_ids:
                 try:
-                    self.bus.disable(self.states[mid].name)
+                    with self.lock:
+                        self.bus.disable(self.states[mid].name)
                 except Exception:
                     pass
-            self.bus.disconnect()
+            with self.lock:
+                self.bus.disconnect()
         finally:
             self.connected = False
 
@@ -613,6 +772,16 @@ def ensure_dir(p: Path):
     p.mkdir(parents=True, exist_ok=True)
 
 
+def _run_key(family: str, pose: str, condition: str, active_ids: List[int], traj_name: str) -> str:
+    ids_tag = ",".join(str(i) for i in sorted(active_ids))
+    return f"{family}|{pose}|{condition}|{ids_tag}|{traj_name}"
+
+
+def _save_json(path: Path, obj: Any):
+    with open(path, "w") as f:
+        json.dump(obj, f, indent=2)
+
+
 def countdown(msg: str, sec: int = 3):
     print(msg)
     for k in range(sec, 0, -1):
@@ -630,6 +799,8 @@ def run_one(
     traj: Trajectory,
     hz: float,
     save_csv: bool,
+    command_max_vel_rad_s: float,
+    max_read_failures: int,
     notes: str = "",
 ) -> Dict[str, Any]:
     """
@@ -702,10 +873,13 @@ def run_one(
     countdown("Starting run", sec=3)
 
     dt = 1.0 / hz
+    command_max_vel_rad_s = max(1e-6, float(command_max_vel_rad_s))
     start_perf = time.perf_counter()
     next_t = start_perf
     overruns = 0
+    read_failures = 0
     early_stop_reason: Optional[str] = None
+    prev_cmd: Dict[int, float] = {mid: float(ctrl.states[mid].cmd_logical) for mid in active_ids}
 
     for cyc in range(n_cycles):
         # wait until next cycle boundary
@@ -728,6 +902,9 @@ def run_one(
             cmd = cmd_map[mid] if mid in cmd_map else ctrl.states[mid].cmd_logical
             st = ctrl.states[mid]
             cmd = clamp(cmd, st.lim_lo, st.lim_hi)
+            max_step = command_max_vel_rad_s * dt
+            cmd = clamp(cmd, prev_cmd[mid] - max_step, prev_cmd[mid] + max_step)
+            prev_cmd[mid] = cmd
 
             cmd_ts = time.time_ns()
             try:
@@ -740,8 +917,13 @@ def run_one(
                 pos, vel, tq, temp = ctrl.read(mid)
                 fb_ts = time.time_ns()
             except Exception as e:
-                early_stop_reason = f"read failure on motor {mid}: {e}"
-                break
+                read_failures += 1
+                if read_failures <= 5 or (read_failures % 20 == 0):
+                    print(f"WARNING: read failure on motor {mid}: {e} (count={read_failures})")
+                if read_failures >= max_read_failures:
+                    early_stop_reason = f"too many read failures ({read_failures})"
+                    break
+                continue
 
             logger.append(
                 cycle_idx=cyc,
@@ -786,6 +968,7 @@ def run_one(
             "rows_logged": int(logger.i),
             "achieved_cycle_hz": float((min(n_cycles, (logger.i // max(1, len(active_ids)))) / elapsed) if elapsed > 0 else 0.0),
             "overrun_cycles": int(overruns),
+            "read_failures": int(read_failures),
             "early_stop_reason": early_stop_reason,
             "log_file_npz": "log.npz",
             "log_file_csv": "log.csv" if save_csv else None,
@@ -820,7 +1003,8 @@ def build_single_trajectories_for_motor(ctrl: RobstrideController, mid: int, hz:
             amp = af * half_span
             out.append(make_single_sine(mid, center=center, amp=amp, freq_hz=f, duration_s=12.0, lim=(lo, hi)))
 
-    out.append(make_single_chirp(mid, center=center, amp=0.35 * half_span, f0=0.2, f1=2.0, duration_s=15.0, lim=(lo, hi)))
+    # Safer chirp: lower top frequency and longer duration.
+    out.append(make_single_chirp(mid, center=center, amp=0.25 * half_span, f0=0.05, f1=0.50, duration_s=20.0, lim=(lo, hi)))
 
     out.append(
         make_single_random(
@@ -858,7 +1042,10 @@ def build_multi_trajectories(ctrl: RobstrideController, active_ids: List[int]) -
 
 def campaign_collect(args):
     root = Path(args.root_dir).resolve()
-    campaign_dir = root / datetime.now().strftime("motor_data_%Y%m%d_%H%M%S")
+    if args.campaign_dir.strip():
+        campaign_dir = Path(args.campaign_dir).expanduser().resolve()
+    else:
+        campaign_dir = root / datetime.now().strftime("motor_data_%Y%m%d_%H%M%S")
 
     # create canonical folders
     canonical = [
@@ -874,6 +1061,21 @@ def campaign_collect(args):
     ]
     for c in canonical:
         ensure_dir(campaign_dir / c)
+
+    progress_path = campaign_dir / "campaign_progress.json"
+    summary_path = campaign_dir / "campaign_summary.json"
+
+    completed_keys: set[str] = set()
+    all_meta: List[Dict[str, Any]] = []
+    if args.resume and progress_path.exists():
+        try:
+            prog = json.loads(progress_path.read_text())
+            completed_keys = set(str(x) for x in prog.get("completed_keys", []))
+            all_meta = list(prog.get("all_meta", []))
+            print(f"Resume enabled: loaded {len(completed_keys)} completed runs from {progress_path}")
+        except Exception as e:
+            print(f"WARNING: Failed to load progress file {progress_path}: {e}")
+            print("Starting with empty progress.")
 
     motor_ids = scan_motor_ids_or_parse(args.motor_ids, args.channel)
 
@@ -898,17 +1100,27 @@ def campaign_collect(args):
         bitrate=args.bitrate,
         kp=args.kp,
         kd=args.kd,
+        control_hz=args.hz,
+        safety_read_hz=args.safety_read_hz,
+        safety_max_jump_deg=args.safety_max_jump_deg,
     )
 
-    all_meta: List[Dict[str, Any]] = []
+    def _persist_progress():
+        payload = {
+            "updated_at": iso_now(),
+            "campaign_dir": str(campaign_dir),
+            "completed_keys": sorted(completed_keys),
+            "all_meta": all_meta,
+        }
+        _save_json(progress_path, payload)
+        _save_json(summary_path, all_meta)
 
     def _shutdown(_sig=None, _frm=None):
         print("\nSignal received, shutting down...")
         ctrl.shutdown()
-        # write partial summary
         try:
-            with open(campaign_dir / "campaign_summary_partial.json", "w") as f:
-                json.dump(all_meta, f, indent=2)
+            _persist_progress()
+            _save_json(campaign_dir / "campaign_summary_partial.json", all_meta)
         finally:
             os._exit(0)
 
@@ -919,16 +1131,62 @@ def campaign_collect(args):
     print(f"Connected. Campaign folder: {campaign_dir}")
     print(f"Target logging rate: {args.hz:.1f} Hz")
 
+    if not args.no_move_to_defaults:
+        default_targets: Dict[int, float] = {}
+        for mid in ctrl.motor_ids:
+            if mid in DEFAULT_JOINT_POS_BY_ID:
+                st = ctrl.states[mid]
+                default_targets[mid] = clamp(DEFAULT_JOINT_POS_BY_ID[mid], st.lim_lo, st.lim_hi)
+        if default_targets:
+            print(
+                "Moving controlled joints to default joint positions "
+                f"(duration={args.default_move_duration_s:.2f}s, rate={args.default_move_hz:.1f}Hz)..."
+            )
+            ctrl.move_to_targets(
+                default_targets,
+                duration_s=float(args.default_move_duration_s),
+                hz=float(args.default_move_hz),
+            )
+            print("Default joint positioning complete.")
+
+    def _has_pending_single(pose: str, cond: str) -> bool:
+        for mid in single_ids:
+            trajs = build_single_trajectories_for_motor(ctrl, mid, hz=args.hz, seed0=args.random_seed)
+            for tr in trajs:
+                key = _run_key("single", pose, cond, [mid], tr.name)
+                if key not in completed_keys:
+                    return True
+        return False
+
+    def _has_pending_multi(pose: str, cond: str) -> bool:
+        mtrajs = build_multi_trajectories(ctrl, multi_ids)
+        for tr in mtrajs:
+            key = _run_key("multi", pose, cond, multi_ids, tr.name)
+            if key not in completed_keys:
+                return True
+        return False
+
     try:
         # ---------- SINGLE-MOTOR CAMPAIGN ----------
         if args.campaign in ("all", "single"):
             for pose in ["air", "contact"]:
+                pose_pending = any(_has_pending_single(pose, cond) for cond in ["clean", "disturbed"])
+                if args.resume and not pose_pending:
+                    print(f"Skipping pose '{pose}' in single campaign (no pending runs).")
+                    continue
                 input(f"\nPrepare robot in '{pose.upper()}' condition, then press Enter...")
                 for cond in ["clean", "disturbed"]:
+                    if args.resume and not _has_pending_single(pose, cond):
+                        print(f"Skipping single_{pose}/{cond} (no pending runs).")
+                        continue
                     base = campaign_dir / f"single_{pose}" / cond
                     for mid in single_ids:
                         trajs = build_single_trajectories_for_motor(ctrl, mid, hz=args.hz, seed0=args.random_seed)
                         for tr in trajs:
+                            key = _run_key("single", pose, cond, [mid], tr.name)
+                            if args.resume and key in completed_keys:
+                                print(f"Skipping completed run: {key}")
+                                continue
                             m = run_one(
                                 ctrl=ctrl,
                                 run_root=base,
@@ -939,18 +1197,34 @@ def campaign_collect(args):
                                 traj=tr,
                                 hz=args.hz,
                                 save_csv=args.save_csv,
+                                command_max_vel_rad_s=args.command_max_vel_rad_s,
+                                max_read_failures=args.max_read_failures,
                                 notes="single motor excitation",
                             )
+                            m["resume_key"] = key
                             all_meta.append(m)
+                            completed_keys.add(key)
+                            _persist_progress()
 
         # ---------- MULTI-MOTOR CAMPAIGN ----------
         if args.campaign in ("all", "multi"):
             for pose in ["air", "contact"]:
+                pose_pending = any(_has_pending_multi(pose, cond) for cond in ["clean", "disturbed"])
+                if args.resume and not pose_pending:
+                    print(f"Skipping pose '{pose}' in multi campaign (no pending runs).")
+                    continue
                 input(f"\nPrepare robot in '{pose.upper()}' condition for MULTI runs, then press Enter...")
                 for cond in ["clean", "disturbed"]:
+                    if args.resume and not _has_pending_multi(pose, cond):
+                        print(f"Skipping multi_{pose}/{cond} (no pending runs).")
+                        continue
                     base = campaign_dir / f"multi_{pose}" / cond
                     mtrajs = build_multi_trajectories(ctrl, multi_ids)
                     for tr in mtrajs:
+                        key = _run_key("multi", pose, cond, multi_ids, tr.name)
+                        if args.resume and key in completed_keys:
+                            print(f"Skipping completed run: {key}")
+                            continue
                         m = run_one(
                             ctrl=ctrl,
                             run_root=base,
@@ -961,9 +1235,14 @@ def campaign_collect(args):
                             traj=tr,
                             hz=args.hz,
                             save_csv=args.save_csv,
+                            command_max_vel_rad_s=args.command_max_vel_rad_s,
+                            max_read_failures=args.max_read_failures,
                             notes="multi motor sine only",
                         )
+                        m["resume_key"] = key
                         all_meta.append(m)
+                        completed_keys.add(key)
+                        _persist_progress()
 
         # ---------- IK LOCOMOTION REPLAY ----------
         if args.campaign in ("all", "ik"):
@@ -972,27 +1251,33 @@ def campaign_collect(args):
             ik_path = resolve_ik_path(args.ik_path)
             t, q = load_ik_trajectory(ik_path, active_ids=multi_ids, fallback_hz=args.ik_fallback_hz)
             ik_traj = make_ik_traj(multi_ids, t, q)
-
-            m = run_one(
-                ctrl=ctrl,
-                run_root=ik_base,
-                family="ik",
-                pose="contact",
-                condition="clean",
-                active_ids=multi_ids,
-                traj=ik_traj,
-                hz=args.hz,
-                save_csv=args.save_csv,
-                notes=f"IK replay from {ik_path.name}",
-            )
-            all_meta.append(m)
+            key = _run_key("ik", "contact", "clean", multi_ids, ik_traj.name)
+            if args.resume and key in completed_keys:
+                print(f"Skipping completed run: {key}")
+            else:
+                m = run_one(
+                    ctrl=ctrl,
+                    run_root=ik_base,
+                    family="ik",
+                    pose="contact",
+                    condition="clean",
+                    active_ids=multi_ids,
+                    traj=ik_traj,
+                    hz=args.hz,
+                    save_csv=args.save_csv,
+                    command_max_vel_rad_s=args.command_max_vel_rad_s,
+                    max_read_failures=args.max_read_failures,
+                    notes=f"IK replay from {ik_path.name}",
+                )
+                m["resume_key"] = key
+                all_meta.append(m)
+                completed_keys.add(key)
+                _persist_progress()
 
     finally:
         ctrl.shutdown()
 
-    # campaign summary
-    with open(campaign_dir / "campaign_summary.json", "w") as f:
-        json.dump(all_meta, f, indent=2)
+    _persist_progress()
 
     print("\nCampaign complete.")
     print(f"Summary: {campaign_dir / 'campaign_summary.json'}")
@@ -1001,6 +1286,13 @@ def campaign_collect(args):
 def make_argparser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="RobStride motor dataset collection campaign")
     p.add_argument("--root-dir", type=str, default="./motor_dataset", help="Root folder for campaign outputs")
+    p.add_argument(
+        "--campaign-dir",
+        type=str,
+        default="",
+        help="Existing campaign directory to use/resume. Empty => create timestamped folder under --root-dir",
+    )
+    p.add_argument("--resume", action="store_true", help="Resume by skipping completed runs from campaign_progress.json")
     p.add_argument("--campaign", type=str, default="all", choices=["all", "single", "multi", "ik"])
 
     p.add_argument("--channel", type=str, default="can0")
@@ -1014,18 +1306,61 @@ def make_argparser() -> argparse.ArgumentParser:
     p.add_argument("--kd", type=float, default=0.2)
 
     p.add_argument("--hz", type=float, default=400.0, help="Target control/logging frequency")
+    p.add_argument(
+        "--command-max-vel-rad-s",
+        type=float,
+        default=2.5,
+        help="Per-motor command slew-rate limit applied in run loop.",
+    )
+    p.add_argument(
+        "--max-read-failures",
+        type=int,
+        default=200,
+        help="Abort run only after this many read failures (transient misses are tolerated).",
+    )
     p.add_argument("--save-csv", action="store_true", help="Also export CSV (slower + larger)")
 
     p.add_argument("--ik-path", type=str, default="IK_trajectory", help="IK trajectory path (npz/npy/csv)")
     p.add_argument("--ik-fallback-hz", type=float, default=400.0, help="Used if IK file has no explicit time")
 
     p.add_argument("--random-seed", type=int, default=1234)
+    p.add_argument(
+        "--safety-read-hz",
+        type=float,
+        default=0.0,
+        help="Safety monitor read rate. If <=0, uses max(120, 2x control hz).",
+    )
+    p.add_argument(
+        "--safety-max-jump-deg",
+        type=float,
+        default=90.0,
+        help="Hard stop if any per-sample logical position jump exceeds this angle.",
+    )
+    p.add_argument(
+        "--default-move-duration-s",
+        type=float,
+        default=2.5,
+        help="Seconds to ramp controlled joints to default joint positions at startup.",
+    )
+    p.add_argument(
+        "--default-move-hz",
+        type=float,
+        default=200.0,
+        help="Interpolation rate (Hz) for startup ramp to default joint positions.",
+    )
+    p.add_argument(
+        "--no-move-to-defaults",
+        action="store_true",
+        help="Disable startup move to default joint positions.",
+    )
 
     return p
 
 
 def main():
     args = make_argparser().parse_args()
+    if args.safety_read_hz <= 0.0:
+        args.safety_read_hz = None
     campaign_collect(args)
 
 

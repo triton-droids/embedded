@@ -1,0 +1,19 @@
+# IK commands for each single motor (with slow default move first)
+# Run from: ~/Documents/embedded/data_collection
+#
+# Prerequisite (generate per-motor IK CSVs once):
+# python3 convert_ik_per_motor.py \
+#   --input ../trajectory_generation/ik_stepping_trajectory.csv \
+#   --out-dir ./ik_per_motor \
+#   --prefix ik_stepping
+
+python3 collect_motor_dataset.py --campaign ik --motor-ids "1" --multi-ids "1" --ik-path ./ik_per_motor/ik_stepping_motor1_left_hip1_joint.csv --hz 400 --campaign-dir ./motor_dataset/ik_motor1_test --default-move-duration-s 4.0 --default-move-hz 200 --save-csv
+python3 collect_motor_dataset.py --campaign ik --motor-ids "2" --multi-ids "2" --ik-path ./ik_per_motor/ik_stepping_motor2_left_hip2_joint.csv --hz 400 --campaign-dir ./motor_dataset/ik_motor2_test --default-move-duration-s 4.0 --default-move-hz 200 --save-csv
+python3 collect_motor_dataset.py --campaign ik --motor-ids "3" --multi-ids "3" --ik-path ./ik_per_motor/ik_stepping_motor3_left_thigh_joint.csv --hz 400 --campaign-dir ./motor_dataset/ik_motor3_test --default-move-duration-s 4.0 --default-move-hz 200 --save-csv
+python3 collect_motor_dataset.py --campaign ik --motor-ids "4" --multi-ids "4" --ik-path ./ik_per_motor/ik_stepping_motor4_left_knee_joint.csv --hz 400 --campaign-dir ./motor_dataset/ik_motor4_test --default-move-duration-s 4.0 --default-move-hz 200 --save-csv
+python3 collect_motor_dataset.py --campaign ik --motor-ids "5" --multi-ids "5" --ik-path ./ik_per_motor/ik_stepping_motor5_left_ankle_joint.csv --hz 400 --campaign-dir ./motor_dataset/ik_motor5_test --default-move-duration-s 4.0 --default-move-hz 200 --save-csv
+python3 collect_motor_dataset.py --campaign ik --motor-ids "6" --multi-ids "6" --ik-path ./ik_per_motor/ik_stepping_motor6_right_hip1_joint.csv --hz 400 --campaign-dir ./motor_dataset/ik_motor6_test --default-move-duration-s 4.0 --default-move-hz 200 --save-csv
+python3 collect_motor_dataset.py --campaign ik --motor-ids "7" --multi-ids "7" --ik-path ./ik_per_motor/ik_stepping_motor7_right_hip2_joint.csv --hz 400 --campaign-dir ./motor_dataset/ik_motor7_test --default-move-duration-s 4.0 --default-move-hz 200 --save-csv
+python3 collect_motor_dataset.py --campaign ik --motor-ids "8" --multi-ids "8" --ik-path ./ik_per_motor/ik_stepping_motor8_right_thigh_joint.csv --hz 400 --campaign-dir ./motor_dataset/ik_motor8_test --default-move-duration-s 4.0 --default-move-hz 200 --save-csv
+python3 collect_motor_dataset.py --campaign ik --motor-ids "9" --multi-ids "9" --ik-path ./ik_per_motor/ik_stepping_motor9_right_knee_joint.csv --hz 400 --campaign-dir ./motor_dataset/ik_motor9_test --default-move-duration-s 4.0 --default-move-hz 200 --save-csv
+python3 collect_motor_dataset.py --campaign ik --motor-ids "10" --multi-ids "10" --ik-path ./ik_per_motor/ik_stepping_motor10_right_ankle_joint.csv --hz 400 --campaign-dir ./motor_dataset/ik_motor10_test --default-move-duration-s 4.0 --default-move-hz 200 --save-csv

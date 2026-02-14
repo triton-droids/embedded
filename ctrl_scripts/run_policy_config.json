@@ -80,8 +80,30 @@
   },
   "kp": 10.0,
   "kd": 0.2,
-  "kp_by_joint": {},
-  "kd_by_joint": {},
+  "kp_by_joint": {
+    "left_hip1_joint": 300.0,
+    "left_hip2_joint": 200.0,
+    "left_thigh_joint": 100.0,
+    "left_knee_joint": 100.0,
+    "left_ankle_joint": 35.0,
+    "right_hip1_joint": 200.0,
+    "right_hip2_joint": 300.0,
+    "right_thigh_joint": 100.0,
+    "right_knee_joint": 100.0,
+    "right_ankle_joint": 45.0
+  },
+  "kd_by_joint": {
+    "left_hip1_joint": 20.0,
+    "left_hip2_joint": 5.0,
+    "left_thigh_joint": 2.0,
+    "left_knee_joint": 20.0,
+    "left_ankle_joint": 0.8,
+    "right_hip1_joint": 5.0,
+    "right_hip2_joint": 15.0,
+    "right_thigh_joint": 2.0,
+    "right_knee_joint": 20.0,
+    "right_ankle_joint": 1.0
+  },
   "max_vel_rad_s": 4.5,
   "max_vel_rad_s_by_joint": {},
   "action_scale": 1.0,
@@ -121,5 +143,8 @@
     "gyro_sign": [1.0, 1.0, 1.0],
     "accel_sign": [1.0, 1.0, 1.0]
   },
-  "status_print_hz": 2.0
+  "status_print_hz": 2.0,
+  "safety_enabled": true,
+  "safety_read_hz": 0.0,
+  "safety_max_jump_deg": 90.0
 }

@@ -1,0 +1,49 @@
+{
+  "started_at": "2026-02-13T13:51:55",
+  "family": "single",
+  "pose": "air",
+  "condition": "clean",
+  "active_motor_ids": [
+    5
+  ],
+  "trajectory_type": "chirp",
+  "trajectory_name": "chirp_amp12.0deg_0.20to2.00Hz",
+  "trajectory_params": {
+    "amp_rad": 0.21,
+    "amp_deg": 12.032113697747288,
+    "f0_hz": 0.2,
+    "f1_hz": 2.0
+  },
+  "duration_s_planned": 15.0,
+  "sample_hz_target": 400.0,
+  "fields": [
+    "commanded_position_rad",
+    "actual_position_rad",
+    "motor_velocity_rads",
+    "motor_torque_nm",
+    "motor_temperature_c",
+    "commanded_timestamp_ns",
+    "feedback_timestamp_ns",
+    "cycle_idx",
+    "motor_id"
+  ],
+  "joint_limits_rad": {
+    "5": [
+      -0.6,
+      0.6
+    ]
+  },
+  "motor_models": {
+    "5": "rs-02"
+  },
+  "notes": "single motor excitation",
+  "ended_at": "2026-02-13T13:52:13",
+  "duration_s_actual": 14.998830894001003,
+  "cycles_executed": 6000,
+  "rows_logged": 6000,
+  "achieved_cycle_hz": 400.03117859004504,
+  "overrun_cycles": 0,
+  "early_stop_reason": null,
+  "log_file_npz": "log.npz",
+  "log_file_csv": "log.csv"
+}

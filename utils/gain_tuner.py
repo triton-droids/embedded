@@ -48,10 +48,12 @@ from matplotlib.animation import FuncAnimation
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 try:
     from robstride_dynamics import RobstrideBus, Motor, ParameterType, CommunicationType
+    from utils.actuation_safety import ActuationSafetyMonitor
 except ImportError:
     try:
         from bus import RobstrideBus, Motor
         from protocol import ParameterType, CommunicationType
+        from actuation_safety import ActuationSafetyMonitor
     except ImportError as e:
         print(f"Failed to import RobStride SDK: {e}")
         sys.exit(1)
@@ -115,7 +117,7 @@ def clamp(x: float, lo: float, hi: float) -> float:
 
 # -------------------- Your provided config --------------------
 # Inversion array interpreted sequentially for CAN IDs 1-10
-INVERSION_ARRAY = [-1, 1, 1, 1, 1, 1, -1, -1, -1, -1]
+INVERSION_ARRAY = [-1, -1, -1, 1, 1, 1, -1, 1, -1, -1]
 INVERSION_BY_ID: Dict[int, int] = {i + 1: INVERSION_ARRAY[i] for i in range(len(INVERSION_ARRAY))}
 
 # Joint limits in radians (logical joint space)
@@ -263,6 +265,54 @@ class GainTunerMIT:
         self.running = True
         self.connected = False
         self._last_control_step_t = time.time()
+        self.safety_monitor: Optional[ActuationSafetyMonitor] = None
+        self.safety_tripped = False
+        self.safety_reason: Optional[str] = None
+
+    def _trip_safety(self, reason: str):
+        if self.safety_tripped:
+            return
+        self.safety_tripped = True
+        self.safety_reason = reason
+        print(reason)
+
+    def _assert_safe(self):
+        if self.safety_tripped:
+            raise RuntimeError(self.safety_reason or "Safety monitor tripped")
+
+    def _read_logical_for_safety(self, mid: int) -> float:
+        if self.bus is None:
+            raise RuntimeError("Bus not connected")
+        acquired = self.lock.acquire(timeout=0.001)
+        if not acquired:
+            raise TimeoutError("safety read skipped: control lock busy")
+        try:
+            st = self.motor_states[mid]
+            pos, vel, tq, temp = self.bus.read_operation_frame(st.name, timeout=0.005)
+            st.position, st.velocity, st.torque, st.temperature = pos, vel, tq, temp
+            return float(pos) / float(st.direction)
+        finally:
+            self.lock.release()
+
+    def _start_safety_monitor(self):
+        joint_limits = {mid: (st.limit_lo, st.limit_hi) for mid, st in self.motor_states.items()}
+        self.safety_monitor = ActuationSafetyMonitor(
+            name="gain_tuner",
+            motor_ids=list(self.motor_states.keys()),
+            joint_limits_by_id=joint_limits,
+            read_logical_pos_fn=self._read_logical_for_safety,
+            halt_fn=self._trip_safety,
+            control_hz=self.hz,
+            read_hz=max(120.0, self.hz * 2.0),
+            max_step_deg=90.0,
+        )
+        self.safety_monitor.start()
+        per_motor_hz = self.safety_monitor.read_hz / max(1, len(self.motor_states))
+        print(
+            f"[SAFETY] monitor started: control_hz={self.hz:.1f}, "
+            f"read_hz_total={self.safety_monitor.read_hz:.1f}, per_motor~{per_motor_hz:.1f}, "
+            f"max_jump_deg=90.0"
+        )
 
     def _clamp_to_limits(self, st: MotorState, logical_rad: float) -> float:
         return clamp(logical_rad, st.limit_lo, st.limit_hi)
@@ -376,6 +426,7 @@ class GainTunerMIT:
 
             self.connected = True
             self.running = True
+            self._start_safety_monitor()
             print("Connected. Motors are holding their current position (no motion).")
             return True
 
@@ -450,6 +501,7 @@ class GainTunerMIT:
         """
         if not (self.running and self.connected and self.bus):
             return
+        self._assert_safe()
 
         dt = float(clamp(dt, 0.0, 0.05))
         now = time.time()
@@ -750,6 +802,9 @@ class GainTunerMIT:
     def shutdown(self):
         print("Shutting down...")
         self.running = False
+        if self.safety_monitor is not None:
+            self.safety_monitor.stop()
+            self.safety_monitor = None
 
         if self.bus and self.connected:
             with self.lock:

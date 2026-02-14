@@ -1,0 +1,153 @@
+1) Single-joint runs (one motor at a time)
+
+Each command below runs single campaign only for that one motor
+(air/contact × clean/disturbed × sine/chirp/random for that motor).
+
+Motor 1
+python3 collect_motor_dataset.py \
+  --campaign single \
+  --motor-ids "1 2 3 4 5 6 7 8 9 10" \
+  --single-ids "1" \
+  --hz 400 \
+  --root-dir ./motor_dataset/single_m1 \
+  --save-csv
+
+Motor 2
+python3 collect_motor_dataset.py \
+  --campaign single \
+  --motor-ids "1 2 3 4 5 6 7 8 9 10" \
+  --single-ids "2" \
+  --hz 400 \
+  --root-dir ./motor_dataset/single_m2 \
+  --save-csv
+
+Motor 3
+python3 collect_motor_dataset.py \
+  --campaign single \
+  --motor-ids "1 2 3 4 5 6 7 8 9 10" \
+  --single-ids "3" \
+  --hz 400 \
+  --root-dir ./motor_dataset/single_m3 \
+  --save-csv
+
+Motor 4
+python3 collect_motor_dataset.py \
+  --campaign single \
+  --motor-ids "1 2 3 4 5 6 7 8 9 10" \
+  --single-ids "4" \
+  --hz 400 \
+  --root-dir ./motor_dataset/single_m4 \
+  --save-csv
+
+Motor 5
+python3 collect_motor_dataset.py \
+  --campaign single \
+  --motor-ids "1 2 3 4 5 6 7 8 9 10" \
+  --single-ids "5" \
+  --hz 400 \
+  --root-dir ./motor_dataset/single_m5 \
+  --save-csv
+
+Motor 6
+python3 collect_motor_dataset.py \
+  --campaign single \
+  --motor-ids "1 2 3 4 5 6 7 8 9 10" \
+  --single-ids "6" \
+  --hz 400 \
+  --root-dir ./motor_dataset/single_m6 \
+  --save-csv
+
+Motor 7
+python3 collect_motor_dataset.py \
+  --campaign single \
+  --motor-ids "1 2 3 4 5 6 7 8 9 10" \
+  --single-ids "7" \
+  --hz 400 \
+  --root-dir ./motor_dataset/single_m7 \
+  --save-csv
+
+Motor 8
+python3 collect_motor_dataset.py \
+  --campaign single \
+  --motor-ids "1 2 3 4 5 6 7 8 9 10" \
+  --single-ids "8" \
+  --hz 400 \
+  --root-dir ./motor_dataset/single_m8 \
+  --save-csv
+
+Motor 9
+python3 collect_motor_dataset.py \
+  --campaign single \
+  --motor-ids "1 2 3 4 5 6 7 8 9 10" \
+  --single-ids "9" \
+  --hz 400 \
+  --root-dir ./motor_dataset/single_m9 \
+  --save-csv
+
+Motor 10
+python3 collect_motor_dataset.py \
+  --campaign single \
+  --motor-ids "1 2 3 4 5 6 7 8 9 10" \
+  --single-ids "10" \
+  --hz 400 \
+  --root-dir ./motor_dataset/single_m10 \
+  --save-csv
+
+2) Multi-joint runs (escalate safely)
+
+Your script’s multi campaign runs air/contact × clean/disturbed with multi-sine trajectories.
+
+2-motor test
+python3 collect_motor_dataset.py \
+  --campaign multi \
+  --motor-ids "1 2 3 4 5 6 7 8 9 10" \
+  --multi-ids "1 6" \
+  --hz 400 \
+  --root-dir ./motor_dataset/multi_2motors \
+  --save-csv
+
+4-motor test
+python3 collect_motor_dataset.py \
+  --campaign multi \
+  --motor-ids "1 2 3 4 5 6 7 8 9 10" \
+  --multi-ids "1 2 6 7" \
+  --hz 400 \
+  --root-dir ./motor_dataset/multi_4motors \
+  --save-csv
+
+Full 10-motor multi
+python3 collect_motor_dataset.py \
+  --campaign multi \
+  --motor-ids "1 2 3 4 5 6 7 8 9 10" \
+  --multi-ids "1 2 3 4 5 6 7 8 9 10" \
+  --hz 400 \
+  --root-dir ./motor_dataset/multi_all \
+  --save-csv
+
+3) IK replay run (final stage)
+
+Uses --multi-ids as the active motors and replays your IK file.
+
+python3 collect_motor_dataset.py \
+  --campaign ik \
+  --motor-ids "1 2 3 4 5 6 7 8 9 10" \
+  --multi-ids "1 2 3 4 5 6 7 8 9 10" \
+  --ik-path /absolute/path/to/IK_trajectory.npz \
+  --ik-fallback-hz 400 \
+  --hz 400 \
+  --root-dir ./motor_dataset/ik_replay \
+  --save-csv
+
+
+(If your IK is .npy or .csv, same command—just change --ik-path.)
+
+4) One-command full pipeline (only if you want everything in one go)
+python3 collect_motor_dataset.py \
+  --campaign all \
+  --motor-ids "1 2 3 4 5 6 7 8 9 10" \
+  --single-ids "1 2 3 4 5 6 7 8 9 10" \
+  --multi-ids "1 2 3 4 5 6 7 8 9 10" \
+  --ik-path /absolute/path/to/IK_trajectory.npz \
+  --hz 400 \
+  --root-dir ./motor_dataset/all_in_one \
+  --save-csv

@@ -1,0 +1,48 @@
+{
+  "started_at": "2026-02-13T13:46:19",
+  "family": "single",
+  "pose": "air",
+  "condition": "clean",
+  "active_motor_ids": [
+    5
+  ],
+  "trajectory_type": "sine",
+  "trajectory_name": "sine_amp13.8deg_f0.25Hz",
+  "trajectory_params": {
+    "amp_rad": 0.24,
+    "amp_deg": 13.750987083139757,
+    "freq_hz": 0.25
+  },
+  "duration_s_planned": 12.0,
+  "sample_hz_target": 400.0,
+  "fields": [
+    "commanded_position_rad",
+    "actual_position_rad",
+    "motor_velocity_rads",
+    "motor_torque_nm",
+    "motor_temperature_c",
+    "commanded_timestamp_ns",
+    "feedback_timestamp_ns",
+    "cycle_idx",
+    "motor_id"
+  ],
+  "joint_limits_rad": {
+    "5": [
+      -0.6,
+      0.6
+    ]
+  },
+  "motor_models": {
+    "5": "rs-02"
+  },
+  "notes": "single motor excitation",
+  "ended_at": "2026-02-13T13:46:34",
+  "duration_s_actual": 11.998971072000131,
+  "cycles_executed": 4800,
+  "rows_logged": 4800,
+  "achieved_cycle_hz": 400.0343005410612,
+  "overrun_cycles": 0,
+  "early_stop_reason": null,
+  "log_file_npz": "log.npz",
+  "log_file_csv": "log.csv"
+}
