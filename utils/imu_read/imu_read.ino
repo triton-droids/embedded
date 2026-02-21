@@ -59,10 +59,11 @@ void setup() {
   if (ok68) MPU_ADDR = 0x68;
   else if (ok69) MPU_ADDR = 0x69;
 
-  if (!MPU_ADDR) {
-    Serial.println("No MPU found. Check wiring/VCC/GND/SDA/SCL/AD0.");
-    return;
-  }
+  //Suprisingly it causes bug
+  // if (!MPU_ADDR) {
+  //   Serial.println("No MPU found. Check wiring/VCC/GND/SDA/SCL/AD0.");
+  //   return;
+  // }
 
   uint8_t who = readReg(MPU_ADDR, 0x75); // WHO_AM_I
   Serial.printf("MPU found at 0x%02X, WHO_AM_I=0x%02X\n", MPU_ADDR, who);
@@ -131,5 +132,5 @@ void loop() {
                 gx_dps, gy_dps, gz_dps,
                 roll, pitch, tempC);
 
-  delay(20); // 50 Hz
+  delay(5); // 200 Hz
 }
