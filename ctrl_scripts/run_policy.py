@@ -42,12 +42,13 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 try:
-    from utils.imu_read import iter_imu_samples
+    from utils.imu_read import RK4DeadReckoner, iter_imu_samples
 
     IMU_AVAILABLE = True
 except Exception:
     IMU_AVAILABLE = False
     iter_imu_samples = None
+    RK4DeadReckoner = None
 
 
 class ImuReader:
@@ -58,6 +59,7 @@ class ImuReader:
         self.baud = int(require_key(cfg, "baud", "imu"))
         self.rate_hz = float(require_key(cfg, "rate_hz", "imu"))
         self.include_all = bool(require_key(cfg, "include_all", "imu"))
+        self.use_quaternion_up = bool(cfg.get("use_quaternion_up", True))
         self.wait_for_first_sample_s = float(require_key(cfg, "wait_for_first_sample_s", "imu"))
         self.gyro_sign = np.asarray(require_key(cfg, "gyro_sign", "imu"), dtype=float)
         self.accel_sign = np.asarray(require_key(cfg, "accel_sign", "imu"), dtype=float)
@@ -99,13 +101,22 @@ class ImuReader:
 
     def _loop(self) -> None:
         try:
-            kwargs = dict(
+            if iter_imu_samples is None:
+                raise RuntimeError("iter_imu_samples is unavailable")
+
+            kwargs: dict[str, Any] = dict(
                 source=self.source,
                 port=self.port,
                 baud=self.baud,
                 rate_hz=self.rate_hz,
             )
-            if self.include_all:
+
+            if self.use_quaternion_up:
+                kwargs["include_all"] = True
+                if RK4DeadReckoner is not None:
+                    kwargs["integrator"] = RK4DeadReckoner(gravity_world=(0.0, 0.0, 9.80665))
+                gen = iter_imu_samples(**kwargs)
+            elif self.include_all:
                 kwargs["include_all"] = True
                 gen = iter_imu_samples(**kwargs)
             else:
@@ -115,16 +126,16 @@ class ImuReader:
             for sample in gen:
                 if not self._running:
                     break
-                acc_g = sample.get("acc_g")
                 gyro_dps = sample.get("gyro_dps")
-                if acc_g is None or gyro_dps is None:
+                if gyro_dps is None:
                     continue
-
-                acc = np.asarray(acc_g, dtype=float) * self.accel_sign
                 gyro = np.asarray(gyro_dps, dtype=float) * self.gyro_sign
 
-                norm = float(np.linalg.norm(acc))
-                up = self._up_body if norm < 1e-6 else (acc / norm)
+                # Directly use up_body computed by RK4DeadReckoner
+                up = self._up_body
+                up_body_from_sample = sample.get("up_body")
+                if up_body_from_sample is not None:
+                    up = np.asarray(up_body_from_sample, dtype=float)
                 ang_vel = np.radians(gyro)
 
                 with self._lock:

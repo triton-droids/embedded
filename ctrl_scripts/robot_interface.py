@@ -30,9 +30,15 @@ if str(REPO_ROOT) not in sys.path:
 try:
     from robstride_dynamics import RobstrideBus, Motor, ParameterType, CommunicationType
     from utils.actuation_safety import ActuationSafetyMonitor
+except ModuleNotFoundError as exc:
+    if exc.name == "can":
+        raise ModuleNotFoundError(
+            "Missing dependency 'python-can'. Install it with: python -m pip install python-can"
+        ) from exc
+    raise
 except ImportError:
-    from bus import RobstrideBus, Motor
-    from protocol import ParameterType, CommunicationType
+    from robstride_dynamics.bus import RobstrideBus, Motor
+    from robstride_dynamics.protocol import ParameterType, CommunicationType
     from utils.actuation_safety import ActuationSafetyMonitor
 
 try:

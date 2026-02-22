@@ -135,7 +135,7 @@
   "imu": {
     "enabled": true,
     "source": "serial",
-    "port": "/dev/ttyUSB0",
+    "port": "COM13",
     "baud": 115200,
     "rate_hz": 100.0,
     "include_all": true,

@@ -150,6 +150,15 @@ def quat_to_rpy(q):
     return roll, pitch, yaw
 
 
+def quat_xyzw_to_up_body(q):
+    x, y, z, w = quat_normalize(q)
+    return (
+        2.0 * (x * z - y * w),
+        2.0 * (y * z + x * w),
+        1.0 - 2.0 * (x * x + y * y),
+    )
+
+
 # --------------------
 # Integrator (RK4)
 # --------------------
@@ -302,12 +311,14 @@ class RK4DeadReckoner:
             self._t_prev = t
             self._omega_prev_raw = gyro_rads_raw
             self._a_prev_world = (0.0, 0.0, 0.0)
+            up_body = quat_xyzw_to_up_body(self.q)
             return {
                 "dt_s": None,
                 "stationary": stationary,
                 "q_xyzw": self.q,
                 "rpy_rad": quat_to_rpy(self.q),
                 "rpy_deg": tuple(a*RAD2DEG for a in quat_to_rpy(self.q)),
+                "up_body": up_body,
                 "lin_vel_ms": self.v,
                 "lin_pos_m": self.p,
                 "acc_world_ms2": None,
@@ -354,12 +365,14 @@ class RK4DeadReckoner:
         self._omega_prev_raw = gyro_rads_raw
 
         rpy = quat_to_rpy(self.q)
+        up_body = quat_xyzw_to_up_body(self.q)
         return {
             "dt_s": dt,
             "stationary": stationary,
             "q_xyzw": self.q,
             "rpy_rad": rpy,
             "rpy_deg": (rpy[0]*RAD2DEG, rpy[1]*RAD2DEG, rpy[2]*RAD2DEG),
+            "up_body": up_body,
             "lin_vel_ms": self.v,
             "lin_pos_m": self.p,
             "acc_world_ms2": acc_world,
@@ -573,4 +586,6 @@ if __name__ == "__main__":
     dr = RK4DeadReckoner(gravity_world=(0.0, 0.0, 9.80665))
     gen = iter_imu_samples(source="serial", port=PORT, rate_hz=50, integrator=dr, include_all=True)
     for i, s in zip(range(10), gen):
-        print(i, s["acc_g"], s["gyro_dps"], s.get("rpy_deg"), s.get("lin_pos_m"))
+        #print(i, s["acc_g"], s["gyro_dps"], s.get("rpy_deg"), s.get("up_body"), s.get("lin_pos_m"))
+        print(s.get("up_body"))
+        time.sleep(0.5)
