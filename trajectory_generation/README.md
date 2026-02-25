@@ -67,6 +67,21 @@ python generate_ik_stepping_trajectory.py \
     --out_meta ik_standing_leg_swing_fast_meta.json
 ```
 
+```bash
+cd /Users/darin/Desktop/_/club_stuff/tritondroids/embedded/trajectory_generation
+python generate_ik_stepping_trajectory.py --urdf human_offset_corrected.urdf --mode contact --hz 400 --duration 20 \
+  --step_freq 1.5 \
+  --forward_axis y \
+  --ax 0.0 \
+  --az 0.05 \
+  --gamma 1.8 \
+  --ramp_time 1.0 \
+  --left_foot_offset -0.01 0.025 -0.04263 \
+  --right_foot_offset 0.01 0.025 -0.04263 \
+  --out_csv ik_standing_leg_swing_fast_short.csv \
+  --out_meta ik_standing_leg_swing_fast_short_meta.json
+```
+
 Expected terminal output:
 - `[OK] Wrote trajectory CSV: ik_stepping_trajectory.csv`
 - `[OK] Wrote metadata JSON: ik_stepping_meta.json`
@@ -134,8 +149,8 @@ If you only want to watch the motion in MuJoCo and do not want any evaluation fi
 ```bash
 mjpython evaluate_ik_stepping_trajectory_mujoco.py \
   --model scene.xml \
-  --traj_csv ik_standing_leg_swing_fast.csv \
-  --traj_meta ik_standing_leg_swing_fast_meta.json \
+  --traj_csv ik_standing_leg_swing_fast_short.csv \
+  --traj_meta ik_standing_leg_swing_fast_short_meta.json \
   --render --realtime --no_log
 ```
 
