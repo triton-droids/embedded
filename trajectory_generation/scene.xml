@@ -102,7 +102,7 @@
     <!-- TORSO (URDF: link "torso") -->
     <body name="torso" pos="0 0 0.03">
       <site name="imu" pos="-0.155 -0.016 0.63" size="0.01" rgba="1 0 0 1"/>
-      <freejoint name="root"/>
+      <!-- <freejoint name="root"/> -->
 
       <geom mesh="torso_visual" material="metal_silver"/>
 
