@@ -1,72 +1,55 @@
 """
-imu_stream.py
-
-Importable IMU streaming + optional RK4 dead-reckoning integrator.
-
-What you get
 ------------
-1) Serial mode:
-   - Parses Arduino/ESP32 CSV lines:
-     t_ms,ax_g,ay_g,az_g,gx_dps,gy_dps,gz_dps,roll_deg,pitch_deg,temp_C
-     (temp_C optional)
+1) Streaming interface:
+   - iter_imu_samples(...) yields dict samples at a requested rate.
+   - Supports serial CSV format:
+       t_ms, ax_g, ay_g, az_g, gx_dps, gy_dps, gz_dps, roll_deg, pitch_deg, (temp_C optional)
+   - Supports I2C mode via a local MPU6050Reader that returns (acc_ms2, gyro_rads).
 
-2) I2C mode:
-   - Reads from imu_i2c_reader.MPU6050Reader(bus_id, addr).read()
-     returning (acc_ms2, gyro_rads)
+2) RK4 attitude integration (quaternion):
+   - Integrates orientation using gyro angular rate with RK4.
+   - Outputs:
+       q_xyzw      : orientation quaternion (x, y, z, w)
+       rpy_deg/rad : roll/pitch/yaw (for convenience)
+       up_body     : world +Z expressed in the body frame (tilt indicator)
 
-3) Optional integrator (RK4):
-   - Integrates orientation quaternion with gyro (RK4).
-   - Rotates body acceleration into world frame.
-   - Removes gravity to get linear acceleration in world.
-   - Integrates velocity/position with RK4.
-   - Simple ZUPT + gyro bias update when "still".
+3) Conservative tilt drift suppression (Mahony-style, roll/pitch only):
+   - The accelerometer is used as a gravity direction measurement ONLY when a
+     "dual-gate" test passes:
+       Gate A: accel magnitude close to 1g  ->  abs(|a|/g - 1) < acc_gate_g
+       Gate B: low jerk (small accel change)->  |(a_now - a_prev)/dt| < jerk_gate_ms3
+     Optional Gate C: low angular rate      ->  |gyro| < gyro_gate_dps
+   - Additionally, the gate must pass for N consecutive samples (gate_min_count)
+     before correction is applied. This prevents one-off spikes from triggering
+     correction.
+   - When gated, a Mahony-style correction is applied:
+       omega_corrected = omega + kp_acc * (up_pred x up_meas)
+     which pulls roll/pitch back toward gravity. Yaw is not corrected because
+     gravity does not observe yaw.
 
-Default output
---------------
-By default, iter_imu_samples() only yields:
-  - acc_g: (ax, ay, az) in g
-  - gyro_dps: (gx, gy, gz) in deg/s
+4) Still detection and gyro bias learning (optional):
+   - Independently detects "stationary" periods using accel magnitude + gyro
+     magnitude thresholds.
+   - When stationary, a slow exponential update estimates gyro bias to reduce drift.
+   - IMPORTANT: This implementation intentionally does NOT reset the quaternion
+     to identity when stationary (no "hard reset to (0,0,0,1)"), to avoid sudden
+     discontinuities in orientation estimates.
 
-To output all known fields:
-  - include_all=True  OR  keys=None
+Notes / Assumptions
+-------------------
+- Accelerometer is assumed to include gravity. If the platform experiences strong
+  linear accelerations, the gate should prevent using accel as a gravity reference.
+- For best results, calibrate sensor offsets/scales and ensure consistent axis
+  conventions between firmware and this code.
+- This module focuses on robust tilt (roll/pitch) and an up vector; it is not
+  meant to provide accurate long-term position without external aiding.
 
-To enable integration:
-  - create an RK4DeadReckoner() and pass integrator=...
-
-Rate control
-------------
-rate_hz:
-  - Serial: always reads continuously, but only EMITS at rate_hz (drops extra lines).
-  - I2C: sleeps to sample/emit at rate_hz.
-
-Dependencies
-------------
-- Serial mode: pyserial (pip install pyserial)
-- I2C mode: a local imu_i2c_reader.py providing MPU6050Reader
-
-Usage examples
---------------
-A) Serial, default fields (acc_g + gyro_dps), 50Hz output
-    from imu_stream import iter_imu_samples
-    for s in iter_imu_samples(source="serial", port="/dev/ttyUSB0", rate_hz=50):
-        print(s)
-
-B) Serial, all fields
-    for s in iter_imu_samples(source="serial", port="/dev/ttyUSB0", include_all=True):
-        print(s.keys())
-
-C) Serial + integrator (all fields includes integrated states)
-    from imu_stream import iter_imu_samples, RK4DeadReckoner
-    dr = RK4DeadReckoner(gravity_world=(0.0, 0.0, 9.80665))  # z-up world, stationary acc_world ≈ +g
-    for s in iter_imu_samples(source="serial", port="/dev/ttyUSB0", integrator=dr, include_all=True, rate_hz=50):
-        print(s["rpy_deg"], s["lin_pos_m"], s["lin_vel_ms"])
-
-D) Only pick some fields
-    keys = ("t_ms", "acc_g", "gyro_dps", "rpy_deg", "lin_pos_m")
-    for s in iter_imu_samples(source="serial", port="/dev/ttyUSB0", integrator=dr, keys=keys, rate_hz=20):
-        print(s)
+Typical Usage
+-------------
+Create an RK4DeadReckoner and pass it into iter_imu_samples(..., integrator=...),
+then read s["up_body"] or s["rpy_deg"] to monitor tilt. Enable include_all=True
+to inspect gate diagnostics (acc_gate_err_g, jerk_ms3, gate_ok, etc.).
 """
-
 from __future__ import annotations
 import math
 import time
@@ -89,10 +72,17 @@ _SKIP_PREFIXES = (
 # --------------------
 # small vector helpers (no numpy dependency)
 # --------------------
-def v_add(a, b): return (a[0]+b[0], a[1]+b[1], a[2]+b[2])
-def v_sub(a, b): return (a[0]-b[0], a[1]-b[1], a[2]-b[2])
-def v_mul(s, a): return (s*a[0], s*a[1], s*a[2])
+def v_add(a, b): return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
+def v_sub(a, b): return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
+def v_mul(s, a): return (s * a[0], s * a[1], s * a[2])
 def v_norm(a): return math.sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2])
+
+def v_cross(a, b):
+    return (
+        a[1]*b[2] - a[2]*b[1],
+        a[2]*b[0] - a[0]*b[2],
+        a[0]*b[1] - a[1]*b[0],
+    )
 
 def s_add(a, b):  # 6D state add
     return (a[0]+b[0], a[1]+b[1], a[2]+b[2], a[3]+b[3], a[4]+b[4], a[5]+b[5])
@@ -102,7 +92,7 @@ def s_mul(s, a):  # 6D state scale
 
 
 # --------------------
-# quaternion (x,y,z,w) helpers (same convention as your rk4 node)
+# quaternion (x,y,z,w) helpers
 # --------------------
 def quat_normalize(q):
     x, y, z, w = q
@@ -149,8 +139,10 @@ def quat_to_rpy(q):
 
     return roll, pitch, yaw
 
-
 def quat_xyzw_to_up_body(q):
+    """
+    up_body = R_wb^T * [0,0,1] (world +Z expressed in body frame)
+    """
     x, y, z, w = quat_normalize(q)
     return (
         2.0 * (x * z - y * w),
@@ -175,6 +167,16 @@ class RK4DeadReckoner:
       - stationary if | |acc|-1g | < zupt_acc_g AND |gyro| < zupt_gyro_dps
       - if stationary: gyro_bias <- (1-a)*bias + a*gyro_raw
       - if stationary and enable_zupt: set v = 0
+
+    Attitude drift suppression:
+      - Dual gate (""):
+          1) | |acc|-1g | < acc_gate_g
+          2) jerk = |(acc_now - acc_prev)/dt| < jerk_gate_ms3
+        + optional gyro gate:
+          3) |gyro| < gyro_gate_dps
+      - Require
+      - Mahony-style correction: omega += kp * (up_pred x up_meas)  (body-frame)
+        (only roll/pitch are observable; yaw is free)
     """
 
     def __init__(
@@ -182,21 +184,56 @@ class RK4DeadReckoner:
         *,
         gravity_world: Tuple[float, float, float] = (0.0, 0.0, 9.80665),
         acc_includes_gravity: bool = True,
+        integrate_translation: bool = False,
+
         enable_zupt: bool = True,
         zupt_acc_g: float = 0.05,
         zupt_gyro_dps: float = 2.0,
+        stationary_sensitivity_scale: float = 1.5,
+        stationary_release_ratio: float = 1.25,
+        debug_stationary: bool = False,
         alpha_gyro_bias: float = 0.01,
         max_dt: float = 0.2,
         use_board_time_if_available: bool = True,
+
+        # ---- acc correction ----
+        enable_acc_correction: bool = True,
+        acc_gate_g: float = 0.05,          # tighter default
+        jerk_gate_ms3: float = 0.5,        # your current preference (very strict)
+        enable_gyro_gate: bool = True,
+        gyro_gate_dps: float = 8.0,
+        gate_min_count: int = 5,           # consecutive frames required
+
+        kp_acc: float = 2.0,               # proportional correction strength (rad/s)
+        ki_acc: float = 0.0,               # optional: integrate into bias (keep 0 first)
+        debug_acc_gate: bool = False,
     ):
         self.gw = gravity_world
         self.acc_includes_gravity = acc_includes_gravity
+        self.integrate_translation = integrate_translation
+
         self.enable_zupt = enable_zupt
         self.zupt_acc_g = zupt_acc_g
         self.zupt_gyro_dps = zupt_gyro_dps
+        self.stationary_sensitivity_scale = max(0.1, stationary_sensitivity_scale)
+        self.stationary_release_ratio = max(1.0, stationary_release_ratio)
+        self.debug_stationary = debug_stationary
         self.alpha_bias = alpha_gyro_bias
         self.max_dt = max_dt
         self.use_board_time_if_available = use_board_time_if_available
+
+        # acc correction params
+        self.enable_acc_correction = enable_acc_correction
+        self.acc_gate_g = max(0.001, acc_gate_g)
+        self.jerk_gate_ms3 = max(0.01, jerk_gate_ms3)
+        self.enable_gyro_gate = enable_gyro_gate
+        self.gyro_gate_dps = max(0.1, gyro_gate_dps)
+        self.gate_min_count = max(1, int(gate_min_count))
+        self._gate_count = 0
+
+        self.kp_acc = max(0.0, kp_acc)
+        self.ki_acc = max(0.0, ki_acc)
+        self.debug_acc_gate = debug_acc_gate
 
         self.q = (0.0, 0.0, 0.0, 1.0)
         self.v = (0.0, 0.0, 0.0)
@@ -206,6 +243,10 @@ class RK4DeadReckoner:
         self._t_prev: Optional[float] = None
         self._omega_prev_raw: Optional[Tuple[float, float, float]] = None
         self._a_prev_world: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+        self._stationary_prev: bool = False
+
+        # for jerk gate
+        self._acc_prev_ms2: Optional[Tuple[float, float, float]] = None
 
     def _q_dot(self, q, omega_rads):
         ox, oy, oz = omega_rads
@@ -272,18 +313,12 @@ class RK4DeadReckoner:
         return p1, v1
 
     def update(self, sample: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Update integrator with one parsed sample dict and return extra fields.
-        Requires at least: acc_ms2 or acc_g, gyro_rads or gyro_dps, and time (t_s or host_time_s).
-        """
         # pick time
-        t = None
         if self.use_board_time_if_available and (sample.get("t_s") is not None):
             t = float(sample["t_s"])
         elif sample.get("host_time_s") is not None:
             t = float(sample["host_time_s"])
         else:
-            # last resort: current time
             t = time.time()
 
         # get acc / gyro in SI
@@ -292,6 +327,23 @@ class RK4DeadReckoner:
         else:
             ax, ay, az = sample["acc_g"]
             acc_ms2 = (ax*G, ay*G, az*G)
+
+        # CAN reply may provide only XY accel. Reconstruct Z so Mahony gates/correction
+        # can still operate on a unit-gravity direction vector.
+        if sample.get("has_partial_axes_xy_only", False):
+            axg = acc_ms2[0] / G
+            ayg = acc_ms2[1] / G
+            xy2 = axg*axg + ayg*ayg
+            if xy2 >= 1.0:
+                s = 0.999 / math.sqrt(max(xy2, 1e-12))
+                axg *= s
+                ayg *= s
+                xy2 = axg*axg + ayg*ayg
+            az_abs = math.sqrt(max(0.0, 1.0 - xy2))
+            # Sign from current predicted up vector to avoid sudden flips.
+            up_pred_now = quat_xyzw_to_up_body(self.q)
+            azg = az_abs if up_pred_now[2] >= 0.0 else -az_abs
+            acc_ms2 = (axg * G, ayg * G, azg * G)
 
         if sample.get("gyro_rads") is not None:
             gyro_rads_raw = tuple(sample["gyro_rads"])
@@ -304,36 +356,79 @@ class RK4DeadReckoner:
         gxd, gyd, gzd = (gyro_rads_raw[0]*RAD2DEG, gyro_rads_raw[1]*RAD2DEG, gyro_rads_raw[2]*RAD2DEG)
         a_mag_g = math.sqrt(axg*axg + ayg*ayg + azg*azg)
         gyro_mag_dps = math.sqrt(gxd*gxd + gyd*gyd + gzd*gzd)
-        stationary = (abs(a_mag_g - 1.0) < self.zupt_acc_g) and (gyro_mag_dps < self.zupt_gyro_dps)
+        acc_err_g = abs(a_mag_g - 1.0)
+
+        enter_acc = self.zupt_acc_g * self.stationary_sensitivity_scale
+        enter_gyro = self.zupt_gyro_dps * self.stationary_sensitivity_scale
+        exit_acc = enter_acc * self.stationary_release_ratio
+        exit_gyro = enter_gyro * self.stationary_release_ratio
+
+        was_stationary = self._stationary_prev
+        if was_stationary:
+            stationary = (acc_err_g < exit_acc) and (gyro_mag_dps < exit_gyro)
+        else:
+            stationary = (acc_err_g < enter_acc) and (gyro_mag_dps < enter_gyro)
+        self._stationary_prev = stationary
+
+        if self.debug_stationary:
+            print(
+                f"[stationary] s={stationary} prev={was_stationary} "
+                f"acc_err_g={acc_err_g:.4f} gyro_mag_dps={gyro_mag_dps:.3f} "
+                f"enter(acc={enter_acc:.4f},gyro={enter_gyro:.3f}) "
+                f"exit(acc={exit_acc:.4f},gyro={exit_gyro:.3f})"
+            )
 
         # init
         if self._t_prev is None:
             self._t_prev = t
             self._omega_prev_raw = gyro_rads_raw
             self._a_prev_world = (0.0, 0.0, 0.0)
-            up_body = quat_xyzw_to_up_body(self.q)
+            self._acc_prev_ms2 = acc_ms2
             return {
                 "dt_s": None,
                 "stationary": stationary,
                 "q_xyzw": self.q,
                 "rpy_rad": quat_to_rpy(self.q),
                 "rpy_deg": tuple(a*RAD2DEG for a in quat_to_rpy(self.q)),
-                "up_body": up_body,
+                "up_body": quat_xyzw_to_up_body(self.q),
                 "lin_vel_ms": self.v,
                 "lin_pos_m": self.p,
                 "acc_world_ms2": None,
                 "acc_lin_world_ms2": None,
                 "gyro_bias_rads": self.gyro_bias_rads,
+                "acc_gate_ok": False,
+                "acc_gate_err_g": acc_err_g,
+                "jerk_ms3": None,
+                "jerk_gate_ok": False,
+                "gyro_gate_ok": False,
             }
 
         dt = t - self._t_prev
         self._t_prev = t
         if dt <= 0.0 or dt > self.max_dt:
-            # skip update but refresh prev omega
             self._omega_prev_raw = gyro_rads_raw
-            return {"dt_s": dt, "stationary": stationary}
+            self._acc_prev_ms2 = acc_ms2
+            rpy = quat_to_rpy(self.q)
+            return {
+                "dt_s": dt,
+                "stationary": stationary,
+                "q_xyzw": self.q,
+                "rpy_rad": rpy,
+                "rpy_deg": (rpy[0]*RAD2DEG, rpy[1]*RAD2DEG, rpy[2]*RAD2DEG),
+                "up_body": quat_xyzw_to_up_body(self.q),
+                "lin_vel_ms": self.v,
+                "lin_pos_m": self.p,
+                "acc_world_ms2": None,
+                "acc_lin_world_ms2": None,
+                "gyro_bias_rads": self.gyro_bias_rads,
+                "acc_gate_ok": False,
+                "acc_gate_err_g": acc_err_g,
+                "jerk_ms3": None,
+                "jerk_gate_ok": False,
+                "gyro_gate_ok": False,
+            }
 
-        # gyro bias update
+        # gyro bias update (still-based) — keep this, but NO reset to q=identity
         if stationary:
             bx, by, bz = self.gyro_bias_rads
             ox, oy, oz = gyro_rads_raw
@@ -341,31 +436,100 @@ class RK4DeadReckoner:
             self.gyro_bias_rads = ((1-a)*bx + a*ox, (1-a)*by + a*oy, (1-a)*bz + a*oz)
 
         # bias-corrected omega
-        omega = v_sub(gyro_rads_raw, self.gyro_bias_rads)
-        omega0 = v_sub(self._omega_prev_raw, self.gyro_bias_rads) if self._omega_prev_raw is not None else omega
-        omega1 = omega
+        omega1 = v_sub(gyro_rads_raw, self.gyro_bias_rads)
+        omega0 = v_sub(self._omega_prev_raw, self.gyro_bias_rads) if self._omega_prev_raw is not None else omega1
+
+        # --------------------
+        # Dual gate + consecutive count + tilt correction
+        # --------------------
+        acc_gate_ok = False
+        jerk_gate_ok = False
+        gyro_gate_ok = False
+        jerk_ms3 = None
+
+        a_mag = v_norm(acc_ms2)
+        acc_gate_err_g = abs((a_mag / G) - 1.0) if a_mag > 1e-9 else 999.0
+        if a_mag > 1e-9 and acc_gate_err_g < self.acc_gate_g:
+            acc_gate_ok = True
+
+        if self._acc_prev_ms2 is not None and dt > 1e-6:
+            da = v_sub(acc_ms2, self._acc_prev_ms2)
+            jerk_ms3 = v_norm(da) / dt
+            if jerk_ms3 < self.jerk_gate_ms3:
+                jerk_gate_ok = True
+
+        if (not self.enable_gyro_gate) or (gyro_mag_dps < self.gyro_gate_dps):
+            gyro_gate_ok = True
+
+        gate_now = (
+            self.enable_acc_correction
+            and (self.kp_acc > 0.0)
+            and acc_gate_ok
+            and jerk_gate_ok
+            and gyro_gate_ok
+        )
+
+        if gate_now:
+            self._gate_count = min(self._gate_count + 1, 1_000_000)
+        else:
+            self._gate_count = 0
+
+        gate_ok = (self._gate_count >= self.gate_min_count)
+
+        if self.debug_acc_gate:
+            print(
+                f"[acc_gate] now={gate_now} ok={gate_ok} cnt={self._gate_count}/{self.gate_min_count} "
+                f"mag_err_g={acc_gate_err_g:.3f}(<{self.acc_gate_g:.3f}) "
+                f"jerk={('%.2f'%jerk_ms3) if jerk_ms3 is not None else 'None'}(<{self.jerk_gate_ms3:.2f}) "
+                f"gyro={gyro_mag_dps:.2f}(<{self.gyro_gate_dps:.2f} if enabled) "
+                f"kp={self.kp_acc:.2f} ki={self.ki_acc:.2f}"
+            )
+
+        if gate_ok:
+            # measured up in body ~ acc direction (assumes acc includes gravity)
+            up_meas = v_mul(1.0 / a_mag, acc_ms2)
+            up_pred = quat_xyzw_to_up_body(self.q)
+            e = v_cross(up_pred, up_meas)  # body-frame error axis
+
+            omega0 = v_add(omega0, v_mul(self.kp_acc, e))
+            omega1 = v_add(omega1, v_mul(self.kp_acc, e))
+
+            if self.ki_acc > 0.0:
+                bx, by, bz = self.gyro_bias_rads
+                self.gyro_bias_rads = (
+                    bx - self.ki_acc * e[0] * dt,
+                    by - self.ki_acc * e[1] * dt,
+                    bz - self.ki_acc * e[2] * dt,
+                )
 
         # attitude RK4
         self.q = self._integrate_quat_rk4(self.q, omega0, omega1, dt)
+        self._acc_prev_ms2 = acc_ms2
 
-        # acc -> world
-        acc_world = quat_rotate(self.q, acc_ms2)
-        if self.acc_includes_gravity:
-            a_lin_world = v_sub(acc_world, self.gw)
+        acc_world = None
+        a_lin_world = None
+        if self.integrate_translation:
+            acc_world = quat_rotate(self.q, acc_ms2)
+            if self.acc_includes_gravity:
+                a_lin_world = v_sub(acc_world, self.gw)
+            else:
+                a_lin_world = acc_world
+
+            if stationary and self.enable_zupt:
+                self.v = (0.0, 0.0, 0.0)
+            else:
+                self.p, self.v = self._integrate_pv_rk4(self.p, self.v, self._a_prev_world, a_lin_world, dt)
+            self._a_prev_world = a_lin_world
         else:
-            a_lin_world = acc_world
-
-        # p,v RK4
-        if stationary and self.enable_zupt:
             self.v = (0.0, 0.0, 0.0)
-        else:
-            self.p, self.v = self._integrate_pv_rk4(self.p, self.v, self._a_prev_world, a_lin_world, dt)
+            self.p = (0.0, 0.0, 0.0)
+            self._a_prev_world = (0.0, 0.0, 0.0)
 
-        self._a_prev_world = a_lin_world
         self._omega_prev_raw = gyro_rads_raw
 
         rpy = quat_to_rpy(self.q)
         up_body = quat_xyzw_to_up_body(self.q)
+
         return {
             "dt_s": dt,
             "stationary": stationary,
@@ -378,6 +542,15 @@ class RK4DeadReckoner:
             "acc_world_ms2": acc_world,
             "acc_lin_world_ms2": a_lin_world,
             "gyro_bias_rads": self.gyro_bias_rads,
+
+            # debug gates
+            "acc_gate_ok": acc_gate_ok,
+            "acc_gate_err_g": acc_gate_err_g,
+            "jerk_ms3": jerk_ms3,
+            "jerk_gate_ok": jerk_gate_ok,
+            "gyro_gate_ok": gyro_gate_ok,
+            "gate_count": self._gate_count,
+            "gate_ok": gate_ok,
         }
 
 
@@ -405,7 +578,7 @@ def parse_arduino_imu_csv(line: str) -> Optional[Dict[str, Any]]:
         t_ms = float(parts[0])
         ax_g, ay_g, az_g = float(parts[1]), float(parts[2]), float(parts[3])
         gx_dps, gy_dps, gz_dps = float(parts[4]), float(parts[5]), float(parts[6])
-        roll_deg, pitch_deg = float(parts[7]), float(parts[8])
+        roll_deg, pitch_deg = float(parts[7]), float(parts[8]) if len(parts) >=8 else None
         temp_C = float(parts[9]) if len(parts) >= 10 else None
 
         acc_g = (ax_g, ay_g, az_g)
@@ -434,24 +607,26 @@ def parse_arduino_imu_csv(line: str) -> Optional[Dict[str, Any]]:
 def parse_can_imu_reply(
     msg: Any,
     *,
-    can_id_rsp: int = 0x101,
+    can_id_rsp: Optional[int] = 0x101,
+    can_allow_extended: bool = False,
+    can_expected_dlc: int = 8,
     acc_lsb_per_g: float = 16384.0,
     gyro_lsb_per_dps: float = 131.0,
 ) -> Optional[Dict[str, Any]]:
     """
-    Parse one CAN IMU reply frame with payload:
+    Parse one CAN IMU reply frame:
       [ax_hi, ax_lo, ay_hi, ay_lo, gx_hi, gx_lo, gy_hi, gy_lo]
-    where each field is int16 big-endian.
-
-    Returns a sample dict compatible with iter_imu_samples() output.
+    each field is big-endian int16.
     """
     try:
-        if bool(getattr(msg, "is_extended_id", False)):
+        is_ext = bool(getattr(msg, "is_extended_id", False))
+        msg_id = int(getattr(msg, "arbitration_id", -1))
+        if (not can_allow_extended) and is_ext:
             return None
-        if int(getattr(msg, "arbitration_id", -1)) != int(can_id_rsp):
+        if (can_id_rsp is not None) and (msg_id != int(can_id_rsp)):
             return None
         data = bytes(getattr(msg, "data", b""))
-        if len(data) != 8:
+        if len(data) < int(can_expected_dlc):
             return None
 
         ax = int.from_bytes(data[0:2], byteorder="big", signed=True)
@@ -459,7 +634,7 @@ def parse_can_imu_reply(
         gx = int.from_bytes(data[4:6], byteorder="big", signed=True)
         gy = int.from_bytes(data[6:8], byteorder="big", signed=True)
 
-        # Reply only carries XY accel/gyro; keep Z as 0 to preserve tuple shape.
+        # Frame has XY only; keep Z as 0 to preserve schema shape.
         ax_g = ax / float(acc_lsb_per_g)
         ay_g = ay / float(acc_lsb_per_g)
         az_g = 0.0
@@ -487,7 +662,8 @@ def parse_can_imu_reply(
             "acc_norm_g": v_norm(acc_g),
             "gyro_norm_dps": v_norm(gyro_dps),
             "raw": data.hex(),
-            "can_id": int(can_id_rsp),
+            "can_id": msg_id,
+            "is_extended_id": is_ext,
             "has_partial_axes_xy_only": True,
         }
     except Exception:
@@ -510,7 +686,7 @@ def iter_imu_samples(
     *,
     source: str = "serial",   # "serial", "i2c", or "can"
     # serial params
-    port: str = "COM13",
+    port: str = "COM32",
     baud: int = 115200,
     timeout: float = 1.0,
     # i2c params
@@ -520,8 +696,13 @@ def iter_imu_samples(
     can_interface: str = "slcan",
     can_channel: str = "COM30",
     can_bitrate: int = 500000,
-    can_id_rsp: int = 0x101,
-    can_timeout: float = 1.0,
+    can_id_rsp: Optional[int] = 0x101,
+    can_allow_extended: bool = False,
+    can_expected_dlc: int = 8,
+    can_timeout: float = 0.01,
+    can_send_request: bool = False,
+    can_id_req: int = 0x100,
+    can_req_period_s: Optional[float] = None,
     acc_lsb_per_g: float = 16384.0,
     gyro_lsb_per_dps: float = 131.0,
     # output control
@@ -533,12 +714,6 @@ def iter_imu_samples(
     # integrator
     integrator: Optional[RK4DeadReckoner] = None,
 ) -> Iterator[Dict[str, Any]]:
-    """
-    Generator yielding IMU samples as dicts.
-
-    If integrator is provided, integrated fields are merged into the sample dict.
-    Use include_all=True (or keys=None) to see all merged fields.
-    """
     source = source.lower().strip()
     if source not in ("serial", "i2c", "can"):
         raise ValueError("source must be 'serial', 'i2c', or 'can'")
@@ -648,21 +823,40 @@ def iter_imu_samples(
                 reader.close()
             except Exception:
                 pass
-
     else:
         import can as canlib  # python-can
 
         bus = canlib.Bus(interface=can_interface, channel=can_channel, bitrate=can_bitrate)
         next_emit_s: Optional[float] = None
+        next_req_s: float = 0.0
+        req_period_s: float = (
+            max(0.001, float(can_req_period_s))
+            if can_req_period_s is not None
+            else (period if period is not None else 0.005)
+        )
+        recv_timeout_s: float = max(0.001, min(float(can_timeout), req_period_s))
         try:
             while True:
-                msg = bus.recv(can_timeout)
+                if can_send_request:
+                    now_req = time.time()
+                    if now_req >= next_req_s:
+                        req = canlib.Message(
+                            arbitration_id=can_id_req,
+                            is_extended_id=False,
+                            data=[],
+                        )
+                        bus.send(req)
+                        next_req_s = now_req + req_period_s
+
+                msg = bus.recv(recv_timeout_s)
                 if msg is None:
                     continue
 
                 full = parse_can_imu_reply(
                     msg,
                     can_id_rsp=can_id_rsp,
+                    can_allow_extended=can_allow_extended,
+                    can_expected_dlc=can_expected_dlc,
                     acc_lsb_per_g=acc_lsb_per_g,
                     gyro_lsb_per_dps=gyro_lsb_per_dps,
                 )
@@ -690,10 +884,49 @@ def iter_imu_samples(
 
 # optional quick demo
 if __name__ == "__main__":
-    PORT = "COM13"  # Windows: "COM5"
-    dr = RK4DeadReckoner(gravity_world=(0.0, 0.0, 9.80665))
-    gen = iter_imu_samples(source="serial", port=PORT, rate_hz=50, integrator=dr, include_all=True)
-    for i, s in zip(range(10), gen):
-        #print(i, s["acc_g"], s["gyro_dps"], s.get("rpy_deg"), s.get("up_body"), s.get("lin_pos_m"))
-        print(s.get("up_body"))
-        time.sleep(0.5)
+    PORT = "COM30"
+    dr = RK4DeadReckoner(
+        gravity_world=(0.0, 0.0, 9.80665),
+        integrate_translation=False,
+
+        # zupt/bias
+        enable_zupt=True,
+        stationary_sensitivity_scale=3.0,
+        stationary_release_ratio=1.4,
+        debug_stationary=False,
+
+        # dual-gate + gyro gate + consecutive
+        enable_acc_correction=True,
+        acc_gate_g=0.05,
+        jerk_gate_ms3=0.5,
+        enable_gyro_gate=True,
+        gyro_gate_dps=8.0,
+        gate_min_count=5,
+
+        kp_acc=2.0,
+        ki_acc=0.0,
+        debug_acc_gate=False,
+    )
+
+    gen = iter_imu_samples(
+        source="can",
+        can_interface="slcan",
+        can_channel=PORT,
+        can_bitrate=500000,
+        can_send_request=True,
+        can_id_req=0x100,
+        can_id_rsp=0x101,
+        can_req_period_s=0.005,
+        rate_hz=200,
+        integrator=dr,
+        include_all=True,
+    )
+
+    for i, s in zip(range(100000), gen):
+        print(
+            "up=", s.get("up_body"),
+            #"rpy=", s.get("rpy_deg"),
+            #"gate=", (s.get("acc_gate_ok"), s.get("jerk_gate_ok"), s.get("gyro_gate_ok"), s.get("gate_ok")),
+            #"cnt=", s.get("gate_count"),
+            #"jerk=", s.get("jerk_ms3"),
+        )
