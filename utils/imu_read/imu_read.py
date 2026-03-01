@@ -328,6 +328,23 @@ class RK4DeadReckoner:
             ax, ay, az = sample["acc_g"]
             acc_ms2 = (ax*G, ay*G, az*G)
 
+        # CAN reply may provide only XY accel. Reconstruct Z so Mahony gates/correction
+        # can still operate on a unit-gravity direction vector.
+        if sample.get("has_partial_axes_xy_only", False):
+            axg = acc_ms2[0] / G
+            ayg = acc_ms2[1] / G
+            xy2 = axg*axg + ayg*ayg
+            if xy2 >= 1.0:
+                s = 0.999 / math.sqrt(max(xy2, 1e-12))
+                axg *= s
+                ayg *= s
+                xy2 = axg*axg + ayg*ayg
+            az_abs = math.sqrt(max(0.0, 1.0 - xy2))
+            # Sign from current predicted up vector to avoid sudden flips.
+            up_pred_now = quat_xyzw_to_up_body(self.q)
+            azg = az_abs if up_pred_now[2] >= 0.0 else -az_abs
+            acc_ms2 = (axg * G, ayg * G, azg * G)
+
         if sample.get("gyro_rads") is not None:
             gyro_rads_raw = tuple(sample["gyro_rads"])
         else:
@@ -391,7 +408,25 @@ class RK4DeadReckoner:
         if dt <= 0.0 or dt > self.max_dt:
             self._omega_prev_raw = gyro_rads_raw
             self._acc_prev_ms2 = acc_ms2
-            return {"dt_s": dt, "stationary": stationary}
+            rpy = quat_to_rpy(self.q)
+            return {
+                "dt_s": dt,
+                "stationary": stationary,
+                "q_xyzw": self.q,
+                "rpy_rad": rpy,
+                "rpy_deg": (rpy[0]*RAD2DEG, rpy[1]*RAD2DEG, rpy[2]*RAD2DEG),
+                "up_body": quat_xyzw_to_up_body(self.q),
+                "lin_vel_ms": self.v,
+                "lin_pos_m": self.p,
+                "acc_world_ms2": None,
+                "acc_lin_world_ms2": None,
+                "gyro_bias_rads": self.gyro_bias_rads,
+                "acc_gate_ok": False,
+                "acc_gate_err_g": acc_err_g,
+                "jerk_ms3": None,
+                "jerk_gate_ok": False,
+                "gyro_gate_ok": False,
+            }
 
         # gyro bias update (still-based) — keep this, but NO reset to q=identity
         if stationary:
@@ -543,7 +578,7 @@ def parse_arduino_imu_csv(line: str) -> Optional[Dict[str, Any]]:
         t_ms = float(parts[0])
         ax_g, ay_g, az_g = float(parts[1]), float(parts[2]), float(parts[3])
         gx_dps, gy_dps, gz_dps = float(parts[4]), float(parts[5]), float(parts[6])
-        roll_deg, pitch_deg = float(parts[7]), float(parts[8])
+        roll_deg, pitch_deg = float(parts[7]), float(parts[8]) if len(parts) >=8 else None
         temp_C = float(parts[9]) if len(parts) >= 10 else None
 
         acc_g = (ax_g, ay_g, az_g)
@@ -569,6 +604,71 @@ def parse_arduino_imu_csv(line: str) -> Optional[Dict[str, Any]]:
     except ValueError:
         return None
 
+def parse_can_imu_reply(
+    msg: Any,
+    *,
+    can_id_rsp: Optional[int] = 0x101,
+    can_allow_extended: bool = False,
+    can_expected_dlc: int = 8,
+    acc_lsb_per_g: float = 16384.0,
+    gyro_lsb_per_dps: float = 131.0,
+) -> Optional[Dict[str, Any]]:
+    """
+    Parse one CAN IMU reply frame:
+      [ax_hi, ax_lo, ay_hi, ay_lo, gx_hi, gx_lo, gy_hi, gy_lo]
+    each field is big-endian int16.
+    """
+    try:
+        is_ext = bool(getattr(msg, "is_extended_id", False))
+        msg_id = int(getattr(msg, "arbitration_id", -1))
+        if (not can_allow_extended) and is_ext:
+            return None
+        if (can_id_rsp is not None) and (msg_id != int(can_id_rsp)):
+            return None
+        data = bytes(getattr(msg, "data", b""))
+        if len(data) < int(can_expected_dlc):
+            return None
+
+        ax = int.from_bytes(data[0:2], byteorder="big", signed=True)
+        ay = int.from_bytes(data[2:4], byteorder="big", signed=True)
+        gx = int.from_bytes(data[4:6], byteorder="big", signed=True)
+        gy = int.from_bytes(data[6:8], byteorder="big", signed=True)
+
+        # Frame has XY only; keep Z as 0 to preserve schema shape.
+        ax_g = ax / float(acc_lsb_per_g)
+        ay_g = ay / float(acc_lsb_per_g)
+        az_g = 0.0
+        gx_dps = gx / float(gyro_lsb_per_dps)
+        gy_dps = gy / float(gyro_lsb_per_dps)
+        gz_dps = 0.0
+
+        acc_g = (ax_g, ay_g, az_g)
+        gyro_dps = (gx_dps, gy_dps, gz_dps)
+        acc_ms2 = (ax_g * G, ay_g * G, az_g * G)
+        gyro_rads = (gx_dps * DEG2RAD, gy_dps * DEG2RAD, gz_dps * DEG2RAD)
+        now = time.time()
+
+        return {
+            "source": "can_rsp",
+            "t_ms": None,
+            "t_s": now,
+            "acc_g": acc_g,
+            "gyro_dps": gyro_dps,
+            "acc_ms2": acc_ms2,
+            "gyro_rads": gyro_rads,
+            "roll_deg": None,
+            "pitch_deg": None,
+            "temp_C": None,
+            "acc_norm_g": v_norm(acc_g),
+            "gyro_norm_dps": v_norm(gyro_dps),
+            "raw": data.hex(),
+            "can_id": msg_id,
+            "is_extended_id": is_ext,
+            "has_partial_axes_xy_only": True,
+        }
+    except Exception:
+        return None
+
 def _select_keys(full: Dict[str, Any], keys: Optional[Sequence[str]], include_all: bool) -> Dict[str, Any]:
     if include_all or keys is None:
         return full
@@ -584,14 +684,27 @@ def _select_keys(full: Dict[str, Any], keys: Optional[Sequence[str]], include_al
 # --------------------
 def iter_imu_samples(
     *,
-    source: str = "serial",   # "serial" or "i2c"
+    source: str = "serial",   # "serial", "i2c", or "can"
     # serial params
-    port: str = "COM13",
+    port: str = "COM32",
     baud: int = 115200,
     timeout: float = 1.0,
     # i2c params
     i2c_bus: int = 1,
     i2c_addr: int = 0x68,
+    # CAN params (python-can)
+    can_interface: str = "slcan",
+    can_channel: str = "COM30",
+    can_bitrate: int = 500000,
+    can_id_rsp: Optional[int] = 0x101,
+    can_allow_extended: bool = False,
+    can_expected_dlc: int = 8,
+    can_timeout: float = 0.01,
+    can_send_request: bool = False,
+    can_id_req: int = 0x100,
+    can_req_period_s: Optional[float] = None,
+    acc_lsb_per_g: float = 16384.0,
+    gyro_lsb_per_dps: float = 131.0,
     # output control
     keys: Optional[Sequence[str]] = ("acc_g", "gyro_dps"),
     include_all: bool = False,
@@ -602,8 +715,8 @@ def iter_imu_samples(
     integrator: Optional[RK4DeadReckoner] = None,
 ) -> Iterator[Dict[str, Any]]:
     source = source.lower().strip()
-    if source not in ("serial", "i2c"):
-        raise ValueError("source must be 'serial' or 'i2c'")
+    if source not in ("serial", "i2c", "can"):
+        raise ValueError("source must be 'serial', 'i2c', or 'can'")
 
     period: Optional[float] = None
     if rate_hz is not None:
@@ -658,7 +771,7 @@ def iter_imu_samples(
             except Exception:
                 pass
 
-    else:
+    elif source == "i2c":
         from imu_i2c_reader import MPU6050Reader  # needs local file
         reader = MPU6050Reader(bus_id=i2c_bus, addr=i2c_addr)
         next_emit_s: Optional[float] = None
@@ -710,11 +823,68 @@ def iter_imu_samples(
                 reader.close()
             except Exception:
                 pass
+    else:
+        import can as canlib  # python-can
+
+        bus = canlib.Bus(interface=can_interface, channel=can_channel, bitrate=can_bitrate)
+        next_emit_s: Optional[float] = None
+        next_req_s: float = 0.0
+        req_period_s: float = (
+            max(0.001, float(can_req_period_s))
+            if can_req_period_s is not None
+            else (period if period is not None else 0.005)
+        )
+        recv_timeout_s: float = max(0.001, min(float(can_timeout), req_period_s))
+        try:
+            while True:
+                if can_send_request:
+                    now_req = time.time()
+                    if now_req >= next_req_s:
+                        req = canlib.Message(
+                            arbitration_id=can_id_req,
+                            is_extended_id=False,
+                            data=[],
+                        )
+                        bus.send(req)
+                        next_req_s = now_req + req_period_s
+
+                msg = bus.recv(recv_timeout_s)
+                if msg is None:
+                    continue
+
+                full = parse_can_imu_reply(
+                    msg,
+                    can_id_rsp=can_id_rsp,
+                    can_allow_extended=can_allow_extended,
+                    can_expected_dlc=can_expected_dlc,
+                    acc_lsb_per_g=acc_lsb_per_g,
+                    gyro_lsb_per_dps=gyro_lsb_per_dps,
+                )
+                if full is None:
+                    continue
+
+                now = time.time()
+                emit, next_emit_s = should_emit(now, next_emit_s)
+                if not emit:
+                    continue
+
+                if add_host_time:
+                    full["host_time_s"] = now
+
+                if integrator is not None:
+                    full.update(integrator.update(full))
+
+                yield _select_keys(full, keys, include_all)
+        finally:
+            try:
+                bus.shutdown()
+            except Exception:
+                pass
 
 
 # optional quick demo
 if __name__ == "__main__":
-    PORT = "COM13"
+    PORT = "COM30"
     dr = RK4DeadReckoner(
         gravity_world=(0.0, 0.0, 9.80665),
         integrate_translation=False,
@@ -738,7 +908,19 @@ if __name__ == "__main__":
         debug_acc_gate=False,
     )
 
-    gen = iter_imu_samples(source="serial", port=PORT, rate_hz=50, integrator=dr, include_all=True)
+    gen = iter_imu_samples(
+        source="can",
+        can_interface="slcan",
+        can_channel=PORT,
+        can_bitrate=500000,
+        can_send_request=True,
+        can_id_req=0x100,
+        can_id_rsp=0x101,
+        can_req_period_s=0.005,
+        rate_hz=200,
+        integrator=dr,
+        include_all=True,
+    )
 
     for i, s in zip(range(100000), gen):
         print(
