@@ -1,0 +1,102 @@
+{
+  "started_at": "2026-03-07T16:49:16",
+  "family": "ik",
+  "pose": "contact",
+  "condition": "clean",
+  "active_motor_ids": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "trajectory_type": "ik",
+  "trajectory_name": "ik_locomotion",
+  "trajectory_params": {
+    "source": "IK_trajectory",
+    "samples": 64000
+  },
+  "duration_s_planned": 159.9975,
+  "sample_hz_target": 120.0,
+  "fields": [
+    "commanded_position_rad",
+    "actual_position_rad",
+    "motor_velocity_rads",
+    "motor_torque_nm",
+    "motor_temperature_c",
+    "commanded_timestamp_ns",
+    "feedback_timestamp_ns",
+    "cycle_idx",
+    "motor_id"
+  ],
+  "joint_limits_rad": {
+    "1": [
+      -1.57,
+      1.57
+    ],
+    "2": [
+      -1.57,
+      0.436332
+    ],
+    "3": [
+      -0.785398,
+      0.785398
+    ],
+    "4": [
+      -2.0944,
+      0.0
+    ],
+    "5": [
+      -0.6,
+      0.6
+    ],
+    "6": [
+      -1.57,
+      1.57
+    ],
+    "7": [
+      -0.436332,
+      1.57
+    ],
+    "8": [
+      -0.785398,
+      0.785398
+    ],
+    "9": [
+      -2.0944,
+      0.0
+    ],
+    "10": [
+      -0.6,
+      0.6
+    ]
+  },
+  "motor_models": {
+    "1": "rs-04",
+    "2": "rs-03",
+    "3": "rs-03",
+    "4": "rs-04",
+    "5": "rs-02",
+    "6": "rs-04",
+    "7": "rs-03",
+    "8": "rs-03",
+    "9": "rs-04",
+    "10": "rs-02"
+  },
+  "notes": "IK replay from ik_subset_standing_fast_tall_faster2_12345678910.csv",
+  "ended_at": "2026-03-07T16:49:21",
+  "duration_s_actual": 1.4903447009992306,
+  "cycles_executed": 179,
+  "rows_logged": 1790,
+  "achieved_cycle_hz": 120.10644240891787,
+  "overrun_cycles": 24,
+  "read_failures": 0,
+  "early_stop_reason": "temperature abort: >= 88.0C",
+  "log_file_npz": "log.npz",
+  "log_file_csv": "log.csv"
+}

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 RobStride MIT Gain Tuner (Mode 0) + LIVE PLOTS (mac-safe main-thread control)
-+ inversion array + joint limits + temperature protection (RL-safe: NO kp/kd scaling)
++ inversion array + joint limits + temperature telemetry (thermal safety disabled)
 + per-motor model map (RS02/RS03/RS04 mixed)
 
 Key design:
@@ -148,11 +148,15 @@ MOTOR_MODEL_BY_ID: Dict[int, str] = {
     10: "rs-02",
 }
 
-# Temperature protection thresholds (°C) — tune to your motor’s real safe limits
+# Temperature telemetry filter (thermal safety disabled)
+TEMP_SAFETY_ENABLED = False
 TEMP_DERATE_START_C = 65.0   # start slowing motion
 TEMP_HOLD_C = 75.0           # freeze at current pose
 TEMP_DISABLE_C = 85.0        # disable motor
 TEMP_REENABLE_C = 70.0       # must cool below this to re-enable (hysteresis)
+TEMP_VALID_MIN_C = -40.0     # reject implausible telemetry low values
+TEMP_VALID_MAX_C = 200.0     # reject implausible telemetry high values
+TEMP_MAX_STEP_C = 40.0       # reject one-sample temperature spikes
 
 DERATE_MIN_SCALE = 0.20      # minimum motion scale at/above disable threshold
 DISABLE_COOLDOWN_S = 2.0     # how long to stay disabled before trying to re-enable
@@ -289,10 +293,23 @@ class GainTunerMIT:
         try:
             st = self.motor_states[mid]
             pos, vel, tq, temp = self.bus.read_operation_frame(st.name, timeout=0.005)
-            st.position, st.velocity, st.torque, st.temperature = pos, vel, tq, temp
+            st.position, st.velocity, st.torque = pos, vel, tq
+            st.temperature = self._sanitize_temp_reading(st, temp)
             return float(pos) / float(st.direction)
         finally:
             self.lock.release()
+
+    def _sanitize_temp_reading(self, st: MotorState, raw_temp: float) -> float:
+        t = float(raw_temp)
+        prev = float(st.temperature)
+        if (not math.isfinite(t)) or t < TEMP_VALID_MIN_C or t > TEMP_VALID_MAX_C:
+            st.last_error = f"ignored invalid temp reading: {t:.1f}C"
+            return prev
+        if math.isfinite(prev) and TEMP_VALID_MIN_C <= prev <= TEMP_VALID_MAX_C:
+            if abs(t - prev) > TEMP_MAX_STEP_C:
+                st.last_error = f"ignored temp spike: prev={prev:.1f}C new={t:.1f}C"
+                return prev
+        return t
 
     def _start_safety_monitor(self):
         joint_limits = {mid: (st.limit_lo, st.limit_hi) for mid, st in self.motor_states.items()}
@@ -343,6 +360,9 @@ class GainTunerMIT:
         Use last-known temperature to transition state BEFORE sending.
         (Fast reaction requires at least one-cycle latency unless your driver provides async temp.)
         """
+        if not TEMP_SAFETY_ENABLED:
+            st.temp_state = "OFF"
+            return
         t = st.temperature
         if st.temp_state != "DISABLED":
             if t >= TEMP_DISABLE_C:
@@ -392,7 +412,8 @@ class GainTunerMIT:
                     # Read once; set targets to current pose (no motion)
                     try:
                         pos, vel, tq, temp = self.bus.read_operation_frame(st.name)
-                        st.position, st.velocity, st.torque, st.temperature = pos, vel, tq, temp
+                        st.position, st.velocity, st.torque = pos, vel, tq
+                        st.temperature = self._sanitize_temp_reading(st, temp)
 
                         logical = pos / float(st.direction)  # pre-direction (logical)
                         # IMPORTANT: do NOT clamp initial hold (could cause motion on connect).
@@ -427,6 +448,8 @@ class GainTunerMIT:
             self.connected = True
             self.running = True
             self._start_safety_monitor()
+            if not TEMP_SAFETY_ENABLED:
+                print("[TEMP] thermal safety disabled; temperatures will still be displayed.")
             print("Connected. Motors are holding their current position (no motion).")
             return True
 
@@ -464,7 +487,8 @@ class GainTunerMIT:
             # Re-sync hold to current position after re-enable
             try:
                 pos, vel, tq, temp = self.bus.read_operation_frame(st.name)
-                st.position, st.velocity, st.torque, st.temperature = pos, vel, tq, temp
+                st.position, st.velocity, st.torque = pos, vel, tq
+                st.temperature = self._sanitize_temp_reading(st, temp)
             except Exception:
                 pass
 
@@ -519,24 +543,26 @@ class GainTunerMIT:
                 self._update_temp_state_pre(st, now)
 
             # --- handle DISABLED transitions / auto re-enable ---
-            for st in self.motor_states.values():
-                if st.temp_state == "DISABLED":
-                    if st.enabled:
-                        self._disable_motor_locked(st, now)
-                else:
-                    if (not st.enabled) and (st.temperature <= TEMP_REENABLE_C) and (
-                        (now - st.last_disable_t) >= DISABLE_COOLDOWN_S
-                    ):
-                        self._reenable_motor_locked(st, now)
+            if TEMP_SAFETY_ENABLED:
+                for st in self.motor_states.values():
+                    if st.temp_state == "DISABLED":
+                        if st.enabled:
+                            self._disable_motor_locked(st, now)
+                    else:
+                        if (not st.enabled) and (st.temperature <= TEMP_REENABLE_C) and (
+                            (now - st.last_disable_t) >= DISABLE_COOLDOWN_S
+                        ):
+                            self._reenable_motor_locked(st, now)
 
             # --- handle HOLD state: freeze target at current pose (no excitation) ---
-            for st in self.motor_states.values():
-                if st.temp_state == "HOLD":
-                    st.excitation = Excitation()
-                    logical = st.position / float(st.direction)
-                    st.target_rad = logical
-                    st.commanded_target_rad = logical
-                    st.hold_center_rad = logical
+            if TEMP_SAFETY_ENABLED:
+                for st in self.motor_states.values():
+                    if st.temp_state == "HOLD":
+                        st.excitation = Excitation()
+                        logical = st.position / float(st.direction)
+                        st.target_rad = logical
+                        st.commanded_target_rad = logical
+                        st.hold_center_rad = logical
 
             # --- excitation + clamp + ramp ---
             for st in self.motor_states.values():
@@ -544,7 +570,7 @@ class GainTunerMIT:
                     continue  # disabled: don't update commands
 
                 ex = st.excitation
-                if ex.mode == "sine" and st.temp_state != "HOLD":
+                if ex.mode == "sine" and (not TEMP_SAFETY_ENABLED or st.temp_state != "HOLD"):
                     if ex.duration_s is not None and (now - ex.t0) >= ex.duration_s:
                         st.excitation = Excitation()
                         st.target_rad = st.hold_center_rad
@@ -558,7 +584,7 @@ class GainTunerMIT:
 
                 # ramp (derate motion if hot)
                 motion_scale = 1.0
-                if st.temp_state == "DERATE":
+                if TEMP_SAFETY_ENABLED and st.temp_state == "DERATE":
                     motion_scale = self._motion_scale_from_temp(st.temperature)
 
                 max_step = self.ramp_rad_s_nominal * dt * motion_scale
@@ -616,7 +642,8 @@ class GainTunerMIT:
                     st.read_dt_ms = (t1 - t0) * 1000.0
                     st.last_read_end_t = time.time()
 
-                    st.position, st.velocity, st.torque, st.temperature = pos, vel, tq, temp
+                    st.position, st.velocity, st.torque = pos, vel, tq
+                    st.temperature = self._sanitize_temp_reading(st, temp)
                     st.last_error = None
 
                     if st.last_write_end_t > 0.0:
@@ -635,11 +662,12 @@ class GainTunerMIT:
                         st.last_error = str(e)
 
             # --- immediate post-read critical check (affects next cycle) ---
-            for st in self.motor_states.values():
-                if st.enabled and st.temperature >= TEMP_DISABLE_C:
-                    st.temp_state = "DISABLED"
-                    st.last_disable_t = now
-                    self._disable_motor_locked(st, now)
+            if TEMP_SAFETY_ENABLED:
+                for st in self.motor_states.values():
+                    if st.enabled and st.temperature >= TEMP_DISABLE_C:
+                        st.temp_state = "DISABLED"
+                        st.last_disable_t = now
+                        self._disable_motor_locked(st, now)
 
     # -------------------- commands --------------------
     def _confirm_large_change(self, delta_deg: float) -> bool:

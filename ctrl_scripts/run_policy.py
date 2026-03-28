@@ -470,6 +470,7 @@ class RunPolicyController:
         print("Controller shutdown complete.")
 
     def _control_step(self) -> None:
+        self.robot.read_feedback()
         joint_pos_real, joint_vel_real = self.robot.joint_vectors_real()
         ang_vel_body, up_body = self.imu.get()
         obs = self.obs_builder.observe(joint_pos_real, joint_vel_real, ang_vel_body, up_body)
@@ -497,7 +498,6 @@ class RunPolicyController:
         self.commanded_joint = np.clip(self.commanded_joint + delta, self._clip_lower, self._clip_upper)
 
         self.robot.write_joint_targets(self.commanded_joint)
-        self.robot.read_feedback()
 
         self.obs_builder.note_action(action_policy)
         self._maybe_print_status()

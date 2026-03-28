@@ -29,7 +29,6 @@ if str(REPO_ROOT) not in sys.path:
 
 try:
     from robstride_dynamics import RobstrideBus, Motor, ParameterType, CommunicationType
-    from utils.actuation_safety import ActuationSafetyMonitor
 except ModuleNotFoundError as exc:
     if exc.name == "can":
         raise ModuleNotFoundError(
@@ -39,7 +38,6 @@ except ModuleNotFoundError as exc:
 except ImportError:
     from robstride_dynamics.bus import RobstrideBus, Motor
     from robstride_dynamics.protocol import ParameterType, CommunicationType
-    from utils.actuation_safety import ActuationSafetyMonitor
 
 try:
     from scipy.optimize import fsolve  # type: ignore
@@ -275,7 +273,7 @@ class RobotInterface:
         self.safety_enabled = bool(cfg.get("safety_enabled", True))
         self.safety_read_hz = cfg.get("safety_read_hz", None)
         self.safety_max_jump_deg = float(cfg.get("safety_max_jump_deg", 90.0))
-        self.safety_monitor: ActuationSafetyMonitor | None = None
+        self.safety_max_jump_rad = math.radians(self.safety_max_jump_deg)
         self.safety_tripped = False
         self.safety_reason: str | None = None
 
@@ -290,46 +288,12 @@ class RobotInterface:
         if self.safety_tripped:
             raise RuntimeError(self.safety_reason or "Safety monitor tripped")
 
-    def _read_logical_for_safety(self, mid: int) -> float:
-        assert self.bus is not None
-        st = self._state_by_mid[mid]
-        acquired = self.lock.acquire(timeout=0.001)
-        if not acquired:
-            raise TimeoutError("safety read skipped: control lock busy")
-        try:
-            p, v, tq, temp = self.bus.read_operation_frame(st.motor_name, timeout=0.005)
-        finally:
-            self.lock.release()
-        st.position_phys = to_scalar_float(p)
-        st.velocity_phys = to_scalar_float(v)
-        st.torque_nm = to_scalar_float(tq)
-        st.temp_c = to_scalar_float(temp)
-        motor_logical = st.position_phys / float(st.direction)
-        if st.is_ankle:
-            guess = st.joint_pos
-            return self.ankle_mapper.motor_logical_rad_to_ankle_rad(motor_logical, guess)
-        return motor_logical
-
-    def _start_safety_monitor(self, control_hz_guess: float = 60.0) -> None:
+    def _report_safety_mode(self, control_hz_guess: float = 60.0) -> None:
         if not self.safety_enabled:
+            print("[SAFETY] synchronous joint-state checks disabled")
             return
-        read_hz = None if self.safety_read_hz is None else float(self.safety_read_hz)
-        limits = {st.motor_id: (st.limit_lo, st.limit_hi) for st in self.states}
-        self.safety_monitor = ActuationSafetyMonitor(
-            name="run_policy",
-            motor_ids=[st.motor_id for st in self.states],
-            joint_limits_by_id=limits,
-            read_logical_pos_fn=self._read_logical_for_safety,
-            halt_fn=self._trip_safety,
-            control_hz=float(control_hz_guess),
-            read_hz=read_hz,
-            max_step_deg=self.safety_max_jump_deg,
-        )
-        self.safety_monitor.start()
-        per_motor_hz = self.safety_monitor.read_hz / max(1, len(self.states))
         print(
-            f"[SAFETY] monitor started: control_hz={float(control_hz_guess):.1f}, "
-            f"read_hz_total={self.safety_monitor.read_hz:.1f}, per_motor~{per_motor_hz:.1f}, "
+            f"[SAFETY] synchronous joint-state checks enabled: control_hz={float(control_hz_guess):.1f}, "
             f"max_jump_deg={self.safety_max_jump_deg:.1f}"
         )
 
@@ -371,7 +335,7 @@ class RobotInterface:
                 time.sleep(0.03)
 
             self.connected = True
-            self._start_safety_monitor(control_hz_guess=float(self.cfg.get("control_hz", 60.0)))
+            self._report_safety_mode(control_hz_guess=float(self.cfg.get("control_hz", 60.0)))
             print(f"Robot interface connected on {self.can_channel} @ {self.bitrate}. dry_run={self.dry_run}")
             return True
         except Exception as exc:
@@ -380,9 +344,6 @@ class RobotInterface:
             return False
 
     def shutdown(self) -> None:
-        if self.safety_monitor is not None:
-            self.safety_monitor.stop()
-            self.safety_monitor = None
         if self.bus and self.connected:
             try:
                 if not self.dry_run:
@@ -414,13 +375,17 @@ class RobotInterface:
         now = time.time()
         for st in self.states:
             try:
+                prev_joint_pos = float(st.joint_pos)
+                had_prev = st.last_read_time > 0.0
                 with self.lock:
                     p, v, tq, temp = self.bus.read_operation_frame(st.motor_name)
                 st.position_phys = to_scalar_float(p)
                 st.velocity_phys = to_scalar_float(v)
                 st.torque_nm = to_scalar_float(tq)
                 st.temp_c = to_scalar_float(temp)
-                self._update_joint_from_motor(st, now, initialize=False)
+                measured_joint = self._update_joint_from_motor(st, now, initialize=False)
+                self._check_joint_state_safety(st, measured_joint, prev_joint_pos, had_prev)
+                self._assert_safe()
                 st.last_error = None
             except Exception as exc:
                 st.last_error = str(exc)
@@ -467,12 +432,12 @@ class RobotInterface:
             self.bus.transmit(CommunicationType.WRITE_PARAMETER, self.bus.host_id, device_id, data)
         time.sleep(0.05)
 
-    def _update_joint_from_motor(self, st: JointMotorState, now: float, initialize: bool = False) -> None:
+    def _update_joint_from_motor(self, st: JointMotorState, now: float, initialize: bool = False) -> float:
         motor_logical = st.position_phys / float(st.direction)
         if st.is_ankle:
             guess = st.joint_pos if not initialize else 0.0
-            joint_pos = self.ankle_mapper.motor_logical_rad_to_ankle_rad(motor_logical, guess)
-            joint_pos = clamp(joint_pos, st.limit_lo, st.limit_hi)
+            measured_joint = self.ankle_mapper.motor_logical_rad_to_ankle_rad(motor_logical, guess)
+            joint_pos = clamp(measured_joint, st.limit_lo, st.limit_hi)
             if initialize or st.last_read_time <= 0.0:
                 st.joint_vel = 0.0
             else:
@@ -481,9 +446,34 @@ class RobotInterface:
                     st.joint_vel = (joint_pos - st.joint_pos) / dt
             st.joint_pos = joint_pos
         else:
+            measured_joint = motor_logical
             st.joint_pos = clamp(motor_logical, st.limit_lo, st.limit_hi)
             st.joint_vel = st.velocity_phys / float(st.direction)
         st.last_read_time = now
+        return float(measured_joint)
+
+    def _check_joint_state_safety(
+        self,
+        st: JointMotorState,
+        measured_joint: float,
+        prev_joint_pos: float,
+        had_prev: bool,
+    ) -> None:
+        if not self.safety_enabled:
+            return
+        if measured_joint < st.limit_lo or measured_joint > st.limit_hi:
+            self._trip_safety(
+                f"[SAFETY] {st.joint_name} (motor {st.motor_id}) out of limits: "
+                f"pos={measured_joint:.4f} rad, limits=[{st.limit_lo:.4f},{st.limit_hi:.4f}]"
+            )
+            return
+        if had_prev:
+            jump = abs(measured_joint - prev_joint_pos)
+            if jump > self.safety_max_jump_rad:
+                self._trip_safety(
+                    f"[SAFETY] {st.joint_name} (motor {st.motor_id}) jump too large: "
+                    f"|dpos|={math.degrees(jump):.2f} deg (threshold={self.safety_max_jump_deg:.2f} deg)"
+                )
 
     def _joint_command_to_motor_physical(self, st: JointMotorState, joint_cmd_rad: float) -> float:
         joint_cmd_rad = clamp(joint_cmd_rad, st.limit_lo, st.limit_hi)

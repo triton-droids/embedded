@@ -1,6 +1,6 @@
 [
   {
-    "started_at": "2026-02-13T15:01:27",
+    "started_at": "2026-02-24T22:24:00",
     "family": "ik",
     "pose": "contact",
     "condition": "clean",
@@ -36,12 +36,13 @@
       "9": "rs-04"
     },
     "notes": "IK replay from ik_stepping_motor9_right_knee_joint.csv",
-    "ended_at": "2026-02-13T15:01:50",
-    "duration_s_actual": 19.996404896002787,
+    "ended_at": "2026-02-24T22:24:23",
+    "duration_s_actual": 19.99624701399989,
     "cycles_executed": 7999,
     "rows_logged": 7999,
-    "achieved_cycle_hz": 400.02190601766483,
-    "overrun_cycles": 0,
+    "achieved_cycle_hz": 400.02506442332367,
+    "overrun_cycles": 1,
+    "read_failures": 0,
     "early_stop_reason": null,
     "log_file_npz": "log.npz",
     "log_file_csv": "log.csv",

@@ -76,3 +76,345 @@ KeyboardInterrupt
 2026-02-13 15:56:22,482 | INFO | MainThread | Created a socket
 2026-02-13 15:57:57,298 | INFO | MainThread | Created a socket
 2026-02-13 15:58:28,632 | INFO | MainThread | Created a socket
+2026-02-21 17:59:32,599 | INFO | MainThread | Created a socket
+2026-02-21 17:59:32,802 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-02-21 18:01:47,951 | INFO | MainThread | Created a socket
+2026-02-21 18:01:48,155 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-02-21 18:01:57,130 | INFO | MainThread | Created a socket
+2026-02-21 18:01:58,643 | ERROR | MainThread | [PLOT] Exception in LivePlotter._update (matplotlib callback)
+--- TRACEBACK START ---
+Traceback (most recent call last):
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 1053, in _update
+    self.tuner.control_step(self.tuner.dt)
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 504, in control_step
+    self._assert_safe()
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 281, in _assert_safe
+    raise RuntimeError(self.safety_reason or "Safety monitor tripped")
+RuntimeError: [SAFETY] motor 9 out of joint limits: pos=0.0008 rad, limits=[-2.0944,0.0000]
+--- TRACEBACK END ---
+Log file: /home/droids/Documents/embedded/robstride_gain_tuner_debug.log
+2026-02-21 18:02:29,986 | INFO | MainThread | Created a socket
+2026-02-21 18:03:09,556 | INFO | MainThread | Created a socket
+2026-02-21 18:03:09,760 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-02-24 22:00:15,182 | INFO | MainThread | Created a socket
+2026-02-24 22:00:15,386 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-02-24 22:01:25,326 | INFO | MainThread | Created a socket
+2026-02-24 22:01:25,530 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-02-24 22:03:04,256 | INFO | MainThread | Created a socket
+2026-02-24 22:03:37,965 | INFO | MainThread | Created a socket
+2026-02-25 14:24:07,944 | INFO | MainThread | Created a socket
+2026-02-25 14:24:08,146 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-02-25 14:24:33,840 | INFO | MainThread | Created a socket
+2026-03-06 21:42:42,773 | CRITICAL | MainThread | Traceback (most recent call last):
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 1239, in <module>
+    main()
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 1211, in main
+    motor_ids = parse_motor_ids_or_scan()
+                ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 842, in parse_motor_ids_or_scan
+    s = input("Motor IDs: ").strip()
+        ^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+
+2026-03-06 21:43:28,114 | INFO | MainThread | Created a socket
+2026-03-06 22:03:36,761 | INFO | MainThread | Created a socket
+2026-03-06 22:03:36,972 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 22:04:28,868 | INFO | MainThread | Created a socket
+2026-03-06 22:04:29,070 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 22:04:44,369 | INFO | MainThread | Created a socket
+2026-03-06 22:05:27,932 | INFO | MainThread | Created a socket
+2026-03-06 22:06:08,376 | INFO | MainThread | Created a socket
+2026-03-06 22:06:08,580 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 22:18:42,953 | INFO | MainThread | Created a socket
+2026-03-06 22:18:43,156 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 22:18:51,262 | INFO | MainThread | Created a socket
+2026-03-06 22:18:56,738 | INFO | MainThread | Created a socket
+2026-03-06 22:19:03,941 | INFO | MainThread | Created a socket
+2026-03-06 22:19:04,145 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 22:19:30,398 | INFO | MainThread | Created a socket
+2026-03-06 22:19:30,600 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 22:19:38,796 | INFO | MainThread | Created a socket
+2026-03-06 22:20:33,261 | INFO | MainThread | Created a socket
+2026-03-06 22:20:33,465 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 22:20:51,639 | INFO | MainThread | Created a socket
+2026-03-06 22:20:52,486 | ERROR | MainThread | [PLOT] Exception in LivePlotter._update (matplotlib callback)
+--- TRACEBACK START ---
+Traceback (most recent call last):
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 1053, in _update
+    self.tuner.control_step(self.tuner.dt)
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 504, in control_step
+    self._assert_safe()
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 281, in _assert_safe
+    raise RuntimeError(self.safety_reason or "Safety monitor tripped")
+RuntimeError: [SAFETY] motor 4 out of joint limits: pos=0.1039 rad, limits=[-2.0944,0.0000]
+--- TRACEBACK END ---
+Log file: /home/droids/Documents/embedded/robstride_gain_tuner_debug.log
+2026-03-06 22:21:01,469 | INFO | MainThread | Created a socket
+2026-03-06 22:21:02,329 | ERROR | MainThread | [PLOT] Exception in LivePlotter._update (matplotlib callback)
+--- TRACEBACK START ---
+Traceback (most recent call last):
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 1053, in _update
+    self.tuner.control_step(self.tuner.dt)
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 504, in control_step
+    self._assert_safe()
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 281, in _assert_safe
+    raise RuntimeError(self.safety_reason or "Safety monitor tripped")
+RuntimeError: [SAFETY] motor 4 out of joint limits: pos=0.0978 rad, limits=[-2.0944,0.0000]
+--- TRACEBACK END ---
+Log file: /home/droids/Documents/embedded/robstride_gain_tuner_debug.log
+2026-03-06 22:21:12,764 | INFO | MainThread | Created a socket
+2026-03-06 22:21:13,611 | ERROR | MainThread | [PLOT] Exception in LivePlotter._update (matplotlib callback)
+--- TRACEBACK START ---
+Traceback (most recent call last):
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 1053, in _update
+    self.tuner.control_step(self.tuner.dt)
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 504, in control_step
+    self._assert_safe()
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 281, in _assert_safe
+    raise RuntimeError(self.safety_reason or "Safety monitor tripped")
+RuntimeError: [SAFETY] motor 4 out of joint limits: pos=0.0046 rad, limits=[-2.0944,0.0000]
+--- TRACEBACK END ---
+Log file: /home/droids/Documents/embedded/robstride_gain_tuner_debug.log
+2026-03-06 22:21:33,364 | INFO | MainThread | Created a socket
+2026-03-06 22:21:50,405 | INFO | MainThread | Created a socket
+2026-03-06 22:21:50,607 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 22:33:33,065 | INFO | MainThread | Created a socket
+2026-03-06 22:44:39,774 | INFO | MainThread | Created a socket
+2026-03-06 22:44:48,441 | INFO | MainThread | Created a socket
+2026-03-06 22:44:48,643 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 22:44:55,745 | INFO | MainThread | Created a socket
+2026-03-06 22:55:34,086 | INFO | MainThread | Created a socket
+2026-03-06 22:55:39,294 | INFO | MainThread | Created a socket
+2026-03-06 22:55:57,757 | INFO | MainThread | Created a socket
+2026-03-06 22:56:25,784 | INFO | MainThread | Created a socket
+2026-03-06 22:56:25,987 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 22:56:54,780 | INFO | MainThread | Created a socket
+2026-03-06 22:56:54,982 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 22:56:57,860 | INFO | MainThread | Created a socket
+2026-03-06 22:56:58,062 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 22:57:00,478 | INFO | MainThread | Created a socket
+2026-03-06 22:57:00,680 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 22:57:02,857 | INFO | MainThread | Created a socket
+2026-03-06 22:57:03,059 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 22:57:05,667 | INFO | MainThread | Created a socket
+2026-03-06 22:57:05,870 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 22:57:08,310 | INFO | MainThread | Created a socket
+2026-03-06 22:57:08,513 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 22:59:42,181 | INFO | MainThread | Created a socket
+2026-03-06 22:59:42,384 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 22:59:46,619 | INFO | MainThread | Created a socket
+2026-03-06 22:59:46,821 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 23:01:33,721 | INFO | MainThread | Created a socket
+2026-03-06 23:01:38,559 | INFO | MainThread | Created a socket
+2026-03-06 23:01:38,762 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 23:01:41,399 | INFO | MainThread | Created a socket
+2026-03-06 23:01:45,946 | INFO | MainThread | Created a socket
+2026-03-06 23:01:49,556 | INFO | MainThread | Created a socket
+2026-03-06 23:01:53,518 | INFO | MainThread | Created a socket
+2026-03-06 23:01:53,722 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 23:01:56,458 | INFO | MainThread | Created a socket
+2026-03-06 23:01:56,660 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 23:01:59,646 | INFO | MainThread | Created a socket
+2026-03-06 23:01:59,849 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 23:02:01,790 | INFO | MainThread | Created a socket
+2026-03-06 23:02:01,993 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 23:02:04,046 | INFO | MainThread | Created a socket
+2026-03-06 23:02:04,249 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 23:02:06,806 | INFO | MainThread | Created a socket
+2026-03-06 23:02:07,008 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 23:02:08,926 | INFO | MainThread | Created a socket
+2026-03-06 23:02:09,131 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 23:02:10,692 | INFO | MainThread | Created a socket
+2026-03-06 23:02:10,895 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 23:07:09,000 | INFO | MainThread | Created a socket
+2026-03-06 23:07:14,418 | INFO | MainThread | Created a socket
+2026-03-06 23:07:20,938 | INFO | MainThread | Created a socket
+2026-03-06 23:07:21,141 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-06 23:07:23,902 | INFO | MainThread | Created a socket
+2026-03-06 23:07:30,202 | INFO | MainThread | Created a socket
+2026-03-06 23:07:30,405 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-07 16:01:04,280 | INFO | MainThread | Created a socket
+2026-03-07 16:01:04,490 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-07 16:01:11,683 | INFO | MainThread | Created a socket
+2026-03-07 16:01:11,885 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-07 16:02:11,410 | INFO | MainThread | Created a socket
+2026-03-07 16:02:11,614 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-07 16:02:14,487 | INFO | MainThread | Created a socket
+2026-03-07 16:02:14,689 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-07 16:02:17,269 | INFO | MainThread | Created a socket
+2026-03-07 16:02:17,472 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-07 16:04:10,744 | INFO | MainThread | Created a socket
+2026-03-07 16:04:10,946 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-07 16:30:49,646 | INFO | MainThread | Created a socket
+2026-03-07 16:30:55,767 | INFO | MainThread | Created a socket
+2026-03-07 16:31:00,376 | INFO | MainThread | Created a socket
+2026-03-07 16:31:04,923 | INFO | MainThread | Created a socket
+2026-03-07 16:39:38,183 | INFO | MainThread | Created a socket
+2026-03-07 16:39:39,051 | ERROR | MainThread | [PLOT] Exception in LivePlotter._update (matplotlib callback)
+--- TRACEBACK START ---
+Traceback (most recent call last):
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 1053, in _update
+    self.tuner.control_step(self.tuner.dt)
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 504, in control_step
+    self._assert_safe()
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 281, in _assert_safe
+    raise RuntimeError(self.safety_reason or "Safety monitor tripped")
+RuntimeError: [SAFETY] motor 5 out of joint limits: pos=1.0888 rad, limits=[-0.6000,0.6000]
+--- TRACEBACK END ---
+Log file: /home/droids/Documents/embedded/robstride_gain_tuner_debug.log
+2026-03-07 16:39:52,822 | INFO | MainThread | Created a socket
+2026-03-07 16:39:58,415 | INFO | MainThread | Created a socket
+2026-03-07 16:39:58,620 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-07 16:40:26,154 | INFO | MainThread | Created a socket
+2026-03-07 16:40:27,022 | ERROR | MainThread | [PLOT] Exception in LivePlotter._update (matplotlib callback)
+--- TRACEBACK START ---
+Traceback (most recent call last):
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 1053, in _update
+    self.tuner.control_step(self.tuner.dt)
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 504, in control_step
+    self._assert_safe()
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 281, in _assert_safe
+    raise RuntimeError(self.safety_reason or "Safety monitor tripped")
+RuntimeError: [SAFETY] motor 6 out of joint limits: pos=6.1948 rad, limits=[-1.5700,1.5700]
+--- TRACEBACK END ---
+Log file: /home/droids/Documents/embedded/robstride_gain_tuner_debug.log
+2026-03-07 16:41:52,028 | INFO | MainThread | Created a socket
+2026-03-07 16:41:52,231 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-07 16:42:08,934 | INFO | MainThread | Created a socket
+2026-03-07 16:42:13,471 | INFO | MainThread | Created a socket
+2026-03-07 16:42:13,675 | WARNING | MainThread | SocketcanBus was not properly shut down
+2026-03-07 16:43:27,909 | INFO | MainThread | Created a socket
+2026-03-07 16:43:34,204 | INFO | MainThread | Created a socket
+2026-03-07 17:01:29,449 | INFO | MainThread | Created a socket
+2026-03-07 17:01:37,492 | INFO | MainThread | Created a socket
+2026-03-07 17:01:50,129 | CRITICAL | MainThread | Traceback (most recent call last):
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 1239, in <module>
+    main()
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 1211, in main
+    motor_ids = parse_motor_ids_or_scan()
+                ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 842, in parse_motor_ids_or_scan
+    s = input("Motor IDs: ").strip()
+        ^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+
+2026-03-07 17:01:53,594 | INFO | MainThread | Created a socket
+2026-03-07 17:02:19,865 | INFO | MainThread | Created a socket
+2026-03-07 17:02:50,103 | INFO | MainThread | Created a socket
+2026-03-07 17:02:50,943 | ERROR | MainThread | [PLOT] Exception in LivePlotter._update (matplotlib callback)
+--- TRACEBACK START ---
+Traceback (most recent call last):
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 1053, in _update
+    self.tuner.control_step(self.tuner.dt)
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 504, in control_step
+    self._assert_safe()
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 281, in _assert_safe
+    raise RuntimeError(self.safety_reason or "Safety monitor tripped")
+RuntimeError: [SAFETY] motor 9 out of joint limits: pos=0.3122 rad, limits=[-2.0944,0.0000]
+--- TRACEBACK END ---
+Log file: /home/droids/Documents/embedded/robstride_gain_tuner_debug.log
+2026-03-07 17:03:07,483 | INFO | MainThread | Created a socket
+2026-03-07 17:03:44,689 | INFO | MainThread | Created a socket
+2026-03-07 17:03:45,549 | ERROR | MainThread | [PLOT] Exception in LivePlotter._update (matplotlib callback)
+--- TRACEBACK START ---
+Traceback (most recent call last):
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 1053, in _update
+    self.tuner.control_step(self.tuner.dt)
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 504, in control_step
+    self._assert_safe()
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 281, in _assert_safe
+    raise RuntimeError(self.safety_reason or "Safety monitor tripped")
+RuntimeError: [SAFETY] motor 9 out of joint limits: pos=0.4886 rad, limits=[-2.0944,0.0000]
+--- TRACEBACK END ---
+Log file: /home/droids/Documents/embedded/robstride_gain_tuner_debug.log
+2026-03-07 17:04:02,628 | INFO | MainThread | Created a socket
+2026-03-07 17:04:28,734 | INFO | MainThread | Created a socket
+2026-03-07 17:04:29,587 | ERROR | MainThread | [PLOT] Exception in LivePlotter._update (matplotlib callback)
+--- TRACEBACK START ---
+Traceback (most recent call last):
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 1053, in _update
+    self.tuner.control_step(self.tuner.dt)
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 504, in control_step
+    self._assert_safe()
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 281, in _assert_safe
+    raise RuntimeError(self.safety_reason or "Safety monitor tripped")
+RuntimeError: [SAFETY] motor 4 out of joint limits: pos=0.1104 rad, limits=[-2.0944,0.0000]
+--- TRACEBACK END ---
+Log file: /home/droids/Documents/embedded/robstride_gain_tuner_debug.log
+2026-03-07 17:04:50,761 | INFO | MainThread | Created a socket
+2026-03-07 17:04:56,866 | INFO | MainThread | Created a socket
+2026-03-07 17:14:13,240 | INFO | MainThread | Created a socket
+2026-03-07 17:16:09,374 | INFO | MainThread | Created a socket
+2026-03-07 17:16:10,219 | ERROR | MainThread | [PLOT] Exception in LivePlotter._update (matplotlib callback)
+--- TRACEBACK START ---
+Traceback (most recent call last):
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 1072, in _update
+    self.tuner.control_step(self.tuner.dt)
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 522, in control_step
+    self._assert_safe()
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 284, in _assert_safe
+    raise RuntimeError(self.safety_reason or "Safety monitor tripped")
+RuntimeError: [SAFETY] motor 9 out of joint limits: pos=0.0410 rad, limits=[-2.0944,0.0000]
+--- TRACEBACK END ---
+Log file: /home/droids/Documents/embedded/robstride_gain_tuner_debug.log
+2026-03-07 17:16:28,415 | INFO | MainThread | Created a socket
+2026-03-07 17:21:28,660 | INFO | MainThread | Created a socket
+2026-03-07 17:22:00,858 | INFO | MainThread | Created a socket
+2026-03-07 17:22:01,699 | ERROR | MainThread | [PLOT] Exception in LivePlotter._update (matplotlib callback)
+--- TRACEBACK START ---
+Traceback (most recent call last):
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 1072, in _update
+    self.tuner.control_step(self.tuner.dt)
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 522, in control_step
+    self._assert_safe()
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 284, in _assert_safe
+    raise RuntimeError(self.safety_reason or "Safety monitor tripped")
+RuntimeError: [SAFETY] motor 4 out of joint limits: pos=0.0004 rad, limits=[-2.0944,0.0000]
+--- TRACEBACK END ---
+Log file: /home/droids/Documents/embedded/robstride_gain_tuner_debug.log
+2026-03-07 17:22:13,508 | INFO | MainThread | Created a socket
+2026-03-07 17:22:53,718 | INFO | MainThread | Created a socket
+2026-03-07 17:28:35,978 | INFO | MainThread | Created a socket
+2026-03-07 17:29:33,787 | INFO | MainThread | Created a socket
+2026-03-07 17:30:03,152 | INFO | MainThread | Created a socket
+2026-03-07 17:30:15,268 | INFO | MainThread | Created a socket
+2026-03-07 17:30:16,113 | ERROR | MainThread | [PLOT] Exception in LivePlotter._update (matplotlib callback)
+--- TRACEBACK START ---
+Traceback (most recent call last):
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 1072, in _update
+    self.tuner.control_step(self.tuner.dt)
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 522, in control_step
+    self._assert_safe()
+  File "/home/droids/Documents/embedded/utils/gain_tuner.py", line 284, in _assert_safe
+    raise RuntimeError(self.safety_reason or "Safety monitor tripped")
+RuntimeError: [SAFETY] motor 9 out of joint limits: pos=0.0004 rad, limits=[-2.0944,0.0000]
+--- TRACEBACK END ---
+Log file: /home/droids/Documents/embedded/robstride_gain_tuner_debug.log
+2026-03-07 17:30:23,658 | INFO | MainThread | Created a socket
+2026-03-21 14:20:55,933 | INFO | MainThread | Created a socket
+2026-03-21 14:21:07,390 | INFO | MainThread | Created a socket
+2026-03-21 14:21:16,144 | INFO | MainThread | Created a socket
+2026-03-21 14:21:23,068 | INFO | MainThread | Created a socket
+2026-03-21 14:21:29,672 | INFO | MainThread | Created a socket
+2026-03-21 16:18:12,548 | INFO | MainThread | Created a socket
+2026-03-21 16:26:47,517 | INFO | MainThread | Created a socket
+2026-03-21 16:27:01,427 | INFO | MainThread | Created a socket
+2026-03-21 16:27:08,018 | INFO | MainThread | Created a socket
+2026-03-21 16:27:15,027 | INFO | MainThread | Created a socket
+2026-03-21 16:27:21,030 | INFO | MainThread | Created a socket
+2026-03-21 16:27:27,607 | INFO | MainThread | Created a socket
+2026-03-21 16:27:34,339 | INFO | MainThread | Created a socket
+2026-03-21 16:27:44,182 | INFO | MainThread | Created a socket
+2026-03-21 16:27:52,920 | INFO | MainThread | Created a socket
+2026-03-21 16:28:58,991 | INFO | MainThread | Created a socket
+2026-03-28 08:14:20,125 | INFO | MainThread | Created a socket
+2026-03-28 08:14:36,402 | INFO | MainThread | Created a socket
+2026-03-28 08:14:54,851 | INFO | MainThread | Created a socket
+2026-03-28 08:15:02,337 | INFO | MainThread | Created a socket
+2026-03-28 08:15:07,757 | INFO | MainThread | Created a socket
+2026-03-28 08:15:14,246 | INFO | MainThread | Created a socket
+2026-03-28 08:48:18,556 | INFO | MainThread | Created a socket
+2026-03-28 08:54:25,086 | INFO | MainThread | Created a socket
+2026-03-28 08:54:41,617 | INFO | MainThread | Created a socket
+2026-03-28 08:56:49,891 | INFO | MainThread | Created a socket
+2026-03-28 08:57:24,312 | INFO | MainThread | Created a socket

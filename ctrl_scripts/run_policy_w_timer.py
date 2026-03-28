@@ -591,6 +591,7 @@ class RunPolicyController:
     def _control_step(self) -> None:
         # Use perf_counter for high-resolution section timing
         t0 = time.perf_counter()
+        self.robot.read_feedback()
         joint_pos_real, joint_vel_real = self.robot.joint_vectors_real()
         t1 = time.perf_counter()
 
@@ -629,14 +630,11 @@ class RunPolicyController:
         self.robot.write_joint_targets(self.commanded_joint)
         t6 = time.perf_counter()
 
-        self.robot.read_feedback()
+        self.obs_builder.note_action(action_policy)
         t7 = time.perf_counter()
 
-        self.obs_builder.note_action(action_policy)
-        t8 = time.perf_counter()
-
         self._maybe_print_status()
-        t9 = time.perf_counter()
+        t8 = time.perf_counter()
 
         # Record section timings (seconds)
         if self.enable_timing:
@@ -646,9 +644,8 @@ class RunPolicyController:
             self.timing.add("policy_infer", t4 - t3)
             self.timing.add("safety_limits", t5 - t4)
             self.timing.add("robot_write", t6 - t5)
-            self.timing.add("robot_feedback", t7 - t6)
-            self.timing.add("note_action", t8 - t7)
-            self.timing.add("status_print", t9 - t8)
+            self.timing.add("note_action", t7 - t6)
+            self.timing.add("status_print", t8 - t7)
 
     def _maybe_print_status(self) -> None:
         if self.status_interval is None:

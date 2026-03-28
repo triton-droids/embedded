@@ -448,7 +448,7 @@ def iter_imu_samples(
     *,
     source: str = "serial",   # "serial" or "i2c"
     # serial params
-    port: str = "/dev/ttyUSB0",
+    port: str = "/dev/ttyACM1",
     baud: int = 115200,
     timeout: float = 1.0,
     # i2c params
@@ -582,7 +582,7 @@ def iter_imu_samples(
 
 # optional quick demo
 if __name__ == "__main__":
-    PORT = "/dev/ttyUSB0"  # Windows: "COM5"
+    PORT = "/dev/ttyACM1"  # Windows: "COM5"
     dr = RK4DeadReckoner(gravity_world=(0.0, 0.0, 9.80665))
     gen = iter_imu_samples(source="serial", port=PORT, rate_hz=50, integrator=dr, include_all=True)
     for i, s in zip(range(10), gen):

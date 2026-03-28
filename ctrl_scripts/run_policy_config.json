@@ -67,16 +67,16 @@
     "right_ankle_joint": [-0.6, 0.6]
   },
   "default_joint_pos_real_rad_by_joint": {
-    "left_hip1_joint": 0.3,
+    "left_hip1_joint": 0.4,
     "left_hip2_joint": 0.0,
     "left_thigh_joint": 0.0,
     "left_knee_joint": -0.8,
-    "left_ankle_joint": 0.5,
-    "right_hip1_joint": 0.3,
+    "left_ankle_joint": 0.4,
+    "right_hip1_joint": 0.4,
     "right_hip2_joint": 0.0,
     "right_thigh_joint": 0.0,
     "right_knee_joint": -0.8,
-    "right_ankle_joint": 0.5
+    "right_ankle_joint": 0.4
   },
   "kp": 10.0,
   "kd": 0.2,

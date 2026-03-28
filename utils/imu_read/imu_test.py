@@ -1,6 +1,7 @@
 from imu_read import iter_imu_samples, RK4DeadReckoner
 
-PORT = "/dev/ttyUSB0"   # Windows: "COM5"
+# PORT = "/dev/ttyUSB0"   # Windows: "COM5"
+PORT = "/dev/ttyACM1"
 RATE_HZ = 50
 
 dr = RK4DeadReckoner(gravity_world=(0.0, 0.0, 9.80665))
