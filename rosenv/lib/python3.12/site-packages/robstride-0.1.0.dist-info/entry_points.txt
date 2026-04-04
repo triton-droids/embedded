@@ -1,0 +1,2 @@
+[console_scripts]
+robstride = robstride.cli:main

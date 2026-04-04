@@ -1,0 +1,6 @@
+Metadata-Version: 2.1
+Name: robstride
+Version: 0.1.0
+License-File: LICENSE
+Requires-Dist: python-can (>=4.4.2)
+
