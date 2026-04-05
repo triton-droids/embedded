@@ -15,12 +15,6 @@ This repository is organized around a single principle:
 
 - `system.struct.png` is the **rendered image** used by this README.
 - `System Structurepng.drawio` is the **editable source** (diagrams.net / draw.io).
-
-If you only have the `.drawio` file:
-1. Open it in diagrams.net (draw.io)
-2. **File → Export as → PNG**
-3. Save the exported image as `system.struct.png` next to this README
-
 ---
 
 ## What the diagram means
