@@ -3,7 +3,11 @@ motor_control_node:
     default_can_interface: "can0"
     default_master_id: 255
 
-    # CAN ID 1 -> 10
+    FREQ_HZ: 0.8
+    KP: 10.0
+    KD: 0.2
+    MAX_VEL_RAD_S: 4.5
+
     inversion: [1, 1, 1, 1, 1, -1, -1, -1, -1, -1]
 
     motors:
