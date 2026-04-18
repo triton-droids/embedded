@@ -33,7 +33,7 @@ end
 # Unset irrelevant variables.
 deactivate nondestructive
 
-set -gx VIRTUAL_ENV /home/droids/Documents/Github/embedded/rosenv
+set -gx VIRTUAL_ENV /home/rcli/Github/Humanoid_ros2/embedded/rosenv
 
 set -gx _OLD_VIRTUAL_PATH $PATH
 set -gx PATH "$VIRTUAL_ENV/"bin $PATH

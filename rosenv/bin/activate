@@ -39,10 +39,10 @@ deactivate nondestructive
 if [ "${OSTYPE:-}" = "cygwin" ] || [ "${OSTYPE:-}" = "msys" ] ; then
     # transform D:\path\to\venv to /d/path/to/venv on MSYS
     # and to /cygdrive/d/path/to/venv on Cygwin
-    export VIRTUAL_ENV=$(cygpath /home/droids/Documents/Github/embedded/rosenv)
+    export VIRTUAL_ENV=$(cygpath /home/rcli/Github/Humanoid_ros2/embedded/rosenv)
 else
     # use the path as-is
-    export VIRTUAL_ENV=/home/droids/Documents/Github/embedded/rosenv
+    export VIRTUAL_ENV=/home/rcli/Github/Humanoid_ros2/embedded/rosenv
 fi
 
 _OLD_VIRTUAL_PATH="$PATH"
