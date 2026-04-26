@@ -125,6 +125,9 @@ class ImuReader:
         self.source = str(require_key(cfg, "source", "imu"))
         self.port = str(require_key(cfg, "port", "imu"))
         self.baud = int(require_key(cfg, "baud", "imu"))
+        self.can_interface = str(cfg.get("can_interface", "socketcan"))
+        self.can_channel = str(cfg.get("can_channel", self.port))
+        self.can_bitrate = int(cfg.get("can_bitrate", self.baud))
         self.rate_hz = float(require_key(cfg, "rate_hz", "imu"))
         self.include_all = bool(require_key(cfg, "include_all", "imu"))
         self.wait_for_first_sample_s = float(require_key(cfg, "wait_for_first_sample_s", "imu"))
@@ -177,10 +180,15 @@ class ImuReader:
         try:
             kwargs = dict(
                 source=self.source,
-                port=self.port,
-                baud=self.baud,
                 rate_hz=self.rate_hz,
             )
+            if self.source == "can":
+                kwargs["can_interface"] = self.can_interface
+                kwargs["can_channel"] = self.can_channel
+                kwargs["can_bitrate"] = self.can_bitrate
+            else:
+                kwargs["port"] = self.port
+                kwargs["baud"] = self.baud
             if self.include_all:
                 kwargs["include_all"] = True
                 gen = iter_imu_samples(**kwargs)
@@ -499,7 +507,12 @@ class RunPolicyController:
         self.status_interval = (1.0 / self.status_print_hz) if self.status_print_hz > 0 else None
 
         self.robot = RobotInterface(cfg, dry_run=self.dry_run)
-        self.imu = ImuReader(dict(require_key(cfg, "imu")))
+        imu_cfg = dict(require_key(cfg, "imu"))
+        if str(imu_cfg.get("source", "")).lower() == "can":
+            imu_cfg["can_interface"] = str(imu_cfg.get("can_interface", "socketcan"))
+            imu_cfg["can_channel"] = str(require_key(cfg, "can_channel"))
+            imu_cfg["can_bitrate"] = int(require_key(cfg, "bitrate"))
+        self.imu = ImuReader(imu_cfg)
 
         self.obs_builder = ObservationBuilder(
             cfg=cfg,

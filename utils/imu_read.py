@@ -14,7 +14,10 @@ What you get
    - Reads from imu_i2c_reader.MPU6050Reader(bus_id, addr).read()
      returning (acc_ms2, gyro_rads)
 
-3) Optional integrator (RK4):
+3) CAN mode:
+   - Polls an IMU responder over the 0x100/0x101/0x102 request/reply protocol.
+
+4) Optional integrator (RK4):
    - Integrates orientation quaternion with gyro (RK4).
    - Rotates body acceleration into world frame.
    - Removes gravity to get linear acceleration in world.
@@ -79,6 +82,8 @@ from typing import Dict, Iterator, Optional, Sequence, Tuple, Any
 G = 9.80665
 DEG2RAD = math.pi / 180.0
 RAD2DEG = 180.0 / math.pi
+ACC_LSB_PER_G = 16384.0
+GYRO_LSB_PER_DPS = 131.0
 
 _SKIP_PREFIXES = (
     "t_ms,", "serial_ok", "Using SDA=", "ping_", "MPU found", "No MPU found",
@@ -390,6 +395,10 @@ def _should_skip(line: str) -> bool:
         return True
     return any(s.startswith(p) for p in _SKIP_PREFIXES)
 
+
+def be_i16(buf: bytes, offset: int) -> int:
+    return int.from_bytes(buf[offset:offset + 2], byteorder="big", signed=True)
+
 def parse_arduino_imu_csv(line: str) -> Optional[Dict[str, Any]]:
     """
     Parse one Arduino/ESP32 CSV line:
@@ -431,6 +440,50 @@ def parse_arduino_imu_csv(line: str) -> Optional[Dict[str, Any]]:
     except ValueError:
         return None
 
+
+def decode_can_imu_frames(rsp1: bytes, rsp2: bytes) -> Dict[str, Any]:
+    ax = be_i16(rsp1, 0)
+    ay = be_i16(rsp1, 2)
+    az = be_i16(rsp1, 4)
+    gx = be_i16(rsp1, 6)
+    gy = be_i16(rsp2, 0)
+    gz = be_i16(rsp2, 2)
+    seq = rsp2[4]
+
+    acc_g = (ax / ACC_LSB_PER_G, ay / ACC_LSB_PER_G, az / ACC_LSB_PER_G)
+    gyro_dps = (gx / GYRO_LSB_PER_DPS, gy / GYRO_LSB_PER_DPS, gz / GYRO_LSB_PER_DPS)
+    return {
+        "source": "can",
+        "seq": seq,
+        "ax_raw": ax,
+        "ay_raw": ay,
+        "az_raw": az,
+        "gx_raw": gx,
+        "gy_raw": gy,
+        "gz_raw": gz,
+        "acc_g": acc_g,
+        "gyro_dps": gyro_dps,
+        "acc_ms2": (acc_g[0] * G, acc_g[1] * G, acc_g[2] * G),
+        "gyro_rads": (gyro_dps[0] * DEG2RAD, gyro_dps[1] * DEG2RAD, gyro_dps[2] * DEG2RAD),
+        "roll_deg": None,
+        "pitch_deg": None,
+        "temp_C": None,
+        "acc_norm_g": v_norm(acc_g),
+        "gyro_norm_dps": v_norm(gyro_dps),
+        "raw": None,
+    }
+
+
+def recv_can_until(bus: Any, arb_id: int, timeout_s: float) -> Optional[Any]:
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        msg = bus.recv(timeout=max(0.0, deadline - time.time()))
+        if msg is None or msg.is_extended_id:
+            continue
+        if msg.arbitration_id == arb_id:
+            return msg
+    return None
+
 def _select_keys(full: Dict[str, Any], keys: Optional[Sequence[str]], include_all: bool) -> Dict[str, Any]:
     if include_all or keys is None:
         return full
@@ -446,7 +499,7 @@ def _select_keys(full: Dict[str, Any], keys: Optional[Sequence[str]], include_al
 # --------------------
 def iter_imu_samples(
     *,
-    source: str = "serial",   # "serial" or "i2c"
+    source: str = "serial",   # "serial", "i2c", or "can"
     # serial params
     port: str = "/dev/ttyACM1",
     baud: int = 115200,
@@ -454,6 +507,14 @@ def iter_imu_samples(
     # i2c params
     i2c_bus: int = 1,
     i2c_addr: int = 0x68,
+    # can params
+    can_interface: str = "socketcan",
+    can_channel: str = "can0",
+    can_bitrate: int = 500000,
+    can_timeout: float = 0.2,
+    can_req_id: int = 0x100,
+    can_rsp1_id: int = 0x101,
+    can_rsp2_id: int = 0x102,
     # output control
     keys: Optional[Sequence[str]] = ("acc_g", "gyro_dps"),
     include_all: bool = False,
@@ -470,8 +531,8 @@ def iter_imu_samples(
     Use include_all=True (or keys=None) to see all merged fields.
     """
     source = source.lower().strip()
-    if source not in ("serial", "i2c"):
-        raise ValueError("source must be 'serial' or 'i2c'")
+    if source not in ("serial", "i2c", "can"):
+        raise ValueError("source must be 'serial', 'i2c', or 'can'")
 
     period: Optional[float] = None
     if rate_hz is not None:
@@ -526,7 +587,7 @@ def iter_imu_samples(
             except Exception:
                 pass
 
-    else:
+    elif source == "i2c":
         from imu_i2c_reader import MPU6050Reader  # needs local file
         reader = MPU6050Reader(bus_id=i2c_bus, addr=i2c_addr)
         next_emit_s: Optional[float] = None
@@ -576,6 +637,58 @@ def iter_imu_samples(
         finally:
             try:
                 reader.close()
+            except Exception:
+                pass
+
+    else:
+        import can
+
+        bus = can.interface.Bus(
+            interface=can_interface,
+            channel=can_channel,
+            bitrate=can_bitrate,
+        )
+        next_emit_s: Optional[float] = None
+        try:
+            while True:
+                if period is not None:
+                    now = time.time()
+                    if next_emit_s is None:
+                        next_emit_s = now
+                    sleep_s = next_emit_s - now
+                    if sleep_s > 0:
+                        time.sleep(sleep_s)
+
+                req = can.Message(
+                    arbitration_id=can_req_id,
+                    is_extended_id=False,
+                    is_remote_frame=False,
+                    data=b"",
+                )
+                bus.send(req, timeout=can_timeout)
+
+                msg1 = recv_can_until(bus, can_rsp1_id, can_timeout)
+                msg2 = recv_can_until(bus, can_rsp2_id, can_timeout)
+                if msg1 is None or msg2 is None:
+                    continue
+
+                now = time.time()
+                if period is not None:
+                    next_emit_s = now + period
+
+                full = decode_can_imu_frames(bytes(msg1.data), bytes(msg2.data))
+                full["t_s"] = now
+                full["t_ms"] = None
+                if add_host_time:
+                    full["host_time_s"] = now
+
+                if integrator is not None:
+                    full.update(integrator.update(full))
+
+                yield _select_keys(full, keys, include_all)
+        finally:
+            try:
+                bus.shutdown()
             except Exception:
                 pass
 

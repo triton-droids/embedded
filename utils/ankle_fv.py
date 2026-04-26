@@ -225,8 +225,8 @@ class State:
     last_t2_guess_rad: Optional[float] = None
 
     # control
-    kp: float = 10.0
-    kd: float = 0.2
+    kp: float = 120.0
+    kd: float = 0.8
     ramp_deg_s: float = 30.0
     excitation: Excitation = field(default_factory=Excitation)
 

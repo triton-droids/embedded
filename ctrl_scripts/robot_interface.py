@@ -72,6 +72,10 @@ def unwrap_to_near(x: float, ref: float) -> float:
     return ref + wrap_to_pi(x - ref)
 
 
+def offset_to_pi(x: float) -> float:
+    return x - wrap_to_pi(x)
+
+
 def lookup_int_key(mapping: dict[str, Any] | dict[int, Any], key: int, default: Any = None) -> Any:
     if key in mapping:
         return mapping[key]  # type: ignore[index]
@@ -174,6 +178,7 @@ class JointMotorState:
     joint_pos: float = 0.0
     joint_vel: float = 0.0
     commanded_joint: float = 0.0
+    startup_motor_offset_rad: float = 0.0
     last_read_time: float = 0.0
     last_cmd_phys: float = 0.0
     last_error: str | None = None
@@ -324,6 +329,8 @@ class RobotInterface:
                 st.velocity_phys = to_scalar_float(v)
                 st.torque_nm = to_scalar_float(tq)
                 st.temp_c = to_scalar_float(temp)
+                raw_motor_logical = st.position_phys / float(st.direction)
+                st.startup_motor_offset_rad = offset_to_pi(raw_motor_logical)
                 now = time.time()
                 self._update_joint_from_motor(st, now, initialize=True)
                 st.commanded_joint = st.joint_pos
@@ -433,7 +440,8 @@ class RobotInterface:
         time.sleep(0.05)
 
     def _update_joint_from_motor(self, st: JointMotorState, now: float, initialize: bool = False) -> float:
-        motor_logical = st.position_phys / float(st.direction)
+        raw_motor_logical = st.position_phys / float(st.direction)
+        motor_logical = raw_motor_logical - st.startup_motor_offset_rad
         if st.is_ankle:
             guess = st.joint_pos if not initialize else 0.0
             measured_joint = self.ankle_mapper.motor_logical_rad_to_ankle_rad(motor_logical, guess)
@@ -477,8 +485,11 @@ class RobotInterface:
 
     def _joint_command_to_motor_physical(self, st: JointMotorState, joint_cmd_rad: float) -> float:
         joint_cmd_rad = clamp(joint_cmd_rad, st.limit_lo, st.limit_hi)
+        raw_motor_guess_logical = st.position_phys / float(st.direction)
+        motor_guess_logical = raw_motor_guess_logical - st.startup_motor_offset_rad
         if st.is_ankle:
-            motor_guess_logical = st.position_phys / float(st.direction)
             motor_target_logical = self.ankle_mapper.ankle_rad_to_motor_logical_rad(joint_cmd_rad, motor_guess_logical)
-            return float(motor_target_logical * float(st.direction))
-        return float(joint_cmd_rad * float(st.direction))
+        else:
+            motor_target_logical = joint_cmd_rad
+        raw_motor_target_logical = motor_target_logical + st.startup_motor_offset_rad
+        return float(raw_motor_target_logical * float(st.direction))

@@ -85,12 +85,12 @@
     "left_hip2_joint": 200.0,
     "left_thigh_joint": 100.0,
     "left_knee_joint": 100.0,
-    "left_ankle_joint": 35.0,
+    "left_ankle_joint": 120.0,
     "right_hip1_joint": 200.0,
     "right_hip2_joint": 300.0,
     "right_thigh_joint": 100.0,
     "right_knee_joint": 100.0,
-    "right_ankle_joint": 45.0
+    "right_ankle_joint": 120.0
   },
   "kd_by_joint": {
     "left_hip1_joint": 20.0,
@@ -134,9 +134,9 @@
   },
   "imu": {
     "enabled": true,
-    "source": "serial",
-    "port": "COM13",
-    "baud": 115200,
+    "source": "can",
+    "port": "can0",
+    "baud": 1000000,
     "rate_hz": 100.0,
     "include_all": true,
     "wait_for_first_sample_s": 2.0,

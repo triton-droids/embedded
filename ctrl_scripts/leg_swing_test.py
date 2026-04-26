@@ -87,9 +87,19 @@ KNEE_AMP = 0.5 * (KNEE_HI - KNEE_LO)      # 0.785 rad => range [-1.57, 0]
 CTRL_HZ = 60.0
 DT = 1.0 / CTRL_HZ
 
-# MIT gains (adjust as needed)
-KP = 10.0
-KD = 0.2
+# Per-motor MIT gains. Ankles use the current 120 kp setting.
+KP_BY_ID = {
+    M4: 10.0,
+    M5: 120.0,
+    M9: 10.0,
+    M10: 120.0,
+}
+KD_BY_ID = {
+    M4: 0.2,
+    M5: 0.8,
+    M9: 0.2,
+    M10: 1.0,
+}
 
 # Limit how fast we change commanded position (logical), requested:
 MAX_VEL_RAD_S = 1.8
@@ -213,10 +223,10 @@ def main():
             cmd5_phys = state[M5]["cmd_logical"] * float(DIR_BY_ID[M5])
             cmd10_phys = state[M10]["cmd_logical"] * float(DIR_BY_ID[M10])
 
-            bus.write_operation_frame(f"motor_{M4}", cmd4_phys, KP, KD, 0.0, 0.0)
-            bus.write_operation_frame(f"motor_{M5}", cmd5_phys, KP, KD, 0.0, 0.0)
-            bus.write_operation_frame(f"motor_{M9}", cmd9_phys, KP, KD, 0.0, 0.0)
-            bus.write_operation_frame(f"motor_{M10}", cmd10_phys, KP, KD, 0.0, 0.0)
+            bus.write_operation_frame(f"motor_{M4}", cmd4_phys, KP_BY_ID[M4], KD_BY_ID[M4], 0.0, 0.0)
+            bus.write_operation_frame(f"motor_{M5}", cmd5_phys, KP_BY_ID[M5], KD_BY_ID[M5], 0.0, 0.0)
+            bus.write_operation_frame(f"motor_{M9}", cmd9_phys, KP_BY_ID[M9], KD_BY_ID[M9], 0.0, 0.0)
+            bus.write_operation_frame(f"motor_{M10}", cmd10_phys, KP_BY_ID[M10], KD_BY_ID[M10], 0.0, 0.0)
 
     finally:
         print("\nStopping...")

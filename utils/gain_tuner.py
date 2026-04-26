@@ -115,6 +115,14 @@ def clamp(x: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, x))
 
 
+def wrap_to_pi(x: float) -> float:
+    return (x + math.pi) % (2.0 * math.pi) - math.pi
+
+
+def offset_to_pi(x: float) -> float:
+    return x - wrap_to_pi(x)
+
+
 # -------------------- Your provided config --------------------
 # Inversion array interpreted sequentially for CAN IDs 1-10
 INVERSION_ARRAY = [-1, -1, -1, 1, 1, 1, -1, 1, -1, -1]
@@ -147,6 +155,9 @@ MOTOR_MODEL_BY_ID: Dict[int, str] = {
     9: "rs-04",
     10: "rs-02",
 }
+
+# Shared actuation safety monitor (joint-limit/jump trips)
+ACTUATION_SAFETY_ENABLED = False  # temporary: disable joint-limit safety trips for tuner testing
 
 # Temperature telemetry filter (thermal safety disabled)
 TEMP_SAFETY_ENABLED = False
@@ -183,9 +194,10 @@ class MotorState:
     name: str
     model: str
 
-    # Telemetry (physical)
-    position: float = 0.0       # rad
-    velocity: float = 0.0       # rad/s
+    # Telemetry
+    raw_position: float = 0.0   # raw physical motor angle (rad)
+    position: float = 0.0       # adjusted logical angle (rad)
+    velocity: float = 0.0       # adjusted logical velocity (rad/s)
     torque: float = 0.0         # Nm
     temperature: float = 0.0    # C
 
@@ -204,6 +216,8 @@ class MotorState:
     target_rad: float = 0.0
     commanded_target_rad: float = 0.0
     hold_center_rad: float = 0.0
+    startup_motor_offset_rad: float = 0.0
+    bypass_limit_clamp: bool = False  # hold out-of-limits startup pose until user commands motion
 
     # Excitation state
     excitation: Excitation = field(default_factory=Excitation)
@@ -281,6 +295,8 @@ class GainTunerMIT:
         print(reason)
 
     def _assert_safe(self):
+        if not ACTUATION_SAFETY_ENABLED:
+            return
         if self.safety_tripped:
             raise RuntimeError(self.safety_reason or "Safety monitor tripped")
 
@@ -293,9 +309,8 @@ class GainTunerMIT:
         try:
             st = self.motor_states[mid]
             pos, vel, tq, temp = self.bus.read_operation_frame(st.name, timeout=0.005)
-            st.position, st.velocity, st.torque = pos, vel, tq
-            st.temperature = self._sanitize_temp_reading(st, temp)
-            return float(pos) / float(st.direction)
+            self._update_telemetry_from_raw(st, pos, vel, tq, temp)
+            return float(st.position)
         finally:
             self.lock.release()
 
@@ -311,7 +326,24 @@ class GainTunerMIT:
                 return prev
         return t
 
+    def _logical_from_raw(self, st: MotorState, raw_pos: float) -> float:
+        return float(raw_pos) / float(st.direction) - st.startup_motor_offset_rad
+
+    def _physical_from_logical(self, st: MotorState, logical_rad: float) -> float:
+        return float((float(logical_rad) + st.startup_motor_offset_rad) * float(st.direction))
+
+    def _update_telemetry_from_raw(self, st: MotorState, pos: float, vel: float, tq: float, temp: float) -> None:
+        st.raw_position = float(pos)
+        st.position = self._logical_from_raw(st, pos)
+        st.velocity = float(vel) / float(st.direction)
+        st.torque = float(tq)
+        st.temperature = self._sanitize_temp_reading(st, temp)
+
     def _start_safety_monitor(self):
+        if not ACTUATION_SAFETY_ENABLED:
+            self.safety_monitor = None
+            print("[SAFETY] actuation safety monitor disabled for tuner testing.")
+            return
         joint_limits = {mid: (st.limit_lo, st.limit_hi) for mid, st in self.motor_states.items()}
         self.safety_monitor = ActuationSafetyMonitor(
             name="gain_tuner",
@@ -333,6 +365,9 @@ class GainTunerMIT:
 
     def _clamp_to_limits(self, st: MotorState, logical_rad: float) -> float:
         return clamp(logical_rad, st.limit_lo, st.limit_hi)
+
+    def _within_limits(self, st: MotorState, logical_rad: float) -> bool:
+        return st.limit_lo <= float(logical_rad) <= st.limit_hi
 
     def _set_mode_raw(self, mode: int, motor_id: int):
         motor_name = f"motor_{motor_id}"
@@ -412,17 +447,18 @@ class GainTunerMIT:
                     # Read once; set targets to current pose (no motion)
                     try:
                         pos, vel, tq, temp = self.bus.read_operation_frame(st.name)
-                        st.position, st.velocity, st.torque = pos, vel, tq
-                        st.temperature = self._sanitize_temp_reading(st, temp)
+                        st.startup_motor_offset_rad = offset_to_pi(float(pos) / float(st.direction))
+                        self._update_telemetry_from_raw(st, pos, vel, tq, temp)
 
-                        logical = pos / float(st.direction)  # pre-direction (logical)
+                        logical = st.position
                         # IMPORTANT: do NOT clamp initial hold (could cause motion on connect).
                         st.target_rad = logical
                         st.commanded_target_rad = logical
                         st.hold_center_rad = logical
+                        st.bypass_limit_clamp = not self._within_limits(st, logical)
 
                         # If out of limits, just warn (future commands will be clamped)
-                        if not (st.limit_lo <= logical <= st.limit_hi):
+                        if st.bypass_limit_clamp:
                             print(
                                 f"  WARN: current logical pos {logical:.4f} rad is outside limits; holding anyway (no motion)."
                             )
@@ -433,9 +469,10 @@ class GainTunerMIT:
                         st.target_rad = 0.0
                         st.commanded_target_rad = 0.0
                         st.hold_center_rad = 0.0
+                        st.bypass_limit_clamp = False
 
                     # Send an initial "hold"
-                    physical_target = st.commanded_target_rad * float(st.direction)
+                    physical_target = self._physical_from_logical(st, st.commanded_target_rad)
                     self.bus.write_operation_frame(st.name, physical_target, st.kp, st.kd, 0.0, 0.0)
 
                     # --- delay-metrics init (avoid arming a fake step on first cycle) ---
@@ -464,10 +501,11 @@ class GainTunerMIT:
         try:
             # Freeze command state before disable
             st.excitation = Excitation()
-            logical = st.position / float(st.direction)
+            logical = st.position
             st.target_rad = logical
             st.commanded_target_rad = logical
             st.hold_center_rad = logical
+            st.bypass_limit_clamp = not self._within_limits(st, logical)
 
             self.bus.disable(st.name)
             st.enabled = False
@@ -487,18 +525,18 @@ class GainTunerMIT:
             # Re-sync hold to current position after re-enable
             try:
                 pos, vel, tq, temp = self.bus.read_operation_frame(st.name)
-                st.position, st.velocity, st.torque = pos, vel, tq
-                st.temperature = self._sanitize_temp_reading(st, temp)
+                self._update_telemetry_from_raw(st, pos, vel, tq, temp)
             except Exception:
                 pass
 
-            logical = st.position / float(st.direction)
+            logical = st.position
             st.excitation = Excitation()
             st.target_rad = logical
             st.commanded_target_rad = logical
             st.hold_center_rad = logical
+            st.bypass_limit_clamp = not self._within_limits(st, logical)
 
-            physical_target = logical * float(st.direction)
+            physical_target = self._physical_from_logical(st, logical)
             self.bus.write_operation_frame(st.name, physical_target, float(st.kp), float(st.kd), 0.0, 0.0)
 
             # --- delay-metrics init (avoid arming a fake step on first cycle) ---
@@ -559,10 +597,11 @@ class GainTunerMIT:
                 for st in self.motor_states.values():
                     if st.temp_state == "HOLD":
                         st.excitation = Excitation()
-                        logical = st.position / float(st.direction)
+                        logical = st.position
                         st.target_rad = logical
                         st.commanded_target_rad = logical
                         st.hold_center_rad = logical
+                        st.bypass_limit_clamp = not self._within_limits(st, logical)
 
             # --- excitation + clamp + ramp ---
             for st in self.motor_states.values():
@@ -580,7 +619,8 @@ class GainTunerMIT:
                         )
 
                 # enforce joint limits in logical space for any motion command
-                st.target_rad = self._clamp_to_limits(st, st.target_rad)
+                if not st.bypass_limit_clamp:
+                    st.target_rad = self._clamp_to_limits(st, st.target_rad)
 
                 # ramp (derate motion if hot)
                 motion_scale = 1.0
@@ -595,14 +635,15 @@ class GainTunerMIT:
                     st.commanded_target_rad += math.copysign(max_step, delta)
 
                 # also ensure commanded stays within limits
-                st.commanded_target_rad = self._clamp_to_limits(st, st.commanded_target_rad)
+                if not st.bypass_limit_clamp:
+                    st.commanded_target_rad = self._clamp_to_limits(st, st.commanded_target_rad)
 
             # --- send frames (fixed gains; RL-safe) + IO timing + step-delay arming ---
             for st in self.motor_states.values():
                 if not st.enabled:
                     continue
                 try:
-                    physical_target = st.commanded_target_rad * float(st.direction)
+                    physical_target = self._physical_from_logical(st, st.commanded_target_rad)
                     arm_step = (
                         st.excitation.mode != "sine"
                         and (not st.step_pending)
@@ -642,8 +683,7 @@ class GainTunerMIT:
                     st.read_dt_ms = (t1 - t0) * 1000.0
                     st.last_read_end_t = time.time()
 
-                    st.position, st.velocity, st.torque = pos, vel, tq
-                    st.temperature = self._sanitize_temp_reading(st, temp)
+                    self._update_telemetry_from_raw(st, pos, vel, tq, temp)
                     st.last_error = None
 
                     if st.last_write_end_t > 0.0:
@@ -705,11 +745,15 @@ class GainTunerMIT:
                     continue
                 st = self.motor_states[mid]
                 st.direction *= -1
+                st.startup_motor_offset_rad = offset_to_pi(st.raw_position / float(st.direction))
+                st.position = self._logical_from_raw(st, st.raw_position)
+                st.velocity *= -1.0
                 # keep logical target matching current physical pose to avoid motion
-                logical = st.position / float(st.direction)
+                logical = st.position
                 st.target_rad = logical
                 st.commanded_target_rad = logical
                 st.hold_center_rad = logical
+                st.bypass_limit_clamp = not self._within_limits(st, logical)
                 st.excitation = Excitation()
         print(f"Toggled direction for motors: {sorted(ids)}")
 
@@ -738,10 +782,11 @@ class GainTunerMIT:
             for mid in self.selected:
                 st = self.motor_states[mid]
                 st.excitation = Excitation()
-                logical = st.position / float(st.direction)
+                logical = st.position
                 st.target_rad = logical
                 st.commanded_target_rad = logical
                 st.hold_center_rad = logical
+                st.bypass_limit_clamp = not self._within_limits(st, logical)
         print(f"Hold set for motors: {sorted(self.selected)}")
 
     def step(self, delta_deg: float):
@@ -753,6 +798,7 @@ class GainTunerMIT:
             for mid in self.selected:
                 st = self.motor_states[mid]
                 st.excitation = Excitation()
+                st.bypass_limit_clamp = False
                 st.target_rad = self._clamp_to_limits(st, st.target_rad + math.radians(delta_deg))
         print(f"Step {delta_deg:+.1f} deg (clamped to limits) for motors: {sorted(self.selected)}")
 
@@ -768,6 +814,7 @@ class GainTunerMIT:
             for mid in self.selected:
                 st = self.motor_states[mid]
                 st.excitation = Excitation()
+                st.bypass_limit_clamp = False
                 st.target_rad = self._clamp_to_limits(st, math.radians(angle_deg))
         print(f"Goto {angle_deg:+.1f} deg (clamped to limits) for motors: {sorted(self.selected)}")
 
@@ -780,6 +827,7 @@ class GainTunerMIT:
             now = time.time()
             for mid in self.selected:
                 st = self.motor_states[mid]
+                st.bypass_limit_clamp = False
                 center = self._clamp_to_limits(st, st.target_rad)
                 st.target_rad = center
                 st.hold_center_rad = center
@@ -815,7 +863,7 @@ class GainTunerMIT:
                 st = self.motor_states[mid]
                 sel = "*" if mid in self.selected else ""
                 pos_deg = math.degrees(st.position)
-                cmd_deg = math.degrees(st.commanded_target_rad * float(st.direction))
+                cmd_deg = math.degrees(st.commanded_target_rad)
                 dir_str = "INV" if st.direction == -1 else "NOR"
                 lim_str = f"[{st.limit_lo:.3f},{st.limit_hi:.3f}]"
                 print(
@@ -841,8 +889,8 @@ class GainTunerMIT:
                     if not st.enabled:
                         continue
                     try:
-                        logical = st.position / float(st.direction)
-                        physical_target = logical * float(st.direction)
+                        logical = st.position
+                        physical_target = self._physical_from_logical(st, logical)
                         self.bus.write_operation_frame(st.name, physical_target, st.kp, st.kd, 0.0, 0.0)
                     except Exception:
                         pass
@@ -1017,8 +1065,8 @@ class LivePlotter:
             vel = st.velocity
             tq = st.torque
             temp = st.temperature
-            cmd_phys = st.commanded_target_rad * float(st.direction)
-            err = cmd_phys - pos
+            cmd = st.commanded_target_rad
+            err = cmd - pos
             kp = st.kp
             kd = st.kd
             exmode = st.excitation.mode
@@ -1037,7 +1085,7 @@ class LivePlotter:
         # ---- store samples for plotting + delay estimation ----
         self.t.append(now_s)
         self.pos_deg.append(math.degrees(pos))
-        self.cmd_deg.append(math.degrees(cmd_phys))
+        self.cmd_deg.append(math.degrees(cmd))
         self.err_deg.append(math.degrees(err))
         self.vel_deg_s.append(math.degrees(vel))
         self.tq.append(tq)

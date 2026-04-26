@@ -5,6 +5,7 @@
    - Supports serial CSV format:
        t_ms, ax_g, ay_g, az_g, gx_dps, gy_dps, gz_dps, roll_deg, pitch_deg, (temp_C optional)
    - Supports I2C mode via a local MPU6050Reader that returns (acc_ms2, gyro_rads).
+   - Supports CAN request/reply mode using the 0x100/0x101/0x102 IMU protocol.
 
 2) RK4 attitude integration (quaternion):
    - Integrates orientation using gyro angular rate with RK4.
@@ -62,6 +63,8 @@ from typing import Dict, Iterator, Optional, Sequence, Tuple, Any
 G = 9.80665
 DEG2RAD = math.pi / 180.0
 RAD2DEG = 180.0 / math.pi
+ACC_LSB_PER_G = 16384.0
+GYRO_LSB_PER_DPS = 131.0
 
 _SKIP_PREFIXES = (
     "t_ms,", "serial_ok", "Using SDA=", "ping_", "MPU found", "No MPU found",
@@ -76,6 +79,15 @@ def v_add(a, b): return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
 def v_sub(a, b): return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
 def v_mul(s, a): return (s * a[0], s * a[1], s * a[2])
 def v_norm(a): return math.sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2])
+
+
+def v_rotate_xy_cw_90(a):
+    # Clockwise 90 deg rotation in the XY plane: [x'; y'] = [[0, 1], [-1, 0]] [x; y]
+    return (a[1], -a[0], a[2])
+
+
+def be_i16(buf: bytes, offset: int) -> int:
+    return int.from_bytes(buf[offset:offset + 2], byteorder="big", signed=True)
 
 def v_cross(a, b):
     return (
@@ -546,10 +558,10 @@ def parse_arduino_imu_csv(line: str) -> Optional[Dict[str, Any]]:
         roll_deg, pitch_deg = float(parts[7]), float(parts[8])
         temp_C = float(parts[9]) if len(parts) >= 10 else None
 
-        acc_g = (ax_g, ay_g, az_g)
-        gyro_dps = (gx_dps, gy_dps, gz_dps)
-        acc_ms2 = (ax_g * G, ay_g * G, az_g * G)
-        gyro_rads = (gx_dps * DEG2RAD, gy_dps * DEG2RAD, gz_dps * DEG2RAD)
+        acc_g = v_rotate_xy_cw_90((ax_g, ay_g, az_g))
+        gyro_dps = v_rotate_xy_cw_90((gx_dps, gy_dps, gz_dps))
+        acc_ms2 = v_rotate_xy_cw_90((ax_g * G, ay_g * G, az_g * G))
+        gyro_rads = v_rotate_xy_cw_90((gx_dps * DEG2RAD, gy_dps * DEG2RAD, gz_dps * DEG2RAD))
 
         return {
             "source": "serial_csv",
@@ -569,6 +581,39 @@ def parse_arduino_imu_csv(line: str) -> Optional[Dict[str, Any]]:
     except ValueError:
         return None
 
+
+def decode_can_imu_frames(rsp1: bytes, rsp2: bytes) -> Dict[str, Any]:
+    ax = be_i16(rsp1, 0)
+    ay = be_i16(rsp1, 2)
+    az = be_i16(rsp1, 4)
+    gx = be_i16(rsp1, 6)
+    gy = be_i16(rsp2, 0)
+    gz = be_i16(rsp2, 2)
+    seq = rsp2[4]
+
+    return {
+        "seq": seq,
+        "ax_raw": ax,
+        "ay_raw": ay,
+        "az_raw": az,
+        "gx_raw": gx,
+        "gy_raw": gy,
+        "gz_raw": gz,
+        "acc_g": (ax / ACC_LSB_PER_G, ay / ACC_LSB_PER_G, az / ACC_LSB_PER_G),
+        "gyro_dps": (gx / GYRO_LSB_PER_DPS, gy / GYRO_LSB_PER_DPS, gz / GYRO_LSB_PER_DPS),
+    }
+
+
+def recv_can_until(bus: Any, arb_id: int, timeout_s: float) -> Optional[Any]:
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        msg = bus.recv(timeout=max(0.0, deadline - time.time()))
+        if msg is None or msg.is_extended_id:
+            continue
+        if msg.arbitration_id == arb_id:
+            return msg
+    return None
+
 def _select_keys(full: Dict[str, Any], keys: Optional[Sequence[str]], include_all: bool) -> Dict[str, Any]:
     if include_all or keys is None:
         return full
@@ -584,7 +629,7 @@ def _select_keys(full: Dict[str, Any], keys: Optional[Sequence[str]], include_al
 # --------------------
 def iter_imu_samples(
     *,
-    source: str = "serial",   # "serial" or "i2c"
+    source: str = "serial",   # "serial", "i2c", or "can"
     # serial params
     port: str = "COM13",
     baud: int = 115200,
@@ -592,6 +637,14 @@ def iter_imu_samples(
     # i2c params
     i2c_bus: int = 1,
     i2c_addr: int = 0x68,
+    # can params
+    can_interface: str = "socketcan",
+    can_channel: str = "can0",
+    can_bitrate: int = 500000,
+    can_timeout: float = 0.2,
+    can_req_id: int = 0x100,
+    can_rsp1_id: int = 0x101,
+    can_rsp2_id: int = 0x102,
     # output control
     keys: Optional[Sequence[str]] = ("acc_g", "gyro_dps"),
     include_all: bool = False,
@@ -602,8 +655,8 @@ def iter_imu_samples(
     integrator: Optional[RK4DeadReckoner] = None,
 ) -> Iterator[Dict[str, Any]]:
     source = source.lower().strip()
-    if source not in ("serial", "i2c"):
-        raise ValueError("source must be 'serial' or 'i2c'")
+    if source not in ("serial", "i2c", "can"):
+        raise ValueError("source must be 'serial', 'i2c', or 'can'")
 
     period: Optional[float] = None
     if rate_hz is not None:
@@ -658,7 +711,7 @@ def iter_imu_samples(
             except Exception:
                 pass
 
-    else:
+    elif source == "i2c":
         from imu_i2c_reader import MPU6050Reader  # needs local file
         reader = MPU6050Reader(bus_id=i2c_bus, addr=i2c_addr)
         next_emit_s: Optional[float] = None
@@ -673,6 +726,8 @@ def iter_imu_samples(
                         time.sleep(sleep_s)
 
                 acc_ms2, gyro_rads = reader.read()
+                acc_ms2 = v_rotate_xy_cw_90(acc_ms2)
+                gyro_rads = v_rotate_xy_cw_90(gyro_rads)
 
                 ax, ay, az = acc_ms2
                 gx, gy, gz = gyro_rads
@@ -711,10 +766,88 @@ def iter_imu_samples(
             except Exception:
                 pass
 
+    else:
+        import can
+
+        bus = can.interface.Bus(
+            interface=can_interface,
+            channel=can_channel,
+            bitrate=can_bitrate,
+        )
+        next_emit_s: Optional[float] = None
+        try:
+            while True:
+                if period is not None:
+                    now = time.time()
+                    if next_emit_s is None:
+                        next_emit_s = now
+                    sleep_s = next_emit_s - now
+                    if sleep_s > 0:
+                        time.sleep(sleep_s)
+
+                req = can.Message(
+                    arbitration_id=can_req_id,
+                    is_extended_id=False,
+                    is_remote_frame=False,
+                    data=b"",
+                )
+                bus.send(req, timeout=can_timeout)
+
+                msg1 = recv_can_until(bus, can_rsp1_id, can_timeout)
+                msg2 = recv_can_until(bus, can_rsp2_id, can_timeout)
+                if msg1 is None or msg2 is None:
+                    continue
+
+                decoded = decode_can_imu_frames(bytes(msg1.data), bytes(msg2.data))
+                acc_g = v_rotate_xy_cw_90(decoded["acc_g"])
+                gyro_dps = v_rotate_xy_cw_90(decoded["gyro_dps"])
+                acc_ms2 = (acc_g[0] * G, acc_g[1] * G, acc_g[2] * G)
+                gyro_rads = (gyro_dps[0] * DEG2RAD, gyro_dps[1] * DEG2RAD, gyro_dps[2] * DEG2RAD)
+
+                now = time.time()
+                if period is not None:
+                    next_emit_s = now + period
+
+                full: Dict[str, Any] = {
+                    "source": "can",
+                    "t_s": now,
+                    "t_ms": None,
+                    "host_time_s": now if add_host_time else None,
+                    "acc_ms2": acc_ms2,
+                    "gyro_rads": gyro_rads,
+                    "acc_g": acc_g,
+                    "gyro_dps": gyro_dps,
+                    "roll_deg": None,
+                    "pitch_deg": None,
+                    "temp_C": None,
+                    "acc_norm_g": v_norm(acc_g),
+                    "gyro_norm_dps": v_norm(gyro_dps),
+                    "raw": None,
+                    "seq": decoded["seq"],
+                    "ax_raw": decoded["ax_raw"],
+                    "ay_raw": decoded["ay_raw"],
+                    "az_raw": decoded["az_raw"],
+                    "gx_raw": decoded["gx_raw"],
+                    "gy_raw": decoded["gy_raw"],
+                    "gz_raw": decoded["gz_raw"],
+                }
+
+                if integrator is not None:
+                    full.update(integrator.update(full))
+
+                yield _select_keys(full, keys, include_all)
+        finally:
+            try:
+                bus.shutdown()
+            except Exception:
+                pass
+
 
 # optional quick demo
 if __name__ == "__main__":
-    PORT = "COM13"
+    CAN_INTERFACE = "socketcan"
+    CAN_CHANNEL = "can0"
+    CAN_BITRATE = 500000
     dr = RK4DeadReckoner(
         gravity_world=(0.0, 0.0, 9.80665),
         integrate_translation=False,
@@ -738,12 +871,20 @@ if __name__ == "__main__":
         debug_acc_gate=False,
     )
 
-    gen = iter_imu_samples(source="serial", port=PORT, rate_hz=50, integrator=dr, include_all=True)
+    gen = iter_imu_samples(
+        source="can",
+        can_interface=CAN_INTERFACE,
+        can_channel=CAN_CHANNEL,
+        can_bitrate=CAN_BITRATE,
+        rate_hz=50,
+        integrator=dr,
+        include_all=True,
+    )
 
     for i, s in zip(range(100000), gen):
         print(
             "up=", s.get("up_body"),
-            #"rpy=", s.get("rpy_deg"),
+            "rpy=", s.get("rpy_deg"),
             #"gate=", (s.get("acc_gate_ok"), s.get("jerk_gate_ok"), s.get("gyro_gate_ok"), s.get("gate_ok")),
             #"cnt=", s.get("gate_count"),
             #"jerk=", s.get("jerk_ms3"),

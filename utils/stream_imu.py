@@ -46,7 +46,7 @@ class LowPassVec3:
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Stream IMU samples over serial/I2C or poll an IMU responder over CAN.")
     p.add_argument("--source", choices=("serial", "i2c", "can"), default="serial")
-    p.add_argument("--port", default="/dev/ttyACM1", help='Serial port, e.g. /dev/ttyACM1 or COM13')
+    p.add_argument("--port", default="/dev/ttyACM3", help='Serial port, e.g. /dev/ttyACM1 or COM13')
     p.add_argument("--baud", type=int, default=115200)
     p.add_argument("--rate", type=float, default=50.0, help="Requested output rate in Hz")
     p.add_argument("--timeout", type=float, default=1.0, help="Serial read timeout in seconds")

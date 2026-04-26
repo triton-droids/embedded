@@ -132,6 +132,10 @@ def solve_motor_to_foot(t2_rad: float, t4_guess_rad: float) -> float:
 
 # -------------------- Ankle hardware config --------------------
 ANKLE_IDS = (5, 10)
+DEFAULT_GAINS_BY_ID = {
+    5: (120.0, 0.8),
+    10: (120.0, 1.0),
+}
 MOTOR_MODEL_BY_ID: Dict[int, str] = {5: "rs-02", 10: "rs-02"}
 INVERSION_ARRAY = [1, 1, 1, 1, 1, -1, -1, -1, -1, -1]
 INVERSION_BY_ID: Dict[int, int] = {i + 1: INVERSION_ARRAY[i] for i in range(len(INVERSION_ARRAY))}
@@ -197,6 +201,8 @@ class AnkleGainTunerNoPlot:
                 direction=int(INVERSION_BY_ID[mid]),
                 limit_lo_deg=math.degrees(lo),
                 limit_hi_deg=math.degrees(hi),
+                kp=float(DEFAULT_GAINS_BY_ID[mid][0]),
+                kd=float(DEFAULT_GAINS_BY_ID[mid][1]),
                 ramp_deg_s=float(ramp_deg_s),
             )
 
