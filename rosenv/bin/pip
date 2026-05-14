@@ -1,4 +1,4 @@
-#!/home/droids/Documents/Github/embedded/rosenv/bin/python3
+#!/home/rcli/Github/Humanoid_ros2/embedded/rosenv/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys
