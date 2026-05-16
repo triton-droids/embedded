@@ -12,6 +12,7 @@ Architecture:
 - ROS2 interface: Publishes joint_states and subscribes to joint_commands
 """
 
+import json
 import rclpy
 from rclpy.node import Node
 import threading
@@ -22,6 +23,7 @@ import os
 from typing import Dict, Tuple
 
 from sensor_msgs.msg import JointState
+from std_msgs.msg import String
 from motor_control_interfaces.msg import MotorCommand
 
 # Import motor driver from local copy
@@ -57,6 +59,7 @@ class PythonCanNode(Node):
 
         # Load motor configuration
         self.drivers: Dict[str, RobStrideMotorLinux] = {}
+        self.motor_index_map: Dict[str, int] = {}
 
         if cfg_path and os.path.exists(cfg_path):
             self.get_logger().info(f'Loading motor config from: {cfg_path}')
@@ -84,14 +87,16 @@ class PythonCanNode(Node):
             )
 
             # Create motor drivers
-            for joint_name, cfg in motors_cfg.items():
+            for motor_index, (joint_name, cfg) in enumerate(motors_cfg.items()):
                 iface = cfg.get('can_interface', self.default_iface)
                 master_id = int(cfg.get('master_id', self.default_master))
                 motor_id = int(cfg['motor_id'])
                 actuator_type = int(cfg.get('actuator_type', 0))
 
+                self.motor_index_map[joint_name] = motor_index
+
                 self.get_logger().info(
-                    f'Initializing motor: {joint_name} on {iface}, '
+                    f'Initializing motor[{motor_index}]: {joint_name} on {iface}, '
                     f'master={master_id}, motor_id={motor_id}, actuator_type={actuator_type}'
                 )
 
@@ -141,6 +146,10 @@ class PythonCanNode(Node):
         # ROS2 publishers/subscribers
         self.joint_state_pub = self.create_publisher(
             JointState, 'joint_states', 10
+        )
+
+        self.motor_status_pub = self.create_publisher(
+            String, 'motor_status', 10
         )
 
         self.cmd_sub = self.create_subscription(
@@ -308,6 +317,27 @@ class PythonCanNode(Node):
 
         if msg.name:
             self.joint_state_pub.publish(msg)
+
+        self._publish_motor_status()
+
+    def _publish_motor_status(self):
+        """Publish motor index -> {temperature, torque} as JSON on /motor_status."""
+        status_by_index = {}
+
+        with self.state_lock:
+            for joint_name, (pos, vel, tq, temp, timestamp) in self.state_buffer.items():
+                motor_index = self.motor_index_map.get(joint_name)
+                if motor_index is None:
+                    continue
+
+                status_by_index[str(motor_index)] = {
+                    'temperature': float(temp),
+                    'torque': float(tq),
+                }
+
+        msg = String()
+        msg.data = json.dumps(status_by_index)
+        self.motor_status_pub.publish(msg)
 
     def destroy_node(self):
         """Cleanup on shutdown"""
