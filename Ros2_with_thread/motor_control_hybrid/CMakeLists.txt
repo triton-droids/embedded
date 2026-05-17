@@ -95,9 +95,19 @@ install(PROGRAMS
   RENAME python_can_node
 )
 install(PROGRAMS
-  motor_control_hybrid/target_gateway_node.py
+  motor_control_hybrid/motor_sdk_gateway_node.py
   DESTINATION lib/${PROJECT_NAME}
-  RENAME target_gateway_node
+  RENAME motor_sdk_gateway_node
+)
+install(PROGRAMS
+  motor_control_hybrid/fake_motor_node.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME fake_motor_node
+)
+install(PROGRAMS
+  motor_control_hybrid/double_pendulum_websocket_node.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME double_pendulum_websocket_node
 )
 
 ament_package()

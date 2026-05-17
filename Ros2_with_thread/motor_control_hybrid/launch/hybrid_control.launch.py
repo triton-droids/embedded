@@ -1,6 +1,6 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, LogInfo
-from launch.conditions import IfCondition
+from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
@@ -50,8 +50,26 @@ def generate_launch_description():
 
     enable_gateway_arg = DeclareLaunchArgument(
         'enable_gateway',
-        default_value='true',
+        default_value='false',
         description='Start HTTP gateway node'
+    )
+
+    enable_sdk_gateway_arg = DeclareLaunchArgument(
+        'enable_sdk_gateway',
+        default_value='true',
+        description='Start gRPC SDK motor gateway node'
+    )
+
+    enable_fake_motor_arg = DeclareLaunchArgument(
+        'enable_fake_motor',
+        default_value='false',
+        description='Start fake motor node instead of real CAN hardware for local testing'
+    )
+
+    enable_websocket_ui_arg = DeclareLaunchArgument(
+        'enable_websocket_ui',
+        default_value='true',
+        description='Start browser websocket double-pendulum UI'
     )
 
     rl_model_path_arg = DeclareLaunchArgument(
@@ -96,11 +114,43 @@ def generate_launch_description():
         description='Gateway repeat rate for the last published desired command. 0 disables repeat.'
     )
 
+    sdk_grpc_addr_arg = DeclareLaunchArgument(
+        'sdk_grpc_addr',
+        default_value='127.0.0.1:50052',
+        description='gRPC bind address for the SDK motor gateway'
+    )
+
+    websocket_host_arg = DeclareLaunchArgument(
+        'websocket_host',
+        default_value='127.0.0.1',
+        description='Double-pendulum websocket UI host'
+    )
+
+    websocket_port_arg = DeclareLaunchArgument(
+        'websocket_port',
+        default_value='8765',
+        description='Double-pendulum websocket UI port'
+    )
+
+    # -------------------- Fake motor node --------------------
+    fake_motor_node = Node(
+        package='motor_control_hybrid',
+        executable='fake_motor_node',
+        name='fake_motor_node',
+        condition=IfCondition(LaunchConfiguration('enable_fake_motor')),
+        output='screen',
+        parameters=[
+            {'joint_names': ['test_joint', 'test_joint2']},
+            {'publish_rate_hz': LaunchConfiguration('control_rate_hz')},
+        ],
+    )
+
     # -------------------- Python CAN node --------------------
-    python_can_node = Node(
+    real_python_can_node = Node(
         package='motor_control_hybrid',
         executable='python_can_node',
         name='python_can_node',
+        condition=UnlessCondition(LaunchConfiguration('enable_fake_motor')),
         output='screen',
         parameters=[
             {'motor_config_file': LaunchConfiguration('motor_config_file')},
@@ -144,6 +194,32 @@ def generate_launch_description():
         ],
     )
 
+    # -------------------- SDK gRPC Gateway node --------------------
+    sdk_gateway_node = Node(
+        package='motor_control_hybrid',
+        executable='motor_sdk_gateway_node',
+        name='motor_sdk_gateway_node',
+        condition=IfCondition(LaunchConfiguration('enable_sdk_gateway')),
+        output='screen',
+        parameters=[
+            {'grpc_addr': LaunchConfiguration('sdk_grpc_addr')},
+        ],
+    )
+
+    # -------------------- Browser WebSocket double-pendulum UI --------------------
+    websocket_ui_node = Node(
+        package='motor_control_hybrid',
+        executable='double_pendulum_websocket_node',
+        name='double_pendulum_websocket_node',
+        condition=IfCondition(LaunchConfiguration('enable_websocket_ui')),
+        output='screen',
+        parameters=[
+            {'host': LaunchConfiguration('websocket_host')},
+            {'port': LaunchConfiguration('websocket_port')},
+            {'joint_names': ['test_joint', 'test_joint2']},
+        ],
+    )
+
     return LaunchDescription([
         motor_config_arg,
         control_rate_arg,
@@ -152,6 +228,9 @@ def generate_launch_description():
         enable_rl_arg,
         enable_cpp_control_arg,
         enable_gateway_arg,
+        enable_sdk_gateway_arg,
+        enable_fake_motor_arg,
+        enable_websocket_ui_arg,
         rl_model_path_arg,
         gateway_host_arg,
         gateway_port_arg,
@@ -159,14 +238,22 @@ def generate_launch_description():
         gateway_default_kd_arg,
         gateway_default_mode_arg,
         gateway_repeat_publish_hz_arg,
-        python_can_node,
+        sdk_grpc_addr_arg,
+        websocket_host_arg,
+        websocket_port_arg,
+        fake_motor_node,
+        real_python_can_node,
         cpp_control_node,
         gateway_node,
+        sdk_gateway_node,
+        websocket_ui_node,
         LogInfo(msg=[
             'Hybrid control system launched:\n',
             '  - Python CAN node: handles CAN communication\n',
             '  - C++ Control node: handles control and RL inference\n',
             '  - HTTP Gateway node: accepts POST /target and publishes to motor_commands\n',
+            '  - SDK gRPC gateway: ', LaunchConfiguration('sdk_grpc_addr'), '\n',
+            '  - Double-pendulum UI: http://', LaunchConfiguration('websocket_host'), ':', LaunchConfiguration('websocket_port'), '\n',
             '  - Control rate: ', LaunchConfiguration('control_rate_hz'), ' Hz\n',
             '  - Gateway: http://', LaunchConfiguration('gateway_host'), ':', LaunchConfiguration('gateway_port'), '\n',
             '  - Legacy debug node can still run separately if needed\n',

@@ -17,7 +17,10 @@ setup(
     ],
     install_requires=[
         'setuptools',
+        'grpcio',
+        'protobuf',
         'robstride-dynamics',
+        'websockets',
     ],
     zip_safe=True,
     maintainer='rcli',
@@ -28,7 +31,9 @@ setup(
     entry_points={
         'console_scripts': [
             'python_can_node = motor_control_hybrid.python_can_node:main',
-            'target_gateway_node = motor_control_hybrid.target_gateway_node:main',
+            'motor_sdk_gateway_node = motor_control_hybrid.motor_sdk_gateway_node:main',
+            'fake_motor_node = motor_control_hybrid.fake_motor_node:main',
+            'double_pendulum_websocket_node = motor_control_hybrid.double_pendulum_websocket_node:main',
         ],
     },
 )
