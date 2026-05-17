@@ -21,6 +21,6 @@ __pycache__/
 *.o
 
 #AI
-.codex
-.agents
+.codex/
+.agents/
 
