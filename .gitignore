@@ -23,4 +23,5 @@ __pycache__/
 #AI
 .codex/
 .agents/
+skills-lock.json
 
