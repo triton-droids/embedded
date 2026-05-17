@@ -9,6 +9,7 @@ test_results/
 # Python cache
 __pycache__/
 *.py[cod]
+rosenv/
 
 # VSCode / CLion / misc
 .vscode/
