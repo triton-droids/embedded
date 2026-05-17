@@ -20,3 +20,12 @@ motor_control_node:
         direction: 1
         min_position: -1.57
         max_position: 1.57
+      test_joint2:
+        can_interface: "can0"
+        master_id: 255
+        motor_id: 13
+        actuator_type: 2
+        model: "rs-03"
+        direction: 1
+        min_position: -1.57
+        max_position: 1.57
