@@ -3,3 +3,9 @@ grpcio
 protobuf
 websockets
 torch
+
+pyyaml
+typeguard
+empy==3.3.4
+lark
+catkin_pkg
