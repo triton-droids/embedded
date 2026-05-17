@@ -1,0 +1,162 @@
+syntax = "proto3";
+
+package humanoid.robot.sdk.v1;
+
+service RobotControl {
+  rpc EnableRobot(EnableRobotRequest) returns (CommandReply);
+  rpc DisableRobot(DisableRobotRequest) returns (CommandReply);
+  rpc SetMode(SetModeRequest) returns (CommandReply);
+  rpc LoadPolicy(LoadPolicyRequest) returns (CommandReply);
+  rpc StartPolicy(StartPolicyRequest) returns (CommandReply);
+  rpc StopPolicy(StopPolicyRequest) returns (CommandReply);
+  rpc SetVelocityCommand(VelocityCommand) returns (CommandReply);
+  rpc GetRobotStatus(GetRobotStatusRequest) returns (RobotStatus);
+}
+
+service MotorControl {
+  rpc EnableMotors(MotorSelection) returns (MotorCommandReply);
+  rpc DisableMotors(MotorSelection) returns (MotorCommandReply);
+  rpc SetMotorVelocity(MotorVelocityCommand) returns (MotorCommandReply);
+  rpc SetMotorPosition(MotorPositionCommand) returns (MotorCommandReply);
+  rpc SetMotorMit(MotorMitCommand) returns (MotorCommandReply);
+  rpc GetMotorStatus(MotorSelection) returns (MotorStatusReply);
+}
+
+enum RobotMode {
+  ROBOT_MODE_UNSPECIFIED = 0;
+  ROBOT_MODE_IDLE = 1;
+  ROBOT_MODE_MANUAL = 2;
+  ROBOT_MODE_VELOCITY = 3;
+  ROBOT_MODE_POLICY = 4;
+  ROBOT_MODE_ESTOP = 5;
+}
+
+enum RobotHealth {
+  ROBOT_HEALTH_UNSPECIFIED = 0;
+  ROBOT_HEALTH_OK = 1;
+  ROBOT_HEALTH_WARN = 2;
+  ROBOT_HEALTH_FAULT = 3;
+}
+
+message EnableRobotRequest {
+  string request_id = 1;
+}
+
+message DisableRobotRequest {
+  string request_id = 1;
+}
+
+message SetModeRequest {
+  string request_id = 1;
+  RobotMode mode = 2;
+}
+
+message LoadPolicyRequest {
+  string request_id = 1;
+  string policy_id = 2;
+  string uri = 3;
+}
+
+message StartPolicyRequest {
+  string request_id = 1;
+  string policy_id = 2;
+}
+
+message StopPolicyRequest {
+  string request_id = 1;
+}
+
+message VelocityCommand {
+  string request_id = 1;
+  double vx_mps = 2;
+  double vy_mps = 3;
+  double wz_radps = 4;
+  double timeout_s = 5;
+}
+
+message GetRobotStatusRequest {}
+
+message CommandReply {
+  bool accepted = 1;
+  string message = 2;
+  RobotStatus status = 3;
+}
+
+message RobotStatus {
+  bool enabled = 1;
+  RobotMode mode = 2;
+  RobotHealth health = 3;
+  string active_policy_id = 4;
+  uint64 state_sequence = 5;
+  double stamp_unix_s = 6;
+}
+
+message JointState {
+  string name = 1;
+  double position_rad = 2;
+  double velocity_radps = 3;
+  double effort_nm = 4;
+}
+
+message ImuState {
+  double roll_rad = 1;
+  double pitch_rad = 2;
+  double yaw_rad = 3;
+}
+
+message RobotState {
+  RobotStatus status = 1;
+  VelocityCommand commanded_velocity = 2;
+  repeated JointState joints = 3;
+  ImuState imu = 4;
+}
+
+message MotorSelection {
+  string request_id = 1;
+  repeated string joint_names = 2;
+}
+
+message MotorVelocityCommand {
+  string request_id = 1;
+  repeated string joint_names = 2;
+  repeated double velocity_radps = 3;
+  repeated double acceleration_radps2 = 4;
+}
+
+message MotorPositionCommand {
+  string request_id = 1;
+  repeated string joint_names = 2;
+  repeated double position_rad = 3;
+  repeated double velocity_radps = 4;
+  repeated double kp = 5;
+  repeated double kd = 6;
+}
+
+message MotorMitCommand {
+  string request_id = 1;
+  repeated string joint_names = 2;
+  repeated double position_rad = 3;
+  repeated double velocity_radps = 4;
+  repeated double torque_nm = 5;
+  repeated double kp = 6;
+  repeated double kd = 7;
+}
+
+message MotorCommandReply {
+  bool accepted = 1;
+  string message = 2;
+  repeated string joint_names = 3;
+}
+
+message MotorStatus {
+  string joint_name = 1;
+  double position_rad = 2;
+  double velocity_radps = 3;
+  double effort_nm = 4;
+  double temperature_c = 5;
+  double stamp_unix_s = 6;
+}
+
+message MotorStatusReply {
+  repeated MotorStatus motors = 1;
+}
