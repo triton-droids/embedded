@@ -72,10 +72,26 @@ def generate_launch_description():
         description='Start browser websocket double-pendulum UI'
     )
 
+    enable_policy_bridge_arg = DeclareLaunchArgument(
+        'enable_policy_bridge',
+        default_value='false',
+        description='Start Torch policy bridge node'
+    )
+
+    policy_config_path_arg = DeclareLaunchArgument(
+        'policy_config_path',
+        default_value=PathJoinSubstitution([
+            FindPackageShare('motor_control_hybrid'),
+            'config',
+            'policy_bridge_config.json'
+        ]),
+        description='Path to policy bridge JSON config'
+    )
+
     rl_model_path_arg = DeclareLaunchArgument(
         'rl_model_path',
         default_value='',
-        description='Path to RL model (ONNX) file'
+        description='Path to RL model/policy file'
     )
 
     gateway_host_arg = DeclareLaunchArgument(
@@ -130,6 +146,12 @@ def generate_launch_description():
         'websocket_port',
         default_value='8765',
         description='Double-pendulum websocket UI port'
+    )
+
+    imu_topic_arg = DeclareLaunchArgument(
+        'imu_topic',
+        default_value='/imu',
+        description='sensor_msgs/Imu topic used by policy bridge'
     )
 
     # -------------------- Fake motor node --------------------
@@ -220,6 +242,23 @@ def generate_launch_description():
         ],
     )
 
+    # -------------------- Torch policy bridge --------------------
+    policy_bridge_node = Node(
+        package='motor_control_hybrid',
+        executable='policy_bridge_node',
+        name='policy_bridge_node',
+        condition=IfCondition(LaunchConfiguration('enable_policy_bridge')),
+        output='screen',
+        parameters=[
+            {'config_path': LaunchConfiguration('policy_config_path')},
+            {'policy_path': LaunchConfiguration('rl_model_path')},
+            {'imu_topic': LaunchConfiguration('imu_topic')},
+            {'control_rate_hz': LaunchConfiguration('control_rate_hz')},
+            {'output_topic': '/desired_motor_subset'},
+            {'publish_mode': 'motion'},
+        ],
+    )
+
     return LaunchDescription([
         motor_config_arg,
         control_rate_arg,
@@ -231,6 +270,8 @@ def generate_launch_description():
         enable_sdk_gateway_arg,
         enable_fake_motor_arg,
         enable_websocket_ui_arg,
+        enable_policy_bridge_arg,
+        policy_config_path_arg,
         rl_model_path_arg,
         gateway_host_arg,
         gateway_port_arg,
@@ -241,18 +282,21 @@ def generate_launch_description():
         sdk_grpc_addr_arg,
         websocket_host_arg,
         websocket_port_arg,
+        imu_topic_arg,
         fake_motor_node,
         real_python_can_node,
         cpp_control_node,
         gateway_node,
         sdk_gateway_node,
         websocket_ui_node,
+        policy_bridge_node,
         LogInfo(msg=[
             'Hybrid control system launched:\n',
             '  - Python CAN node: handles CAN communication\n',
             '  - C++ Control node: handles control and RL inference\n',
             '  - HTTP Gateway node: accepts POST /target and publishes to motor_commands\n',
             '  - SDK gRPC gateway: ', LaunchConfiguration('sdk_grpc_addr'), '\n',
+            '  - Policy bridge enabled: ', LaunchConfiguration('enable_policy_bridge'), '\n',
             '  - Double-pendulum UI: http://', LaunchConfiguration('websocket_host'), ':', LaunchConfiguration('websocket_port'), '\n',
             '  - Control rate: ', LaunchConfiguration('control_rate_hz'), ' Hz\n',
             '  - Gateway: http://', LaunchConfiguration('gateway_host'), ':', LaunchConfiguration('gateway_port'), '\n',

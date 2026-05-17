@@ -109,5 +109,10 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
   RENAME double_pendulum_websocket_node
 )
+install(PROGRAMS
+  motor_control_hybrid/policy_bridge_node.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME policy_bridge_node
+)
 
 ament_package()
