@@ -248,11 +248,13 @@ private:
       has_cmd = has_cmd_;
     }
 
-    // Command watchdog: if stale, clear subset => control_core will hold-last
+    // Command watchdog: if the upstream command source stops updating,
+    // stop forwarding hold-last motion into the CAN node.
     if (cmd_timeout_s_ > 0.0 && has_cmd) {
       const double dt_cmd = (this->now() - last_cmd_time).seconds();
       if (dt_cmd > cmd_timeout_s_) {
-        desired_subset.clear();
+        publish_disable_all(joint_order);
+        return;
       }
     }
 

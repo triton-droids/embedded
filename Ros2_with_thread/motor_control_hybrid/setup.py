@@ -15,7 +15,10 @@ setup(
         ('share/' + package_name + '/config', glob('config/*.yaml')),
         ('share/' + package_name + '/launch', glob('launch/*.launch.py')),
     ],
-    install_requires=['setuptools'],
+    install_requires=[
+        'setuptools',
+        'robstride-dynamics',
+    ],
     zip_safe=True,
     maintainer='rcli',
     maintainer_email='rul039@ucsd.edu',

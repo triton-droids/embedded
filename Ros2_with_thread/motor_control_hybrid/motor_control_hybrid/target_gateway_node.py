@@ -160,23 +160,60 @@ class GenericGatewayNode(Node):
 
         self.declare_parameter("host", "127.0.0.1")
         self.declare_parameter("port", 8080)
+        self.declare_parameter("repeat_publish_hz", 0.0)
+        self.declare_parameter("repeat_topics", ["/desired_motor_subset"])
 
         self.host = str(self.get_parameter("host").value)
         self.port = int(self.get_parameter("port").value)
+        self.repeat_publish_hz = float(self.get_parameter("repeat_publish_hz").value)
+        self.repeat_topics = {
+            str(topic) for topic in self.get_parameter("repeat_topics").value
+        }
 
         self._lock = threading.Lock()
 
         self._pub_map: Dict[Tuple[str, str], Any] = {}
         self._sub_map: Dict[Tuple[str, str], Any] = {}
         self._last_msg_map: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        self._repeat_payload_map: Dict[Tuple[str, str], Dict[str, Any]] = {}
 
         self._server = None
         self._thread = threading.Thread(target=self._run_http, daemon=True)
         self._thread.start()
+        self._repeat_timer = None
+        if self.repeat_publish_hz > 0.0:
+            self._repeat_timer = self.create_timer(
+                1.0 / self.repeat_publish_hz,
+                self._repeat_last_published,
+            )
 
         self.get_logger().info(
             f"Generic gateway started at http://{self.host}:{self.port}"
         )
+
+    def _should_repeat_topic(self, topic: str) -> bool:
+        return "*" in self.repeat_topics or topic in self.repeat_topics
+
+    def _remember_repeat_payload(self, topic: str, msg_type: str, payload: Dict[str, Any]):
+        if self.repeat_publish_hz <= 0.0 or not self._should_repeat_topic(topic):
+            return
+
+        with self._lock:
+            self._repeat_payload_map[(topic, msg_type)] = dict(payload)
+
+    def _repeat_last_published(self):
+        with self._lock:
+            items = list(self._repeat_payload_map.items())
+
+        for (topic, msg_type), payload in items:
+            try:
+                pub = self._get_or_create_publisher(topic, msg_type)
+                msg = dict_to_ros_msg(msg_type, payload, self)
+                pub.publish(msg)
+            except Exception as e:
+                self.get_logger().warn(
+                    f"Failed to repeat publish {topic} ({msg_type}): {e}"
+                )
 
     def _get_or_create_publisher(self, topic: str, msg_type: str):
         key = (topic, msg_type)
@@ -237,7 +274,20 @@ class GenericGatewayNode(Node):
                             {"topic": t, "msg_type": m}
                             for (t, m) in node._sub_map.keys()
                         ]
-                    self._send_json(200, {"ok": True, "publishers": pubs, "subscribers": subs})
+                        repeaters = [
+                            {"topic": t, "msg_type": m}
+                            for (t, m) in node._repeat_payload_map.keys()
+                        ]
+                    self._send_json(
+                        200,
+                        {
+                            "ok": True,
+                            "publishers": pubs,
+                            "subscribers": subs,
+                            "repeat_publish_hz": node.repeat_publish_hz,
+                            "repeaters": repeaters,
+                        },
+                    )
                     return
 
                 if self.path.startswith("/message?"):
@@ -285,6 +335,7 @@ class GenericGatewayNode(Node):
                         pub = node._get_or_create_publisher(topic, msg_type)
                         msg = dict_to_ros_msg(msg_type, payload, node)
                         pub.publish(msg)
+                        node._remember_repeat_payload(topic, msg_type, payload)
 
                         self._send_json(200, {"ok": True, "topic": topic, "msg_type": msg_type})
                     except Exception as e:
@@ -316,9 +367,12 @@ def main():
     node = GenericGatewayNode()
     try:
         rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == "__main__":

@@ -8,7 +8,7 @@ msg_type = "sensor_msgs/msg/JointState"
 
 reader.subscribe(topic, msg_type)
 
-msg = reader.get_latest(topic, msg_type)
+msg = reader.wait_for_message(topic, msg_type, timeout_sec=5.0, auto_subscribe=False)
 print("joint states:", msg)
 
 names = reader.get_field(topic, msg_type, "name", default=[])

@@ -1,5 +1,6 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, LogInfo
+from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
@@ -23,10 +24,34 @@ def generate_launch_description():
         description='Control loop rate in Hz'
     )
 
+    feedback_poll_rate_arg = DeclareLaunchArgument(
+        'feedback_poll_hz',
+        default_value='50.0',
+        description='CAN feedback polling rate for idle motors'
+    )
+
+    cmd_timeout_arg = DeclareLaunchArgument(
+        'cmd_timeout_s',
+        default_value='0.5',
+        description='Command timeout in seconds. 0.0 holds the last command indefinitely.'
+    )
+
     enable_rl_arg = DeclareLaunchArgument(
         'enable_rl',
         default_value='false',
         description='Enable RL policy inference'
+    )
+
+    enable_cpp_control_arg = DeclareLaunchArgument(
+        'enable_cpp_control',
+        default_value='true',
+        description='Start C++ control node'
+    )
+
+    enable_gateway_arg = DeclareLaunchArgument(
+        'enable_gateway',
+        default_value='true',
+        description='Start HTTP gateway node'
     )
 
     rl_model_path_arg = DeclareLaunchArgument(
@@ -65,6 +90,12 @@ def generate_launch_description():
         description='Default mode for gateway: velocity/position/motion/enable/disable'
     )
 
+    gateway_repeat_publish_hz_arg = DeclareLaunchArgument(
+        'gateway_repeat_publish_hz',
+        default_value='50.0',
+        description='Gateway repeat rate for the last published desired command. 0 disables repeat.'
+    )
+
     # -------------------- Python CAN node --------------------
     python_can_node = Node(
         package='motor_control_hybrid',
@@ -74,6 +105,8 @@ def generate_launch_description():
         parameters=[
             {'motor_config_file': LaunchConfiguration('motor_config_file')},
             {'publish_rate_hz': LaunchConfiguration('control_rate_hz')},
+            {'feedback_poll_hz': LaunchConfiguration('feedback_poll_hz')},
+            {'feedback_poll_when_idle': True},
         ],
     )
 
@@ -82,9 +115,11 @@ def generate_launch_description():
         package='motor_control_hybrid',
         executable='cpp_control_node',
         name='cpp_control_node',
+        condition=IfCondition(LaunchConfiguration('enable_cpp_control')),
         output='screen',
         parameters=[
             {'control_rate_hz': LaunchConfiguration('control_rate_hz')},
+            {'cmd_timeout_s': LaunchConfiguration('cmd_timeout_s')},
             {'enable_rl': LaunchConfiguration('enable_rl')},
             {'rl_model_path': LaunchConfiguration('rl_model_path')},
         ],
@@ -95,6 +130,7 @@ def generate_launch_description():
         package='motor_control_hybrid',
         executable='target_gateway_node',
         name='target_gateway_node',
+        condition=IfCondition(LaunchConfiguration('enable_gateway')),
         output='screen',
         parameters=[
             {'host': LaunchConfiguration('gateway_host')},
@@ -103,19 +139,26 @@ def generate_launch_description():
             {'default_kp': LaunchConfiguration('gateway_default_kp')},
             {'default_kd': LaunchConfiguration('gateway_default_kd')},
             {'default_mode': LaunchConfiguration('gateway_default_mode')},
+            {'repeat_publish_hz': LaunchConfiguration('gateway_repeat_publish_hz')},
+            {'repeat_topics': ['/desired_motor_subset']},
         ],
     )
 
     return LaunchDescription([
         motor_config_arg,
         control_rate_arg,
+        feedback_poll_rate_arg,
+        cmd_timeout_arg,
         enable_rl_arg,
+        enable_cpp_control_arg,
+        enable_gateway_arg,
         rl_model_path_arg,
         gateway_host_arg,
         gateway_port_arg,
         gateway_default_kp_arg,
         gateway_default_kd_arg,
         gateway_default_mode_arg,
+        gateway_repeat_publish_hz_arg,
         python_can_node,
         cpp_control_node,
         gateway_node,
