@@ -19,3 +19,8 @@ __pycache__/
 *.so
 *.a
 *.o
+
+#AI
+.codex
+.agents
+
