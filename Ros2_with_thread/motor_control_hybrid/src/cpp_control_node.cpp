@@ -248,9 +248,16 @@ private:
       has_cmd = has_cmd_;
     }
 
+    // No upstream command has been received yet. Do not synthesize a default
+    // velocity command, because motor backends start disabled and would reject it
+    // every control tick.
+    if (!has_cmd) {
+      return;
+    }
+
     // Command watchdog: if the upstream command source stops updating,
     // stop forwarding hold-last motion into the CAN node.
-    if (cmd_timeout_s_ > 0.0 && has_cmd) {
+    if (cmd_timeout_s_ > 0.0) {
       const double dt_cmd = (this->now() - last_cmd_time).seconds();
       if (dt_cmd > cmd_timeout_s_) {
         publish_disable_all(joint_order);
