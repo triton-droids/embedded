@@ -1,0 +1,16 @@
+Metadata-Version: 2.4
+Name: robstride-dynamics
+Version: 0.0.1
+Summary: Python API that supports private interface to communicate with Robostride Dynamics actuators.
+Project-URL: Repository, https://github.com/ROBSTRIDE-DYNAMICS/Robstride-Dynamics-Python-SDK
+Author-email: Robstride Dynamics <support@robstride.com>, "-T.K.-" <tk.xyz@gmail.com>
+License: MIT
+License-File: LICENSE
+Requires-Python: >=3.10
+Requires-Dist: numpy
+Requires-Dist: python-can
+Requires-Dist: tqdm
+Description-Content-Type: text/markdown
+
+# Robstride Dynamics Python SDK
+

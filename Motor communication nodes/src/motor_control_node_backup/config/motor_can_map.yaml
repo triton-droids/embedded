@@ -1,0 +1,28 @@
+motor_control_node:
+  ros__parameters:
+    # Default CAN interface if not specified per-motor
+    default_can_interface: "can0"
+    default_master_id: 255   # 0xFF
+
+    # Motor to CAN mapping
+    motors:
+      # Example motor 1
+      shoulder_pitch:
+        can_interface: "can0"
+        master_id: 255      # 0xFF
+        motor_id: 1         # 0x01
+        actuator_type: 0    # ROBSTRIDE_00
+
+      # Example motor 2
+      shoulder_roll:
+        can_interface: "can0"
+        master_id: 255
+        motor_id: 2         # 0x02
+        actuator_type: 2    # ROBSTRIDE_02
+
+      # Example motor 3 (on another CAN bus)
+      elbow_flex:
+        can_interface: "can1"
+        master_id: 255
+        motor_id: 3         # 0x03
+        actuator_type: 3    # ROBSTRIDE_03

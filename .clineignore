@@ -1,0 +1,21 @@
+# colcon / ROS2 build artifacts
+build/
+install/
+log/
+
+# optional: colcon test results
+test_results/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# VSCode / CLion / misc
+.vscode/
+.idea/
+.DS_Store
+
+# common binaries
+*.so
+*.a
+*.o
