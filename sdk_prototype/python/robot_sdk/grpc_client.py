@@ -6,7 +6,9 @@ import grpc
 
 from . import robot_sdk_pb2
 from . import robot_sdk_pb2_grpc
-from .grpc_server import GRPC_ADDR
+
+
+GRPC_ADDR = "127.0.0.1:50051"
 
 
 MODE_TO_PROTO = {

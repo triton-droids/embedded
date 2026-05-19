@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUT="$ROOT/python/robot_sdk_demo"
+OUT="$ROOT/python/robot_sdk"
 PYTHON_BIN="${PYTHON:-python3}"
 
 "$PYTHON_BIN" -m grpc_tools.protoc \
