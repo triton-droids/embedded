@@ -13,12 +13,11 @@ Run the ROS2 side first, for example with fake motors and the browser UI:
     ros2 launch motor_control_hybrid hybrid_control.launch.py \
       enable_fake_motor:=true \
       enable_sdk_gateway:=true \
-      enable_websocket_ui:=true \
-      sdk_grpc_addr:=0.0.0.0:50052
+      enable_websocket_ui:=true
 
 Then run this file from the repository root:
 
-    python3 -m sdk_prototype.demo.robot_sdk_demo.model --host <robot-ip>
+    python3 sdk_prototype/demo/robot_sdk_demo/model.py
 """
 
 from __future__ import annotations
@@ -116,18 +115,16 @@ class DoublePendulumSdkDemo:
             time.sleep(command_period_s)
 
 
-def build_sdk(config_path: Path, motor_grpc_addr: str):
+def build_sdk(config_path: Path):
     from sdk_prototype.python.robot_sdk import RobotSDK, load_motor_configs_from_yaml
 
     motor_configs = load_motor_configs_from_yaml(config_path) if config_path.exists() else {}
-    return RobotSDK(motor_configs=motor_configs, motor_grpc_addr=motor_grpc_addr)
+    return RobotSDK(motor_configs=motor_configs)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Control the ROS2 double-pendulum demo through RobotSDK.")
     parser.add_argument("--config", type=Path, default=default_motor_config_path())
-    parser.add_argument("--host", default="127.0.0.1", help="ROS2 gateway host or robot IP.")
-    parser.add_argument("--motor-grpc-addr", default=None, help="Full motor gateway address, e.g. 192.168.1.20:50052.")
     parser.add_argument("--duration", type=float, default=10.0)
     parser.add_argument("--hz", type=float, default=0.5)
     parser.add_argument("--amplitude", type=float, default=0.6)
@@ -140,8 +137,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    motor_grpc_addr = args.motor_grpc_addr or f"{args.host}:50052"
-    sdk = build_sdk(args.config, motor_grpc_addr)
+    sdk = build_sdk(args.config)
     demo = DoublePendulumSdkDemo(
         sdk,
         kp=args.kp,

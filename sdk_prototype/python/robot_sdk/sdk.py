@@ -15,13 +15,11 @@ class RobotSDK:
     def __init__(
         self,
         motor_configs: dict | None = None,
-        robot_grpc_addr: str | None = None,
-        motor_grpc_addr: str | None = None,
     ) -> None:
-        self._client = GrpcRobotClient(robot_grpc_addr) if robot_grpc_addr else GrpcRobotClient()
+        self._client = GrpcRobotClient()
         from .grpc_client import MotorGrpcClient
 
-        self.motor_client = MotorGrpcClient(motor_grpc_addr) if motor_grpc_addr else MotorGrpcClient()
+        self.motor_client = MotorGrpcClient()
         self.motor_configs = motor_configs or {}
 
     def enable_robot(self):

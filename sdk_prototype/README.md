@@ -203,19 +203,14 @@ source install/setup.bash
 ros2 launch motor_control_hybrid hybrid_control.launch.py \
   enable_fake_motor:=true \
   enable_sdk_gateway:=true \
-  enable_websocket_ui:=true \
-  sdk_grpc_addr:=0.0.0.0:50052
+  enable_websocket_ui:=true
 ```
 
 Then run the SDK demo from the repository root:
 
 ```bash
-python3 -m sdk_prototype.demo.robot_sdk_demo.model --host <robot-ip>
+python3 sdk_prototype/demo/robot_sdk_demo/model.py
 ```
-
-If the SDK demo runs on the same machine as ROS2, use `--host 127.0.0.1`.
-If you are viewing the UI remotely, open `http://<robot-ip>:8765` in your
-browser or use SSH port forwarding for ports `8765` and `50052`.
 
 Notes:
 
