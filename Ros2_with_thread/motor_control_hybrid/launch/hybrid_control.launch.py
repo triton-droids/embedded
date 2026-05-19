@@ -138,7 +138,7 @@ def generate_launch_description():
 
     websocket_host_arg = DeclareLaunchArgument(
         'websocket_host',
-        default_value='127.0.0.1',
+        default_value='0.0.0.0',
         description='Double-pendulum websocket UI host'
     )
 
