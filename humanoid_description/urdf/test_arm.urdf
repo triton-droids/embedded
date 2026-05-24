@@ -3,12 +3,41 @@
 
   <!-- Humanoid arm URDF. Meshes are exported in CAD assembly coordinates, so visual/collision origins compensate each link frame offset. -->
 
+  <material name="arm_base_gray">
+    <color rgba="0.55 0.57 0.60 1.0"/>
+  </material>
+
+  <material name="arm_shoulder_blue">
+    <color rgba="0.20 0.45 0.85 1.0"/>
+  </material>
+
+  <material name="arm_upper_silver">
+    <color rgba="0.75 0.75 0.78 1.0"/>
+  </material>
+
+  <material name="arm_lower_green">
+    <color rgba="0.25 0.65 0.35 1.0"/>
+  </material>
+
+  <material name="arm_wrist_orange">
+    <color rgba="0.90 0.55 0.20 1.0"/>
+  </material>
+
+  <link name="base_dummy_link"/>
+
+  <joint name="base_dummy_to_base_joint" type="fixed">
+    <parent link="base_dummy_link"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
   <link name="base_link">
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
         <mesh filename="package://humanoid_arm_description/meshes/base_link.stl" scale="0.001 0.001 0.001"/>
       </geometry>
+      <material name="arm_base_gray"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -29,6 +58,7 @@
       <geometry>
         <mesh filename="package://humanoid_arm_description/meshes/shoulder_link.stl" scale="0.001 0.001 0.001"/>
       </geometry>
+      <material name="arm_shoulder_blue"/>
     </visual>
     <collision>
       <origin xyz="-0.000020 0.000058 -0.013738" rpy="0 0 0"/>
@@ -49,6 +79,7 @@
       <geometry>
         <mesh filename="package://humanoid_arm_description/meshes/upper_arm_link.stl" scale="0.001 0.001 0.001"/>
       </geometry>
+      <material name="arm_upper_silver"/>
     </visual>
     <collision>
       <origin xyz="0.007352 0.000058 -0.132114" rpy="0 0 0"/>
@@ -69,6 +100,7 @@
       <geometry>
         <mesh filename="package://humanoid_arm_description/meshes/lower_arm_link.stl" scale="0.001 0.001 0.001"/>
       </geometry>
+      <material name="arm_lower_green"/>
     </visual>
     <collision>
       <origin xyz="0.002227 -0.125482 -0.130902" rpy="0 0 0"/>
@@ -89,6 +121,7 @@
       <geometry>
         <mesh filename="package://humanoid_arm_description/meshes/wrist_link.stl" scale="0.001 0.001 0.001"/>
       </geometry>
+      <material name="arm_wrist_orange"/>
     </visual>
     <collision>
       <origin xyz="0.003075 -0.253286 -0.137246" rpy="0 0 0"/>
@@ -135,5 +168,30 @@
     <limit lower="-3.14159" upper="3.14159" effort="15.0" velocity="2.0"/>
   </joint>
 
-</robot>
+  <ros2_control name="HumanoidArmSystem" type="system">
+    <hardware>
+      <plugin>mock_components/GenericSystem</plugin>
+    </hardware>
+    <joint name="base_to_shoulder_joint">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="shoulder_to_upper_arm_joint">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="upper_arm_to_lower_arm_joint">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="lower_arm_to_wrist_joint">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+  </ros2_control>
 
+</robot>
