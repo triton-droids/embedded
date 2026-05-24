@@ -1,0 +1,24 @@
+# ros2_control configuration for the humanoid arm demo.
+controller_manager:
+  ros__parameters:
+    update_rate: 100
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    arm_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+arm_controller:
+  ros__parameters:
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    joints:
+      - base_to_shoulder_joint
+      - shoulder_to_upper_arm_joint
+      - upper_arm_to_lower_arm_joint
+      - lower_arm_to_wrist_joint
+    allow_nonzero_velocity_at_trajectory_end: true

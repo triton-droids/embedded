@@ -1,164 +1,255 @@
-# System Structure & Usage Guide
+# Humanoid ROS 2 Control Stack
 
-This repository is organized around a single principle:
+This repository contains the ROS 2 motor-control and MoveIt sources plus the supporting runtime setup for the embedded humanoid stack.
 
-> **ROS 2 is the single source of truth for sensing + broadcasting + CAN I/O.**  
-> Anything outside ROS should consume data through a clearly defined interface, not by directly touching sensors.
+The current architecture keeps ROS 2 as the runtime bus for motor state, motor commands, simulated hardware, policy output, and SDK/UI bridges. Python dependencies live in a local `rosenv/` virtual environment, which is ignored by Git and recreated from `scripts/setup_rosenv.sh`.
 
----
-
-## Architecture Diagram
+## Architecture
 
 ![System Structure](system.struct.png)
 
-### About the diagram file(s)
+## Supported ROS 2 Environments
 
-- `system.struct.png` is the **rendered image** used by this README.
-- `System Structurepng.drawio` is the **editable source** (diagrams.net / draw.io).
----
+The code has been built and smoke-tested with:
 
-## What the diagram means
+- ROS 2 Jazzy on Ubuntu 24.04 / Python 3.12
+- ROS 2 Humble on Ubuntu 22.04 / Python 3.10, tested in Docker with `fishros2/ros:humble-desktop-full`
 
-### ROS 2 responsibilities (inside ROS)
-ROS 2 owns:
-- Reading sensors (IMU, camera, other drivers)
-- Broadcasting all data through ROS topics (the “data bus”)
-- Performing **motor CAN I/O** (send commands / receive motor states)
+Use the ROS distribution that matches the OS. Do not copy `rosenv/` between Ubuntu or ROS versions; recreate it locally.
 
-### Outside ROS responsibilities (external programs)
-External programs should:
-- **Not** access sensors directly
-- Consume all data via an exported interface (e.g., a gateway API) or by linking a provided SDK
-- Implement higher-level logic (logging, UI, analytics, ML, policies, etc.)
+## Repository Layout
 
----
+```text
+.
+├── humanoid_control/
+│   ├── motor_control_interfaces/
+│   │   └── msg/MotorCommand.msg
+│   └── motor_control_hybrid/
+│       ├── launch/hybrid_control.launch.py
+│       ├── config/motors.yaml
+│       ├── config/control_config.yaml
+│       ├── config/policy_bridge_config.json
+│       ├── motor_control_hybrid/
+│       │   ├── python_can_node.py
+│       │   ├── fake_motor_node.py
+│       │   ├── motor_sdk_gateway_node.py
+│       │   ├── double_pendulum_websocket_node.py
+│       │   └── policy_bridge_node.py
+│       ├── src/cpp_control_node.cpp
+│       └── requirements.txt
+├── humanoid_description/
+├── humanoid_moveit_config/
+├── Interfaces/control_core/
+├── scripts/setup_rosenv.sh
+└── system.struct.png
+```
 
-## Core components
+## Runtime Model
 
-### 1) Sensor drivers (ROS nodes)
-Examples:
-- IMU driver → publishes `/imu`
-- Camera driver → publishes `/image_raw`
-- Other sensors → publishes `/force`, `/encoders`, `/gps`, ...
+### ROS Topics
 
-### 2) Optional processing nodes (ROS nodes)
-- Sensor fusion / estimator (optional) → publishes `/state_est`
-- Perception / feature extraction (optional) → publishes `/features`
+- `/joint_states` (`sensor_msgs/JointState`): motor state from the real CAN node or fake motor node.
+- `/motor_commands` (`motor_control_interfaces/MotorCommand`): final commands sent to the motor layer.
+- `/desired_motor_subset` (`motor_control_interfaces/MotorCommand`): policy bridge output consumed by the C++ control node.
+- `/imu` (`sensor_msgs/Imu`): optional policy input.
 
-### 3) ROS Topics Broadcast Bus (data bus)
-Typical topics:
-- `/imu`, `/image_raw`, `/force`, `/encoders`, `/gps`, ...
-- `/state_est` (optional), `/features` (optional)
-- `/joint_states` (motor state from CAN)
-- `/motor_commands` (motor commands to CAN)
+### Core Nodes
 
-### 4) Python CAN Node (ROS node, motor CAN I/O)
-- **The only component that actually sends CAN frames**
-- Publishes: `/joint_states` (`sensor_msgs/JointState`)
-- Subscribes: `/motor_commands` (`motor_control_interfaces/MotorCommand`)
-- Internals:
-  - RX loop reads status frames and updates latest motor state
-  - TX loop consumes a command queue and calls the motor driver to send CAN frames
+- `python_can_node`: real motor CAN I/O. Publishes `/joint_states` and consumes `/motor_commands`.
+- `fake_motor_node`: local simulation stand-in for CAN hardware. Useful for build and launch smoke tests.
+- `cpp_control_node`: C++ scheduler/control adapter. Consumes joint state and desired commands, then publishes `/motor_commands`.
+- `policy_bridge_node`: Torch policy adapter. Reads joint/IMU state and publishes a desired motor subset.
+- `motor_sdk_gateway_node`: gRPC bridge for external SDK clients.
+- `double_pendulum_websocket_node`: browser/WebSocket visualization and interaction bridge.
 
-### 5) Control node (ROS node, scheduler + bridge)
-- Subscribes: `/joint_states` (+ optional `/imu`, `/features`, etc.)
-- Produces motor commands and publishes `/motor_commands`
-- Recommended: keep “control algorithms” in a **non-ROS control core library**, and make this node a thin adapter.
+## Setup
 
-### 6) ROS-to-external interface (recommended for non-ROS clients)
-If external programs truly must not depend on ROS, add a thin “exporter” process/node:
-- subscribes to a whitelist of topics
-- exposes:
-  - `/stream` (WebSocket / gRPC / ZeroMQ)
-  - `/latest` (HTTP / gRPC)
-  - `/topics` (metadata)
+From the repository root:
 
----
-
-## Interface contracts
-
-### Motor state: `/joint_states`
-Type: `sensor_msgs/JointState`
-
-Index alignment rule:
-- `name[i]` aligns with `position[i]`, `velocity[i]`, `effort[i]`
-
-### Motor commands: `/motor_commands`
-Type: `motor_control_interfaces/MotorCommand`
-
-Index alignment rule:
-- `joint_name[i]` aligns with:
-  - `mode[i]`, `position[i]`, `velocity[i]`, `acceleration[i]`, `torque[i]`, `kp[i]`, `kd[i]`
-
-Mode supports:
-- **Broadcast**: `mode` length = 1 → applies to all joints in this message
-- **Per-joint**: `mode` length = N → each joint can use a different mode
-
----
-
-## Quick start (build & run)
-
-### Build
-In your ROS 2 workspace:
 ```bash
-source /opt/ros/humble/setup.bash
-colcon build --packages-select motor_control_interfaces
-source install/setup.bash
-colcon build --packages-select motor_control_hybrid
+# Jazzy / Ubuntu 24.04
+ROS_DISTRO=jazzy source scripts/setup_rosenv.sh
+
+# Humble / Ubuntu 22.04
+ROS_DISTRO=humble source scripts/setup_rosenv.sh
+```
+
+The setup script:
+
+- sources `/opt/ros/$ROS_DISTRO/setup.bash`
+- creates `rosenv/` if missing
+- activates `rosenv/`
+- installs `humanoid_control/motor_control_hybrid/requirements.txt`
+- writes `rosenv/.requirements.stamp` so unchanged requirements are not reinstalled every run
+
+The requirements include both runtime packages and ROS Python build helpers needed when building from inside the venv:
+
+```text
+pyyaml
+typeguard
+empy==3.3.4
+lark
+catkin_pkg
+```
+
+`empy` is pinned to `3.3.4` for ROS 2 Humble `rosidl_adapter` compatibility. This pin also builds successfully on Jazzy.
+
+## Build
+
+```bash
+cd .
+colcon build --symlink-install
 source install/setup.bash
 ```
 
-### Run the motor CAN node (I/O)
+All repo packages should appear after sourcing the workspace:
+
 ```bash
-source /opt/ros/humble/setup.bash
-source <your_ws>/install/setup.bash
-ros2 run motor_control_hybrid python_can_node
+ros2 pkg list | grep -E 'motor_control_(hybrid|interfaces)|humanoid_(arm_)?description|humanoid_moveit_config'
 ```
 
-### Run the control node (if used)
-```bash
-source /opt/ros/humble/setup.bash
-source <your_ws>/install/setup.bash
-ros2 run motor_control_hybrid cpp_control_node
+Expected:
+
+```text
+motor_control_hybrid
+motor_control_interfaces
+humanoid_arm_description
+humanoid_moveit_config
 ```
 
----
+## Launch
 
-## Examples: publishing commands
+### Local Smoke Test Without CAN Hardware
 
-### Velocity (subset)
+```bash
+ros2 launch motor_control_hybrid hybrid_control.launch.py \
+  enable_fake_motor:=true \
+  enable_sdk_gateway:=false \
+  enable_websocket_ui:=false \
+  enable_cpp_control:=true \
+  enable_policy_bridge:=false
+```
+
+Expected startup messages include:
+
+```text
+Fake motor node started for joints: test_joint, test_joint2
+CppControlNode started
+Joint order locked from first /joint_states (2 joints).
+```
+
+### Real CAN Motor Control
+
+```bash
+ros2 launch motor_control_hybrid hybrid_control.launch.py \
+  enable_fake_motor:=false \
+  enable_cpp_control:=true \
+  enable_sdk_gateway:=true
+```
+
+Configure real motors in:
+
+```text
+humanoid_control/motor_control_hybrid/config/motors.yaml
+```
+
+The humanoid arm SDK demo uses:
+
+```text
+humanoid_control/motor_control_hybrid/config/control_config.yaml
+```
+
+### Policy Bridge
+
+```bash
+ros2 launch motor_control_hybrid hybrid_control.launch.py \
+  enable_policy_bridge:=true \
+  rl_model_path:=/path/to/policy.pt
+```
+
+Policy bridge configuration:
+
+```text
+humanoid_control/motor_control_hybrid/config/policy_bridge_config.json
+```
+
+### MoveIt Demo
+
+```bash
+ros2 launch humanoid_moveit_config demo.launch.py
+```
+
+The MoveIt config lives in this repo under `humanoid_moveit_config/`; you do not need `ws_moveit` for normal use.
+
+### SDK Arm Demo
+
+```bash
+python3 sdk_prototype/demo/robot_sdk_demo/arm_rotate.py \
+  --joint base_to_shoulder_joint \
+  --target 0.45
+```
+
+## Motor Command Contract
+
+`motor_control_interfaces/msg/MotorCommand.msg`:
+
+```text
+std_msgs/Header header
+string[] joint_name
+uint8[] mode
+float64[] position
+float64[] velocity
+float64[] acceleration
+float64[] torque
+float64[] kp
+float64[] kd
+
+uint8 MODE_VELOCITY=0
+uint8 MODE_POSITION=1
+uint8 MODE_MOTION=2
+uint8 MODE_ENABLE=3
+uint8 MODE_DISABLE=4
+```
+
+Index alignment rule:
+
+- `joint_name[i]` aligns with `position[i]`, `velocity[i]`, `acceleration[i]`, `torque[i]`, `kp[i]`, and `kd[i]`.
+- `mode` may be length `1` for broadcast or length `N` for per-joint mode selection.
+
+## Command Examples
+
+Velocity command:
+
 ```bash
 ros2 topic pub -r 50 /motor_commands motor_control_interfaces/msg/MotorCommand \
 "{joint_name:['shoulder_pitch','wrist_roll'], mode:[0], velocity:[0.5,-0.2]}"
 ```
 
-### Position (position=0 is valid)
+Position command:
+
 ```bash
 ros2 topic pub -1 /motor_commands motor_control_interfaces/msg/MotorCommand \
 "{joint_name:['shoulder_pitch'], mode:[1], position:[0.0], velocity:[0.5], acceleration:[1.0]}"
 ```
 
-### Motion (kp/kd)
+Motion command:
+
 ```bash
 ros2 topic pub -r 200 /motor_commands motor_control_interfaces/msg/MotorCommand \
 "{joint_name:['elbow_pitch'], mode:[2], position:[0.3], velocity:[0.0], torque:[0.0], kp:[40.0], kd:[1.5]}"
 ```
 
-### Enable / Disable
+Enable:
+
 ```bash
 ros2 topic pub -1 /motor_commands motor_control_interfaces/msg/MotorCommand \
 "{joint_name:['shoulder_pitch','elbow_pitch'], mode:[3]}"
 ```
+
+Disable:
 
 ```bash
 ros2 topic pub -1 /motor_commands motor_control_interfaces/msg/MotorCommand \
 "{joint_name:['shoulder_pitch','elbow_pitch'], mode:[4]}"
 ```
 
----
-
-## Files referenced by this README
-
-- `README.md` — this document
-- `system.struct.png` — rendered architecture diagram used in README
-- `System Structurepng.drawio` — editable diagram source (draw.io / diagrams.net)

@@ -1,0 +1,23 @@
+# MoveIt controller manager configuration.
+# This is a placeholder for future trajectory execution integration.
+trajectory_execution:
+  allowed_execution_duration_scaling: 1.2
+  allowed_goal_duration_margin: 0.5
+  allowed_start_tolerance: 0.01
+  execution_duration_monitoring: true
+
+moveit_controller_manager: moveit_simple_controller_manager/MoveItSimpleControllerManager
+
+moveit_simple_controller_manager:
+  controller_names:
+    - arm_controller
+
+  arm_controller:
+    action_ns: follow_joint_trajectory
+    type: FollowJointTrajectory
+    default: true
+    joints:
+      - base_to_shoulder_joint
+      - shoulder_to_upper_arm_joint
+      - upper_arm_to_lower_arm_joint
+      - lower_arm_to_wrist_joint

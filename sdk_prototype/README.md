@@ -24,7 +24,7 @@ Existing ROS2 HTTP gateway or ROS2 node bridge
 ROS2 sensors, inference/RL, safety, control, CAN I/O
 ```
 
-SDK users should see methods like `enable_robot()`, `set_mode()`, and `stream_robot_state()`, not ROS2 topics, services, actions, QoS, package names, or launch files.
+SDK users should see methods like `enable_robot()`, `set_mode()`, and `get_robot_status()`, not ROS2 topics, services, actions, QoS, package names, or launch files.
 
 ## Folder Structure
 
@@ -36,15 +36,17 @@ sdk_prototype/
     robot_sdk.proto
   python/
     generate_grpc_python.sh
-    robot_sdk_demo/
-      model.py
-      grpc_server.py
+    robot_sdk/
+      sdk.py
+      motor.py
+      gain_tuner.py
       grpc_client.py
-      zmq_state.py
-      hybrid_gateway.py
-      hybrid_client.py
       robot_sdk_pb2.py       # generated
       robot_sdk_pb2_grpc.py  # generated
+  demo/
+    robot_sdk_demo/
+      model.py             # SDK-to-ROS2 double-pendulum control demo
+      arm_rotate.py        # SDK-to-ROS2 single-joint arm rotation demo
 ```
 
 ## Run
@@ -60,23 +62,6 @@ Regenerate gRPC code after editing the proto:
 ```bash
 bash sdk_prototype/python/generate_grpc_python.sh
 ```
-
-Terminal 1:
-
-```bash
-python3 -m sdk_prototype.python.robot_sdk_demo.hybrid_gateway
-```
-
-Terminal 2:
-
-```bash
-python3 -m sdk_prototype.python.robot_sdk_demo.hybrid_client
-```
-
-The gateway exposes:
-
-- `127.0.0.1:50051` for gRPC command/query calls.
-- `tcp://127.0.0.1:5556` for ZeroMQ state stream.
 
 ## ROS2 Motor Gateway
 
@@ -98,7 +83,7 @@ It exposes `127.0.0.1:50052` and bridges SDK motor RPCs to ROS2:
 Client example:
 
 ```python
-from sdk_prototype.python.robot_sdk_demo.grpc_client import MotorGrpcClient
+from sdk_prototype.python.robot_sdk.grpc_client import MotorGrpcClient
 
 motors = MotorGrpcClient("127.0.0.1:50052")
 
@@ -111,13 +96,31 @@ print(motors.get_motor_status(joints))
 print(motors.disable_motors(joints))
 ```
 
+## Arm Control Registry
+
+The humanoid arm demo uses this registry file:
+
+```text
+humanoid_control/motor_control_hybrid/config/control_config.yaml
+```
+
+It contains the arm joints used by the SDK demo:
+
+- `base_to_shoulder_joint`
+- `shoulder_to_upper_arm_joint`
+- `upper_arm_to_lower_arm_joint`
+- `lower_arm_to_wrist_joint`
+
+The `motor_id` values in that file are placeholders for local testing. Replace
+them with the real CAN IDs before driving physical hardware.
+
 ## Test Without Motors
 
 Use the fake ROS2 motor node instead of the CAN node:
 
 ```bash
 source /opt/ros/humble/setup.bash
-cd Ros2_with_thread
+cd humanoid_control
 colcon build --packages-select motor_control_interfaces motor_control_hybrid
 source install/setup.bash
 ```
@@ -134,12 +137,6 @@ Terminal 2:
 ros2 run motor_control_hybrid motor_sdk_gateway_node
 ```
 
-Terminal 3:
-
-```bash
-python3 -m sdk_prototype.python.robot_sdk_demo.motor_client_example
-```
-
 Optional browser visualization:
 
 ```bash
@@ -147,6 +144,32 @@ ros2 run motor_control_hybrid double_pendulum_websocket_node
 ```
 
 Open `http://127.0.0.1:8765` to see `test_joint` and `test_joint2` as a double pendulum. The page receives `/joint_states` over WebSocket and can send enable, disable, and position commands back to ROS2 through `/motor_commands`.
+
+For the humanoid arm demo, start the ROS2 side with the fake motor node and SDK gateway:
+
+```bash
+cd humanoid_control
+source install/setup.bash
+ros2 launch motor_control_hybrid hybrid_control.launch.py \
+  enable_fake_motor:=true \
+  enable_sdk_gateway:=true \
+  enable_websocket_ui:=false
+```
+
+Then run the arm demo from the repository root:
+
+```bash
+python3 sdk_prototype/demo/robot_sdk_demo/arm_rotate.py \
+  --joint base_to_shoulder_joint \
+  --target 0.45
+```
+
+If you want RViz to reflect external joint states without the manual slider GUI,
+launch the description display with:
+
+```bash
+ros2 launch humanoid_arm_description display.launch.py use_joint_state_gui:=false
+```
 
 This exercises the full SDK command path:
 
@@ -169,9 +192,6 @@ robot.load_policy("walk_v1", "/opt/policies/walk_v1.onnx")
 robot.start_policy("walk_v1")
 robot.set_velocity_command(vx_mps=0.2, vy_mps=0.0, wz_radps=0.1)
 status = robot.get_robot_status()
-
-for state in robot.stream_robot_state():
-    print(state)
 
 robot.stop_policy()
 robot.disable_robot()
@@ -197,3 +217,51 @@ Use this hybrid layout as the SDK direction:
 - Public command API: **gRPC + Protobuf**.
 - Local state stream: **ZeroMQ PUB/SUB**, JSON first, Protobuf payload later if schema drift becomes a problem.
 - Browser UI: **WebSocket adapter** layered on top of the gateway.
+
+## Examples (programmatic SDK)
+
+The prototype exposes a small, programmatic SDK wrapper in `python/robot_sdk`.
+`sdk.motor(joint_name)` returns a single-motor proxy. Use
+`sdk.gain_tuner(joint_names)` for multi-motor tuning/control behaviour.
+
+Minimal SDK example:
+
+```python
+from sdk_prototype.python.robot_sdk import RobotSDK
+
+sdk = RobotSDK()
+m = sdk.motor("test_joint")
+m.enable()
+m.set_position(0.5)
+```
+
+## Double-Pendulum SDK Demo
+
+The demo in `demo/robot_sdk_demo/model.py` shows the SDK driving the ROS2
+double-pendulum setup through `motor_sdk_gateway_node`.
+
+Start the ROS2 side first:
+
+```bash
+cd humanoid_control
+source install/setup.bash
+ros2 launch motor_control_hybrid hybrid_control.launch.py \
+  enable_fake_motor:=true \
+  enable_sdk_gateway:=true \
+  enable_websocket_ui:=true
+```
+
+Then run the SDK demo from the repository root:
+
+```bash
+python3 sdk_prototype/demo/robot_sdk_demo/model.py
+```
+
+Notes:
+
+- `GainTuner` (in `gain_tuner.py`) implements ramping, excitation (sine/goto/step),
+  and temperature-derating logic (ported from the RobStride tuner). Gains are
+  intentionally kept constant (no automatic kp/kd scaling); only motion ramping
+  is derated when temperatures rise.
+- For real hardware testing, run the ROS2/CAN gateway and use the SDK client
+  against `motor_sdk_gateway_node`.
