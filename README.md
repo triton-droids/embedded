@@ -253,16 +253,3 @@ ros2 topic pub -1 /motor_commands motor_control_interfaces/msg/MotorCommand \
 "{joint_name:['shoulder_pitch','elbow_pitch'], mode:[4]}"
 ```
 
-## Docker Humble Notes
-
-The local Humble test used `fishros2/ros:humble-desktop-full`. That image needed `python3.10-venv` installed before `scripts/setup_rosenv.sh` could create `rosenv/`.
-
-If the image's ROS apt source has an expired key, disable that source for the temporary container and install `python3.10-venv` from Ubuntu Jammy repositories before testing.
-
-## Git Policy for `rosenv/`
-
-`rosenv/` is intentionally ignored and not committed. Recreate it with:
-
-```bash
-ROS_DISTRO=<humble|jazzy> source scripts/setup_rosenv.sh
-```
