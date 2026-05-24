@@ -11,7 +11,7 @@ set -e
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 VENV_DIR="${REPO_ROOT}/rosenv"
-REQ_FILE="${REPO_ROOT}/Ros2_with_thread/motor_control_hybrid/requirements.txt"
+REQ_FILE="${REPO_ROOT}/humanoid_control/motor_control_hybrid/requirements.txt"
 ROS_DISTRO_NAME="${ROS_DISTRO:-jazzy}"
 ROS_SETUP="/opt/ros/${ROS_DISTRO_NAME}/setup.bash"
 
