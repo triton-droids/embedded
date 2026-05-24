@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<robot name="urdf_test_arm">
+  <group name="arm">
+    <chain base_link="base_link" tip_link="wrist_link" />
+  </group>
+
+  <group_state name="all-zeros" group="arm">
+    <joint name="base_to_shoulder_joint" value="0" />
+    <joint name="shoulder_to_upper_arm_joint" value="0" />
+    <joint name="upper_arm_to_lower_arm_joint" value="0" />
+    <joint name="lower_arm_to_wrist_joint" value="0" />
+  </group_state>
+
+  <virtual_joint name="world_joint" type="fixed" parent_frame="world" child_link="base_dummy_link" />
+
+  <disable_collisions link1="base_dummy_link" link2="base_link" reason="Adjacent" />
+  <disable_collisions link1="base_link" link2="shoulder_link" reason="Adjacent" />
+  <disable_collisions link1="shoulder_link" link2="upper_arm_link" reason="Adjacent" />
+  <disable_collisions link1="upper_arm_link" link2="lower_arm_link" reason="Adjacent" />
+  <disable_collisions link1="lower_arm_link" link2="wrist_link" reason="Adjacent" />
+</robot>
