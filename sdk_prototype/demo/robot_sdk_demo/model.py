@@ -8,7 +8,7 @@ setup through the SDK. It does not import ROS2. The expected runtime path is:
 
 Run the ROS2 side first, for example with fake motors and the browser UI:
 
-    cd Ros2_with_thread
+    cd humanoid_control
     source install/setup.bash
     ros2 launch motor_control_hybrid hybrid_control.launch.py \
       enable_fake_motor:=true \
@@ -49,7 +49,7 @@ DEFAULT_VELOCITY = 1.0
 
 def default_motor_config_path() -> Path:
     repo_root = Path(__file__).resolve().parents[3]
-    return repo_root / "Ros2_with_thread" / "motor_control_hybrid" / "config" / "motors.yaml"
+    return repo_root / "humanoid_control" / "motor_control_hybrid" / "config" / "motors.yaml"
 
 
 @dataclass(frozen=True)

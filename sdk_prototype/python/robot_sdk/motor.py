@@ -17,7 +17,7 @@ from .grpc_client import MotorGrpcClient
 
 @dataclass(frozen=True)
 class MotorConfig:
-    """Motor metadata compatible with `Ros2_with_thread/.../config/motors.yaml`."""
+    """Motor metadata compatible with the humanoid motor registry YAML files."""
 
     joint_name: str
     can_interface: str | None = None
@@ -73,7 +73,7 @@ class MotorConfig:
 
 
 def load_motor_configs_from_yaml(config_path: str | Path) -> Dict[str, MotorConfig]:
-    """Load motor configs from a ROS2-style `motors.yaml` file."""
+    """Load motor configs from a ROS2-style motor registry YAML file."""
 
     path = Path(config_path)
     with path.open("r", encoding="utf-8") as f:

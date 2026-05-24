@@ -46,6 +46,7 @@ sdk_prototype/
   demo/
     robot_sdk_demo/
       model.py             # SDK-to-ROS2 double-pendulum control demo
+      arm_rotate.py        # SDK-to-ROS2 single-joint arm rotation demo
 ```
 
 ## Run
@@ -95,13 +96,31 @@ print(motors.get_motor_status(joints))
 print(motors.disable_motors(joints))
 ```
 
+## Arm Control Registry
+
+The humanoid arm demo uses this registry file:
+
+```text
+humanoid_control/motor_control_hybrid/config/control_config.yaml
+```
+
+It contains the arm joints used by the SDK demo:
+
+- `base_to_shoulder_joint`
+- `shoulder_to_upper_arm_joint`
+- `upper_arm_to_lower_arm_joint`
+- `lower_arm_to_wrist_joint`
+
+The `motor_id` values in that file are placeholders for local testing. Replace
+them with the real CAN IDs before driving physical hardware.
+
 ## Test Without Motors
 
 Use the fake ROS2 motor node instead of the CAN node:
 
 ```bash
 source /opt/ros/humble/setup.bash
-cd Ros2_with_thread
+cd humanoid_control
 colcon build --packages-select motor_control_interfaces motor_control_hybrid
 source install/setup.bash
 ```
@@ -125,6 +144,32 @@ ros2 run motor_control_hybrid double_pendulum_websocket_node
 ```
 
 Open `http://127.0.0.1:8765` to see `test_joint` and `test_joint2` as a double pendulum. The page receives `/joint_states` over WebSocket and can send enable, disable, and position commands back to ROS2 through `/motor_commands`.
+
+For the humanoid arm demo, start the ROS2 side with the fake motor node and SDK gateway:
+
+```bash
+cd humanoid_control
+source install/setup.bash
+ros2 launch motor_control_hybrid hybrid_control.launch.py \
+  enable_fake_motor:=true \
+  enable_sdk_gateway:=true \
+  enable_websocket_ui:=false
+```
+
+Then run the arm demo from the repository root:
+
+```bash
+python3 sdk_prototype/demo/robot_sdk_demo/arm_rotate.py \
+  --joint base_to_shoulder_joint \
+  --target 0.45
+```
+
+If you want RViz to reflect external joint states without the manual slider GUI,
+launch the description display with:
+
+```bash
+ros2 launch humanoid_arm_description display.launch.py use_joint_state_gui:=false
+```
 
 This exercises the full SDK command path:
 
@@ -198,7 +243,7 @@ double-pendulum setup through `motor_sdk_gateway_node`.
 Start the ROS2 side first:
 
 ```bash
-cd Ros2_with_thread
+cd humanoid_control
 source install/setup.bash
 ros2 launch motor_control_hybrid hybrid_control.launch.py \
   enable_fake_motor:=true \

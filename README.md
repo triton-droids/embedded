@@ -1,6 +1,6 @@
 # Humanoid ROS 2 Control Stack
 
-This repository contains the ROS 2 motor-control workspace and supporting runtime setup for the embedded humanoid stack.
+This repository contains the ROS 2 motor-control and MoveIt sources plus the supporting runtime setup for the embedded humanoid stack.
 
 The current architecture keeps ROS 2 as the runtime bus for motor state, motor commands, simulated hardware, policy output, and SDK/UI bridges. Python dependencies live in a local `rosenv/` virtual environment, which is ignored by Git and recreated from `scripts/setup_rosenv.sh`.
 
@@ -21,12 +21,13 @@ Use the ROS distribution that matches the OS. Do not copy `rosenv/` between Ubun
 
 ```text
 .
-├── Ros2_with_thread/
+├── humanoid_control/
 │   ├── motor_control_interfaces/
 │   │   └── msg/MotorCommand.msg
 │   └── motor_control_hybrid/
 │       ├── launch/hybrid_control.launch.py
 │       ├── config/motors.yaml
+│       ├── config/control_config.yaml
 │       ├── config/policy_bridge_config.json
 │       ├── motor_control_hybrid/
 │       │   ├── python_can_node.py
@@ -36,6 +37,8 @@ Use the ROS distribution that matches the OS. Do not copy `rosenv/` between Ubun
 │       │   └── policy_bridge_node.py
 │       ├── src/cpp_control_node.cpp
 │       └── requirements.txt
+├── humanoid_description/
+├── humanoid_moveit_config/
 ├── Interfaces/control_core/
 ├── scripts/setup_rosenv.sh
 └── system.struct.png
@@ -76,7 +79,7 @@ The setup script:
 - sources `/opt/ros/$ROS_DISTRO/setup.bash`
 - creates `rosenv/` if missing
 - activates `rosenv/`
-- installs `Ros2_with_thread/motor_control_hybrid/requirements.txt`
+- installs `humanoid_control/motor_control_hybrid/requirements.txt`
 - writes `rosenv/.requirements.stamp` so unchanged requirements are not reinstalled every run
 
 The requirements include both runtime packages and ROS Python build helpers needed when building from inside the venv:
@@ -94,15 +97,15 @@ catkin_pkg
 ## Build
 
 ```bash
-cd Ros2_with_thread
+cd .
 colcon build --symlink-install
 source install/setup.bash
 ```
 
-Both packages should appear after sourcing the workspace:
+All repo packages should appear after sourcing the workspace:
 
 ```bash
-ros2 pkg list | grep -E 'motor_control_(hybrid|interfaces)'
+ros2 pkg list | grep -E 'motor_control_(hybrid|interfaces)|humanoid_(arm_)?description|humanoid_moveit_config'
 ```
 
 Expected:
@@ -110,6 +113,8 @@ Expected:
 ```text
 motor_control_hybrid
 motor_control_interfaces
+humanoid_arm_description
+humanoid_moveit_config
 ```
 
 ## Launch
@@ -145,7 +150,13 @@ ros2 launch motor_control_hybrid hybrid_control.launch.py \
 Configure real motors in:
 
 ```text
-Ros2_with_thread/motor_control_hybrid/config/motors.yaml
+humanoid_control/motor_control_hybrid/config/motors.yaml
+```
+
+The humanoid arm SDK demo uses:
+
+```text
+humanoid_control/motor_control_hybrid/config/control_config.yaml
 ```
 
 ### Policy Bridge
@@ -159,7 +170,23 @@ ros2 launch motor_control_hybrid hybrid_control.launch.py \
 Policy bridge configuration:
 
 ```text
-Ros2_with_thread/motor_control_hybrid/config/policy_bridge_config.json
+humanoid_control/motor_control_hybrid/config/policy_bridge_config.json
+```
+
+### MoveIt Demo
+
+```bash
+ros2 launch humanoid_moveit_config demo.launch.py
+```
+
+The MoveIt config lives in this repo under `humanoid_moveit_config/`; you do not need `ws_moveit` for normal use.
+
+### SDK Arm Demo
+
+```bash
+python3 sdk_prototype/demo/robot_sdk_demo/arm_rotate.py \
+  --joint base_to_shoulder_joint \
+  --target 0.45
 ```
 
 ## Motor Command Contract
