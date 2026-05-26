@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>humanoid_moveit_config</name>
+  <name>humanoid_arm_moveit_config</name>
   <version>0.1.0</version>
   <description>MoveIt 2 configuration for the humanoid arm.</description>
   <maintainer email="rul039@ucsd.edu">rcli</maintainer>

@@ -83,7 +83,7 @@ Window Geometry:
 
 def _launch_setup(context, *args, **kwargs):
     model_path = LaunchConfiguration('model').perform(context)
-    rviz_config_path = Path(tempfile.gettempdir()) / 'humanoid_description_display.rviz'
+    rviz_config_path = Path(tempfile.gettempdir()) / 'humanoid_arm_description_display.rviz'
     rviz_config_path.write_text(_build_rviz_config(model_path), encoding='utf-8')
 
     robot_description = {

@@ -38,28 +38,28 @@ def generate_launch_description():
     }
     robot_description_semantic = {
         "robot_description_semantic": load_file(
-            "humanoid_moveit_config",
+            "humanoid_arm_moveit_config",
             "config/humanoid_arm.srdf",
         )
     }
     robot_description_kinematics = {
         "robot_description_kinematics": load_yaml(
-            "humanoid_moveit_config",
+            "humanoid_arm_moveit_config",
             "config/kinematics.yaml",
         )
     }
     robot_description_planning = {
         "robot_description_planning": load_yaml(
-            "humanoid_moveit_config",
+            "humanoid_arm_moveit_config",
             "config/joint_limits.yaml",
         )
     }
     ompl_planning = {
         "planning_pipelines": ["ompl"],
         "default_planning_pipeline": "ompl",
-        "ompl": load_yaml("humanoid_moveit_config", "config/ompl_planning.yaml"),
+        "ompl": load_yaml("humanoid_arm_moveit_config", "config/ompl_planning.yaml"),
     }
-    trajectory_execution = load_yaml("humanoid_moveit_config", "config/moveit_controllers.yaml")
+    trajectory_execution = load_yaml("humanoid_arm_moveit_config", "config/moveit_controllers.yaml")
     planning_scene_monitor_parameters = {
         "publish_planning_scene": True,
         "publish_geometry_updates": True,
@@ -67,7 +67,7 @@ def generate_launch_description():
         "publish_transforms_updates": True,
     }
     ros2_controllers_path = os.path.join(
-        get_package_share_directory("humanoid_moveit_config"),
+        get_package_share_directory("humanoid_arm_moveit_config"),
         "config",
         "ros2_controllers.yaml",
     )
@@ -132,7 +132,7 @@ def generate_launch_description():
     )
 
     rviz_base = os.path.join(
-        get_package_share_directory("humanoid_moveit_config"),
+        get_package_share_directory("humanoid_arm_moveit_config"),
         "launch",
     )
     rviz_config = os.path.join(rviz_base, "moveit.rviz")
