@@ -1,0 +1,252 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot name="ch_robot">
+  <link name="hip">
+    <inertial>
+      <mass value="0.1" />
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001" />
+    </inertial><collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_leg_description/meshes/robot_meshes/hip_ch.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_leg_description/meshes/robot_meshes/visual/hip_dumb2.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+  </link>
+  <link name="left_leg1">
+    <inertial>
+      <mass value="0.1" />
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001" />
+    </inertial><collision>
+      <origin xyz="0.068372 0.029495 -0.577401" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_leg_description/meshes/robot_meshes/left_leg1_ch.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0.068372 0.029495 -0.577401" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_leg_description/meshes/robot_meshes/visual/left_leg1_dumb.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+  </link><link name="left_leg2">
+    <inertial>
+      <mass value="0.1" />
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001" />
+    </inertial><collision>
+      <origin xyz="4.8e-05 0.029495 -0.577401" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_leg_description/meshes/robot_meshes/left_leg2_ch.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="4.8e-05 0.029495 -0.577401" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_leg_description/meshes/robot_meshes/visual/left_leg2_dumb.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+  </link><link name="left_leg3">
+    <inertial>
+      <mass value="0.1" />
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001" />
+    </inertial><collision>
+      <origin xyz="4.8e-05 0.029495 -0.463816" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_leg_description/meshes/robot_meshes/left_leg3_ch.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="4.8e-05 0.029495 -0.463816" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_leg_description/meshes/robot_meshes/visual/left_leg3_dumb.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+  </link><link name="left_leg4">
+    <inertial>
+      <mass value="0.1" />
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001" />
+    </inertial><collision>
+      <origin xyz="4.8e-05 0.029495 -0.306338" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_leg_description/meshes/robot_meshes/left_leg4_ch.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="4.8e-05 0.029495 -0.306338" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_leg_description/meshes/robot_meshes/visual/left_leg4_dumb.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+  </link><link name="left_foot">
+    <inertial>
+      <mass value="0.1" />
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001" />
+    </inertial><collision>
+      <origin xyz="-0.00958 0.03 -0.031528" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_leg_description/meshes/robot_meshes/left_foot_ch.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="-0.00958 0.03 -0.031528" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_leg_description/meshes/robot_meshes/visual/left_foot.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+  </link><link name="right_leg1">
+    <inertial>
+      <mass value="0.1" />
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001" />
+    </inertial>
+    <collision>
+      <origin xyz="0.2429 0.029495 -0.577401" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_leg_description/meshes/robot_meshes/right_leg1_ch.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0.2429 0.029495 -0.577401" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_leg_description/meshes/robot_meshes/visual/right_leg1_dumb.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+  </link><link name="right_leg2">
+    <inertial>
+      <mass value="0.1" />
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001" />
+    </inertial><collision>
+      <origin xyz="0.311223 0.029495 -0.577401" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_leg_description/meshes/robot_meshes/right_leg2_ch.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0.311223 0.029495 -0.577401" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_leg_description/meshes/robot_meshes/visual/right_leg2_dumb.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+  </link><link name="right_leg3">
+    <inertial>
+      <mass value="0.1" />
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001" />
+    </inertial><collision>
+      <origin xyz="0.311223 0.029495 -0.463816" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_leg_description/meshes/robot_meshes/right_leg3_ch.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0.311223 0.029495 -0.463816" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_leg_description/meshes/robot_meshes/visual/right_leg3_dumb.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+  </link><link name="right_leg4">
+    <inertial>
+      <mass value="0.1" />
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001" />
+    </inertial><collision>
+      <origin xyz="0.311223 0.029495 -0.306338" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_leg_description/meshes/robot_meshes/right_leg4_ch.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0.311223 0.029495 -0.306338" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_leg_description/meshes/robot_meshes/visual/right_leg4_dumb.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+  </link><link name="right_foot">
+    <inertial>
+      <mass value="0.1" />
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001" />
+    </inertial><collision>
+      <origin xyz="0.320851 0.03 -0.031528" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_leg_description/meshes/robot_meshes/right_foot_ch.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0.320851 0.03 -0.031528" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_leg_description/meshes/robot_meshes/visual/right_foot.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+  </link><joint name="left_hip1_joint" type="revolute">
+    <parent link="hip" />
+    <child link="left_leg1" />
+    <origin xyz="-0.068372 -0.029495 0.577401" rpy="0 0 0" />
+    <axis xyz="1.0 0.0 0.0" />
+    <limit lower="-1.57" upper="1.57" effort="100" velocity="5.0" />
+    <dynamics damping="1.0" />
+  </joint><joint name="left_hip2_joint" type="revolute">
+    <parent link="left_leg1" />
+    <child link="left_leg2" />
+    <origin xyz="0.068324 0 0" rpy="0 0 0" />
+    <axis xyz="0.0 1.0 0.0" />
+    <limit lower="-1.57" upper="1.57" effort="100" velocity="5.0" />
+    <dynamics damping="1.0" />
+  </joint><joint name="left_thigh_joint" type="revolute">
+    <parent link="left_leg2" />
+    <child link="left_leg3" />
+    <origin xyz="0 0 -0.113585" rpy="0 0 0" />
+    <axis xyz="0.0 0.0 1.0" />
+    <limit lower="-1.57" upper="1.57" effort="100" velocity="5.0" />
+    <dynamics damping="1.0" />
+  </joint><joint name="left_knee_joint" type="revolute">
+    <parent link="left_leg3" />
+    <child link="left_leg4" />
+    <origin xyz="0 0 -0.157478" rpy="0 0 0" />
+    <axis xyz="1.0 0.0 0.0" />
+    <limit lower="-1.57" upper="1.57" effort="100" velocity="5.0" />
+    <dynamics damping="1.0" />
+  </joint><joint name="left_ankle_joint" type="revolute">
+    <parent link="left_leg4" />
+    <child link="left_foot" />
+    <origin xyz="0.009628 -0.000505 -0.27481" rpy="0 0 0" />
+    <axis xyz="1.0 0.0 0.0" />
+    <limit lower="-1.57" upper="1.57" effort="100" velocity="5.0" />
+    <dynamics damping="1.0" />
+  </joint><joint name="right_hip1_joint" type="revolute">
+    <parent link="hip" />
+    <child link="right_leg1" />
+    <origin xyz="-0.2429 -0.029495 0.577401" rpy="0 0 0" />
+    <axis xyz="1.0 0.0 0.0" />
+    <limit lower="-1.57" upper="1.57" effort="100" velocity="5.0" />
+    <dynamics damping="1.0" />
+  </joint><joint name="right_hip2_joint" type="revolute">
+    <parent link="right_leg1" />
+    <child link="right_leg2" />
+    <origin xyz="-0.068323 0 0" rpy="0 0 0" />
+    <axis xyz="0.0 1.0 0.0" />
+    <limit lower="-1.57" upper="1.57" effort="100" velocity="5.0" />
+    <dynamics damping="1.0" />
+  </joint><joint name="right_thigh_joint" type="revolute">
+    <parent link="right_leg2" />
+    <child link="right_leg3" />
+    <origin xyz="0 0 -0.113585" rpy="0 0 0" />
+    <axis xyz="0.0 0.0 1.0" />
+    <limit lower="-1.57" upper="1.57" effort="100" velocity="5.0" />
+    <dynamics damping="1.0" />
+  </joint><joint name="right_knee_joint" type="revolute">
+    <parent link="right_leg3" />
+    <child link="right_leg4" />
+    <origin xyz="0 0 -0.157478" rpy="0 0 0" />
+    <axis xyz="1.0 0.0 0.0" />
+    <limit lower="-1.57" upper="1.57" effort="100" velocity="5.0" />
+    <dynamics damping="1.0" />
+  </joint><joint name="right_ankle_joint" type="revolute">
+    <parent link="right_leg4" />
+    <child link="right_foot" />
+    <origin xyz="-0.009628 -0.000505 -0.27481" rpy="0 0 0" />
+    <axis xyz="1.0 0.0 0.0" />
+    <limit lower="-1.57" upper="1.57" effort="100" velocity="5.0" />
+    <dynamics damping="1.0" />
+  </joint>
+</robot>
