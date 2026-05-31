@@ -39,7 +39,7 @@ Visualization Manager:
       Value: true
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: base_link
+    Fixed Frame: world
   Name: root
   Tools:
     - Class: rviz_default_plugins/Interact
@@ -51,14 +51,14 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 2.0
+      Distance: 0.9
       Focal Point:
         X: 0
         Y: 0
-        Z: 0.2
+        Z: 0.22
       Name: Current View
-      Pitch: 0.35
-      Yaw: 0.785
+      Pitch: 0.6
+      Yaw: 3.75
 Window Geometry:
   Height: 900
   Width: 1600
