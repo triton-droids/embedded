@@ -8,6 +8,11 @@ motor_control_node:
     KD: 0.2
     MAX_VEL_RAD_S: 4.5
 
+   # TODO
+    ### Warning! The motor model is not set correctely! Using this configuration could cause error during deployment.
+
+
+
     # The fake motor node and SDK demos only need joint names.
     # Replace motor_id values with the real hardware CAN IDs before deploying
     # to physical motors.

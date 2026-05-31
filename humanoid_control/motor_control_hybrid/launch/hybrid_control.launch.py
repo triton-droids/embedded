@@ -48,12 +48,6 @@ def generate_launch_description():
         description='Start C++ control node'
     )
 
-    enable_gateway_arg = DeclareLaunchArgument(
-        'enable_gateway',
-        default_value='false',
-        description='Start HTTP gateway node'
-    )
-
     enable_sdk_gateway_arg = DeclareLaunchArgument(
         'enable_sdk_gateway',
         default_value='true',
@@ -92,42 +86,6 @@ def generate_launch_description():
         'rl_model_path',
         default_value='',
         description='Path to RL model/policy file'
-    )
-
-    gateway_host_arg = DeclareLaunchArgument(
-        'gateway_host',
-        default_value='127.0.0.1',
-        description='HTTP gateway host'
-    )
-
-    gateway_port_arg = DeclareLaunchArgument(
-        'gateway_port',
-        default_value='8080',
-        description='HTTP gateway port'
-    )
-
-    gateway_default_kp_arg = DeclareLaunchArgument(
-        'gateway_default_kp',
-        default_value='10.0',
-        description='Default KP used by gateway when request does not provide kp'
-    )
-
-    gateway_default_kd_arg = DeclareLaunchArgument(
-        'gateway_default_kd',
-        default_value='0.2',
-        description='Default KD used by gateway when request does not provide kd'
-    )
-
-    gateway_default_mode_arg = DeclareLaunchArgument(
-        'gateway_default_mode',
-        default_value='motion',
-        description='Default mode for gateway: velocity/position/motion/enable/disable'
-    )
-
-    gateway_repeat_publish_hz_arg = DeclareLaunchArgument(
-        'gateway_repeat_publish_hz',
-        default_value='50.0',
-        description='Gateway repeat rate for the last published desired command. 0 disables repeat.'
     )
 
     sdk_grpc_addr_arg = DeclareLaunchArgument(
@@ -197,25 +155,6 @@ def generate_launch_description():
         ],
     )
 
-    # -------------------- HTTP Gateway node --------------------
-    gateway_node = Node(
-        package='motor_control_hybrid',
-        executable='target_gateway_node',
-        name='target_gateway_node',
-        condition=IfCondition(LaunchConfiguration('enable_gateway')),
-        output='screen',
-        parameters=[
-            {'host': LaunchConfiguration('gateway_host')},
-            {'port': LaunchConfiguration('gateway_port')},
-            {'topic_out': 'motor_commands'},
-            {'default_kp': LaunchConfiguration('gateway_default_kp')},
-            {'default_kd': LaunchConfiguration('gateway_default_kd')},
-            {'default_mode': LaunchConfiguration('gateway_default_mode')},
-            {'repeat_publish_hz': LaunchConfiguration('gateway_repeat_publish_hz')},
-            {'repeat_topics': ['/desired_motor_subset']},
-        ],
-    )
-
     # -------------------- SDK gRPC Gateway node --------------------
     sdk_gateway_node = Node(
         package='motor_control_hybrid',
@@ -266,19 +205,12 @@ def generate_launch_description():
         cmd_timeout_arg,
         enable_rl_arg,
         enable_cpp_control_arg,
-        enable_gateway_arg,
         enable_sdk_gateway_arg,
         enable_fake_motor_arg,
         enable_websocket_ui_arg,
         enable_policy_bridge_arg,
         policy_config_path_arg,
         rl_model_path_arg,
-        gateway_host_arg,
-        gateway_port_arg,
-        gateway_default_kp_arg,
-        gateway_default_kd_arg,
-        gateway_default_mode_arg,
-        gateway_repeat_publish_hz_arg,
         sdk_grpc_addr_arg,
         websocket_host_arg,
         websocket_port_arg,
@@ -286,7 +218,6 @@ def generate_launch_description():
         fake_motor_node,
         real_python_can_node,
         cpp_control_node,
-        gateway_node,
         sdk_gateway_node,
         websocket_ui_node,
         policy_bridge_node,
@@ -294,12 +225,10 @@ def generate_launch_description():
             'Hybrid control system launched:\n',
             '  - Python CAN node: handles CAN communication\n',
             '  - C++ Control node: handles control and RL inference\n',
-            '  - HTTP Gateway node: accepts POST /target and publishes to motor_commands\n',
             '  - SDK gRPC gateway: ', LaunchConfiguration('sdk_grpc_addr'), '\n',
             '  - Policy bridge enabled: ', LaunchConfiguration('enable_policy_bridge'), '\n',
             '  - Double-pendulum UI: http://', LaunchConfiguration('websocket_host'), ':', LaunchConfiguration('websocket_port'), '\n',
             '  - Control rate: ', LaunchConfiguration('control_rate_hz'), ' Hz\n',
-            '  - Gateway: http://', LaunchConfiguration('gateway_host'), ':', LaunchConfiguration('gateway_port'), '\n',
             '  - Legacy debug node can still run separately if needed\n',
         ]),
     ])
