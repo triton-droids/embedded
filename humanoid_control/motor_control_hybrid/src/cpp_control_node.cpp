@@ -1,7 +1,9 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
+#include <std_msgs/msg/bool.hpp>
 #include <motor_control_interfaces/msg/motor_command.hpp>
 
+#include <atomic>
 #include <chrono>
 #include <mutex>
 #include <string>
@@ -47,6 +49,13 @@ public:
     desired_vel_sub_ = this->create_subscription<sensor_msgs::msg::JointState>(
       "/desired_velocity_subset", 10,
       std::bind(&CppControlNode::desired_velocity_callback, this, std::placeholders::_1)
+    );
+
+    // Latched safety supervisor input. Transient local receives the latest
+    // estop state even when this control node starts after the safety node.
+    safety_estop_sub_ = this->create_subscription<std_msgs::msg::Bool>(
+      "/safety/estop", rclcpp::QoS(1).reliable().transient_local(),
+      std::bind(&CppControlNode::safety_estop_callback, this, std::placeholders::_1)
     );
 
     // Output to Python CAN node
@@ -183,6 +192,23 @@ private:
     }
   }
 
+  void safety_estop_callback(const std_msgs::msg::Bool::SharedPtr msg)
+  {
+    if (!msg) return;
+    const bool previous = safety_estop_active_.exchange(msg->data);
+    if (msg->data && !previous) {
+      RCLCPP_FATAL(
+        this->get_logger(),
+        "Safety estop asserted; all motor outputs will be disabled."
+      );
+    } else if (!msg->data && previous) {
+      RCLCPP_WARN(
+        this->get_logger(),
+        "Safety estop reset; motors remain disabled until explicitly enabled."
+      );
+    }
+  }
+
   // Backward-compatible: velocity subset via JointState
   void desired_velocity_callback(const sensor_msgs::msg::JointState::SharedPtr msg)
   {
@@ -220,6 +246,13 @@ private:
     }
 
     if (joint_order.empty()) return;
+
+    // This gate precedes all command handling and continuously publishes
+    // DISABLE while the supervisor latch is active.
+    if (safety_estop_active_.load()) {
+      publish_disable_all(joint_order);
+      return;
+    }
 
     if (!core_configured_) {
       // Fail-safe: publish DISABLE for all joints (or zero velocity if you prefer)
@@ -335,6 +368,7 @@ private:
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr state_sub_;
   rclcpp::Subscription<motor_control_interfaces::msg::MotorCommand>::SharedPtr desired_motor_sub_;
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr desired_vel_sub_;
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr safety_estop_sub_;
 
   rclcpp::Publisher<motor_control_interfaces::msg::MotorCommand>::SharedPtr cmd_pub_;
   rclcpp::TimerBase::SharedPtr control_timer_;
@@ -360,6 +394,7 @@ private:
   // Control core
   control_core::Controller core_;
   bool core_configured_{false};
+  std::atomic_bool safety_estop_active_{false};
 };
 
 int main(int argc, char * argv[])

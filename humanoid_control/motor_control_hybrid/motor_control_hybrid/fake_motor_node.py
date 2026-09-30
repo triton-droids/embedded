@@ -8,8 +8,9 @@ import time
 import rclpy
 from motor_control_interfaces.msg import MotorCommand
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import JointState
-from std_msgs.msg import String
+from std_msgs.msg import Bool, String
 
 
 class FakeMotorNode(Node):
@@ -34,6 +35,7 @@ class FakeMotorNode(Node):
         self._kd = {name: 1.5 for name in self.joint_names}
         self._disabled_warning_time = {name: 0.0 for name in self.joint_names}
         self._last_update = time.monotonic()
+        self._estop_active = False
 
         self._joint_state_pub = self.create_publisher(JointState, "joint_states", 10)
         self._motor_status_pub = self.create_publisher(String, "motor_status", 10)
@@ -43,6 +45,17 @@ class FakeMotorNode(Node):
             self._command_callback,
             10,
         )
+        estop_qos = QoSProfile(
+            depth=1,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            reliability=ReliabilityPolicy.RELIABLE,
+        )
+        self._estop_sub = self.create_subscription(
+            Bool,
+            "/safety/estop",
+            self._estop_callback,
+            estop_qos,
+        )
 
         period = 1.0 / publish_rate_hz if publish_rate_hz > 0.0 else 0.02
         self._timer = self.create_timer(period, self._tick)
@@ -51,7 +64,24 @@ class FakeMotorNode(Node):
             f"Fake motor node started for joints: {', '.join(self.joint_names)}"
         )
 
+    def _estop_callback(self, msg: Bool) -> None:
+        was_active = self._estop_active
+        self._estop_active = bool(msg.data)
+        if self._estop_active:
+            for joint_name in self.joint_names:
+                self._enabled[joint_name] = False
+                self._velocity[joint_name] = 0.0
+                self._mode[joint_name] = MotorCommand.MODE_DISABLE
+            if not was_active:
+                self.get_logger().fatal("Safety estop asserted; fake motors disabled")
+        elif was_active:
+            self.get_logger().warn(
+                "Safety estop reset; fake motors remain disabled until commanded"
+            )
+
     def _command_callback(self, msg: MotorCommand) -> None:
+        if self._estop_active:
+            return
         if not msg.joint_name:
             return
 
@@ -196,9 +226,13 @@ def main(args=None) -> None:
     except KeyboardInterrupt:
         pass
     finally:
-        node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        try:
+            node.destroy_node()
+            if rclpy.ok():
+                rclpy.shutdown()
+        except KeyboardInterrupt:
+            # ros2 launch can deliver a second SIGINT while cleanup is in progress.
+            pass
 
 
 if __name__ == "__main__":

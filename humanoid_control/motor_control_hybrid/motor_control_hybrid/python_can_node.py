@@ -23,9 +23,10 @@ import rclpy
 import yaml
 from motor_control_interfaces.msg import MotorCommand
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from robstride_dynamics import CommunicationType, Motor, ParameterType, RobstrideBus
 from sensor_msgs.msg import JointState
-from std_msgs.msg import String
+from std_msgs.msg import Bool, String
 
 
 class PythonCanNode(Node):
@@ -57,6 +58,8 @@ class PythonCanNode(Node):
         self.motor_name_by_joint: Dict[str, str] = {}
         self.motor_index_map: Dict[str, int] = {}
         self.current_mode_by_joint: Dict[str, int | None] = {}
+        self.estop_active = threading.Event()
+        self._estop_disable_pending = threading.Event()
 
         self._load_config_and_connect(cfg_path)
 
@@ -87,6 +90,17 @@ class PythonCanNode(Node):
             'motor_commands',
             self._cmd_callback,
             10,
+        )
+        estop_qos = QoSProfile(
+            depth=1,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            reliability=ReliabilityPolicy.RELIABLE,
+        )
+        self.estop_sub = self.create_subscription(
+            Bool,
+            '/safety/estop',
+            self._safety_estop_callback,
+            estop_qos,
         )
 
         period = 1.0 / publish_rate if publish_rate > 0.0 else 0.02
@@ -232,6 +246,13 @@ class PythonCanNode(Node):
         while self.running and rclpy.ok():
             self._drain_command_queue()
 
+            if self.estop_active.is_set():
+                self._enforce_estop()
+                if self.feedback_poll_when_idle:
+                    self._poll_all_feedback_if_due()
+                time.sleep(self.tx_period_s)
+                continue
+
             with self.active_command_lock:
                 active = list(self.active_commands.values())
 
@@ -269,6 +290,28 @@ class PythonCanNode(Node):
                     self.get_logger().warn(
                         f'Idle feedback poll failed for {joint_name}: {e}'
                     )
+
+    def _enforce_estop(self):
+        if not self._estop_disable_pending.is_set():
+            return
+        with self.active_command_lock:
+            self.active_commands.clear()
+
+        all_disabled = True
+        for joint_name, bus in self.bus_by_joint.items():
+            motor_name = self.motor_name_by_joint[joint_name]
+            try:
+                with self.bus_locks[bus.channel]:
+                    bus.disable(motor_name)
+                    self.current_mode_by_joint[joint_name] = None
+            except Exception as exc:
+                all_disabled = False
+                self.get_logger().error(
+                    f'ESTOP disable failed for {joint_name}; retrying: {exc}'
+                )
+        if all_disabled:
+            self._estop_disable_pending.clear()
+            self.get_logger().fatal('ESTOP enforced: all configured motors disabled')
 
     def _drain_command_queue(self):
         while True:
@@ -438,7 +481,33 @@ class PythonCanNode(Node):
             cmd.get('torque', 0.0),
         )
 
+    def _safety_estop_callback(self, msg: Bool):
+        if msg.data:
+            newly_asserted = not self.estop_active.is_set()
+            self.estop_active.set()
+            self._estop_disable_pending.set()
+            with self.active_command_lock:
+                self.active_commands.clear()
+            while True:
+                try:
+                    self.command_queue.get_nowait()
+                except queue.Empty:
+                    break
+            if newly_asserted:
+                self.get_logger().fatal(
+                    'Safety estop asserted; rejecting commands and disabling motors'
+                )
+        else:
+            was_active = self.estop_active.is_set()
+            self.estop_active.clear()
+            if was_active:
+                self.get_logger().warn(
+                    'Safety estop reset; motors remain disabled until explicitly enabled'
+                )
+
     def _cmd_callback(self, msg: MotorCommand):
+        if self.estop_active.is_set():
+            return
         if not msg.joint_name:
             return
 

@@ -36,6 +36,22 @@ def generate_launch_description():
         description='Command timeout in seconds. 0.0 holds the last command indefinitely.'
     )
 
+    enable_safety_arg = DeclareLaunchArgument(
+        'enable_safety',
+        default_value='true',
+        description='Start the latched humanoid safety supervisor'
+    )
+
+    safety_config_arg = DeclareLaunchArgument(
+        'safety_config_file',
+        default_value=PathJoinSubstitution([
+            FindPackageShare('humanoid_safety'),
+            'config',
+            'safety.yaml'
+        ]),
+        description='Path to safety supervisor YAML config'
+    )
+
     enable_rl_arg = DeclareLaunchArgument(
         'enable_rl',
         default_value='false',
@@ -110,6 +126,16 @@ def generate_launch_description():
         'imu_topic',
         default_value='/imu',
         description='sensor_msgs/Imu topic used by policy bridge'
+    )
+
+    # -------------------- Safety supervisor --------------------
+    safety_node = Node(
+        package='humanoid_safety',
+        executable='safety_node',
+        name='safety_node',
+        condition=IfCondition(LaunchConfiguration('enable_safety')),
+        output='screen',
+        parameters=[LaunchConfiguration('safety_config_file')],
     )
 
     # -------------------- Fake motor node --------------------
@@ -203,6 +229,8 @@ def generate_launch_description():
         control_rate_arg,
         feedback_poll_rate_arg,
         cmd_timeout_arg,
+        enable_safety_arg,
+        safety_config_arg,
         enable_rl_arg,
         enable_cpp_control_arg,
         enable_sdk_gateway_arg,
@@ -215,6 +243,7 @@ def generate_launch_description():
         websocket_host_arg,
         websocket_port_arg,
         imu_topic_arg,
+        safety_node,
         fake_motor_node,
         real_python_can_node,
         cpp_control_node,
@@ -223,6 +252,7 @@ def generate_launch_description():
         policy_bridge_node,
         LogInfo(msg=[
             'Hybrid control system launched:\n',
+            '  - Safety supervisor enabled: ', LaunchConfiguration('enable_safety'), '\n',
             '  - Python CAN node: handles CAN communication\n',
             '  - C++ Control node: handles control and RL inference\n',
             '  - SDK gRPC gateway: ', LaunchConfiguration('sdk_grpc_addr'), '\n',

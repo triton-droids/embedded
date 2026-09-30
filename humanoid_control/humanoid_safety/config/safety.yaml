@@ -1,0 +1,17 @@
+safety_node:
+  ros__parameters:
+    imu_topic: /imu/data_raw
+    estop_topic: /safety/estop
+    status_topic: /safety/status
+    evaluation_rate_hz: 100.0
+
+    fall_detection_enabled: true
+    fall_roll_deg: 40.0
+    fall_pitch_deg: 40.0
+    fall_confirm_samples: 3
+    reset_roll_deg: 30.0
+    reset_pitch_deg: 30.0
+
+    trip_on_imu_timeout: true
+    imu_timeout_s: 0.25
+    startup_grace_s: 3.0
