@@ -39,12 +39,12 @@ def generate_launch_description():
                 "port": "/dev/ttyUSB0",
                 "baud": 115200,
                 "frame_id": "imu_link",
-
-
+                # Auto-detect the existing JSON stream or BNO085 CSV firmware.
+                "input_format": "auto",
                 "acc_units": "g",
                 "gyro_units": "deg/s",
-
                 "use_rk4_orientation": False,
+                "use_sensor_orientation": True,
             }
         ],
         remappings=[

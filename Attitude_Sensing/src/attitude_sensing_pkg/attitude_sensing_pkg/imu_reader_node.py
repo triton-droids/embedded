@@ -34,6 +34,8 @@ class ImuReaderNode(Node):
         self.declare_parameter("frame_id", "imu_link")
         self.declare_parameter("publish_odom", False)
         self.declare_parameter("use_rk4_orientation", True)
+        self.declare_parameter("use_sensor_orientation", True)
+        self.declare_parameter("input_format", "auto")
         self.declare_parameter("acc_units", "m/s^2")   # or "g"
         self.declare_parameter("gyro_units", "rad/s")  # or "deg/s"
 
@@ -42,6 +44,8 @@ class ImuReaderNode(Node):
         self.frame_id = self.get_parameter("frame_id").value
         self.publish_odom = bool(self.get_parameter("publish_odom").value)
         self.use_rk4_orientation = bool(self.get_parameter("use_rk4_orientation").value)
+        self.use_sensor_orientation = bool(self.get_parameter("use_sensor_orientation").value)
+        input_format = str(self.get_parameter("input_format").value)
 
         acc_units = self.get_parameter("acc_units").value
         gyro_units = self.get_parameter("gyro_units").value
@@ -59,11 +63,15 @@ class ImuReaderNode(Node):
             rate_hz=None,
             include_all=False,
             integrator=self.integrator,
+            input_format=input_format,
             acc_units=acc_units,
             gyro_units=gyro_units,
         )
 
         self.timer = self.create_timer(0.0, self._tick)  # 0.0 -> 尽快调度（由串口阻塞控制节奏）
+        self.get_logger().info(
+            f"IMU serial reader: port={port}, baud={baud}, input_format={input_format}"
+        )
 
     def _tick(self):
         try:
@@ -88,7 +96,18 @@ class ImuReaderNode(Node):
 
         if self.use_rk4_orientation and "quat_wb" in s:
             imu.orientation = q_to_msg(s["quat_wb"])
-        # 否则 orientation 留默认 0（下游滤波器会自己算）
+        elif self.use_sensor_orientation and "sensor_quat_wb" in s:
+            imu.orientation = q_to_msg(s["sensor_quat_wb"])
+            if s.get("sensor_orientation_partial", False):
+                # Current BNO085 CSV contains roll/pitch but no yaw.
+                imu.orientation_covariance = [
+                    0.001, 0.0, 0.0,
+                    0.0, 0.001, 0.0,
+                    0.0, 0.0, 1.0e6,
+                ]
+        else:
+            # sensor_msgs/Imu convention: -1 means orientation is unavailable.
+            imu.orientation_covariance[0] = -1.0
 
         self.pub_imu.publish(imu)
 
@@ -101,6 +120,8 @@ class ImuReaderNode(Node):
             od.pose.pose.position.z = float(s["lin_pos_m"][2])
             if self.use_rk4_orientation and "quat_wb" in s:
                 od.pose.pose.orientation = q_to_msg(s["quat_wb"])
+            elif self.use_sensor_orientation and "sensor_quat_wb" in s:
+                od.pose.pose.orientation = q_to_msg(s["sensor_quat_wb"])
             od.twist.twist.linear.x = float(s["lin_vel_m_s"][0])
             od.twist.twist.linear.y = float(s["lin_vel_m_s"][1])
             od.twist.twist.linear.z = float(s["lin_vel_m_s"][2])
