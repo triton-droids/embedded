@@ -5,6 +5,37 @@ import numpy as np
 from attitude_sensing_pkg import imu_read
 
 
+def test_esp32_policy_json_is_explicit_si_and_rejects_invalid_samples():
+    sample = imu_read.parse_imu_line(
+        '{"t_us":5000,"accel_mps2":[0,0,9.80665],"gyro_rad_s":[0,0,0.1]}',
+        acc_units='g', gyro_units='deg/s')
+    np.testing.assert_allclose(sample['acc_m_s2'], [0, 0, 9.80665])
+    np.testing.assert_allclose(sample['gyro_rad_s'], [0, 0, 0.1])
+    assert sample['sensor_time_s'] == 0.005
+    assert imu_read.parse_imu_line('{"status":"Found I2C device at 0x68"}') is None
+    assert imu_read.parse_imu_line('{"accel_mps2":[0,0,1]}') is None
+    assert imu_read.parse_imu_line('{"acc":[0,0,NaN],"gyro":[0,0,0]}') is None
+
+
+def test_esp32_microseconds_rollover(monkeypatch):
+    class FakeSerial:
+        lines = iter([
+            b'{"t_us":4294965000,"accel_mps2":[0,0,9.8],"gyro_rad_s":[0,0,0]}\n',
+            b'{"t_us":2704,"accel_mps2":[0,0,9.8],"gyro_rad_s":[0,0,0]}\n'])
+
+        def readline(self):
+            return next(self.lines)
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(imu_read.serial, 'Serial', lambda *args, **kwargs: FakeSerial())
+    samples = imu_read.iter_imu_samples()
+    assert next(samples)['dt'] == 0
+    assert math.isclose(next(samples)['dt'], 0.005, abs_tol=1e-9)
+    samples.close()
+
+
 def test_parse_bno085_csv_converts_to_ros_units():
     sample = imu_read.parse_imu_line(
         "1234,0.0,0.5,1.0,180.0,-90.0,0.0,10.0,-20.0",

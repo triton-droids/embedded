@@ -6,6 +6,7 @@ import numpy as np
 
 import rclpy
 from rclpy.node import Node
+from rclpy.executors import ExternalShutdownException
 
 from sensor_msgs.msg import Imu
 from nav_msgs.msg import Odometry
@@ -62,7 +63,7 @@ class ImuReaderNode(Node):
             baud=baud,
             rate_hz=None,
             include_all=False,
-            integrator=self.integrator,
+            integrator=self.integrator if self.use_rk4_orientation or self.publish_odom else None,
             input_format=input_format,
             acc_units=acc_units,
             gyro_units=gyro_units,
@@ -77,7 +78,13 @@ class ImuReaderNode(Node):
         try:
             s = next(self.gen)
         except Exception as e:
+            if not rclpy.ok():
+                return
             self.get_logger().error(f"IMU read error: {e}")
+            return
+
+        # A signal may shut ROS down while the serial read was blocking.
+        if not rclpy.ok():
             return
 
         imu = Imu()
@@ -131,6 +138,15 @@ class ImuReaderNode(Node):
 def main():
     rclpy.init()
     node = ImuReaderNode()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    try:
+        rclpy.spin(node)
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass
+    except RuntimeError:
+        if rclpy.ok():
+            raise
+    finally:
+        node.gen.close()
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()

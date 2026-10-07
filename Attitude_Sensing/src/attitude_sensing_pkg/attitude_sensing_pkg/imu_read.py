@@ -131,19 +131,29 @@ def parse_imu_line(
         if not isinstance(msg, dict):
             return None
         try:
-            acc = np.asarray(msg.get("acc", [0, 0, 0]), dtype=np.float64)
-            gyro = np.asarray(msg.get("gyro", [0, 0, 0]), dtype=np.float64)
+            # SI keys emitted by the ESP32-S3 policy IMU firmware are explicit;
+            # unit overrides apply only to the older acc/gyro format.
+            explicit_si = "accel_mps2" in msg or "gyro_rad_s" in msg
+            acc = np.asarray(msg["accel_mps2" if explicit_si else "acc"], dtype=np.float64)
+            gyro = np.asarray(msg["gyro_rad_s" if explicit_si else "gyro"], dtype=np.float64)
             if acc.shape != (3,) or gyro.shape != (3,):
                 return None
-            acc, gyro = _to_si(
-                acc, gyro, acc_units=acc_units, gyro_units=gyro_units
-            )
-        except (TypeError, ValueError):
+            if not np.isfinite(acc).all() or not np.isfinite(gyro).all():
+                return None
+            if not explicit_si:
+                acc, gyro = _to_si(
+                    acc, gyro, acc_units=acc_units, gyro_units=gyro_units
+                )
+            device_us = int(msg["t_us"]) if "t_us" in msg else None
+            if device_us is not None and not 0 <= device_us < 2**32:
+                return None
+        except (KeyError, TypeError, ValueError, OverflowError):
             return None
         return {
             "acc_m_s2": acc,
             "gyro_rad_s": gyro,
-            "sensor_time_s": None,
+            "sensor_time_s": device_us * 1e-6 if device_us is not None else None,
+            "sensor_counter_period_s": (2**32) * 1e-6,
             "raw": msg,
             "source": "json",
         }
@@ -169,6 +179,7 @@ def parse_imu_line(
             np.array([gx_dps, gy_dps, gz_dps], dtype=np.float64)
         ),
         "sensor_time_s": t_ms * 1e-3,
+        "sensor_counter_period_s": (2**32) * 1e-3,
         "sensor_quat_wb": quat_from_rpy(
             math.radians(roll_deg), math.radians(pitch_deg)
         ),
@@ -273,8 +284,8 @@ def iter_imu_samples(
             sensor_t = parsed.get("sensor_time_s")
             if sensor_t is not None and last_sensor_t is not None:
                 dt = float(sensor_t) - float(last_sensor_t)
-                if dt < -1.0:  # Arduino millis() rollover (~49.7 days)
-                    dt += (2**32) * 1e-3
+                if dt < -1.0:
+                    dt += parsed["sensor_counter_period_s"]
             elif last_wall_t is not None:
                 dt = t_now - last_wall_t
             else:
