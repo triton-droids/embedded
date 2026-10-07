@@ -22,11 +22,15 @@
   <build_export_depend>motor_control_interfaces</build_export_depend>
   <exec_depend>motor_control_interfaces</exec_depend>
   <exec_depend>humanoid_safety</exec_depend>
+  <exec_depend>attitude_sensing_pkg</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
 
   <!-- C++ dependencies -->
   <depend>rclcpp</depend>
 
   <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_cmake_pytest</test_depend>
+  <test_depend>python3-pytest</test_depend>
   <test_depend>ament_lint_common</test_depend>
 
   <export>

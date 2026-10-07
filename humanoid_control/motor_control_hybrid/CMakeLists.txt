@@ -87,6 +87,9 @@ install(DIRECTORY config
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   ament_lint_auto_find_test_dependencies()
+  find_package(ament_cmake_pytest REQUIRED)
+  ament_add_pytest_test(tracking_onnx_test test/test_tracking_onnx.py TIMEOUT 90)
+  ament_add_pytest_test(tracking_node_test test/test_tracking_node.py TIMEOUT 90)
 endif()
 
 install(PROGRAMS
@@ -113,6 +116,12 @@ install(PROGRAMS
   motor_control_hybrid/policy_bridge_node.py
   DESTINATION lib/${PROJECT_NAME}
   RENAME policy_bridge_node
+)
+
+install(PROGRAMS
+  motor_control_hybrid/tracking_policy_node.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME tracking_policy_node
 )
 
 ament_package()
