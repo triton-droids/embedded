@@ -46,6 +46,11 @@ Use the ROS distribution that matches the OS. Do not copy `rosenv/` between Ubun
 
 ## Runtime Model
 
+For the 56-input leg-tracking ONNX export, see
+[ROS 2 tracking-policy integration](docs/tracking_policy_ros2.md).
+`tracking_policy.launch.py` runs the ESP32-S3 IMU and 50 Hz policy through ROS
+topics without an SDK. Its optional C++/fake-motor bench stays under `/policy/*`.
+
 ### ROS Topics
 
 - `/joint_states` (`sensor_msgs/JointState`): motor state from the real CAN node or fake motor node.
