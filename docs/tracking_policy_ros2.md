@@ -156,11 +156,56 @@ jitter must both be measured.
 Zero/fake feedback and an unmounted IMU can produce angles outside physical
 joint limits. `/policy/*` outputs are diagnostic targets, not proof of stable
 physical control. This launch does not publish `/motor_commands` or
-`/desired_motor_subset`. The current `motors.yaml` defines only `test_joint` and
-`test_joint2`, not the ten policy leg joints. Before routing commands to hardware,
+`/desired_motor_subset`. The synchronized `motors.yaml` defines the ten policy
+leg joints with unverified hardware fields. Before routing commands to hardware,
 complete the ten-joint motor IDs, encoder mapping, signs, offsets, limits,
 appropriate gains, mounting calibration, command limits and validated stop path.
 No guessed mappings or SDK implementation are added by this integration.
+
+## Synchronized motor registry
+
+`motor_control_hybrid/config/motors.yaml` now stores the ten joints in the active
+tracking export's order, its Kp/Kd, zero default positions, action scale 0.2,
+50 Hz contract, and simulation joint limits. The launch reads this order for
+fake feedback. On startup the policy checks the registry against the model's
+SHA256 and metadata, including the motor gain entries; configuration drift
+requires resynchronization.
+
+```bash
+source rosenv/bin/activate
+python scripts/sync_tracking_motor_config.py
+```
+
+The sync reads the sibling simulation export and its saved training XML. It
+preserves existing hardware mapping fields for matching joint names and marks
+the result `hardware_verified: false` after every sync. CAN startup refuses this
+registry until the hardware fields are completed and explicitly verified. CAN
+IDs, interfaces, models, master IDs, directions, encoder offsets and hardware
+torque limits are unset because simulation does not establish them.
+
+The original test_joint/test_joint2 configuration is preserved in
+`config/bench_motors.yaml`; `control_config.yaml` remains the separate arm
+configuration. `policy_bridge_config.json` remains the separate legacy Torch
+model contract and is not consumed by the tracking launch.
+
+The CAN driver's encoder convention is `q_joint = direction *
+(q_motor - encoder_offset_rad)`. Commands use the inverse transform, apply
+configured position/velocity limits and optional hardware torque limits, and
+default missing command gains to per-motor Kp/Kd. Explicit command gains still
+take precedence. Cached feedback older than `feedback_timeout_s` (default 0.1 s)
+is excluded, and JointState names follow registry order. All mappings are checked
+before any bus connection. These changes have software tests; physical hardware
+calibration and validation remain outstanding.
+
+Run the configuration/CAN transformation tests without physical CAN I/O:
+
+```bash
+source /opt/ros/humble/setup.bash
+source rosenv/bin/activate
+source install/setup.bash
+python -m unittest discover -s humanoid_control/motor_control_hybrid/test \
+  -p test_motor_configuration.py -v
+```
 
 ## Native ROS 2 frequency test and logs
 

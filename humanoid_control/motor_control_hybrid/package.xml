@@ -24,6 +24,8 @@
   <exec_depend>humanoid_safety</exec_depend>
   <exec_depend>attitude_sensing_pkg</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
 
   <!-- C++ dependencies -->
   <depend>rclcpp</depend>

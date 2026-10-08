@@ -7,6 +7,7 @@ from pathlib import Path
 import time
 
 import numpy as np
+import yaml
 import rclpy
 from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
@@ -16,7 +17,7 @@ from std_msgs.msg import Bool, Float64MultiArray, String
 from motor_control_interfaces.msg import MotorCommand
 
 from motor_control_hybrid.tracking_onnx import (
-    GravityEstimator, TrackingPolicy, fresh, joint_feedback)
+    GravityEstimator, TrackingPolicy, fresh, joint_feedback, validate_tracking_registry)
 
 
 class TrackingPolicyNode(Node):
@@ -26,6 +27,7 @@ class TrackingPolicyNode(Node):
                             '20260914_170827/20260914_170827.onnx')
         defaults = {
             'model_path': default_model, 'control_rate_hz': 50.0,
+            'motor_config_file': '',
             'imu_topic': '/imu/data_raw', 'joint_states_topic': '/joint_states',
             'joint_feedback_mode': 'zero', 'input_timeout_s': 0.1,
             'calibration_seconds': 2.0, 'imu_frame': 'imu_link',
@@ -57,6 +59,10 @@ class TrackingPolicyNode(Node):
         model = Path(str(param('model_path'))).expanduser()
         self.policy = TrackingPolicy(model)
         self.model_sha256 = hashlib.sha256(model.read_bytes()).hexdigest()
+        registry_path = str(param('motor_config_file'))
+        if registry_path:
+            params = yaml.safe_load(Path(registry_path).read_text())['motor_control_node']['ros__parameters']
+            validate_tracking_registry(self.policy, params, self.model_sha256)
         self.previous = np.zeros(10, dtype=np.float32)
         for frame in range(30):
             obs = self.policy.observation(frame % self.policy.frames, np.zeros(3),

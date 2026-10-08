@@ -25,6 +25,7 @@ from motor_control_interfaces.msg import MotorCommand
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from robstride_dynamics import CommunicationType, Motor, ParameterType, RobstrideBus
+from motor_control_hybrid.motor_configuration import validate_registry
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool, String
 
@@ -37,6 +38,10 @@ class PythonCanNode(Node):
         self.declare_parameter('publish_rate_hz', 50.0)
         self.declare_parameter('feedback_poll_hz', 50.0)
         self.declare_parameter('feedback_poll_when_idle', True)
+        self.declare_parameter('feedback_timeout_s', 0.1)
+        self.feedback_timeout_s = float(self.get_parameter('feedback_timeout_s').value)
+        if not 0 < self.feedback_timeout_s <= 1.0:
+            raise ValueError('feedback_timeout_s must be in (0, 1]')
 
         cfg_path = self.get_parameter('motor_config_file').get_parameter_value().string_value
         publish_rate = self.get_parameter('publish_rate_hz').get_parameter_value().double_value
@@ -132,6 +137,7 @@ class PythonCanNode(Node):
         self.max_vel_rad_s = float(params.get('MAX_VEL_RAD_S', 4.5))
         self.freq_hz = float(params.get('FREQ_HZ', 0.8))
 
+        self.motor_settings = validate_registry(params)
         motors_cfg = params.get('motors', {}) or {}
         motors_by_iface: Dict[str, Dict[str, Motor]] = {}
 
@@ -157,11 +163,14 @@ class PythonCanNode(Node):
         for iface, motors in motors_by_iface.items():
             try:
                 bus = RobstrideBus(iface, motors, {})
+                bus.host_id = next(
+                    cfg.get('master_id', self.default_master) for cfg in motors_cfg.values()
+                    if cfg.get('can_interface', self.default_iface) == iface)
                 bus.connect(handshake=True)
                 self.buses[iface] = bus
                 self.bus_locks[iface] = threading.Lock()
                 for joint_name, motor_name in self.motor_name_by_joint.items():
-                    if motor_name in motors:
+                    if motors_cfg[joint_name].get('can_interface', self.default_iface) == iface:
                         self.bus_by_joint[joint_name] = bus
                 self.get_logger().info(
                     f'Connected RobstrideBus on {iface} with {len(motors)} motor(s)'
@@ -224,8 +233,9 @@ class PythonCanNode(Node):
             return False
 
     def _update_state(self, joint_name: str, pos: float, vel: float, tq: float, temp: float):
+        pos, vel, tq = self.motor_settings[joint_name].feedback(pos, vel, tq)
         with self.state_lock:
-            self.state_buffer[joint_name] = (pos, vel, tq, temp, time.time())
+            self.state_buffer[joint_name] = (pos, vel, tq, temp, time.monotonic())
 
     def _try_read_feedback(self, joint_name: str):
         bus = self.bus_by_joint.get(joint_name)
@@ -384,6 +394,7 @@ class PythonCanNode(Node):
         mode = cmd['mode']
 
         try:
+            cmd = self.motor_settings[joint_name].command(cmd)
             with self.bus_locks[bus.channel]:
                 if mode == MotorCommand.MODE_VELOCITY:
                     self._send_velocity_command(bus, joint_name, motor_name, cmd)
@@ -529,8 +540,8 @@ class PythonCanNode(Node):
                 'velocity': msg.velocity[i] if i < len(msg.velocity) else 0.0,
                 'acceleration': msg.acceleration[i] if i < len(msg.acceleration) else 0.0,
                 'torque': msg.torque[i] if i < len(msg.torque) else 0.0,
-                'kp': msg.kp[i] if i < len(msg.kp) else self.default_kp,
-                'kd': msg.kd[i] if i < len(msg.kd) else self.default_kd,
+                'kp': msg.kp[i] if i < len(msg.kp) else self.motor_settings[joint].kp,
+                'kd': msg.kd[i] if i < len(msg.kd) else self.motor_settings[joint].kd,
             }
 
             try:
@@ -543,7 +554,12 @@ class PythonCanNode(Node):
         msg.header.stamp = self.get_clock().now().to_msg()
 
         with self.state_lock:
-            for joint_name, (pos, vel, tq, temp, timestamp) in self.state_buffer.items():
+            now = time.monotonic()
+            for joint_name in self.motor_name_by_joint:
+                sample = self.state_buffer.get(joint_name)
+                if sample is None or now - sample[4] > self.feedback_timeout_s:
+                    continue
+                pos, vel, tq, temp, timestamp = sample
                 msg.name.append(joint_name)
                 msg.position.append(pos)
                 msg.velocity.append(vel)
@@ -559,6 +575,8 @@ class PythonCanNode(Node):
 
         with self.state_lock:
             for joint_name, (pos, vel, tq, temp, timestamp) in self.state_buffer.items():
+                if time.monotonic() - timestamp > self.feedback_timeout_s:
+                    continue
                 motor_index = self.motor_index_map.get(joint_name)
                 if motor_index is None:
                     continue

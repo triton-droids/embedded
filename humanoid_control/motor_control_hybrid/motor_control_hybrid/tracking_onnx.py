@@ -117,6 +117,26 @@ def joint_feedback(names, positions, velocities, policy_names):
     return q, dq
 
 
+def validate_tracking_registry(policy, params, model_sha256):
+    """Reject drift between the embedded registry and the loaded model."""
+    contract = params['model_contract']
+    if (contract['format'] != 'tracking_onnx' or contract['control_hz'] != 50.0
+            or contract['model_sha256'] != model_sha256
+            or contract['joint_order'] != policy.names
+            or list(params['motors']) != policy.names):
+        raise ValueError('Motor registry does not match the tracking ONNX export; resync it')
+    for key, values in (('default_joint_pos', policy.offset), ('action_scale', policy.scale),
+                        ('joint_stiffness', policy.kp), ('joint_damping', policy.kd)):
+        configured = np.asarray(contract[key], dtype=np.float32)
+        if configured.shape != values.shape or not np.array_equal(configured, values):
+            raise ValueError(f'Motor registry {key} differs from ONNX metadata')
+    for index, name in enumerate(policy.names):
+        motor = params['motors'][name]
+        if (np.float32(motor['kp']) != policy.kp[index]
+                or np.float32(motor['kd']) != policy.kd[index]):
+            raise ValueError(f'{name}: motor gains differ from tracking ONNX metadata')
+
+
 def fresh(receipt_time, stamp_time, now_monotonic, now_ros, timeout):
     """Gate both host receipt age and ROS message timestamp; reject future stamps."""
     return (receipt_time is not None and stamp_time is not None

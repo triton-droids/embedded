@@ -48,6 +48,8 @@ Use the ROS distribution that matches the OS. Do not copy `rosenv/` between Ubun
 
 For the 56-input leg-tracking ONNX export, see
 [ROS 2 tracking-policy integration](docs/tracking_policy_ros2.md).
+For complete terminal commands, see
+[activate the policy, fake motors, and RViz](docs/activate_tracking_system.md).
 `tracking_policy.launch.py` runs the ESP32-S3 IMU and 50 Hz policy through ROS
 topics without an SDK. Its optional C++/fake-motor bench stays under `/policy/*`.
 
@@ -257,4 +259,3 @@ Disable:
 ros2 topic pub -1 /motor_commands motor_control_interfaces/msg/MotorCommand \
 "{joint_name:['shoulder_pitch','elbow_pitch'], mode:[4]}"
 ```
-

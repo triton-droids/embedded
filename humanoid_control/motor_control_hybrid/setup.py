@@ -36,6 +36,7 @@ setup(
             'double_pendulum_websocket_node = motor_control_hybrid.double_pendulum_websocket_node:main',
             'policy_bridge_node = motor_control_hybrid.policy_bridge_node:main',
             'tracking_policy_node = motor_control_hybrid.tracking_policy_node:main',
+            'joint_state_monitor_node = motor_control_hybrid.joint_state_monitor_node:main',
         ],
     },
 )

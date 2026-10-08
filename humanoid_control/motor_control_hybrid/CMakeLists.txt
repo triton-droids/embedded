@@ -124,4 +124,10 @@ install(PROGRAMS
   RENAME tracking_policy_node
 )
 
+install(PROGRAMS
+  motor_control_hybrid/joint_state_monitor_node.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME joint_state_monitor_node
+)
+
 ament_package()

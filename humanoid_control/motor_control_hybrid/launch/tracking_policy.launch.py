@@ -1,5 +1,8 @@
 """IMU -> ONNX tracking -> monitor topics, with an optional isolated C++ bench."""
 from pathlib import Path
+import yaml
+
+from ament_index_python.packages import get_package_share_directory
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
@@ -10,10 +13,13 @@ from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
+    registry_path = Path(get_package_share_directory('motor_control_hybrid')) / 'config/motors.yaml'
+    registry = yaml.safe_load(registry_path.read_text())['motor_control_node']['ros__parameters']
+    contract = registry['model_contract']
     defaults = {
-        'model_path': str(Path.home() / 'Github/simulation/logs/legs_tracking/'
+        'model_path': str(Path(__file__).resolve().parents[3].parent / 'simulation/logs/legs_tracking/'
                           '20260914_170827/20260914_170827.onnx'),
-        'port': '/dev/ttyACM0', 'baud': '460800',
+        'port': '/dev/ttyACM0', 'baud': '460800', 'input_format': 'json',
         'start_imu_reader': 'true', 'imu_topic': '/imu/data_raw',
         'joint_states_topic': '/policy/joint_states',
         'joint_feedback_mode': 'zero', 'calibration_seconds': '2.0',
@@ -22,14 +28,13 @@ def generate_launch_description():
     args = [DeclareLaunchArgument(name, default_value=value)
             for name, value in defaults.items()]
     cfg = LaunchConfiguration
-    names = [f'{side}_{joint}_joint' for side in ('left', 'right')
-             for joint in ('hip1', 'hip2', 'thigh', 'knee', 'ankle')]
+    names = contract['joint_order']
     reader = Node(
         package='attitude_sensing_pkg', executable='imu_reader_node', output='screen',
         condition=IfCondition(cfg('start_imu_reader')),
         parameters=[{
             'port': cfg('port'), 'baud': ParameterValue(cfg('baud'), value_type=int),
-            'frame_id': 'imu_link', 'input_format': 'json',
+            'frame_id': 'imu_link', 'input_format': cfg('input_format'),
             'acc_units': 'm/s^2', 'gyro_units': 'rad/s',
             'use_rk4_orientation': False, 'use_sensor_orientation': False,
             'publish_odom': False,
@@ -37,7 +42,8 @@ def generate_launch_description():
     policy = Node(
         package='motor_control_hybrid', executable='tracking_policy_node', output='screen',
         parameters=[{
-            'model_path': cfg('model_path'), 'control_rate_hz': 50.0,
+            'model_path': cfg('model_path'), 'control_rate_hz': contract['control_hz'],
+            'motor_config_file': str(registry_path),
             'imu_topic': cfg('imu_topic'), 'joint_states_topic': cfg('joint_states_topic'),
             'joint_feedback_mode': cfg('joint_feedback_mode'),
             'calibration_seconds': ParameterValue(cfg('calibration_seconds'), value_type=float),

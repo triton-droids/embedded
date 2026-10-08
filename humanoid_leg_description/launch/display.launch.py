@@ -34,7 +34,7 @@ Visualization Manager:
       Description Source: Topic
       Description Topic:
         Depth: 5
-        Durability Policy: Volatile
+        Durability Policy: Transient Local
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /robot_description
@@ -86,7 +86,8 @@ def _launch_setup(context, *args, **kwargs):
         Node(
             package="robot_state_publisher",
             executable="robot_state_publisher",
-            parameters=[robot_description],
+            parameters=[robot_description, {'publish_frequency': 50.0}],
+            remappings=[('joint_states', LaunchConfiguration('joint_states_topic'))],
             output="screen",
         ),
         Node(
@@ -98,6 +99,7 @@ def _launch_setup(context, *args, **kwargs):
         Node(
             package="rviz2",
             executable="rviz2",
+            condition=IfCondition(LaunchConfiguration("use_rviz")),
             arguments=["-d", str(rviz_config_path)],
             output="screen",
         ),
@@ -126,5 +128,7 @@ def generate_launch_description():
     return LaunchDescription([
         model_arg,
         use_joint_state_gui_arg,
+        DeclareLaunchArgument("joint_states_topic", default_value="/joint_states"),
+        DeclareLaunchArgument("use_rviz", default_value="true"),
         OpaqueFunction(function=_launch_setup),
     ])

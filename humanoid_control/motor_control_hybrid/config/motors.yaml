@@ -1,31 +1,198 @@
+# Synced from the tracking ONNX export and its saved training XML.
+# Gains and limits are simulation values, not validated hardware values.
+# null hardware fields must be calibrated; action indices are not CAN IDs.
 motor_control_node:
   ros__parameters:
-    default_can_interface: "can0"
-    default_master_id: 255
-
-    FREQ_HZ: 0.8
-    KP: 10.0
-    KD: 0.2
+    hardware_verified: false
+    model_contract:
+      format: tracking_onnx
+      model_sha256: 90fc691abbf43b89a55956493da6ab19c59105f9167f29f8f93fc317b68c9309
+      control_hz: 50.0
+      joint_order:
+      - left_hip1_joint
+      - left_hip2_joint
+      - left_thigh_joint
+      - left_knee_joint
+      - left_ankle_joint
+      - right_hip1_joint
+      - right_hip2_joint
+      - right_thigh_joint
+      - right_knee_joint
+      - right_ankle_joint
+      default_joint_pos:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      action_scale:
+      - 0.2
+      - 0.2
+      - 0.2
+      - 0.2
+      - 0.2
+      - 0.2
+      - 0.2
+      - 0.2
+      - 0.2
+      - 0.2
+      joint_stiffness:
+      - 100.0
+      - 100.0
+      - 100.0
+      - 80.0
+      - 20.0
+      - 100.0
+      - 100.0
+      - 100.0
+      - 80.0
+      - 20.0
+      joint_damping:
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      observation_names: command,base_ang_vel,joint_pos,joint_vel,actions,gravity
     MAX_VEL_RAD_S: 4.5
-
-    inversion: [1, 1, 1, 1, 1, -1, -1, -1, -1, -1, 1]
-
     motors:
-      test_joint:
-        can_interface: "can0"
-        master_id: 255
-        motor_id: 12
-        actuator_type: 2
-        model: "rs-03"
-        direction: 1
+      left_hip1_joint:
+        can_interface: null
+        master_id: null
+        motor_id: null
+        model: null
+        actuator_type: null
+        direction: null
+        encoder_offset_rad: null
+        max_torque_nm: null
         min_position: -1.57
         max_position: 1.57
-      test_joint2:
-        can_interface: "can0"
-        master_id: 255
-        motor_id: 13
-        actuator_type: 2
-        model: "rs-03"
-        direction: 1
+        kp: 100.0
+        kd: 1.0
+      left_hip2_joint:
+        can_interface: null
+        master_id: null
+        motor_id: null
+        model: null
+        actuator_type: null
+        direction: null
+        encoder_offset_rad: null
+        max_torque_nm: null
+        min_position: -1.57
+        max_position: 0.436332
+        kp: 100.0
+        kd: 1.0
+      left_thigh_joint:
+        can_interface: null
+        master_id: null
+        motor_id: null
+        model: null
+        actuator_type: null
+        direction: null
+        encoder_offset_rad: null
+        max_torque_nm: null
+        min_position: -0.785398
+        max_position: 0.785398
+        kp: 100.0
+        kd: 1.0
+      left_knee_joint:
+        can_interface: null
+        master_id: null
+        motor_id: null
+        model: null
+        actuator_type: null
+        direction: null
+        encoder_offset_rad: null
+        max_torque_nm: null
+        min_position: -2.0944
+        max_position: 0.0
+        kp: 80.0
+        kd: 1.0
+      left_ankle_joint:
+        can_interface: null
+        master_id: null
+        motor_id: null
+        model: null
+        actuator_type: null
+        direction: null
+        encoder_offset_rad: null
+        max_torque_nm: null
+        min_position: -0.6
+        max_position: 0.6
+        kp: 20.0
+        kd: 1.0
+      right_hip1_joint:
+        can_interface: null
+        master_id: null
+        motor_id: null
+        model: null
+        actuator_type: null
+        direction: null
+        encoder_offset_rad: null
+        max_torque_nm: null
         min_position: -1.57
         max_position: 1.57
+        kp: 100.0
+        kd: 1.0
+      right_hip2_joint:
+        can_interface: null
+        master_id: null
+        motor_id: null
+        model: null
+        actuator_type: null
+        direction: null
+        encoder_offset_rad: null
+        max_torque_nm: null
+        min_position: -0.436332
+        max_position: 1.57
+        kp: 100.0
+        kd: 1.0
+      right_thigh_joint:
+        can_interface: null
+        master_id: null
+        motor_id: null
+        model: null
+        actuator_type: null
+        direction: null
+        encoder_offset_rad: null
+        max_torque_nm: null
+        min_position: -0.785398
+        max_position: 0.785398
+        kp: 100.0
+        kd: 1.0
+      right_knee_joint:
+        can_interface: null
+        master_id: null
+        motor_id: null
+        model: null
+        actuator_type: null
+        direction: null
+        encoder_offset_rad: null
+        max_torque_nm: null
+        min_position: -2.0944
+        max_position: 0.0
+        kp: 80.0
+        kd: 1.0
+      right_ankle_joint:
+        can_interface: null
+        master_id: null
+        motor_id: null
+        model: null
+        actuator_type: null
+        direction: null
+        encoder_offset_rad: null
+        max_torque_nm: null
+        min_position: -0.6
+        max_position: 0.6
+        kp: 20.0
+        kd: 1.0
