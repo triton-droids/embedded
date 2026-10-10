@@ -1,0 +1,843 @@
+{
+  "session": "20261006_225918",
+  "created": "2026-10-07 15:38:26",
+  "mjcf": {
+    "ref": "origin/codex/hardware-tracking-retrain:cad/chrobot_hardware_candidate.xml",
+    "commit": "6fcd451fdafff86e2242b66f588f514b480dde29",
+    "base_mode": "yaw",
+    "sim_dt": 0.0005
+  },
+  "model": "tau = kp*r^2*(cmd(t - delay) - q) - kd_scale*kd*r^2*qdot with the commanded kp; armature and frictionloss (Coulomb, MuJoCo) on the joint; cmd = logged post-slew target; free base welded to the torso orientation measured by the IMU (gantry swing)",
+  "nominal_baseline": {
+    "armature": 0.01,
+    "frictionloss": 0.0,
+    "damping": 0.1,
+    "delay_s": 0.0,
+    "kp_scale": 1.0,
+    "kd_scale": 1.0
+  },
+  "joints": [
+    {
+      "motor_id": 1,
+      "joint": "left_hip1_joint",
+      "model": "rs-04",
+      "kp": 100.0,
+      "kd": 2.0,
+      "linkage_ratio": 1.0,
+      "can_half_round_trip_s": 0.0004571080207824707,
+      "fitted": {
+        "armature": 0.0005000000111599048,
+        "frictionloss": 0.01908449144376796,
+        "kd_scale": 2.1351075845799183,
+        "delay_s": 0.0,
+        "kp_scale": 1.0,
+        "damping": 0.0
+      },
+      "rms_deg": {
+        "fit_trials_fitted": 0.45020262544035605,
+        "fit_trials_nominal": 0.6198016444651008,
+        "holdout_fitted": 0.19122670630986727,
+        "holdout_nominal": 0.2557590344751978,
+        "holdout_fitted_base_fixed": 0.22232734136606191
+      },
+      "torque_reply": {
+        "kp_ratio": 0.8002418209884959,
+        "kd_measured": 0.6960231718242094,
+        "kd_nominal": 2.0,
+        "r2": 0.9549864091353375,
+        "samples": 3538,
+        "note": "reported torque depends on the motor's own torque-constant calibration"
+      },
+      "base_tilt_max_deg": 4.510844707451045,
+      "trials": {
+        "fit": [
+          "m1_step6_20261006_233657.npz",
+          "m1_sine025_20261006_233711.npz",
+          "m1_sine1_20261006_233748.npz",
+          "m1_chirp_20261006_233802.npz"
+        ],
+        "holdout": [
+          "m1_step3_20261006_233644.npz",
+          "m1_sine05_20261006_233733.npz"
+        ]
+      },
+      "per_holdout_trial_deg": {
+        "m1_step3|m1_step3_20261006_233644.npz": {
+          "fitted": 0.19445870925906508,
+          "nominal": 0.23458638501546092
+        },
+        "m1_sine05|m1_sine05_20261006_233733.npz": {
+          "fitted": 0.18851700831804688,
+          "nominal": 0.2719976901472306
+        }
+      },
+      "optimizer": {
+        "cost": 252.54227532592333,
+        "delay_grid_cost": {
+          "0": 252.54227532592333,
+          "0.5": 256.7301713893859,
+          "1.0": 260.9798719581077,
+          "2": 269.6390806452715,
+          "4": 287.8377099798033,
+          "7": 317.37209733835647,
+          "12": 372.5189050326931
+        },
+        "seconds": 466.9
+      }
+    },
+    {
+      "motor_id": 2,
+      "joint": "left_hip2_joint",
+      "model": "rs-03",
+      "kp": 100.0,
+      "kd": 2.0,
+      "linkage_ratio": 1.0,
+      "can_half_round_trip_s": 0.00042957067489624023,
+      "fitted": {
+        "armature": 0.0005199502055175003,
+        "frictionloss": 0.18870204549409064,
+        "kd_scale": 1.1370602348095098,
+        "delay_s": 0.0,
+        "kp_scale": 1.0,
+        "damping": 0.0
+      },
+      "rms_deg": {
+        "fit_trials_fitted": 0.43971840133593426,
+        "fit_trials_nominal": 0.45462681646791125,
+        "holdout_fitted": 0.18716779758762925,
+        "holdout_nominal": 0.20246052920013713,
+        "holdout_fitted_base_fixed": 0.1876546314920219
+      },
+      "torque_reply": {
+        "kp_ratio": 0.8572344514462522,
+        "kd_measured": 0.633712899691243,
+        "kd_nominal": 2.0,
+        "r2": 0.9673467482223168,
+        "samples": 3538,
+        "note": "reported torque depends on the motor's own torque-constant calibration"
+      },
+      "base_tilt_max_deg": 8.686201111745936,
+      "trials": {
+        "fit": [
+          "m2_step6_20261006_233056.npz",
+          "m2_sine025_20261006_233114.npz",
+          "m2_sine1_20261006_233149.npz",
+          "m2_chirp_20261006_233221.npz"
+        ],
+        "holdout": [
+          "m2_step3_20261006_233042.npz",
+          "m2_sine05_20261006_233133.npz"
+        ]
+      },
+      "per_holdout_trial_deg": {
+        "m2_step3|m2_step3_20261006_233042.npz": {
+          "fitted": 0.19031871295823038,
+          "nominal": 0.17041614379715325
+        },
+        "m2_sine05|m2_sine05_20261006_233133.npz": {
+          "fitted": 0.18452624602355772,
+          "nominal": 0.2255074245540536
+        }
+      },
+      "optimizer": {
+        "cost": 240.91693150189343,
+        "delay_grid_cost": {
+          "0": 240.91693150189343,
+          "0.5": 242.95108331970465,
+          "1.0": 245.09897384738835,
+          "2": 249.74476338042948,
+          "4": 258.29720792296825,
+          "7": 275.7350301221071,
+          "12": 314.52579010580604
+        },
+        "seconds": 573.2
+      }
+    },
+    {
+      "motor_id": 3,
+      "joint": "left_thigh_joint",
+      "model": "rs-03",
+      "kp": 100.0,
+      "kd": 2.0,
+      "linkage_ratio": 1.0,
+      "can_half_round_trip_s": 0.00045925378799438477,
+      "fitted": {
+        "armature": 0.058151074091056014,
+        "frictionloss": 0.430942301746611,
+        "kd_scale": 0.787645062394883,
+        "delay_s": 0.003,
+        "kp_scale": 1.0,
+        "damping": 0.0
+      },
+      "rms_deg": {
+        "fit_trials_fitted": 0.15417255153105042,
+        "fit_trials_nominal": 0.23400198876901318,
+        "holdout_fitted": 0.16286905531409843,
+        "holdout_nominal": 0.23348570114651196,
+        "holdout_fitted_base_fixed": 0.16293366948611337
+      },
+      "torque_reply": {
+        "kp_ratio": 0.6326745410736241,
+        "kd_measured": 0.5592213967263285,
+        "kd_nominal": 2.0,
+        "r2": 0.7037415425494546,
+        "samples": 3538,
+        "note": "reported torque depends on the motor's own torque-constant calibration"
+      },
+      "base_tilt_max_deg": 3.1712406671015034,
+      "trials": {
+        "fit": [
+          "m3_sine1_20261006_232405.npz",
+          "m3_chirp_20261006_232428.npz",
+          "m3_step6_20261007_150730.npz",
+          "m3_sine025_20261007_150746.npz"
+        ],
+        "holdout": [
+          "m3_step3_20261007_150716.npz",
+          "m3_sine05_20261007_150808.npz"
+        ]
+      },
+      "per_holdout_trial_deg": {
+        "m3_step3|m3_step3_20261007_150716.npz": {
+          "fitted": 0.11569590879701139,
+          "nominal": 0.20302988367682925
+        },
+        "m3_sine05|m3_sine05_20261007_150808.npz": {
+          "fitted": 0.1933230047839272,
+          "nominal": 0.25590987709762153
+        }
+      },
+      "optimizer": {
+        "cost": 29.616392854410623,
+        "delay_grid_cost": {
+          "0": 29.723651257839133,
+          "1.0": 29.664283506200253,
+          "2": 29.626671213288237,
+          "2.5": 29.61766964001819,
+          "3.0": 29.616392854410623,
+          "3.5": 29.622803177726905,
+          "4": 29.637309408778393,
+          "7": 29.92908997087061,
+          "12": 31.456689532144885
+        },
+        "seconds": 588.7
+      }
+    },
+    {
+      "motor_id": 4,
+      "joint": "left_knee_joint",
+      "model": "rs-04",
+      "kp": 80.0,
+      "kd": 2.0,
+      "linkage_ratio": 1.0,
+      "can_half_round_trip_s": 0.00043022632598876953,
+      "fitted": {
+        "armature": 0.059536381203919256,
+        "frictionloss": 0.6201524919434617,
+        "kd_scale": 0.5506020067715325,
+        "delay_s": 0.012,
+        "kp_scale": 1.0,
+        "damping": 0.0
+      },
+      "rms_deg": {
+        "fit_trials_fitted": 0.1696459832617282,
+        "fit_trials_nominal": 0.4125108560710221,
+        "holdout_fitted": 0.15535101859958128,
+        "holdout_nominal": 0.33993725501781286,
+        "holdout_fitted_base_fixed": 0.16067891781414947
+      },
+      "torque_reply": {
+        "kp_ratio": 0.7246873509101608,
+        "kd_measured": 0.6793463084822329,
+        "kd_nominal": 2.0,
+        "r2": 0.8927409129178923,
+        "samples": 3538,
+        "note": "reported torque depends on the motor's own torque-constant calibration"
+      },
+      "base_tilt_max_deg": 7.060091824920303,
+      "trials": {
+        "fit": [
+          "m4_step6_20261006_230952.npz",
+          "m4_sine025_20261006_231006.npz",
+          "m4_sine1_20261006_231042.npz",
+          "m4_chirp_20261006_231056.npz"
+        ],
+        "holdout": [
+          "m4_step3_20261006_230521.npz",
+          "m4_sine05_20261006_231026.npz"
+        ]
+      },
+      "per_holdout_trial_deg": {
+        "m4_step3|m4_step3_20261006_230521.npz": {
+          "fitted": 0.17175124507071834,
+          "nominal": 0.2829546870990005
+        },
+        "m4_sine05|m4_sine05_20261006_231026.npz": {
+          "fitted": 0.1403766705226392,
+          "nominal": 0.38060071920712024
+        }
+      },
+      "optimizer": {
+        "cost": 35.85958050750082,
+        "delay_grid_cost": {
+          "0": 39.01556915214929,
+          "2": 38.05891000881991,
+          "4": 37.2892079625693,
+          "7": 36.44807945094872,
+          "11.0": 35.88768552962556,
+          "11.5": 35.867313009667754,
+          "12": 35.85958050750082,
+          "12.5": 35.86085455101637,
+          "13.0": 35.873535070213364
+        },
+        "seconds": 573.3
+      }
+    },
+    {
+      "motor_id": 5,
+      "joint": "left_ankle_joint",
+      "model": "rs-02",
+      "kp": 22.0,
+      "kd": 2.0,
+      "linkage_ratio": 0.9536182344172521,
+      "can_half_round_trip_s": 0.0005161166191101074,
+      "fitted": {
+        "armature": 0.002047956899698052,
+        "frictionloss": 0.15072776514983766,
+        "kd_scale": 0.9474491385108692,
+        "delay_s": 0.0,
+        "kp_scale": 1.0,
+        "damping": 0.0
+      },
+      "rms_deg": {
+        "fit_trials_fitted": 0.25161192929925824,
+        "fit_trials_nominal": 0.3552891144123948,
+        "holdout_fitted": 0.20425884713988798,
+        "holdout_nominal": 0.28144743333488,
+        "holdout_fitted_base_fixed": 0.20426106132929742
+      },
+      "torque_reply": {
+        "kp_ratio": 0.5204659945409674,
+        "kd_measured": 0.45373871400146165,
+        "kd_nominal": 2.0,
+        "r2": 0.6119472309699199,
+        "samples": 3238,
+        "note": "reported torque depends on the motor's own torque-constant calibration"
+      },
+      "base_tilt_max_deg": 3.6457981508408097,
+      "trials": {
+        "fit": [
+          "m5_step6_20261006_231513.npz",
+          "m5_step6_20261006_231603.npz",
+          "m5_sine025_20261006_231621.npz"
+        ],
+        "holdout": [
+          "m5_step3_20261006_231459.npz",
+          "m5_step3_20261006_231547.npz",
+          "m5_sine05_20261006_231642.npz"
+        ]
+      },
+      "per_holdout_trial_deg": {
+        "m5_step3|m5_step3_20261006_231459.npz": {
+          "fitted": 0.1628910392067582,
+          "nominal": 0.17901045506951613
+        },
+        "m5_step3|m5_step3_20261006_231547.npz": {
+          "fitted": 0.23614552475973002,
+          "nominal": 0.3393226291344452
+        },
+        "m5_sine05|m5_sine05_20261006_231642.npz": {
+          "fitted": 0.2065598655937676,
+          "nominal": 0.2974754633160321
+        }
+      },
+      "optimizer": {
+        "cost": 54.413709869014774,
+        "delay_grid_cost": {
+          "0": 54.413709869014774,
+          "0.5": 54.4405290064796,
+          "1.0": 54.46872079933244,
+          "2": 54.534577457390505,
+          "4": 54.70438757119205,
+          "7": 55.08028038077679,
+          "12": 56.155217279070044
+        },
+        "seconds": 332.6
+      }
+    },
+    {
+      "motor_id": 6,
+      "joint": "right_hip1_joint",
+      "model": "rs-04",
+      "kp": 100.0,
+      "kd": 2.0,
+      "linkage_ratio": 1.0,
+      "can_half_round_trip_s": 0.0005131363868713379,
+      "fitted": {
+        "armature": 0.0005000000000005005,
+        "frictionloss": 0.020258483546011244,
+        "kd_scale": 2.146966324259467,
+        "delay_s": 0.0,
+        "kp_scale": 1.0,
+        "damping": 0.0
+      },
+      "rms_deg": {
+        "fit_trials_fitted": 0.448660151530345,
+        "fit_trials_nominal": 0.6238646613382417,
+        "holdout_fitted": 0.14078604590874375,
+        "holdout_nominal": 0.22782800960911356,
+        "holdout_fitted_base_fixed": 0.17753925729675402
+      },
+      "torque_reply": {
+        "kp_ratio": 0.8229226293911632,
+        "kd_measured": 0.7873511117563359,
+        "kd_nominal": 2.0,
+        "r2": 0.9568806093117981,
+        "samples": 3538,
+        "note": "reported torque depends on the motor's own torque-constant calibration"
+      },
+      "base_tilt_max_deg": 12.720559488441374,
+      "trials": {
+        "fit": [
+          "m6_step6_20261006_233836.npz",
+          "m6_sine025_20261006_233851.npz",
+          "m6_sine1_20261006_233945.npz",
+          "m6_chirp_20261006_234001.npz"
+        ],
+        "holdout": [
+          "m6_step3_20261006_233822.npz",
+          "m6_sine05_20261006_233920.npz"
+        ]
+      },
+      "per_holdout_trial_deg": {
+        "m6_step3|m6_step3_20261006_233822.npz": {
+          "fitted": 0.15287710815521383,
+          "nominal": 0.2122606119450804
+        },
+        "m6_sine05|m6_sine05_20261006_233920.npz": {
+          "fitted": 0.12996029996745312,
+          "nominal": 0.23991872271373513
+        }
+      },
+      "optimizer": {
+        "cost": 250.81473073775516,
+        "delay_grid_cost": {
+          "0": 250.81473073775516,
+          "0.5": 255.19457132360802,
+          "1.0": 259.6183024617438,
+          "2": 268.6561499766149,
+          "4": 287.5952115723964,
+          "7": 318.2083598161089,
+          "12": 375.08982812256676
+        },
+        "seconds": 606.0
+      }
+    },
+    {
+      "motor_id": 7,
+      "joint": "right_hip2_joint",
+      "model": "rs-03",
+      "kp": 100.0,
+      "kd": 2.0,
+      "linkage_ratio": 1.0,
+      "can_half_round_trip_s": 0.00046515464782714844,
+      "fitted": {
+        "armature": 0.0005000000045702079,
+        "frictionloss": 0.1700456474370114,
+        "kd_scale": 1.1428624669609104,
+        "delay_s": 0.0,
+        "kp_scale": 1.0,
+        "damping": 0.0
+      },
+      "rms_deg": {
+        "fit_trials_fitted": 0.4426300097536821,
+        "fit_trials_nominal": 0.4601121660800846,
+        "holdout_fitted": 0.2015346195441763,
+        "holdout_nominal": 0.23100380050105557,
+        "holdout_fitted_base_fixed": 0.20131745520977665
+      },
+      "torque_reply": {
+        "kp_ratio": 0.8553238393637547,
+        "kd_measured": 0.6668718328306316,
+        "kd_nominal": 2.0,
+        "r2": 0.9593331804685569,
+        "samples": 3538,
+        "note": "reported torque depends on the motor's own torque-constant calibration"
+      },
+      "base_tilt_max_deg": 6.136914844634859,
+      "trials": {
+        "fit": [
+          "m7_step6_20261006_233256.npz",
+          "m7_sine025_20261006_233310.npz",
+          "m7_sine1_20261006_233346.npz",
+          "m7_chirp_20261006_233624.npz"
+        ],
+        "holdout": [
+          "m7_step3_20261006_233242.npz",
+          "m7_sine05_20261006_233330.npz"
+        ]
+      },
+      "per_holdout_trial_deg": {
+        "m7_step3|m7_step3_20261006_233242.npz": {
+          "fitted": 0.21263721776392244,
+          "nominal": 0.2211220679848256
+        },
+        "m7_sine05|m7_sine05_20261006_233330.npz": {
+          "fitted": 0.19188624125063375,
+          "nominal": 0.23885314371176242
+        }
+      },
+      "optimizer": {
+        "cost": 244.11797161604272,
+        "delay_grid_cost": {
+          "0": 244.11797161604272,
+          "0.5": 246.33903523568728,
+          "1.0": 248.6770662538031,
+          "2": 253.66070957348086,
+          "4": 264.83636154314945,
+          "7": 284.24600031748565,
+          "12": 326.73964262977927
+        },
+        "seconds": 628.5
+      }
+    },
+    {
+      "motor_id": 8,
+      "joint": "right_thigh_joint",
+      "model": "rs-03",
+      "kp": 100.0,
+      "kd": 2.0,
+      "linkage_ratio": 1.0,
+      "can_half_round_trip_s": 0.0004892349243164062,
+      "fitted": {
+        "armature": 0.05869229012786106,
+        "frictionloss": 0.3426152785425441,
+        "kd_scale": 0.8824534044211917,
+        "delay_s": 0.0025,
+        "kp_scale": 1.0,
+        "damping": 0.0
+      },
+      "rms_deg": {
+        "fit_trials_fitted": 0.12068349588072647,
+        "fit_trials_nominal": 0.20142739306197432,
+        "holdout_fitted": 0.12024233544274034,
+        "holdout_nominal": 0.19040880250450207,
+        "holdout_fitted_base_fixed": 0.12023432120970133
+      },
+      "torque_reply": {
+        "kp_ratio": 0.5748790260216275,
+        "kd_measured": 0.48185563240743945,
+        "kd_nominal": 2.0,
+        "r2": 0.6490365449876419,
+        "samples": 3538,
+        "note": "reported torque depends on the motor's own torque-constant calibration"
+      },
+      "base_tilt_max_deg": 3.045251176900758,
+      "trials": {
+        "fit": [
+          "m8_step6_20261006_232502.npz",
+          "m8_sine025_20261006_232516.npz",
+          "m8_sine1_20261006_232555.npz",
+          "m8_chirp_20261006_232617.npz"
+        ],
+        "holdout": [
+          "m8_step3_20261006_232448.npz",
+          "m8_sine05_20261006_232536.npz"
+        ]
+      },
+      "per_holdout_trial_deg": {
+        "m8_step3|m8_step3_20261006_232448.npz": {
+          "fitted": 0.09470856681166577,
+          "nominal": 0.18063335861138233
+        },
+        "m8_sine05|m8_sine05_20261006_232536.npz": {
+          "fitted": 0.13780011350520385,
+          "nominal": 0.19811514791895776
+        }
+      },
+      "optimizer": {
+        "cost": 18.147374697779682,
+        "delay_grid_cost": {
+          "0": 18.22801768493121,
+          "1.0": 18.179217696997046,
+          "2": 18.151928734413836,
+          "2.5": 18.147374697779682,
+          "3.0": 18.149310278951493,
+          "3.5": 18.158094237782564,
+          "4": 18.17403227907027,
+          "7": 18.444730583407313,
+          "12": 19.688432248495452
+        },
+        "seconds": 597.9
+      }
+    },
+    {
+      "motor_id": 9,
+      "joint": "right_knee_joint",
+      "model": "rs-04",
+      "kp": 80.0,
+      "kd": 2.0,
+      "linkage_ratio": 1.0,
+      "can_half_round_trip_s": 0.0004660487174987793,
+      "fitted": {
+        "armature": 0.0754644276090692,
+        "frictionloss": 0.9207294286181802,
+        "kd_scale": 0.7869145808193361,
+        "delay_s": 0.0005,
+        "kp_scale": 1.0,
+        "damping": 0.0
+      },
+      "rms_deg": {
+        "fit_trials_fitted": 0.23690428320156845,
+        "fit_trials_nominal": 0.49440403119783877,
+        "holdout_fitted": 0.2515350338282535,
+        "holdout_nominal": 0.4423305984505939,
+        "holdout_fitted_base_fixed": 0.25180291981599
+      },
+      "torque_reply": {
+        "kp_ratio": 0.8712887260973867,
+        "kd_measured": 1.0874799959888364,
+        "kd_nominal": 2.0,
+        "r2": 0.9510263614994019,
+        "samples": 3538,
+        "note": "reported torque depends on the motor's own torque-constant calibration"
+      },
+      "base_tilt_max_deg": 3.6149942976948837,
+      "trials": {
+        "fit": [
+          "m9_step6_20261006_230452.npz",
+          "m9_sine025_20261006_230849.npz",
+          "m9_sine1_20261006_230909.npz",
+          "m9_chirp_20261006_230923.npz"
+        ],
+        "holdout": [
+          "m9_step3_20261006_230428.npz",
+          "m9_sine05_20261006_230506.npz"
+        ]
+      },
+      "per_holdout_trial_deg": {
+        "m9_step3|m9_step3_20261006_230428.npz": {
+          "fitted": 0.26471224111698666,
+          "nominal": 0.36783113159350156
+        },
+        "m9_sine05|m9_sine05_20261006_230506.npz": {
+          "fitted": 0.24011327140731084,
+          "nominal": 0.49545891280445703
+        }
+      },
+      "optimizer": {
+        "cost": 69.93005469146419,
+        "delay_grid_cost": {
+          "0": 69.93525579456188,
+          "0.5": 69.93005469146419,
+          "1.0": 69.93791367127808,
+          "2": 69.9917284212691,
+          "4": 70.25085788005963,
+          "7": 70.92415348860864,
+          "12": 72.83620868522574
+        },
+        "seconds": 372.3
+      }
+    },
+    {
+      "motor_id": 10,
+      "joint": "right_ankle_joint",
+      "model": "rs-02",
+      "kp": 22.0,
+      "kd": 2.0,
+      "linkage_ratio": 0.95299687406127,
+      "can_half_round_trip_s": 0.0004909038543701172,
+      "fitted": {
+        "armature": 0.002785186242179239,
+        "frictionloss": 0.28943169682006425,
+        "kd_scale": 0.9444071688774253,
+        "delay_s": 0.0,
+        "kp_scale": 1.0,
+        "damping": 0.0
+      },
+      "rms_deg": {
+        "fit_trials_fitted": 0.2524846232704071,
+        "fit_trials_nominal": 0.5319370270818264,
+        "holdout_fitted": 0.20520737532032288,
+        "holdout_nominal": 0.44426162051355544,
+        "holdout_fitted_base_fixed": 0.205203658347868
+      },
+      "torque_reply": {
+        "kp_ratio": 0.6610873659029264,
+        "kd_measured": 0.6254189832872095,
+        "kd_nominal": 2.0,
+        "r2": 0.8089451833650171,
+        "samples": 3538,
+        "note": "reported torque depends on the motor's own torque-constant calibration"
+      },
+      "base_tilt_max_deg": 3.1534127872231545,
+      "trials": {
+        "fit": [
+          "m10_step6_20261006_232041.npz",
+          "m10_sine025_20261006_232130.npz",
+          "m10_sine1_20261007_150640.npz",
+          "m10_chirp_20261007_150656.npz"
+        ],
+        "holdout": [
+          "m10_step3_20261006_232025.npz",
+          "m10_sine05_20261006_232206.npz"
+        ]
+      },
+      "per_holdout_trial_deg": {
+        "m10_step3|m10_step3_20261006_232025.npz": {
+          "fitted": 0.2119767872301072,
+          "nominal": 0.3189011690850738
+        },
+        "m10_sine05|m10_sine05_20261006_232206.npz": {
+          "fitted": 0.199446323812479,
+          "nominal": 0.5256828024954583
+        }
+      },
+      "optimizer": {
+        "cost": 79.43061229504724,
+        "delay_grid_cost": {
+          "0": 79.43061229504724,
+          "0.5": 79.55590126540575,
+          "1.0": 79.68634281557682,
+          "2": 79.97808383202586,
+          "4": 80.69690911567453,
+          "7": 82.27499873945843,
+          "12": 86.37309962085916
+        },
+        "seconds": 311.1
+      }
+    }
+  ],
+  "suggested_randomisation": {
+    "hip1": {
+      "at_bound": [
+        "armature"
+      ],
+      "armature": [
+        0.005,
+        0.03
+      ],
+      "frictionloss": [
+        0.0134,
+        1.1969
+      ],
+      "kd_scale": [
+        0.3854,
+        2.7911
+      ],
+      "delay_s": [
+        0.0,
+        0.005
+      ],
+      "untrusted": [
+        "armature",
+        "frictionloss",
+        "kd_scale"
+      ],
+      "note": "gantry-confounded; range = own fit U knee fit (same motor model), nominal from the codex estimates"
+    },
+    "hip2": {
+      "at_bound": [
+        "armature"
+      ],
+      "armature": [
+        0.005,
+        0.03
+      ],
+      "frictionloss": [
+        0.119,
+        0.5602
+      ],
+      "kd_scale": [
+        0.5514,
+        1.4857
+      ],
+      "delay_s": [
+        0.0,
+        0.005
+      ],
+      "untrusted": [
+        "armature",
+        "frictionloss",
+        "kd_scale"
+      ],
+      "note": "gantry-confounded; range = own fit U thigh fit (same motor model), nominal from the codex estimates"
+    },
+    "thigh": {
+      "at_bound": [],
+      "armature": [
+        0.0407,
+        0.0763
+      ],
+      "frictionloss": [
+        0.2398,
+        0.5602
+      ],
+      "kd_scale": [
+        0.5514,
+        1.1472
+      ],
+      "delay_s": [
+        0.0,
+        0.005
+      ]
+    },
+    "knee": {
+      "at_bound": [],
+      "armature": [
+        0.0417,
+        0.0981
+      ],
+      "frictionloss": [
+        0.4341,
+        1.1969
+      ],
+      "kd_scale": [
+        0.3854,
+        1.023
+      ],
+      "delay_s": [
+        0.0,
+        0.0156
+      ]
+    },
+    "ankle": {
+      "at_bound": [],
+      "armature": [
+        0.0014,
+        0.0036
+      ],
+      "frictionloss": [
+        0.1055,
+        0.3763
+      ],
+      "kd_scale": [
+        0.6611,
+        1.2317
+      ],
+      "delay_s": [
+        0.0,
+        0.005
+      ]
+    }
+  },
+  "skipped_files": [
+    "m10_sine1_20261006_232226.npz",
+    "m10_chirp_20261006_232239.npz",
+    "m3_step3_20261006_232259.npz",
+    "m3_step6_20261006_232313.npz",
+    "m3_sine025_20261006_232330.npz",
+    "m3_sine05_20261006_232349.npz"
+  ],
+  "excluded_trials": {
+    "m5_step3_20261006_231844.npz": "third m5 set: started with the foot pushed to about +10 deg and holding ~1.1 Nm (0.3 Nm before), drifting back over the set; most likely the foot was touching something, so the joint was not free",
+    "m5_step6_20261006_231859.npz": "third m5 set: started with the foot pushed to about +10 deg and holding ~1.1 Nm (0.3 Nm before), drifting back over the set; most likely the foot was touching something, so the joint was not free",
+    "m5_sine025_20261006_231913.npz": "third m5 set: started with the foot pushed to about +10 deg and holding ~1.1 Nm (0.3 Nm before), drifting back over the set; most likely the foot was touching something, so the joint was not free",
+    "m5_sine05_20261006_231932.npz": "third m5 set: started with the foot pushed to about +10 deg and holding ~1.1 Nm (0.3 Nm before), drifting back over the set; most likely the foot was touching something, so the joint was not free",
+    "m5_sine1_20261006_231949.npz": "third m5 set: started with the foot pushed to about +10 deg and holding ~1.1 Nm (0.3 Nm before), drifting back over the set; most likely the foot was touching something, so the joint was not free",
+    "m5_chirp_20261006_232002.npz": "third m5 set: started with the foot pushed to about +10 deg and holding ~1.1 Nm (0.3 Nm before), drifting back over the set; most likely the foot was touching something, so the joint was not free",
+    "m5_sine1_20261007_150824.npz": "m5 (physical right ankle) resisted by ~1 Nm when moving: peak torque 1.0-1.05 Nm with only 11-50% of the commanded motion, the same signature as the third Oct 6 set and unlike the first two sets (0.26-0.43 Nm, 85-97%) or m10. Likely a mechanical bind in the ankle linkage since ~23:17 Oct 6; inspect before walking",
+    "m5_chirp_20261007_150837.npz": "m5 (physical right ankle) resisted by ~1 Nm when moving: peak torque 1.0-1.05 Nm with only 11-50% of the commanded motion, the same signature as the third Oct 6 set and unlike the first two sets (0.26-0.43 Nm, 85-97%) or m10. Likely a mechanical bind in the ankle linkage since ~23:17 Oct 6; inspect before walking"
+  },
+  "seconds": 782.0
+}

@@ -1,0 +1,13 @@
+{
+  "_about": "Trials sysid_fit.py leaves out, with the reason. Raw files are kept.",
+  "exclude": {
+    "m5_step3_20261006_231844.npz": "third m5 set: started with the foot pushed to about +10 deg and holding ~1.1 Nm (0.3 Nm before), drifting back over the set; most likely the foot was touching something, so the joint was not free",
+    "m5_step6_20261006_231859.npz": "third m5 set: started with the foot pushed to about +10 deg and holding ~1.1 Nm (0.3 Nm before), drifting back over the set; most likely the foot was touching something, so the joint was not free",
+    "m5_sine025_20261006_231913.npz": "third m5 set: started with the foot pushed to about +10 deg and holding ~1.1 Nm (0.3 Nm before), drifting back over the set; most likely the foot was touching something, so the joint was not free",
+    "m5_sine05_20261006_231932.npz": "third m5 set: started with the foot pushed to about +10 deg and holding ~1.1 Nm (0.3 Nm before), drifting back over the set; most likely the foot was touching something, so the joint was not free",
+    "m5_sine1_20261006_231949.npz": "third m5 set: started with the foot pushed to about +10 deg and holding ~1.1 Nm (0.3 Nm before), drifting back over the set; most likely the foot was touching something, so the joint was not free",
+    "m5_chirp_20261006_232002.npz": "third m5 set: started with the foot pushed to about +10 deg and holding ~1.1 Nm (0.3 Nm before), drifting back over the set; most likely the foot was touching something, so the joint was not free",
+    "m5_sine1_20261007_150824.npz": "m5 (physical right ankle) resisted by ~1 Nm when moving: peak torque 1.0-1.05 Nm with only 11-50% of the commanded motion, the same signature as the third Oct 6 set and unlike the first two sets (0.26-0.43 Nm, 85-97%) or m10. Likely a mechanical bind in the ankle linkage since ~23:17 Oct 6; inspect before walking",
+    "m5_chirp_20261007_150837.npz": "m5 (physical right ankle) resisted by ~1 Nm when moving: peak torque 1.0-1.05 Nm with only 11-50% of the commanded motion, the same signature as the third Oct 6 set and unlike the first two sets (0.26-0.43 Nm, 85-97%) or m10. Likely a mechanical bind in the ankle linkage since ~23:17 Oct 6; inspect before walking"
+  }
+}

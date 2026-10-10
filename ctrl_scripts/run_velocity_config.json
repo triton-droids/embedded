@@ -1,0 +1,20 @@
+{
+  "_note": "Operator settings for run_velocity_policy.py. Axis/button numbers are for an Xbox-style pad on the Linux js driver; check yours with --check.",
+  "gamepad": {
+    "device": "/dev/input/js0",
+    "axis_forward": 1, "invert_forward": true,
+    "axis_lateral": 0, "invert_lateral": false,
+    "axis_yaw": 3, "invert_yaw": true,
+    "button_deadman": 4,
+    "button_home": 0,
+    "button_start": 7,
+    "button_stop": 1,
+    "deadzone": 0.12,
+    "stale_zero_s": 0.3,
+    "stale_stop_s": 1.0
+  },
+  "lateral_enabled": false,
+  "command_accel": {"v_right": 0.5, "v_forward": 0.5, "yaw_rate": 1.0},
+  "homing": {"duration_s": 4.0, "max_speed_rad_s": 0.5},
+  "stop_tilt_deg": 40.0
+}

@@ -397,6 +397,71 @@ class RobotInterface:
             except Exception as exc:
                 st.last_error = str(exc)
 
+    def read_feedback_batched(self, timeout: float = 0.02) -> int:
+        """Drain all pending MIT status frames in one pass, dispatching by device ID.
+
+        `read_feedback` calls `receive_status_frame` per motor, and that waits for
+        one specific device ID while DISCARDING frames from every other motor. When
+        replies arrive out of order the wanted frame is thrown away by an earlier
+        read, and that read then burns its full timeout. With ten motors at 50 Hz
+        that intermittently costs hundreds of milliseconds per control step.
+
+        Draining once and dispatching by ID removes the reordering failure mode.
+        Returns the number of motors successfully updated.
+        """
+        from robstride_dynamics.table import (
+            MODEL_MIT_POSITION_TABLE,
+            MODEL_MIT_TORQUE_TABLE,
+            MODEL_MIT_VELOCITY_TABLE,
+        )
+
+        self._assert_safe()
+        if not self.connected or self.bus is None:
+            return 0
+
+        pending = {st.motor_id: st for st in self.states}
+        now = time.time()
+        deadline = now + float(timeout)
+        updated = 0
+
+        while pending:
+            remaining = deadline - time.time()
+            if remaining <= 0.0:
+                break
+            with self.lock:
+                frame = self.bus.receive(timeout=remaining)
+            if not frame:
+                break
+            communication_type, extra_data, _host_id, data = frame
+            if communication_type != CommunicationType.OPERATION_STATUS:
+                continue
+            st = pending.pop(extra_data & 0xFF, None)
+            if st is None or len(data) != 8:
+                continue
+
+            try:
+                pos_u16, vel_u16, tq_u16, temp_u16 = struct.unpack(">HHHH", data)
+                # Calibration is identity here (direction=1, homing_offset=0),
+                # matching how connect() registers the motors.
+                st.position_phys = (pos_u16 / 0x7FFF - 1.0) * MODEL_MIT_POSITION_TABLE[st.model]
+                st.velocity_phys = (vel_u16 / 0x7FFF - 1.0) * MODEL_MIT_VELOCITY_TABLE[st.model]
+                st.torque_nm = (tq_u16 / 0x7FFF - 1.0) * MODEL_MIT_TORQUE_TABLE[st.model]
+                st.temp_c = temp_u16 * 0.1
+
+                prev_joint_pos = float(st.joint_pos)
+                had_prev = st.last_read_time > 0.0
+                measured_joint = self._update_joint_from_motor(st, now, initialize=False)
+                self._check_joint_state_safety(st, measured_joint, prev_joint_pos, had_prev)
+                self._assert_safe()
+                st.last_error = None
+                updated += 1
+            except Exception as exc:
+                st.last_error = str(exc)
+
+        for st in pending.values():
+            st.last_error = "no status frame this cycle"
+        return updated
+
     def write_joint_targets(self, joint_targets_real: np.ndarray) -> None:
         self._assert_safe()
         if not self.connected or self.bus is None:
@@ -482,6 +547,17 @@ class RobotInterface:
                     f"[SAFETY] {st.joint_name} (motor {st.motor_id}) jump too large: "
                     f"|dpos|={math.degrees(jump):.2f} deg (threshold={self.safety_max_jump_deg:.2f} deg)"
                 )
+
+    def joint_to_motor_physical(self, st: JointMotorState, joint_rad: float) -> float:
+        """Joint angle -> raw motor position, exactly as write_joint_targets maps it."""
+        return self._joint_command_to_motor_physical(st, joint_rad)
+
+    def motor_physical_to_joint(self, st: JointMotorState, motor_phys: float) -> float:
+        """Raw motor position -> joint angle (inverse of joint_to_motor_physical, unclamped)."""
+        motor_logical = motor_phys / float(st.direction) - st.startup_motor_offset_rad
+        if st.is_ankle:
+            return float(self.ankle_mapper.motor_logical_rad_to_ankle_rad(motor_logical, st.joint_pos))
+        return float(motor_logical)
 
     def _joint_command_to_motor_physical(self, st: JointMotorState, joint_cmd_rad: float) -> float:
         joint_cmd_rad = clamp(joint_cmd_rad, st.limit_lo, st.limit_hi)

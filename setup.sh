@@ -26,11 +26,11 @@ echo "Using serial device: ${ACM_DEV}"
 
 # Load slcan kernel module
 sudo modprobe slcan
-# Attach detected serial device as can0 interface
-sudo slcand -o -c -s6 "${ACM_DEV}" can0
-# Bring down can0 interface for configuration
-sudo ip link set can0 down
-# Set CAN bitrate to 1 Mbps
-sudo ip link set can0 type can bitrate 1000000
-# Bring up can0 interface
+# Attach the CANable as can0 at 1 Mbit/s. With slcan the bitrate comes from
+# -s8 (S8 = 1 Mbit/s); `ip link ... type can bitrate` does not apply.
+sudo slcand -o -c -s8 "${ACM_DEV}" can0
+# Room for a full control cycle of frames (the default queue of 10 drops frames
+# when 11 are sent per cycle), then bring the interface up.
+sudo ip link set can0 txqueuelen 1000
 sudo ip link set can0 up
+ip -d link show can0 | grep -oE "state [A-Z-]+|ERROR-[A-Z]+|qlen [0-9]+" | tr '\n' ' '; echo

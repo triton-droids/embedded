@@ -1,0 +1,10 @@
+# Robot laptop runtime (direct CAN stack). Python 3.12.
+#   python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+numpy>=2.0
+python-can>=4.4
+onnxruntime>=1.20
+pyserial>=3.5
+matplotlib>=3.8   # plots and the gain tuner
+tqdm>=4.60
+# The actuator fit (utils/sysid_fit.py) runs in a separate CPU venv:
+#   python3 -m venv ~/Documents/simulation/.venv-sysid && ~/Documents/simulation/.venv-sysid/bin/pip install mujoco numpy scipy matplotlib

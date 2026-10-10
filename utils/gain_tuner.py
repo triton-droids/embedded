@@ -46,6 +46,8 @@ from matplotlib.animation import FuncAnimation
 
 # -------------------- RobStride SDK imports --------------------
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from robot_hardware import DEFAULT_MOTOR_MODEL, JOINT_LIMITS_BY_ID, MOTOR_MODEL_BY_ID, motor_hardware
+
 try:
     from robstride_dynamics import RobstrideBus, Motor, ParameterType, CommunicationType
     from utils.actuation_safety import ActuationSafetyMonitor
@@ -122,39 +124,6 @@ def wrap_to_pi(x: float) -> float:
 def offset_to_pi(x: float) -> float:
     return x - wrap_to_pi(x)
 
-
-# -------------------- Your provided config --------------------
-# Inversion array interpreted sequentially for CAN IDs 1-10
-INVERSION_ARRAY = [-1, -1, -1, 1, 1, 1, -1, 1, -1, -1]
-INVERSION_BY_ID: Dict[int, int] = {i + 1: INVERSION_ARRAY[i] for i in range(len(INVERSION_ARRAY))}
-
-# Joint limits in radians (logical joint space)
-JOINT_LIMITS: Dict[int, Tuple[float, float]] = {
-    1: (-1.57, 1.57),            # left_hip1_joint
-    2: (-1.57, 0.436332),        # left_hip2_joint
-    3: (-0.785398, 0.785398),    # left_thigh_joint
-    4: (-2.0944, 0.0),           # left_knee_joint
-    5: (-0.6, 0.6),              # left_ankle_joint
-    6: (-1.57, 1.57),            # right_hip1_joint
-    7: (-0.436332, 1.57),        # right_hip2_joint
-    8: (-0.785398, 0.785398),    # right_thigh_joint
-    9: (-2.0944, 0.0),           # right_knee_joint
-    10: (-0.6, 0.6),             # right_ankle_joint
-}
-
-# Per-motor model mapping (from your list)
-MOTOR_MODEL_BY_ID: Dict[int, str] = {
-    1: "rs-04",
-    2: "rs-03",
-    3: "rs-03",
-    4: "rs-04",
-    5: "rs-02",
-    6: "rs-04",
-    7: "rs-03",
-    8: "rs-03",
-    9: "rs-04",
-    10: "rs-02",
-}
 
 # Shared actuation safety monitor (joint-limit/jump trips)
 ACTUATION_SAFETY_ENABLED = True
@@ -250,7 +219,7 @@ class GainTunerMIT:
         motor_ids: List[int],
         channel: str = "can0",
         bitrate: int = 1_000_000,
-        model: str = "rs-03",   # fallback if ID not in MOTOR_MODEL_BY_ID
+        model: str = DEFAULT_MOTOR_MODEL,
         hz: float = 60.0,
         ramp_deg_s: float = 30.0,
     ):
@@ -264,15 +233,13 @@ class GainTunerMIT:
 
         self.motor_states: Dict[int, MotorState] = {}
         for mid in motor_ids:
+            hw = motor_hardware(mid)
             mmodel = MOTOR_MODEL_BY_ID.get(mid, self.model)
             st = MotorState(id=mid, name=f"motor_{mid}", model=mmodel)
 
-            # Apply inversion array for IDs 1..10, otherwise default 1
-            st.direction = int(INVERSION_BY_ID.get(mid, 1))
+            st.direction = int(hw.direction)
 
-            # Apply joint limits if provided, else infinite
-            if mid in JOINT_LIMITS:
-                st.limit_lo, st.limit_hi = JOINT_LIMITS[mid]
+            st.limit_lo, st.limit_hi = JOINT_LIMITS_BY_ID.get(mid, (-math.inf, math.inf))
 
             self.motor_states[mid] = st
 
@@ -1291,7 +1258,7 @@ def main():
         motor_ids=motor_ids,
         channel="can0",
         bitrate=1_000_000,
-        model="rs-03",   # fallback only (per-ID models used automatically)
+        model=DEFAULT_MOTOR_MODEL,
         hz=60.0,
         ramp_deg_s=30.0,
     )

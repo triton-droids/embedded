@@ -1,0 +1,38 @@
+{
+  "_note": [
+    "One-joint system-ID trials for ctrl_scripts/sysid_logger.py. The trial name is m<motor_id>_<pattern>.",
+    "Offsets are in degrees, relative to the pose each joint holds at startup, in the hardware joint convention.",
+    "If one_sided is true, the offsets point into the joint's range. The knee rests on its 0 rad limit, so it only flexes.",
+    "Every target goes through the deployed path: 0.95 soft limits, joint clamps, the max_vel_rad_s slew, the torque guard caps.",
+    "Joint names are mirrored: motors 1-5 (left_*) are the PHYSICAL RIGHT leg, motors 6-10 (right_*) the physical left leg.",
+    "fit and holdout tags pick which trials fit the model and which validate it."
+  ],
+
+  "settle_s": 1.0,
+  "ramp_s": 1.0,
+  "tail_s": 1.5,
+  "max_offset_deg": 15.0,
+  "max_peak_vel_rad_s": 0.9,
+
+  "joints": [
+    {"motor_id": 1,  "one_sided": false},
+    {"motor_id": 2,  "one_sided": false},
+    {"motor_id": 3,  "one_sided": false},
+    {"motor_id": 4,  "one_sided": true},
+    {"motor_id": 5,  "one_sided": false},
+    {"motor_id": 6,  "one_sided": false},
+    {"motor_id": 7,  "one_sided": false},
+    {"motor_id": 8,  "one_sided": false},
+    {"motor_id": 9,  "one_sided": true},
+    {"motor_id": 10, "one_sided": false}
+  ],
+
+  "patterns": {
+    "step3":   {"kind": "steps", "levels_deg": [3, 0, -3, 0],  "one_sided_levels_deg": [3, 0, 6, 0],  "hold_s": 1.5, "tag": "holdout"},
+    "step6":   {"kind": "steps", "levels_deg": [6, 0, -6, 0],  "one_sided_levels_deg": [6, 0, 12, 0], "hold_s": 1.5, "tag": "fit"},
+    "sine025": {"kind": "sine",  "amp_deg": 5.0, "freq_hz": 0.25, "cycles": 3, "tag": "fit"},
+    "sine05":  {"kind": "sine",  "amp_deg": 5.0, "freq_hz": 0.5,  "cycles": 4, "tag": "holdout"},
+    "sine1":   {"kind": "sine",  "amp_deg": 5.0, "freq_hz": 1.0,  "cycles": 6, "tag": "fit"},
+    "chirp":   {"kind": "chirp", "amp_deg": 2.5, "f0_hz": 0.2, "f1_hz": 3.0, "duration_s": 12.0, "tag": "fit"}
+  }
+}

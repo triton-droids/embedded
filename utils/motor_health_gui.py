@@ -29,6 +29,7 @@ if str(REPO_ROOT) not in sys.path:
 try:
     import can
     from robstride_dynamics import CommunicationType, Motor, ParameterType, RobstrideBus
+    from robot_hardware import HEALTH_CHECK_KD_BY_ID, HEALTH_CHECK_KP_BY_ID, motor_hardware
 except Exception as exc:  # pragma: no cover - user-facing startup path
     raise SystemExit(
         "Failed to import motor dependencies. Try:\n"
@@ -36,50 +37,6 @@ except Exception as exc:  # pragma: no cover - user-facing startup path
         "  ./.venv/bin/python utils/motor_health_gui.py\n\n"
         f"Import error: {exc}"
     ) from exc
-
-
-MOTOR_MODEL_BY_ID: dict[int, str] = {
-    1: "rs-04",
-    2: "rs-03",
-    3: "rs-03",
-    4: "rs-04",
-    5: "rs-02",
-    6: "rs-04",
-    7: "rs-03",
-    8: "rs-03",
-    9: "rs-04",
-    10: "rs-02",
-}
-
-INVERSION_ARRAY = [-1, -1, -1, 1, 1, 1, -1, 1, -1, -1]
-INVERSION_BY_ID = {i + 1: INVERSION_ARRAY[i] for i in range(len(INVERSION_ARRAY))}
-
-JOINT_LIMITS: dict[int, tuple[float, float]] = {
-    1: (-1.57, 1.57),
-    2: (-1.57, 0.436332),
-    3: (-0.785398, 0.785398),
-    4: (-2.0944, 0.0),
-    5: (-0.6, 0.6),
-    6: (-1.57, 1.57),
-    7: (-0.436332, 1.57),
-    8: (-0.785398, 0.785398),
-    9: (-2.0944, 0.0),
-    10: (-0.6, 0.6),
-}
-
-DEFAULT_KP_BY_ID = {
-    1: 30.0,
-    2: 30.0,
-    3: 20.0,
-    4: 30.0,
-    5: 30.0,
-    6: 30.0,
-    7: 30.0,
-    8: 20.0,
-    9: 30.0,
-    10: 30.0,
-}
-DEFAULT_KD_BY_ID = {mid: 0.5 for mid in range(1, 11)}
 
 
 def clamp(x: float, lo: float, hi: float) -> float:
@@ -271,7 +228,7 @@ class MotorWorker(threading.Thread):
         self.channel = channel
         self.bitrate = int(bitrate)
         motors = {
-            f"motor_{mid}": Motor(id=mid, model=MOTOR_MODEL_BY_ID.get(mid, "rs-03"))
+            f"motor_{mid}": Motor(id=mid, model=motor_hardware(mid).model)
             for mid in ids
         }
         calibration = {name: {"direction": 1, "homing_offset": 0.0} for name in motors}
@@ -280,17 +237,16 @@ class MotorWorker(threading.Thread):
         self.states = {}
         for mid in ids:
             name = f"motor_{mid}"
-            direction = 1 if INVERSION_BY_ID.get(mid, 1) >= 0 else -1
-            lo, hi = JOINT_LIMITS.get(mid, (-math.inf, math.inf))
+            hw = motor_hardware(mid)
             st = MotorGuiState(
                 mid=mid,
                 name=name,
-                model=MOTOR_MODEL_BY_ID.get(mid, "rs-03"),
-                direction=direction,
-                limit_lo=lo,
-                limit_hi=hi,
-                kp=DEFAULT_KP_BY_ID.get(mid, 30.0),
-                kd=DEFAULT_KD_BY_ID.get(mid, 0.5),
+                model=hw.model,
+                direction=hw.direction,
+                limit_lo=hw.limit_lo,
+                limit_hi=hw.limit_hi,
+                kp=HEALTH_CHECK_KP_BY_ID.get(mid, 30.0),
+                kd=HEALTH_CHECK_KD_BY_ID.get(mid, 0.5),
             )
             self._log(f"Enabling motor {mid}; holding current position")
             self.bus.enable(name)

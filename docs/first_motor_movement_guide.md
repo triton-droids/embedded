@@ -398,15 +398,17 @@ Wait one or two seconds.
 
 If that works, repeat one motor at a time.
 
-## When to Use the Leg Demo
+## After Single-Motor Tests
 
-Only use the leg demo after single-motor tests work.
-
-The leg demo moves motors `4`, `5`, `9`, and `10` in a repeated pattern:
+Only move on once single-motor tests work. The next steps use the system-ID
+logger, which runs the deployed command path with every safety stop:
 
 ```bash
-python3 ctrl_scripts/leg_swing_test.py
+./.venv/bin/python ctrl_scripts/sysid_logger.py --check                 # no enable, no transmit
+./.venv/bin/python ctrl_scripts/sysid_logger.py --hold --seconds 10     # all motors hold their pose
+./.venv/bin/python ctrl_scripts/sysid_logger.py --trial m9_step3 --yes  # one joint, small steps
 ```
 
-Treat it as much riskier than a small `step` command in `gain_tuner.py`.
+`--hold` and `--trial` enable every motor. Treat them as riskier than a small
+`step` command in `gain_tuner.py`: robot on the gantry, E-stop in hand.
 

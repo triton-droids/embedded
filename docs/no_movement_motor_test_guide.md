@@ -31,8 +31,9 @@ For this guide, do **not** run these scripts:
 
 ```bash
 python3 utils/gain_tuner.py
-python3 ctrl_scripts/leg_swing_test.py
-python3 ctrl_scripts/run_policy.py
+./.venv/bin/python ctrl_scripts/sysid_logger.py --hold      # or --trial
+./.venv/bin/python ctrl_scripts/run_tracking_policy.py
+./.venv/bin/python ctrl_scripts/run_velocity_policy.py
 ```
 
 Those scripts can enable motors, hold position, or move legs.
@@ -290,10 +291,11 @@ sudo ip link set can0 up
 Do not run:
 
 ```bash
-python3 ctrl_scripts/leg_swing_test.py
+./.venv/bin/python ctrl_scripts/sysid_logger.py --hold      # or --trial
 ```
 
-That script moves the legs.
+That script enables every motor; `--trial` moves a joint.
+(`sysid_logger.py --check` is safe: it never enables or transmits.)
 
 Do not run:
 
@@ -306,10 +308,11 @@ That script is designed for tuning and holding motors. On startup it enables mot
 Do not run:
 
 ```bash
-python3 ctrl_scripts/run_policy.py
+./.venv/bin/python ctrl_scripts/run_tracking_policy.py
+./.venv/bin/python ctrl_scripts/run_velocity_policy.py
 ```
 
-That script runs the robot controller and can command all joints.
+These run a policy and can command all joints.
 
 ## Next Step After No-Movement Test
 

@@ -30,3 +30,18 @@ env/
 debug.log
 *.log
 debug/
+# Local virtual environment (recreate it; never commit it)
+.venv/
+
+# Raw recordings stay on disk: system-ID sessions, tracking and velocity logs.
+# Small results worth keeping go in results/.
+logs/
+*.npz
+
+# Trained models and checkpoints (shared outside git)
+*.pth
+*.onnx
+*.pt
+
+# Local assistant / editor settings
+.claude/

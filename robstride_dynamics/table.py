@@ -25,7 +25,7 @@ MODEL_MIT_VELOCITY_TABLE = {
     "rs-00": 50,
     "rs-01": 44,
     "rs-02": 44,
-    "rs-03": 50,
+    "rs-03": 20,  # RS03 manual: MIT velocity spans -20..20 rad/s. 50 read 2.5x high on hardware.
     "rs-04": 15,
     "rs-05": 33,
     "rs-06": 20,
