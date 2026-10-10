@@ -346,14 +346,13 @@ vibration through the frame is the real noise source.
 ip link show can0                       # want UP, LOWER_UP, state UP
 
 sudo modprobe slcan
-sudo slcand -o -c -s6 /dev/ttyACM1 can0
-sudo ip link set can0 down
-sudo ip link set can0 type can bitrate 1000000
+sudo slcand -o -c -s8 /dev/ttyACM1 can0    # your CANable (ls -l /dev/serial/by-id/); -s8 = 1 Mbit/s
+sudo ip link set can0 txqueuelen 1000
 sudo ip link set can0 up
 ```
 
-**Use `/dev/ttyACM1` explicitly.** `setup.sh` auto-detects, but errors out when
-it finds more than one `/dev/ttyACM*` — and the IMU board is a second one.
+Or just run `./setup.sh`: it finds the CANable by its `/dev/serial/by-id/` name,
+so the IMU board (also a `/dev/ttyACM*`) no longer confuses it.
 Adapter is a CANable2 (`16d0:117e`) in slcan mode.
 
 ### Verify
@@ -551,13 +550,15 @@ hyperextension is never commanded).
 **`--dry-run` still energizes motors.** `RobotInterface.connect()` calls
 `bus.enable()` regardless of `dry_run`; only target writes are suppressed.
 
-**Mechanical zeros are lost on power cycle.** Straighten the legs and re-run
-`./zero_out.sh`.
+**Check zeros before every session.** They survived a power cycle in testing, but
+verify: legs straight, `joint_direction_monitor.py --seconds 5`, every joint
+about 0 deg (knees 0 or slightly negative). Re-run `./zero_out.sh` only with every
+joint held straight.
 
-**`robot_hardware` gains, not the config's.** `apply_shared_hardware_config`
-overwrites `kp_by_joint` with `POLICY_KP_BY_JOINT` — hips 200-300, knees 100,
-ankles 120. The `"kp": 10` in the config file is dead. Sim trained against
-`kp 100/100/100/80/20`, different units, not directly comparable.
+**Gains come from `tracking_kp_by_joint` / `tracking_kd_by_joint`** in
+`run_tracking_config.json`: kp 100/100/100/80/22, kd 2 (the training gains; the
+ankle is 20 / 0.95^2 through the linkage). They override the `POLICY_*` tables in
+`robot_hardware.py`. The top-level `"kp": 10` in the config is unused.
 
 **`max_vel_rad_s` is at 1.0**, down from 4.5, for early runs. It will lag the
 reference. Raise it once direction and stability are confirmed.

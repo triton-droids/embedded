@@ -62,9 +62,8 @@ or manually:
 
 ```bash
 sudo modprobe slcan
-sudo slcand -o -c -s6 /dev/ttyACM0 can0
-sudo ip link set can0 down
-sudo ip link set can0 type can bitrate 1000000
+sudo slcand -o -c -s8 /dev/ttyACM0 can0    # your CANable (ls -l /dev/serial/by-id/); -s8 = 1 Mbit/s
+sudo ip link set can0 txqueuelen 1000
 sudo ip link set can0 up
 ```
 

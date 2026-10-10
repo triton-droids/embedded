@@ -108,9 +108,8 @@ If your adapter is `/dev/ttyACM0`, run:
 
 ```bash
 sudo modprobe slcan
-sudo slcand -o -c -s6 /dev/ttyACM0 can0
-sudo ip link set can0 down
-sudo ip link set can0 type can bitrate 1000000
+sudo slcand -o -c -s8 /dev/ttyACM0 can0    # your CANable (ls -l /dev/serial/by-id/); -s8 = 1 Mbit/s
+sudo ip link set can0 txqueuelen 1000
 sudo ip link set can0 up
 ```
 
@@ -118,8 +117,8 @@ What these commands do:
 
 - `modprobe slcan`: loads Linux support for serial CAN adapters
 - `slcand ... /dev/ttyACM0 can0`: creates a CAN interface named `can0`
-- `ip link set can0 down`: temporarily stops `can0` so it can be configured
-- `ip link set can0 type can bitrate 1000000`: sets CAN speed to 1 Mbps
+- `slcand ... -s8`: sets the CAN speed to 1 Mbit/s (`-s6` would be 500 kbit/s and the motors would not answer)
+- `ip link set can0 txqueuelen 1000`: room for a full control cycle of frames
 - `ip link set can0 up`: starts the CAN interface
 
 You can also use the repo helper:
@@ -281,8 +280,8 @@ If it is broken or stale after replugging the adapter, bring it down and recreat
 
 ```bash
 sudo ip link set can0 down
-sudo slcand -o -c -s6 /dev/ttyACM0 can0
-sudo ip link set can0 type can bitrate 1000000
+sudo slcand -o -c -s8 /dev/ttyACM0 can0    # -s8 = 1 Mbit/s
+sudo ip link set can0 txqueuelen 1000
 sudo ip link set can0 up
 ```
 

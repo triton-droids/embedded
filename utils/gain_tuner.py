@@ -16,9 +16,8 @@ Key design:
 - NOTE: To hold motor 2 or 7 at zero, select it and use `goto 0` or `hold`.
 
 Run:
-  sudo ip link set can0 type can bitrate 1000000
-  sudo ip link set up can0
-  python3 robstride_gain_tuner_liveplot_mac_safe.py
+  ./setup.sh                                  # can0 at 1 Mbit/s
+  ./.venv/bin/python utils/gain_tuner.py
 """
 
 import sys
