@@ -1,6 +1,7 @@
 """Validate hardware mappings and convert calibrated joint/motor coordinates."""
 from dataclasses import dataclass
 import math
+from .ankle_mapping import AnkleMapper
 
 
 @dataclass(frozen=True)
@@ -14,6 +15,8 @@ class MotorSettings:
     max_velocity: float
     max_torque: float | None
 
+    ankle: object = None
+
     @classmethod
     def from_config(cls, cfg, defaults):
         direction = cfg.get('direction', 1)
@@ -26,6 +29,7 @@ class MotorSettings:
             float(cfg.get('kd', defaults.get('KD', 0.2))),
             float(cfg.get('max_vel_rad_s', defaults.get('MAX_VEL_RAD_S', 4.5))),
             float(cfg['max_torque_nm']) if cfg.get('max_torque_nm') is not None else None,
+            AnkleCalibration(cfg['ankle_mapping']) if cfg.get('ankle_mapping') else None,
         )
         if (settings.direction not in (-1, 1) or not math.isfinite(settings.offset)
                 or math.isnan(settings.lower) or math.isnan(settings.upper)
@@ -40,6 +44,8 @@ class MotorSettings:
     def feedback(self, position, velocity, torque):
         if not all(math.isfinite(x) for x in (position, velocity, torque)):
             raise ValueError('Non-finite motor feedback')
+        if self.ankle is not None:
+            return self.ankle.feedback(self.direction * (position - self.offset), self.direction * velocity, self.direction * torque)
         return (self.direction * (position - self.offset),
                 self.direction * velocity, self.direction * torque)
 
@@ -53,6 +59,8 @@ class MotorSettings:
         torque = result['torque']
         if self.max_torque is not None:
             torque = min(max(torque, -self.max_torque), self.max_torque)
+        if self.ankle is not None:
+            position = self.ankle.command(position)
         result.update(position=self.offset + self.direction * position,
                       velocity=self.direction * velocity, torque=self.direction * torque)
         return result
@@ -61,7 +69,7 @@ class MotorSettings:
 def validate_registry(params):
     """Validate the entire registry before opening any CAN bus."""
     if params.get('hardware_verified') is False:
-        raise ValueError('Simulation motor registry is not hardware verified: configure CAN IDs, '
+        raise ValueError('Motor registry is not hardware verified: verify CAN IDs, '
                          'models, directions and offsets before enabling hardware_verified')
     motors = params.get('motors', {})
     if not motors:
@@ -94,3 +102,29 @@ def validate_registry(params):
         except (TypeError, ValueError) as exc:
             raise ValueError(f'{name}: invalid motor configuration: {exc}') from exc
     return settings
+
+
+class AnkleCalibration:
+    """Keep solver guesses continuous, matching the source branch linkage convention."""
+    def __init__(self, config):
+        self.mapper = AnkleMapper(config)
+        self.motor = 0.0
+        self.joint = 0.0
+        self.last_time = None
+
+    def feedback(self, position, velocity, torque):
+        import time
+        now = time.monotonic()
+        joint = self.mapper.motor_logical_rad_to_ankle_rad(position, self.joint)
+        dt = 0 if self.last_time is None else now - self.last_time
+        joint_velocity = (joint - self.joint) / dt if dt > 1e-4 else 0.0
+        if not math.isfinite(joint):
+            raise ValueError('Invalid ankle conversion')
+        self.motor, self.joint, self.last_time = position, joint, now
+        return joint, joint_velocity, torque
+
+    def command(self, position):
+        target = self.mapper.ankle_rad_to_motor_logical_rad(position, self.motor)
+        if not math.isfinite(target):
+            raise ValueError('Invalid ankle conversion')
+        return target

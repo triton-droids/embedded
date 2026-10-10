@@ -49,7 +49,10 @@ def main():
         limits = [float(value) for value in joints[name].get('range').split()]
         motors[name] = {key: old.get(key) for key in hardware_keys}
         motors[name].update(min_position=limits[0], max_position=limits[1],
-                            kp=kp[index], kd=kd[index])
+                            kp=old.get('kp', kp[index]) if 'runtime_policy' in previous else kp[index],
+                            kd=old.get('kd', kd[index]) if 'runtime_policy' in previous else kd[index])
+        if 'ankle_mapping' in old:
+            motors[name]['ankle_mapping'] = old['ankle_mapping']
     params = {
         # A new simulation sync always requires hardware review before CAN use.
         'hardware_verified': False,
@@ -62,6 +65,9 @@ def main():
         'MAX_VEL_RAD_S': previous.get('MAX_VEL_RAD_S', 4.5),
         'motors': motors,
     }
+    for key in ('runtime_policy', 'default_can_interface', 'default_master_id', 'KP', 'KD'):
+        if key in previous:
+            params[key] = previous[key]
     header = ('# Synced from the tracking ONNX export and its saved training XML.\n'
               '# Gains and limits are simulation values, not validated hardware values.\n'
               '# null hardware fields must be calibrated; action indices are not CAN IDs.\n')

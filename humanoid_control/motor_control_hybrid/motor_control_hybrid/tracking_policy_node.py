@@ -17,7 +17,7 @@ from std_msgs.msg import Bool, Float64MultiArray, String
 from motor_control_interfaces.msg import MotorCommand
 
 from motor_control_hybrid.tracking_onnx import (
-    GravityEstimator, TrackingPolicy, fresh, joint_feedback, validate_tracking_registry)
+    GravityEstimator, TrackingPolicy, fresh, joint_feedback, validate_tracking_registry, apply_runtime_policy)
 
 
 class TrackingPolicyNode(Node):
@@ -63,6 +63,7 @@ class TrackingPolicyNode(Node):
         if registry_path:
             params = yaml.safe_load(Path(registry_path).read_text())['motor_control_node']['ros__parameters']
             validate_tracking_registry(self.policy, params, self.model_sha256)
+            apply_runtime_policy(self.policy, params)
         self.previous = np.zeros(10, dtype=np.float32)
         for frame in range(30):
             obs = self.policy.observation(frame % self.policy.frames, np.zeros(3),
