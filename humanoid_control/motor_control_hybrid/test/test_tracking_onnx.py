@@ -12,8 +12,8 @@ from motor_control_hybrid.tracking_onnx import (  # noqa: E402
 
 @pytest.fixture(scope='module')
 def policy():
-    model = (Path.home() / 'Github/simulation/logs/legs_tracking/'
-             '20260914_170827/20260914_170827.onnx')
+    model = (Path(__file__).resolve().parents[1] /
+             'models/20260914_170827/20260914_170827.onnx')
     if not model.exists():
         pytest.skip('Tracking export not installed; model-independent tests still run')
     return TrackingPolicy(model)

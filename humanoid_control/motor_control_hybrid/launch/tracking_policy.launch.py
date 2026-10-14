@@ -17,8 +17,8 @@ def generate_launch_description():
     registry = yaml.safe_load(registry_path.read_text())['motor_control_node']['ros__parameters']
     contract = registry['model_contract']
     defaults = {
-        'model_path': str(Path(__file__).resolve().parents[3].parent / 'simulation/logs/legs_tracking/'
-                          '20260914_170827/20260914_170827.onnx'),
+        'model_path': str(Path(get_package_share_directory('motor_control_hybrid')) /
+                          'models/20260914_170827/20260914_170827.onnx'),
         'port': '/dev/ttyACM0', 'baud': '460800', 'input_format': 'json',
         'start_imu_reader': 'true', 'imu_topic': '/imu/data_raw',
         'joint_states_topic': '/policy/joint_states',

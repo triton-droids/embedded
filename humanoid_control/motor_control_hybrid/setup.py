@@ -9,6 +9,8 @@ setup(
     version='0.0.0',
     packages=[package_name],
     data_files=[
+        ('share/' + package_name + '/models/20260914_170827',
+         glob('models/20260914_170827/*')),
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),

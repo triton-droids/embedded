@@ -88,7 +88,7 @@ zeros. The no-motor default explicitly labels its feedback as `zero`.
 ## Exact model contract
 
 Default model:
-`~/Github/simulation/logs/legs_tracking/20260914_170827/20260914_170827.onnx`
+`~/Documents/Github/embedded/humanoid_control/motor_control_hybrid/models/20260914_170827/20260914_170827.onnx`
 
 The inputs are `obs: float32[1,56]` and `time_step: float32[1,1]`. Observation
 normalization is already embedded in the ONNX graph.

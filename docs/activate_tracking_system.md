@@ -11,8 +11,8 @@ separate shell. Stop previous launches before starting replacements.
 
 ## 1. Install and build once on the Jetson
 
-Prerequisites: ROS 2 Humble, colcon, Python venv support, and the sibling
-`simulation` checkout with the actual ONNX export downloaded (not an LFS pointer).
+Prerequisites: ROS 2 Humble, colcon, Python venv support, and the deployment ONNX export in
+`humanoid_control/motor_control_hybrid/models/20260914_170827/` (not an LFS pointer).
 
 ```bash
 cd /home/darin/Documents/Github/embedded
@@ -77,7 +77,7 @@ Keep the IMU stationary during the initial two-second calibration:
 
 ```bash
 ros2 launch motor_control_hybrid tracking_policy.launch.py \
-  model_path:=/home/darin/Documents/Github/simulation/logs/legs_tracking/20260914_170827/20260914_170827.onnx \
+  model_path:=/home/darin/Documents/Github/embedded/humanoid_control/motor_control_hybrid/models/20260914_170827/20260914_170827.onnx \
   port:=/dev/ttyACM0 \
   baud:=115200 \
   input_format:=bno085_csv \
@@ -253,7 +253,7 @@ Terminal B, with the Jetson environment sourced:
 
 ```bash
 ros2 launch motor_control_hybrid tracking_policy.launch.py \
-  model_path:=/home/darin/Documents/Github/simulation/logs/legs_tracking/20260914_170827/20260914_170827.onnx \
+  model_path:=/home/darin/Documents/Github/embedded/humanoid_control/motor_control_hybrid/models/20260914_170827/20260914_170827.onnx \
   port:=/dev/ttyACM0 baud:=115200 input_format:=bno085_csv \
   use_fake_joint_states:=false \
   joint_feedback_mode:=joint_states \

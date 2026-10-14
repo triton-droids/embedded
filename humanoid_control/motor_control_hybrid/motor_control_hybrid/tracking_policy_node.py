@@ -9,6 +9,7 @@ import time
 import numpy as np
 import yaml
 import rclpy
+from ament_index_python.packages import get_package_share_directory
 from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
@@ -23,8 +24,8 @@ from motor_control_hybrid.tracking_onnx import (
 class TrackingPolicyNode(Node):
     def __init__(self):
         super().__init__('tracking_policy_node')
-        default_model = str(Path.home() / 'Github/simulation/logs/legs_tracking/'
-                            '20260914_170827/20260914_170827.onnx')
+        default_model = str(Path(get_package_share_directory('motor_control_hybrid')) /
+                            'models/20260914_170827/20260914_170827.onnx')
         defaults = {
             'model_path': default_model, 'control_rate_hz': 50.0,
             'motor_config_file': '',

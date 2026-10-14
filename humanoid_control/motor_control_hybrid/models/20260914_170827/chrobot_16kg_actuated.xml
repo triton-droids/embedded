@@ -1,0 +1,17 @@
+<mujoco model="ch_robot_16kg_actuated">
+  <include file="chrobot_16kg_candidate.xml" />
+  <!-- Simulation baseline copied from origin/humanoid robot_description/humanoid.xml.
+       These gains and 120 Nm limits are not verified hardware specifications. -->
+  <actuator>
+    <position name="left_hip1_act" joint="left_hip1_joint" kp="100" kv="1" forcelimited="true" forcerange="-120 120" />
+    <position name="left_hip2_act" joint="left_hip2_joint" kp="100" kv="1" forcelimited="true" forcerange="-120 120" />
+    <position name="left_thigh_act" joint="left_thigh_joint" kp="100" kv="1" forcelimited="true" forcerange="-120 120" />
+    <position name="left_knee_act" joint="left_knee_joint" kp="80" kv="1" forcelimited="true" forcerange="-120 120" />
+    <position name="left_ankle_act" joint="left_ankle_joint" kp="20" kv="1" forcelimited="true" forcerange="-120 120" />
+    <position name="right_hip1_act" joint="right_hip1_joint" kp="100" kv="1" forcelimited="true" forcerange="-120 120" />
+    <position name="right_hip2_act" joint="right_hip2_joint" kp="100" kv="1" forcelimited="true" forcerange="-120 120" />
+    <position name="right_thigh_act" joint="right_thigh_joint" kp="100" kv="1" forcelimited="true" forcerange="-120 120" />
+    <position name="right_knee_act" joint="right_knee_joint" kp="80" kv="1" forcelimited="true" forcerange="-120 120" />
+    <position name="right_ankle_act" joint="right_ankle_joint" kp="20" kv="1" forcelimited="true" forcerange="-120 120" />
+  </actuator>
+</mujoco>

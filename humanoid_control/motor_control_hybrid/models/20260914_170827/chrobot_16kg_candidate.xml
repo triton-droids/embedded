@@ -1,0 +1,120 @@
+<!-- SIMULATION CANDIDATE: CAD assembly masses normalized to 16 kg.
+     Original COM retained; original inertias scaled per link.
+     Rigid-link grouping and CAD frames are not yet validated. -->
+<mujoco model="ch_robot_16kg_candidate">
+  <compiler angle="radian" coordinate="local" autolimits="true" meshdir="../mjlab/src/mjlab/asset_zoo/robots/triton_robot/meshes" />
+  <option timestep="0.005" gravity="0 0 -9.81" integrator="implicitfast" cone="elliptic" />
+  <default>
+    <joint limited="true" damping="1.0" frictionloss="0.0" armature="0.0" />
+    <default class="visual">
+      <geom type="mesh" group="2" contype="0" conaffinity="0" />
+    </default>
+    <default class="collision">
+      <geom group="3" contype="1" conaffinity="1" />
+    </default>
+  </default>
+  <asset>
+    <mesh name="hip" file="hip_ch.stl" scale="0.001 0.001 0.001" />
+    <mesh name="left_leg1" file="left_leg1_ch.stl" scale="0.001 0.001 0.001" />
+    <mesh name="left_leg2" file="left_leg2_ch.stl" scale="0.001 0.001 0.001" />
+    <mesh name="left_leg3" file="left_leg3_ch.stl" scale="0.001 0.001 0.001" />
+    <mesh name="left_leg4" file="left_leg4_ch.stl" scale="0.001 0.001 0.001" />
+    <mesh name="right_leg1" file="right_leg1_ch.stl" scale="0.001 0.001 0.001" />
+    <mesh name="right_leg2" file="right_leg2_ch.stl" scale="0.001 0.001 0.001" />
+    <mesh name="right_leg3" file="right_leg3_ch.stl" scale="0.001 0.001 0.001" />
+    <mesh name="right_leg4" file="right_leg4_ch.stl" scale="0.001 0.001 0.001" />
+    <mesh name="hip_visual" file="visual/hip_dumb2.stl" scale="0.001 0.001 0.001" />
+    <mesh name="left_leg1_visual" file="visual/left_leg1_dumb.stl" scale="0.001 0.001 0.001" />
+    <mesh name="left_leg2_visual" file="visual/left_leg2_dumb.stl" scale="0.001 0.001 0.001" />
+    <mesh name="left_leg3_visual" file="visual/left_leg3_dumb.stl" scale="0.001 0.001 0.001" />
+    <mesh name="left_leg4_visual" file="visual/left_leg4_dumb.stl" scale="0.001 0.001 0.001" />
+    <mesh name="left_foot_visual" file="visual/left_foot.stl" scale="0.001 0.001 0.001" />
+    <mesh name="left_foot_sole_visual" file="visual/left_foot_sole.stl" scale="0.001 0.001 0.001" />
+    <mesh name="right_leg1_visual" file="visual/right_leg1_dumb.stl" scale="0.001 0.001 0.001" />
+    <mesh name="right_leg2_visual" file="visual/right_leg2_dumb.stl" scale="0.001 0.001 0.001" />
+    <mesh name="right_leg3_visual" file="visual/right_leg3_dumb.stl" scale="0.001 0.001 0.001" />
+    <mesh name="right_leg4_visual" file="visual/right_leg4_dumb.stl" scale="0.001 0.001 0.001" />
+    <mesh name="right_foot_visual" file="visual/right_foot.stl" scale="0.001 0.001 0.001" />
+    <mesh name="right_foot_sole_visual" file="visual/right_foot_sole.stl" scale="0.001 0.001 0.001" />
+    <material name="metal_silver" rgba="0.55 0.55 0.60 1" specular="1.0" shininess="1.0" reflectance="0.5" />
+  </asset>
+  <worldbody>
+    <body name="floating_base" pos="0 0 0.6846">
+      <freejoint />
+      <site name="imu" />
+      <body name="torso" pos="0.1505 0.008 -0.6996" >
+        <site name="top" pos="-0.155 -0.016 0.765" size="0.01" rgba="0 1 0 1" />
+        <inertial pos="-0.156928 -0.029496 0.666" mass=".001" fullinertia="1e-6 1e-6 1e-6 0 0 0" />
+        <body name="hip" pos="0 0 0">
+          <geom mesh="hip" class="collision" />
+          <geom mesh="hip_visual" class="visual" material="metal_silver" />
+          <inertial pos="-0.155587 -0.02906 0.584318" mass="3.46458542718" fullinertia="0.0104762466506 0.0159628450567 0.0169030210382 0.000120185381928 1.24760949808e-06 -2.93509698363e-05" />
+          <body name="left_leg1" pos="0 0 0">
+            <joint name="left_hip1_joint" type="hinge" axis="1 0 0" range="-1.57 1.57" pos="-0.068372 -0.029495 0.577401" limited="true" armature="0.01" />
+            <geom mesh="left_leg1" class="collision" />
+            <geom mesh="left_leg1_visual" class="visual" material="metal_silver" />
+            <inertial pos="-0.005945 -0.035287 0.577433" mass="1.17518545422" fullinertia="0.00140027559692 0.00168365831642 0.00181998257921 4.36125404195e-05 7.32751499849e-07 1.19808095314e-07" />
+            <body name="left_leg2" pos="0 0 0">
+              <joint name="left_hip2_joint" type="hinge" axis="0 1 0" range="-1.57 0.436332" pos="-0.000048 -0.029495 0.577401" limited="true" armature="0.01" />
+              <geom mesh="left_leg2" class="collision" />
+              <geom mesh="left_leg2_visual" class="visual" material="metal_silver" />
+              <inertial pos="-0.000018 -0.025475 0.486173" mass="1.67770594951" fullinertia="0.00596827675036 0.00513417033178 0.00276530810301 2.53608005649e-05 7.50739935298e-07 -0.000568958707639" />
+              <body name="left_leg3" pos="0 0 0" >
+                <joint name="left_thigh_joint" type="hinge" axis="0 0 -1" range="-0.785398 0.785398" pos="-0.000048 -0.029495 0.463816" limited="true" armature="0.01" />
+                <geom mesh="left_leg3" class="collision" />
+                <geom mesh="left_leg3_visual" class="visual" material="metal_silver" />
+                <inertial pos="0.005174 -0.030248 0.318931" mass="1.8557940434" fullinertia="0.00550728523223 0.00476184995528 0.00257316262398 2.76119208831e-05 0.0001183995779 -2.90848245656e-05" />
+                <body name="left_leg4" pos="0 0 0">
+                  <joint name="left_knee_joint" type="hinge" axis="1 0 0" range="-2.0944 0" pos="-0.000048 -0.029495 0.306338" limited="true" armature="0.01" />
+                  <geom mesh="left_leg4" class="collision" />
+                  <geom mesh="left_leg4_visual" class="visual" material="metal_silver" />
+                  <inertial pos="0.001337 -0.031134 0.183938" mass="0.977646243227" fullinertia="0.00577952124475 0.00588810319811 0.00146684347903 -1.12438774472e-05 0.000140120075268 -0.000115541069462" />
+                  <body name="left_foot" pos="0 0 0" >
+                    <joint name="left_ankle_joint" type="hinge" axis="1 0 0" range="-0.6 0.6" pos="0.00958 -0.03 0.031528" limited="true" armature="0.01" />
+                    <geom name="left_foot_collision_box" type="box" size="0.04 0.105 0.00763" pos="-0.00042 -0.005 -0.0045" class="collision" />
+                    <geom mesh="left_foot_visual" class="visual" material="metal_silver" />
+                    <geom mesh="left_foot_sole_visual" class="visual" material="metal_silver" pos="0.30958 0 0" />
+                    <inertial pos="-0.00053 -0.020276 0.011109" mass="0.592694120373" fullinertia="0.00160302031321 0.000362092178909 0.00171293286004 -1.37744973468e-05 2.18127254416e-06 9.03295367222e-05" />
+                    <site name="left_foot" pos="-0.00042 -0.005 -0.01213" size="0.01"/>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+          <body name="right_leg1" pos="0 0 0">
+            <joint name="right_hip1_joint" type="hinge" axis="1 0 0" range="-1.57 1.57" pos="-0.24290 -0.029495 0.577401" limited="true" armature="0.01" />
+            <geom mesh="right_leg1" class="collision" />
+            <geom mesh="right_leg1_visual" class="visual" material="metal_silver" />
+            <inertial pos="-0.305326 -0.035287 0.577434" mass="1.17908029277" fullinertia="0.00140495686043 0.00168928695714 0.00182606696578 -4.37549926146e-05 -7.29091296465e-07 1.31831157149e-07" />
+            <body name="right_leg2" pos="0 0 0" >
+              <joint name="right_hip2_joint" type="hinge" axis="0 1 0" range="-0.436332 1.57" pos="-0.311223 -0.029495 0.577401" limited="true" armature="0.01" />
+              <geom mesh="right_leg2" class="collision" />
+              <geom mesh="right_leg2_visual" class="visual" material="metal_silver" />
+              <inertial pos="-0.311252 -0.025506 0.485714" mass="1.6777180051" fullinertia="0.00597140001816 0.00514268811088 0.00274809048455 -2.51605056622e-05 -7.23162640295e-07 -0.000567730954108" />
+              <body name="right_leg3" pos="0 0 0" >
+                <joint name="right_thigh_joint" type="hinge" axis="0 0 1" range="-0.785398 0.785398" pos="-0.311223 -0.029495 0.463816" limited="true" armature="0.01" />
+                <geom mesh="right_leg3" class="collision" />
+                <geom mesh="right_leg3_visual" class="visual" material="metal_silver" />
+                <inertial pos="-0.317293 -0.030266 0.31875" mass="1.8443163012" fullinertia="0.00550241571452 0.00469270771205 0.00255627815296 -2.70170404936e-05 -0.000135251225597 -2.94692963592e-05" />
+                <body name="right_leg4" pos="0 0 0" >
+                  <joint name="right_knee_joint" type="hinge" axis="1 0 0" range="-2.0944 0" pos="-0.311223 -0.029495 0.306338" limited="true" armature="0.01" />
+                  <geom mesh="right_leg4" class="collision" />
+                  <geom mesh="right_leg4_visual" class="visual" material="metal_silver" />
+                  <inertial pos="-0.312608 -0.031134 0.183938" mass="0.96273799775" fullinertia="0.00569138862822 0.00579831480227 0.0014444754059 1.10724284105e-05 -0.00013798336734 -0.000113779169758" />
+                  <body name="right_foot" pos="0 0 0" >
+                    <joint name="right_ankle_joint" type="hinge" axis="1 0 0" range="-0.6 0.6" pos="-0.320851 -0.03 0.031528" limited="true" armature="0.01" />
+                    <geom name="right_foot_collision_box" type="box" size="0.04 0.105 0.00763" pos="-0.310851 -0.005 -0.0045" class="collision" />
+                    <geom mesh="right_foot_visual" class="visual" material="metal_silver" />
+                    <geom mesh="right_foot_sole_visual" class="visual" material="metal_silver" pos="-0.310851 0 0" />
+                    <inertial pos="-0.310741 -0.020276 0.011109" mass="0.591536165263" fullinertia="0.00159988846915 0.000361384754161 0.00170958627823 1.37475859113e-05 -2.17701096031e-06 9.01530585946e-05" />
+                    <site name="right_foot" pos="-0.310851 -0.005 -0.01213" size="0.01"/>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

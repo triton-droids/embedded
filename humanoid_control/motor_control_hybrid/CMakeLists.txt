@@ -79,6 +79,11 @@ install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}/
 )
 
+# Install deployment models and their configuration-sync XML snapshots
+install(DIRECTORY models
+  DESTINATION share/${PROJECT_NAME}/
+)
+
 # Install config files
 install(DIRECTORY config
   DESTINATION share/${PROJECT_NAME}/
