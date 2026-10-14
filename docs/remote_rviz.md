@@ -72,3 +72,44 @@ peer configuration.
 
 References: [ROS 2 environment settings](https://github.com/ros2/ros2_documentation/blob/humble/source/Tutorials/Beginner-CLI-Tools/Configuring-ROS2-Environment.rst),
 [robot_state_publisher](https://github.com/ros/robot_state_publisher/tree/humble).
+
+## Fake motor verification
+
+If `ros2 run motor_control_hybrid joint_state_monitor_node` reports
+`No executable found`, rebuild and source the workspace using the build commands
+above. An older install may not contain this newly added executable.
+
+In a sourced terminal, start a dedicated fake feedback stream:
+
+```bash
+ros2 launch motor_control_hybrid joint_state_monitor.launch.py \
+  use_fake_motor:=true source_topic:=/pose_test/feedback
+```
+
+This uses the ten robot joint names from `config/motors.yaml`. The standalone
+fake motor defaults to `test_joint` and `test_joint2`, which are absent from the
+leg URDF. Start the RViz display as above with its manual joint GUI disabled.
+In another sourced terminal, enable and move one fake joint:
+
+```bash
+ros2 topic pub --once /pose_test/motor_commands motor_control_interfaces/msg/MotorCommand \
+  '{joint_name: [left_hip1_joint], mode: [3]}'
+ros2 topic pub --once /pose_test/motor_commands motor_control_interfaces/msg/MotorCommand \
+  '{joint_name: [left_hip1_joint], mode: [1], position: [0.4], velocity: [1.0]}'
+```
+
+The left hip should move to 0.4 radians. Fake motors start disabled, so a position
+command alone will not move them. Do not run a second feedback publisher on
+`/pose_test/feedback` or a second relay on `/joint_states`.
+
+For an automated headless check of moving feedback, unchanged relay samples and
+the resulting TF rotation, run from the sourced repository root:
+
+```bash
+ROS_DOMAIN_ID=87 ROS_LOCALHOST_ONLY=1 RUN_ROS_INTEGRATION=1 \
+  /usr/bin/python3 -m pytest -q \
+  humanoid_control/motor_control_hybrid/test/test_pose_monitor_integration.py
+```
+
+Use an unused domain ID. This test requires permission to create local DDS
+sockets; restricted execution sandboxes may deny them.

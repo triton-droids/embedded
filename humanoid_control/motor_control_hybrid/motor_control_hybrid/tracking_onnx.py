@@ -70,7 +70,11 @@ class TrackingPolicy:
             'obs': obs, 'time_step': np.asarray([[frame]], dtype=np.float32)})[0][0]
         if actions.shape != (10,) or not np.isfinite(actions).all():
             raise ValueError('Invalid policy output')
+        if hasattr(self, "action_clip"):
+            actions = np.clip(actions, -self.action_clip, self.action_clip)
         targets = self.offset + self.scale * actions
+        if hasattr(self, "target_limits"):
+            targets = np.clip(targets, *self.target_limits)
         if not np.isfinite(targets).all():
             raise ValueError('Invalid position targets')
         # This export has no [-1, 1] clamp. Preserve its trained action semantics.
@@ -130,6 +134,8 @@ def validate_tracking_registry(policy, params, model_sha256):
         configured = np.asarray(contract[key], dtype=np.float32)
         if configured.shape != values.shape or not np.array_equal(configured, values):
             raise ValueError(f'Motor registry {key} differs from ONNX metadata')
+    if 'runtime_policy' in params:
+        return
     for index, name in enumerate(policy.names):
         motor = params['motors'][name]
         if (np.float32(motor['kp']) != policy.kp[index]
@@ -142,3 +148,26 @@ def fresh(receipt_time, stamp_time, now_monotonic, now_ros, timeout):
     return (receipt_time is not None and stamp_time is not None
             and 0 <= now_monotonic - receipt_time <= timeout
             and -0.01 <= now_ros - stamp_time <= timeout)
+
+
+def apply_runtime_policy(policy, params):
+    """Apply explicit deployment settings after validating original ONNX metadata."""
+    runtime = params.get('runtime_policy')
+    if runtime is None:
+        return
+    if runtime['control_hz'] != 50.0:
+        raise ValueError('Runtime policy must remain at 50 Hz')
+    names = policy.names
+    policy.offset = np.asarray([runtime['default_joint_pos_real_rad_by_joint'][n] for n in names], dtype=np.float32)
+    policy.scale = np.asarray([runtime['action_scale_by_joint'].get(n, runtime['action_scale']) for n in names], dtype=np.float32)
+    policy.kp = np.asarray([params['motors'][n]['kp'] for n in names], dtype=np.float32)
+    policy.kd = np.asarray([params['motors'][n]['kd'] for n in names], dtype=np.float32)
+    policy.action_clip = float(runtime['policy_action_clip'])
+    if not all(np.isfinite(v).all() for v in (policy.offset, policy.scale, policy.kp, policy.kd)) or not math.isfinite(policy.action_clip) or policy.action_clip <= 0:
+        raise ValueError('Invalid runtime policy settings')
+    if runtime['use_soft_joint_limits']:
+        factor = float(runtime['soft_joint_limit_factor'])
+        lower = np.asarray([params['motors'][n]['min_position'] for n in names])
+        upper = np.asarray([params['motors'][n]['max_position'] for n in names])
+        center, half = (lower + upper) / 2, (upper - lower) * factor / 2
+        policy.target_limits = (center - half, center + half)

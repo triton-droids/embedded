@@ -11,7 +11,7 @@ import yaml
 
 from motor_control_hybrid.motor_configuration import MotorSettings, validate_registry
 from motor_control_hybrid.python_can_node import PythonCanNode
-from motor_control_hybrid.tracking_onnx import TrackingPolicy, validate_tracking_registry
+from motor_control_hybrid.tracking_onnx import TrackingPolicy, validate_tracking_registry, apply_runtime_policy
 
 
 REPO = Path(__file__).resolve().parents[3]
@@ -25,8 +25,25 @@ class MotorConfigurationTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'not hardware verified'):
             validate_registry(params)
         params['hardware_verified'] = True
-        with self.assertRaisesRegex(ValueError, 'motor_id'):
-            validate_registry(params)
+        settings = validate_registry(params)
+        self.assertEqual(len(settings), 10)
+
+    def test_runtime_settings_match_source_by_name(self):
+        params = yaml.safe_load(REGISTRY.read_text())['motor_control_node']['ros__parameters']
+        policy = SimpleNamespace(names=list(reversed(params['motors'])))
+        apply_runtime_policy(policy, params)
+        self.assertEqual(policy.kp[0], 120)
+        self.assertAlmostEqual(policy.offset[0], 0.4, places=6)
+        self.assertEqual(policy.scale[0], 1)
+        self.assertEqual(params['runtime_policy']['control_hz'], 50)
+
+    def test_ankle_conversion_round_trip(self):
+        params = yaml.safe_load(REGISTRY.read_text())['motor_control_node']['ros__parameters']
+        settings = MotorSettings.from_config(params['motors']['left_ankle_joint'], params)
+        for target in (-0.5, 0, 0.4):
+            command = settings.command(dict(position=target, velocity=0, acceleration=0, torque=0, kp=120, kd=0.8))
+            joint, _, _ = settings.feedback(command['position'], 0, 0)
+            self.assertAlmostEqual(joint, target, places=6)
 
     def test_duplicate_bus_ids_and_conflicting_master_ids_rejected(self):
         cfg = {'motor_id': 12, 'model': 'rs-03', 'can_interface': 'can0', 'master_id': 255}
@@ -119,8 +136,8 @@ class MotorConfigurationTest(unittest.TestCase):
         sha = hashlib.sha256(MODEL.read_bytes()).hexdigest()
         validate_tracking_registry(policy, params, sha)
         wrong = copy.deepcopy(params)
-        wrong['motors']['left_knee_joint']['kp'] = 100
-        with self.assertRaisesRegex(ValueError, 'gains differ'):
+        wrong['model_contract']['joint_stiffness'][3] = 100
+        with self.assertRaisesRegex(ValueError, 'joint_stiffness differs'):
             validate_tracking_registry(policy, wrong, sha)
         wrong = copy.deepcopy(params)
         wrong['model_contract']['joint_order'][0:2] = reversed(wrong['model_contract']['joint_order'][0:2])
