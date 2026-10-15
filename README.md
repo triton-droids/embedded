@@ -1,6 +1,7 @@
 # Humanoid ROS 2 Control Stack
 
-This repository contains the ROS 2 motor-control and MoveIt sources plus the supporting runtime setup for the embedded humanoid stack.
+This repository contains the ROS 2 motor-control, vision, and MoveIt sources
+plus the supporting runtime setup for the embedded humanoid stack.
 
 The current architecture keeps ROS 2 as the runtime bus for motor state, motor commands, simulated hardware, policy output, and SDK/UI bridges. Python dependencies live in a local `rosenv/` virtual environment, which is ignored by Git and recreated from `scripts/setup_rosenv.sh`.
 
@@ -37,6 +38,10 @@ Use the ROS distribution that matches the OS. Do not copy `rosenv/` between Ubun
 │       │   └── policy_bridge_node.py
 │       ├── src/cpp_control_node.cpp
 │       └── requirements.txt
+├── humanoid_vision/
+│   ├── algorithm/
+│   ├── models/
+│   └── src/
 ├── humanoid_description/
 ├── humanoid_moveit_config/
 ├── Interfaces/control_core/
@@ -53,12 +58,19 @@ For complete terminal commands, see
 `tracking_policy.launch.py` runs the ESP32-S3 IMU and 50 Hz policy through ROS
 topics without an SDK. Its optional C++/fake-motor bench stays under `/policy/*`.
 
+For the current C++ face-detection and aligned-depth test pipeline, see
+[humanoid vision instructions](docs/humanoid_vision_instructions.md). For the
+planned ball chase, moving-head TF, dual-IMU stabilization, and control work,
+see [vision and control plan](docs/vision_control_plan.md).
+
 ### ROS Topics
 
 - `/joint_states` (`sensor_msgs/JointState`): motor state from the real CAN node or fake motor node.
 - `/motor_commands` (`motor_control_interfaces/MotorCommand`): final commands sent to the motor layer.
 - `/desired_motor_subset` (`motor_control_interfaces/MotorCommand`): policy bridge output consumed by the C++ control node.
 - `/imu` (`sensor_msgs/Imu`): optional policy input.
+- `/vision/ball_3d_position` (`geometry_msgs/PointStamped`): current temporary
+  target output in the camera optical frame.
 
 ### Core Nodes
 
@@ -68,6 +80,9 @@ topics without an SDK. Its optional C++/fake-motor bench stays under `/policy/*`
 - `policy_bridge_node`: Torch policy adapter. Reads joint/IMU state and publishes a desired motor subset.
 - `motor_sdk_gateway_node`: gRPC bridge for external SDK clients.
 - `double_pendulum_websocket_node`: browser/WebSocket visualization and interaction bridge.
+- `ball_detection_node`: temporary face detector used to test aligned-depth 3D
+  target publication before a ball model is installed.
+- `image_viewer_node`: color and aligned-depth display utility.
 
 ## Setup
 
@@ -101,6 +116,11 @@ catkin_pkg
 
 `empy` is pinned to `3.3.4` for ROS 2 Humble `rosidl_adapter` compatibility. This pin also builds successfully on Jazzy.
 
+`humanoid_vision` is a C++ package. Its OpenCV, Eigen, `cv_bridge`, and message
+dependencies come from ROS/system packages rather than `rosenv`. Installing a
+new `opencv-python` wheel in `rosenv` does not change the OpenCV library linked
+into the C++ vision executables.
+
 ## Build
 
 ```bash
@@ -112,7 +132,7 @@ source install/setup.bash
 All repo packages should appear after sourcing the workspace:
 
 ```bash
-ros2 pkg list | grep -E 'motor_control_(hybrid|interfaces)|humanoid_(arm_)?description|humanoid_moveit_config'
+ros2 pkg list | grep -E 'motor_control_(hybrid|interfaces)|humanoid_(arm_)?description|humanoid_moveit_config|humanoid_vision'
 ```
 
 Expected:
@@ -122,6 +142,7 @@ motor_control_hybrid
 motor_control_interfaces
 humanoid_arm_description
 humanoid_moveit_config
+humanoid_vision
 ```
 
 ## Launch
