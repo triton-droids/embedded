@@ -9,7 +9,7 @@
 #include <Eigen/Dense>
 #include <opencv2/opencv.hpp>
 
-#include <cv_bridge/cv_bridge.hpp>
+#include "humanoid_vision/cv_bridge_compat.hpp"
 #include <sensor_msgs/image_encodings.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/msg/image.hpp>

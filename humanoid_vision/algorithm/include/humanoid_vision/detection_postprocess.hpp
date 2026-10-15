@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -9,6 +10,8 @@
 #include <sensor_msgs/msg/image.hpp>
 
 #include "humanoid_vision/types.hpp"
+
+class TensorRtInference;
 
 class YoloDetector {
 public:
@@ -20,6 +23,7 @@ public:
     bool use_cuda = false;
   };
 
+  ~YoloDetector();
   explicit YoloDetector(const std::string &model_path);
   YoloDetector(const std::string &model_path, const Config &config);
 
@@ -37,6 +41,7 @@ private:
 
   LetterboxResult letterbox(const cv::Mat &image) const;
 
+  std::unique_ptr<TensorRtInference> tensorrt_;
   cv::dnn::Net net_;
   Config config_;
 };

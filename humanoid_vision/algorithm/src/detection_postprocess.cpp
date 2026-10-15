@@ -1,4 +1,5 @@
 #include "humanoid_vision/detection_postprocess.hpp"
+#include "humanoid_vision/tensorrt_inference.hpp"
 
 #include <algorithm>
 #include <stdexcept>
@@ -9,30 +10,33 @@
 #include <opencv2/dnn.hpp>
 #include <opencv2/imgproc.hpp>
 
-#include <cv_bridge/cv_bridge.hpp>
+#include "humanoid_vision/cv_bridge_compat.hpp"
 #include <sensor_msgs/image_encodings.hpp>
 
 YoloDetector::YoloDetector(const std::string &model_path)
     : YoloDetector(model_path, Config{}) {}
 
 YoloDetector::YoloDetector(const std::string &model_path, const Config &config)
-    : net_(cv::dnn::readNetFromONNX(model_path)), config_(config) {
-  if (net_.empty()) {
-    throw std::runtime_error("Failed to load YOLO ONNX model: " + model_path);
-  }
-
+    : config_(config) {
   if (config_.input_width <= 0 || config_.input_height <= 0) {
     throw std::invalid_argument("YOLO input dimensions must be positive");
   }
-
   if (config_.use_cuda) {
-    net_.setPreferableBackend(cv::dnn::DNN_BACKEND_CUDA);
-    net_.setPreferableTarget(cv::dnn::DNN_TARGET_CUDA_FP16);
+#ifdef HUMANOID_VISION_HAS_TENSORRT
+    tensorrt_ = std::make_unique<TensorRtInference>(
+        model_path, config_.input_width, config_.input_height);
+#else
+    throw std::runtime_error("CUDA requested but this package was built without TensorRT");
+#endif
   } else {
+    net_ = cv::dnn::readNetFromONNX(model_path);
+    if (net_.empty()) throw std::runtime_error("Failed to load YOLO ONNX model: " + model_path);
     net_.setPreferableBackend(cv::dnn::DNN_BACKEND_OPENCV);
     net_.setPreferableTarget(cv::dnn::DNN_TARGET_CPU);
   }
 }
+
+YoloDetector::~YoloDetector() = default;
 
 YoloDetector::LetterboxResult
 YoloDetector::letterbox(const cv::Mat &image) const {
@@ -74,10 +78,15 @@ std::vector<Detection2D> YoloDetector::detect(const cv::Mat &bgr_image) {
       cv::Size(config_.input_width, config_.input_height), cv::Scalar(), true,
       false);
 
-  net_.setInput(blob);
-
   std::vector<cv::Mat> outputs;
-  net_.forward(outputs, net_.getUnconnectedOutLayersNames());
+  if (tensorrt_) {
+#ifdef HUMANOID_VISION_HAS_TENSORRT
+    outputs.push_back(tensorrt_->forward(blob));
+#endif
+  } else {
+    net_.setInput(blob);
+    net_.forward(outputs, net_.getUnconnectedOutLayersNames());
+  }
 
   if (outputs.empty()) {
     return {};

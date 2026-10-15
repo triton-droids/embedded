@@ -1,7 +1,7 @@
 #include <memory>
 #include <string>
 
-#include <cv_bridge/cv_bridge.hpp>
+#include "humanoid_vision/cv_bridge_compat.hpp"
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 #include <rclcpp/rclcpp.hpp>

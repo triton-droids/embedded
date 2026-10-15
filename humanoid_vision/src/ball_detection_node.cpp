@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <chrono>
 #include <iomanip>
 #include <memory>
 #include <sstream>
@@ -6,7 +7,7 @@
 #include <vector>
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
-#include <cv_bridge/cv_bridge.hpp>
+#include "humanoid_vision/cv_bridge_compat.hpp"
 #include <geometry_msgs/msg/point_stamped.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
@@ -33,8 +34,16 @@ public:
         "depth_topic", "/camera/camera/aligned_depth_to_color/image_raw");
     const std::string camera_info_topic = declare_parameter<std::string>(
         "camera_info_topic", "/camera/camera/color/camera_info");
+#ifdef HUMANOID_VISION_HAS_TENSORRT
+    constexpr bool default_use_cuda = true;
+#else
+    constexpr bool default_use_cuda = false;
+#endif
+    const bool use_cuda = declare_parameter<bool>("use_cuda", default_use_cuda);
     const std::string model_path = declare_parameter<std::string>(
-        "model_path", package_share + "/models/yolov8n-face-lindevs.onnx");
+        "model_path", package_share + (use_cuda ?
+        "/models/yolov8n-face-fp16.engine" :
+        "/models/yolov8n-face-lindevs-opencv45.onnx"));
 
     show_image_ = declare_parameter<bool>("show_image", false);
 
@@ -45,26 +54,26 @@ public:
         declare_parameter<double>("confidence_threshold", 0.25));
     config.nms_threshold =
         static_cast<float>(declare_parameter<double>("nms_threshold", 0.45));
-    config.use_cuda = declare_parameter<bool>("use_cuda", false);
+    config.use_cuda = use_cuda;
 
     // Use the face model to test the ball-position pipeline for now.
     detector_ = std::make_unique<YoloDetector>(model_path, config);
 
     color_subscription_ = create_subscription<sensor_msgs::msg::Image>(
-        color_topic, rclcpp::SensorDataQoS(),
+        color_topic, rclcpp::SensorDataQoS().keep_last(1),
         std::bind(&BallDetectionNode::image_callback, this,
                   std::placeholders::_1));
 
     // Keep the latest aligned depth frame and camera intrinsics.
     depth_subscription_ = create_subscription<sensor_msgs::msg::Image>(
-        depth_topic, rclcpp::SensorDataQoS(),
+        depth_topic, rclcpp::SensorDataQoS().keep_last(1),
         [this](const sensor_msgs::msg::Image::ConstSharedPtr message) {
           latest_depth_ = message;
         });
 
     camera_info_subscription_ =
         create_subscription<sensor_msgs::msg::CameraInfo>(
-            camera_info_topic, rclcpp::SensorDataQoS(),
+            camera_info_topic, rclcpp::SensorDataQoS().keep_last(1),
             [this](const sensor_msgs::msg::CameraInfo::ConstSharedPtr message) {
               latest_camera_info_ = message;
             });
@@ -72,7 +81,24 @@ public:
     position_publisher_ = create_publisher<geometry_msgs::msg::PointStamped>(
         "/vision/ball_3d_position", 10);
 
-    RCLCPP_INFO(get_logger(), "Ball-position test node started");
+    last_image_time_ = now();
+    metrics_time_ = std::chrono::steady_clock::now();
+    image_watchdog_ = create_wall_timer(std::chrono::seconds(5), [this, color_topic]() {
+      const auto current = std::chrono::steady_clock::now();
+      const double seconds = std::chrono::duration<double>(current - metrics_time_).count();
+      if (processed_frames_ > 0) {
+        RCLCPP_INFO(get_logger(), "Processing %.1f FPS; detection %.1f ms/frame; last faces: %zu",
+                    processed_frames_ / seconds, detection_ms_ / processed_frames_, last_face_count_);
+      }
+      metrics_time_ = current;
+      processed_frames_ = 0;
+      detection_ms_ = 0;
+      if ((now() - last_image_time_).seconds() > 5.0) {
+        RCLCPP_WARN(get_logger(), "No recent color image on %s; check camera driver", color_topic.c_str());
+      }
+    });
+    RCLCPP_INFO(get_logger(), "Ball-position test node started; backend: %s; color topic: %s",
+                use_cuda ? "TensorRT CUDA FP16" : "OpenCV CPU", color_topic.c_str());
   }
 
   ~BallDetectionNode() override {
@@ -83,9 +109,24 @@ public:
 
 private:
   void image_callback(const sensor_msgs::msg::Image::ConstSharedPtr message) {
+    last_image_time_ = now();
+    const auto started = std::chrono::steady_clock::now();
     const std::vector<Detection2D> detections = detector_->detect(message);
+    detection_ms_ += std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - started).count();
+    ++processed_frames_;
+    last_face_count_ = detections.size();
 
     if (detections.empty()) {
+      if (show_image_) {
+        const auto image_cv = cv_bridge::toCvShare(
+            message, sensor_msgs::image_encodings::BGR8);
+        cv::Mat annotated = image_cv->image.clone();
+        cv::putText(annotated, "No face detected", cv::Point(10, 25),
+                    cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 255, 255), 2);
+        cv::imshow(window_name_, annotated);
+        cv::waitKey(1);
+      }
       return;
     }
 
@@ -135,6 +176,12 @@ private:
 
   static constexpr const char *window_name_ = "3D Target Test";
 
+  std::chrono::steady_clock::time_point metrics_time_;
+  size_t processed_frames_ = 0;
+  size_t last_face_count_ = 0;
+  double detection_ms_ = 0;
+  rclcpp::Time last_image_time_{0, 0, RCL_ROS_TIME};
+  rclcpp::TimerBase::SharedPtr image_watchdog_;
   bool show_image_ = false;
   std::unique_ptr<YoloDetector> detector_;
   sensor_msgs::msg::Image::ConstSharedPtr latest_depth_;

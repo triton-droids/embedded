@@ -1,5 +1,7 @@
 #include "humanoid_vision/detection_postprocess.hpp"
 
+#include <chrono>
+#include <cmath>
 #include <exception>
 #include <iostream>
 #include <string>
@@ -9,9 +11,9 @@
 #include <opencv2/imgproc.hpp>
 
 int main(int argc, char **argv) {
-  if (argc != 4) {
+  if (argc < 4) {
     std::cerr << "Usage: " << argv[0]
-              << " MODEL.onnx INPUT_IMAGE OUTPUT_IMAGE\n";
+              << " MODEL INPUT_IMAGE OUTPUT_IMAGE [--reference-face] [--cuda] [--benchmark]\n";
     return 2;
   }
 
@@ -25,7 +27,14 @@ int main(int argc, char **argv) {
     YoloDetector::Config config;
     config.confidence_threshold = 0.25F;
     config.nms_threshold = 0.45F;
-    config.use_cuda = false;
+    bool reference_face = false, benchmark = false;
+    for (int i = 4; i < argc; ++i) {
+      const std::string flag(argv[i]);
+      if (flag == "--cuda") config.use_cuda = true;
+      else if (flag == "--reference-face") reference_face = true;
+      else if (flag == "--benchmark") benchmark = true;
+      else throw std::invalid_argument("Unknown flag: " + flag);
+    }
 
     YoloDetector detector(argv[1], config);
     const std::vector<Detection2D> detections = detector.detect(image);
@@ -50,6 +59,30 @@ int main(int argc, char **argv) {
       return 2;
     }
 
+    if (reference_face) {
+      if (detections.size() != 1) {
+        return 1;
+      }
+      const auto &face = detections.front();
+      // Reference from the original graph: catches incorrect box decoding.
+      if (std::abs(face.confidence - 0.833417F) > 0.01F ||
+          std::abs(face.box.x - 212) > 2 || std::abs(face.box.y - 186) > 2 ||
+          std::abs(face.box.width - 144) > 2 ||
+          std::abs(face.box.height - 203) > 2) {
+        std::cerr << "Face differs from the reference detection\n";
+        return 1;
+      }
+    }
+    if (benchmark) {
+      for (int i = 0; i < 5; ++i) detector.detect(image);
+      const auto started = std::chrono::steady_clock::now();
+      constexpr int iterations = 30;
+      for (int i = 0; i < iterations; ++i) detector.detect(image);
+      const double ms = std::chrono::duration<double, std::milli>(
+          std::chrono::steady_clock::now() - started).count() / iterations;
+      std::cout << "backend=" << (config.use_cuda ? "TensorRT CUDA FP16" : "OpenCV CPU")
+                << " mean_ms=" << ms << " throughput_fps=" << 1000.0 / ms << '\n';
+    }
     return detections.empty() ? 1 : 0;
   } catch (const std::exception &error) {
     std::cerr << "Face detection failed: " << error.what() << '\n';
