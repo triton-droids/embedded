@@ -1,3 +1,8 @@
+/** @file target_3d_estimator.cpp
+ * @brief Local-median depth sampling and optical-frame box-center deprojection.
+ * Both overloads reject nonpositive/nonfinite depth samples. They return camera
+ * coordinates, not robot/body coordinates, and do not perform synchronization.
+ */
 #include "humanoid_vision/target_3d_estimator.hpp"
 
 #include <algorithm>
@@ -18,6 +23,7 @@
 #include <librealsense2/rs.hpp>
 #include <librealsense2/rsutil.h>
 
+/** @brief Use SDK distances in meters and its distortion-aware deprojection API. */
 std::optional<Eigen::Vector3f>
 project_2d_to_3d(const cv::Rect2f &box, const rs2_intrinsics &intrinsics,
                  const rs2::depth_frame &depth_frame) {
@@ -62,6 +68,8 @@ project_2d_to_3d(const cv::Rect2f &box, const rs2_intrinsics &intrinsics,
     return std::nullopt;
   }
 
+  // nth_element selects the upper median without fully sorting the patch.
+  // For an even sample count this is not the average of the two middle values.
   const auto middle = valid_depths.begin() + valid_depths.size() / 2;
   std::nth_element(valid_depths.begin(), middle, valid_depths.end());
 
@@ -74,7 +82,9 @@ project_2d_to_3d(const cv::Rect2f &box, const rs2_intrinsics &intrinsics,
 }
 #endif
 
-// ROS2 Override
+/** @brief Use ROS depth encodings and a pinhole model with color intrinsics.
+ * The caller supplies already aligned images; no distortion model is evaluated.
+ */
 
 std::optional<Eigen::Vector3f> project_2d_to_3d(
     const cv::Rect2f &box,
@@ -111,6 +121,7 @@ std::optional<Eigen::Vector3f> project_2d_to_3d(
     for (int x = x_min; x <= x_max; ++x) {
       float value_m = 0.0F;
 
+      // Normalize both supported encodings to meters before robust sampling.
       if (depth_msg->encoding == sensor_msgs::image_encodings::TYPE_16UC1) {
         const std::uint16_t value_mm = depth_cv->image.at<std::uint16_t>(y, x);
 
@@ -142,6 +153,8 @@ std::optional<Eigen::Vector3f> project_2d_to_3d(
     return std::nullopt;
   }
 
+  // K is row-major [fx, 0, cx; 0, fy, cy; 0, 0, 1]. The measured depth is Z
+  // along the optical axis, not Euclidean range along the center pixel ray.
   const float fx = static_cast<float>(camera_info->k[0]);
   const float fy = static_cast<float>(camera_info->k[4]);
   const float cx = static_cast<float>(camera_info->k[2]);
@@ -151,6 +164,7 @@ std::optional<Eigen::Vector3f> project_2d_to_3d(
     return std::nullopt;
   }
 
+  // Optical convention: +X right, +Y down, +Z forward, all in meters.
   const float x = (static_cast<float>(center_x) - cx) * depth_m / fx;
 
   const float y = (static_cast<float>(center_y) - cy) * depth_m / fy;

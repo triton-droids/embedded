@@ -1,3 +1,7 @@
+/** @file image_viewer_node.cpp
+ * @brief Display latest RGB/aligned-depth frames for manual camera diagnostics.
+ * The viewer is not a synchronized measurement source or a control component.
+ */
 #include <memory>
 #include <string>
 
@@ -10,8 +14,10 @@
 
 namespace humanoid_vision {
 
+/** @brief Cache the latest image on each topic and show a side-by-side preview. */
 class ImageViewerNode : public rclcpp::Node {
 public:
+  /** @brief Subscribe to configured image topics; display can be disabled headlessly. */
   ImageViewerNode() : Node("image_viewer_node") {
     const std::string color_topic = declare_parameter<std::string>(
         "color_topic", "/camera/camera/color/image_raw");
@@ -40,6 +46,7 @@ public:
     RCLCPP_INFO(get_logger(), "RGB and depth viewer node started");
   }
 
+  /** @brief Destroy the GUI window only when GUI display was enabled. */
   ~ImageViewerNode() override {
     if (display_) {
       cv::destroyWindow(window_name_);
@@ -47,6 +54,10 @@ public:
   }
 
 private:
+  /** @brief Render when both latest frames exist; ignore unsupported depth encodings.
+   * 16UC1 is interpreted in millimeters and 32FC1 in meters. Color-map scaling
+   * is for display only; it must not be reused as a metric depth conversion.
+   */
   void display_images() {
     if (!display_ || !latest_color_ || !latest_depth_) {
       return;
@@ -74,7 +85,7 @@ private:
       return;
     }
 
-    // Colorize depth and keep invalid pixels black.
+    // Colorize depth and keep pixels identified by the encoding-specific mask black.
     cv::Mat depth_color;
     cv::applyColorMap(depth_for_display, depth_color, cv::COLORMAP_JET);
     depth_color.setTo(cv::Scalar(0, 0, 0), invalid_mask);
@@ -101,6 +112,7 @@ private:
 
 } // namespace humanoid_vision
 
+/** @brief Run the diagnostic viewer and process GUI events from image callbacks. */
 int main(int argc, char **argv) {
   rclcpp::init(argc, argv);
   rclcpp::spin(std::make_shared<humanoid_vision::ImageViewerNode>());

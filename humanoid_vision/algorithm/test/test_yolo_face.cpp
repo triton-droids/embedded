@@ -1,3 +1,8 @@
+/** @file test_yolo_face.cpp
+ * @brief CLI smoke/regression test and optional throughput benchmark for YOLO.
+ * MODEL INPUT_IMAGE OUTPUT_IMAGE are required. --reference-face verifies the
+ * bundled Lena fixture; --cuda selects TensorRT; --benchmark repeats inference.
+ */
 #include "humanoid_vision/detection_postprocess.hpp"
 
 #include <chrono>
@@ -10,6 +15,10 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 
+/** @brief Decode one image, write its overlay, and optionally check a reference.
+ * @return 0 for success, 1 for no detection/reference mismatch, 2 for setup/IO
+ * errors or exceptions. Benchmark time includes preprocessing and decoding.
+ */
 int main(int argc, char **argv) {
   if (argc < 4) {
     std::cerr << "Usage: " << argv[0]
@@ -59,6 +68,8 @@ int main(int argc, char **argv) {
       return 2;
     }
 
+    // Only enable these numeric assertions for the matching model/Lena fixture;
+    // arbitrary user images are valid smoke inputs without this flag.
     if (reference_face) {
       if (detections.size() != 1) {
         return 1;
@@ -73,6 +84,7 @@ int main(int argc, char **argv) {
         return 1;
       }
     }
+    // Warm up backend allocations/caches before timing repeated identical inputs.
     if (benchmark) {
       for (int i = 0; i < 5; ++i) detector.detect(image);
       const auto started = std::chrono::steady_clock::now();

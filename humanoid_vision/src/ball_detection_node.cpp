@@ -1,3 +1,11 @@
+/**
+ * @file ball_detection_node.cpp
+ * @brief Detect one image target and publish its 2D center and optional 3D point.
+ *
+ * The default model detects faces as a bench substitute for a football model.
+ * Pixel centers always retain the source color-image stamp for tracker freshness
+ * checks. Depth is optional and never gates the visual-servo center publisher.
+ */
 #include <algorithm>
 #include <chrono>
 #include <iomanip>
@@ -22,8 +30,18 @@
 
 namespace humanoid_vision {
 
+/** @brief Host-side inference node with highest-confidence target selection.
+ * Color callbacks perform inference synchronously. The latest depth/intrinsics
+ * are cached independently; there is currently no timestamp synchronizer for
+ * 3D output, so callers must not assume exact color/depth temporal alignment.
+ * Selection is per frame and does not maintain an object identity across frames.
+ */
 class BallDetectionNode : public rclcpp::Node {
 public:
+  /** @brief Load the configured model and create camera subscriptions/outputs.
+   * TensorRT builds default to a serialized engine; CPU builds use ONNX.
+   * Exceptions from model loading propagate to fail startup visibly.
+   */
   BallDetectionNode() : Node("ball_detection_node") {
     const std::string package_share =
         ament_index_cpp::get_package_share_directory("humanoid_vision");
@@ -59,6 +77,7 @@ public:
     // Use the face model to test the ball-position pipeline for now.
     detector_ = std::make_unique<YoloDetector>(model_path, config);
 
+    // Depth-one sensor QoS favors the freshest frame over an inference backlog.
     color_subscription_ = create_subscription<sensor_msgs::msg::Image>(
         color_topic, rclcpp::SensorDataQoS().keep_last(1),
         std::bind(&BallDetectionNode::image_callback, this,
@@ -78,9 +97,14 @@ public:
               latest_camera_info_ = message;
             });
 
+    // The 3D point is in the camera optical frame (meters), never body coordinates.
     position_publisher_ = create_publisher<geometry_msgs::msg::PointStamped>(
         "/vision/ball_3d_position", 10);
+    center_publisher_ = create_publisher<geometry_msgs::msg::PointStamped>(
+        "/vision/target_center", rclcpp::SensorDataQoS().keep_last(1));
 
+    // Report throughput independently of target visibility; no detection is not
+    // the same failure as no incoming camera frames.
     last_image_time_ = now();
     metrics_time_ = std::chrono::steady_clock::now();
     image_watchdog_ = create_wall_timer(std::chrono::seconds(5), [this, color_topic]() {
@@ -101,6 +125,7 @@ public:
                 use_cuda ? "TensorRT CUDA FP16" : "OpenCV CPU", color_topic.c_str());
   }
 
+  /** @brief Release the optional OpenCV GUI window when the node exits. */
   ~BallDetectionNode() override {
     if (show_image_) {
       cv::destroyWindow(window_name_);
@@ -108,6 +133,11 @@ public:
   }
 
 private:
+  /** @brief Infer one color frame, select a box, and publish/annotate the result.
+   * @param message Color image with acquisition timestamp and optical frame ID.
+   * No detection means no center message: the downstream freshness watchdog
+   * expires naturally. A missing/invalid depth only suppresses the 3D output.
+   */
   void image_callback(const sensor_msgs::msg::Image::ConstSharedPtr message) {
     last_image_time_ = now();
     const auto started = std::chrono::steady_clock::now();
@@ -137,6 +167,15 @@ private:
                            return left.confidence < right.confidence;
                          });
 
+    // Pixel center for visual servoing. Publish even when depth is unavailable.
+    geometry_msgs::msg::PointStamped center;
+    center.header = message->header;
+    center.point.x = target->box.x + target->box.width * 0.5;
+    center.point.y = target->box.y + target->box.height * 0.5;
+    center_publisher_->publish(center);
+
+    // Cached depth must already be aligned to color pixels. This convenience
+    // path does not transform coordinates or enforce timestamp synchronization.
     if (latest_depth_ && latest_camera_info_) {
       const auto position =
           project_2d_to_3d(target->box, latest_depth_, latest_camera_info_);
@@ -160,6 +199,12 @@ private:
     cv::Mat annotated = image_cv->image.clone();
 
     cv::rectangle(annotated, target->box, cv::Scalar(0, 255, 0), 2);
+    const cv::Point target_pixel(static_cast<int>(center.point.x),
+                                 static_cast<int>(center.point.y));
+    const cv::Point image_center(annotated.cols / 2, annotated.rows / 2);
+    cv::drawMarker(annotated, image_center, cv::Scalar(255, 255, 0));
+    cv::circle(annotated, target_pixel, 4, cv::Scalar(0, 0, 255), -1);
+    cv::line(annotated, image_center, target_pixel, cv::Scalar(0, 255, 255));
 
     std::ostringstream label;
     label << "target " << std::fixed << std::setprecision(2)
@@ -176,6 +221,7 @@ private:
 
   static constexpr const char *window_name_ = "3D Target Test";
 
+  // Monotonic metrics timing is separate from ROS image-age diagnostics.
   std::chrono::steady_clock::time_point metrics_time_;
   size_t processed_frames_ = 0;
   size_t last_face_count_ = 0;
@@ -193,10 +239,13 @@ private:
       camera_info_subscription_;
   rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr
       position_publisher_;
+  rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr
+      center_publisher_;
 };
 
 } // namespace humanoid_vision
 
+/** @brief Run detection with serialized callbacks so cached camera state is safe. */
 int main(int argc, char **argv) {
   rclcpp::init(argc, argv);
   rclcpp::spin(std::make_shared<humanoid_vision::BallDetectionNode>());

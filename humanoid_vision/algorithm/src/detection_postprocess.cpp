@@ -1,3 +1,8 @@
+/** @file detection_postprocess.cpp
+ * @brief Letterbox BGR input, run YOLO, and decode clipped boxes with NMS.
+ * Model-space coordinates are converted back to original image pixels before
+ * publication. CPU and TensorRT backends share the same preprocessing/decoder.
+ */
 #include "humanoid_vision/detection_postprocess.hpp"
 #include "humanoid_vision/tensorrt_inference.hpp"
 
@@ -13,9 +18,11 @@
 #include "humanoid_vision/cv_bridge_compat.hpp"
 #include <sensor_msgs/image_encodings.hpp>
 
+/** @brief Delegate to the configurable constructor using default CPU settings. */
 YoloDetector::YoloDetector(const std::string &model_path)
     : YoloDetector(model_path, Config{}) {}
 
+/** @brief Initialize exactly one backend and reject invalid input dimensions. */
 YoloDetector::YoloDetector(const std::string &model_path, const Config &config)
     : config_(config) {
   if (config_.input_width <= 0 || config_.input_height <= 0) {
@@ -36,8 +43,10 @@ YoloDetector::YoloDetector(const std::string &model_path, const Config &config)
   }
 }
 
+/** @brief Destroy the opaque backend only where its complete type is visible. */
 YoloDetector::~YoloDetector() = default;
 
+/** @brief Fit the input into model dimensions while preserving aspect ratio. */
 YoloDetector::LetterboxResult
 YoloDetector::letterbox(const cv::Mat &image) const {
   const float scale =
@@ -52,6 +61,8 @@ YoloDetector::letterbox(const cv::Mat &image) const {
   cv::Mat resized;
   cv::resize(image, resized, cv::Size(resized_width, resized_height));
 
+  // Split odd padding asymmetrically by one pixel and retain the exact left/top
+  // offsets so decoding uses the same transform that preprocessing applied.
   const int remaining_width = config_.input_width - resized_width;
   const int remaining_height = config_.input_height - resized_height;
   const int pad_left = remaining_width / 2;
@@ -66,6 +77,7 @@ YoloDetector::letterbox(const cv::Mat &image) const {
   return LetterboxResult{std::move(padded), scale, pad_left, pad_top};
 }
 
+/** @brief Run one image through RGB normalization, inference, decoding, and NMS. */
 std::vector<Detection2D> YoloDetector::detect(const cv::Mat &bgr_image) {
   if (bgr_image.empty()) {
     return {};
@@ -73,6 +85,7 @@ std::vector<Detection2D> YoloDetector::detect(const cv::Mat &bgr_image) {
 
   const LetterboxResult input = letterbox(bgr_image);
 
+  // swapRB=true converts BGR to RGB; blobFromImage produces normalized NCHW FP32.
   const cv::Mat blob = cv::dnn::blobFromImage(
       input.image, 1.0 / 255.0,
       cv::Size(config_.input_width, config_.input_height), cv::Scalar(), true,
@@ -125,6 +138,8 @@ std::vector<Detection2D> YoloDetector::detect(const cv::Mat &bgr_image) {
   for (int row_index = 0; row_index < predictions.rows; ++row_index) {
     const float *row = predictions.ptr<float>(row_index);
 
+    // This decoder expects class scores directly after four box coordinates.
+    // It does not multiply by a separate YOLOv5-style objectness channel.
     const cv::Mat class_scores(1, predictions.cols - 4, CV_32F,
                                const_cast<float *>(row + 4));
     cv::Point best_class;
@@ -136,6 +151,7 @@ std::vector<Detection2D> YoloDetector::detect(const cv::Mat &bgr_image) {
       continue;
     }
 
+    // Undo model padding before undoing resize, then clip to source boundaries.
     const float center_x = (row[0] - input.pad_x) / input.scale;
     const float center_y = (row[1] - input.pad_y) / input.scale;
     const float width = row[2] / input.scale;
@@ -159,6 +175,8 @@ std::vector<Detection2D> YoloDetector::detect(const cv::Mat &bgr_image) {
     class_ids.push_back(best_class.x);
   }
 
+  // NMS is shared across all classes here, which suits the single-class face
+  // test model. A multi-class deployment may need class-aware suppression.
   std::vector<int> kept_indices;
   cv::dnn::NMSBoxes(boxes, confidences, config_.confidence_threshold,
                     config_.nms_threshold, kept_indices);
@@ -174,6 +192,7 @@ std::vector<Detection2D> YoloDetector::detect(const cv::Mat &bgr_image) {
   return detections;
 }
 
+/** @brief Share/convert a ROS image to BGR8 without an unconditional image clone. */
 std::vector<Detection2D>
 YoloDetector::detect(const sensor_msgs::msg::Image::ConstSharedPtr &image_msg) {
   if (!image_msg) {

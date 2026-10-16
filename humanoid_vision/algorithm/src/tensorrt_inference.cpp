@@ -1,3 +1,7 @@
+/** @file tensorrt_inference.cpp
+ * @brief TensorRT 10 resource ownership, fixed-shape tensor binding, and inference.
+ * The CPU-only branch deliberately throws if this optional backend is requested.
+ */
 #include "humanoid_vision/tensorrt_inference.hpp"
 
 #ifdef HUMANOID_VISION_HAS_TENSORRT
@@ -12,28 +16,37 @@
 static_assert(NV_TENSORRT_MAJOR >= 10, "TensorRT 10 or newer is required");
 
 namespace {
+/** @brief Turn CUDA API failures into readable exceptions at their call site. */
 void checkCuda(cudaError_t status) {
   if (status != cudaSuccess) {
     throw std::runtime_error(std::string("CUDA: ") + cudaGetErrorString(status));
   }
 }
+/** @brief Forward TensorRT warnings/errors to stderr without throwing in callbacks. */
 struct Logger : nvinfer1::ILogger {
+  /** @brief Ignore verbose/info diagnostics to keep routine inference quiet. */
   void log(Severity severity, const char *message) noexcept override {
     if (severity <= Severity::kWARNING) {
       std::cerr << "TensorRT: " << message << '\n';
     }
   }
 };
+/** @brief Own one CUDA allocation; free even when initialization throws midway. */
 struct DeviceBuffer {
   void *data = nullptr;
   ~DeviceBuffer() { if (data) cudaFree(data); }
 };
+/** @brief Own the CUDA stream used for ordered copies and inference. */
 struct Stream {
   cudaStream_t handle = nullptr;
   ~Stream() { if (handle) cudaStreamDestroy(handle); }
 };
 }
 
+/** @brief Backend state, declared in lifetime-safe destruction order.
+ * Members are destroyed in reverse declaration order: context before buffers,
+ * then engine/runtime. Synchronization precedes all resource destruction.
+ */
 struct TensorRtInference::Impl {
   ~Impl() { if (stream.handle) cudaStreamSynchronize(stream.handle); }
   Logger logger;
@@ -49,6 +62,7 @@ struct TensorRtInference::Impl {
   size_t output_bytes = 0;
 };
 
+/** @brief Load an engine, validate its static IO contract, and allocate once. */
 TensorRtInference::TensorRtInference(const std::string &engine_path,
                                    int width, int height)
     : impl_(std::make_unique<Impl>()) {
@@ -71,6 +85,7 @@ TensorRtInference::TensorRtInference(const std::string &engine_path,
   for (int i = 0; i < state.engine->getNbIOTensors(); ++i) {
     const char *name = state.engine->getIOTensorName(i);
     const auto shape = state.engine->getTensorShape(name);
+    // Internal engine layers may use FP16, but external buffers are FP32.
     if (state.engine->getTensorDataType(name) != nvinfer1::DataType::kFLOAT ||
         state.engine->getTensorLocation(name) != nvinfer1::TensorLocation::kDEVICE) {
       throw std::runtime_error("TensorRT IO must use FP32 device tensors");
@@ -97,6 +112,7 @@ TensorRtInference::TensorRtInference(const std::string &engine_path,
         throw std::runtime_error("Expected TensorRT YOLO output [1,4+classes,anchors]");
       }
       found_output = true;
+      // Retain host output across frames; callers receive a shallow view of it.
       state.host_output.create(static_cast<int>(dims.size()), dims.data(), CV_32F);
       state.output_bytes = state.host_output.total() * sizeof(float);
       checkCuda(cudaMalloc(&state.output.data, state.output_bytes));
@@ -108,14 +124,18 @@ TensorRtInference::TensorRtInference(const std::string &engine_path,
   if (!found_input || !found_output) throw std::runtime_error("Incomplete TensorRT IO");
 }
 
+/** @brief Let Impl synchronize and release resources via RAII. */
 TensorRtInference::~TensorRtInference() = default;
 
+/** @brief Copy input, enqueue inference, copy output, and wait on the same stream. */
 cv::Mat TensorRtInference::forward(const cv::Mat &blob) {
   auto &state = *impl_;
   if (blob.type() != CV_32F || !blob.isContinuous() || blob.dims != 4 ||
       std::vector<int>(blob.size.p, blob.size.p + blob.dims) != state.input_shape) {
     throw std::runtime_error("Invalid TensorRT input blob");
   }
+  // Stream ordering guarantees that inference sees the input and the CPU sees
+  // completed output. The final synchronize makes this API synchronous.
   checkCuda(cudaMemcpyAsync(state.input.data, blob.data, state.input_bytes,
                             cudaMemcpyHostToDevice, state.stream.handle));
   if (!state.context->enqueueV3(state.stream.handle)) {
@@ -131,6 +151,8 @@ cv::Mat TensorRtInference::forward(const cv::Mat &blob) {
 
 #else
 #include <stdexcept>
+// Linkable stubs keep the public API consistent on hosts without a CUDA SDK;
+// they never silently substitute CPU inference for an explicitly requested engine.
 struct TensorRtInference::Impl {};
 TensorRtInference::TensorRtInference(const std::string &, int, int) {
   throw std::runtime_error("TensorRT support is unavailable");
