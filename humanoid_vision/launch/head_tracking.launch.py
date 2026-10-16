@@ -1,8 +1,8 @@
 """Launch the camera, detector, single-axis tracker, and serial micro-ROS Agent.
 
 Each component can be disabled when it is managed elsewhere. The default Agent
-runs as a foreground Docker child so launch owns its lifetime; ``native`` uses
-an installed ROS package instead. All enabled components share ROS_DOMAIN_ID.
+uses the locally compiled ROS package (``native``). The optional ``docker`` mode
+runs a foreground container child so launch owns its lifetime. All enabled components share ROS_DOMAIN_ID.
 No fixed startup delay is required: the MCU probes for its Agent, and the tracker
 waits for calibrated, fresh detections before publishing any angle commands.
 """
@@ -131,7 +131,7 @@ def generate_launch_description():
         ('start_agent', 'true', 'Start Agent; false when one already owns serial'),
         ('start_detector', 'true', 'Start box detection'),
         ('start_tracker', 'true', 'Start angle controller'),
-        ('agent_mode', 'docker', 'docker or native (installed ROS Agent package)'),
+        ('agent_mode', 'native', 'native (locally compiled ROS Agent) or docker'),
         ('agent_image', 'microros/micro-ros-agent:jazzy', 'Docker Agent image'),
         ('serial_port', '/dev/ttyACM0', 'ESP32 device; /dev/serial/by-id path also works'),
         ('baud', '460800', 'Must match MCU firmware'),
