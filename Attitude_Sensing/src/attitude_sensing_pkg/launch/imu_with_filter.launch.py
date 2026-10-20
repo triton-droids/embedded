@@ -1,4 +1,7 @@
 from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 from ament_index_python.packages import PackageNotFoundError
@@ -24,25 +27,24 @@ def generate_launch_description():
     # )
 
     
-    _require_pkg(
-        "imu_complementary_filter",
-        "sudo apt update && sudo apt install ros-humble-imu-complementary-filter",
-    )
+    # Deprecated pipeline: disabled by default; launch resolves dependencies only
+    # when the user explicitly enables the legacy nodes.
 
     imu_reader = Node(
         package="attitude_sensing_pkg",
         executable="imu_reader_node",   
         name="imu_reader",
+        condition=IfCondition(LaunchConfiguration("enable_legacy_imu")),
         output="screen",
         parameters=[
             {
                 "port": "/dev/ttyUSB0",
                 "baud": 115200,
                 "frame_id": "imu_link",
-                # Auto-detect the existing JSON stream or BNO085 CSV firmware.
                 "input_format": "auto",
                 "acc_units": "g",
                 "gyro_units": "deg/s",
+
                 "use_rk4_orientation": False,
                 "use_sensor_orientation": True,
             }
@@ -56,6 +58,7 @@ def generate_launch_description():
         package="imu_filter_madgwick",
         executable="imu_filter_madgwick_node",
         name="imu_filter",
+        condition=IfCondition(LaunchConfiguration("enable_legacy_imu")),
         output="screen",
         remappings=[
             ("/imu/data_raw", "/imu/data_raw"),
@@ -64,4 +67,11 @@ def generate_launch_description():
         # parameters=[...]
     )
 
-    return LaunchDescription([imu_reader, madgwick_filter])
+    return LaunchDescription([
+        DeclareLaunchArgument(
+            "enable_legacy_imu", default_value="false",
+            description="Explicitly enable the deprecated IMU reader and filter",
+        ),
+        imu_reader,
+        madgwick_filter,
+    ])
