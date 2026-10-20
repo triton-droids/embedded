@@ -1,0 +1,5 @@
+data/
+build.log
+*.log
+Dockerfile.bak
+.DS_Store
