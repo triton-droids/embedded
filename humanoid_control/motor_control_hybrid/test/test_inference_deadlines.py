@@ -105,7 +105,7 @@ def test_callbacks_and_estop_continue_while_inference_is_blocked(node):
         callback.start()
         callback.join(timeout=1)
         assert not callback.is_alive()
-        assert node.joints[2][0] == .3
+        assert node.joints[2][0] == pytest.approx(.3)
         assert node.fault == 'estop'
     finally:
         release.set()

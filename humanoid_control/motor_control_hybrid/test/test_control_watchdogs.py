@@ -31,6 +31,9 @@ def stamp(message, seconds=100.0):
 @pytest.fixture
 def can_node():
     node = PythonCanNode.__new__(PythonCanNode)
+    node.can_rt_enabled = False
+    node.can_tx_rt_priority = 20
+    node.can_rx_rt_priority = 21
     bus = Mock(channel='can0')
     node.bus_by_joint = {'a': bus, 'b': bus}
     node.buses = {'can0': bus}
@@ -428,3 +431,22 @@ def test_expired_explicit_deadline_rejects_even_recent_source(can_node):
     msg.valid_until.sec, msg.valid_until.nanosec = 99, 999_000_000
     can_node._cmd_callback(msg)
     assert can_node.command_queue.empty()
+
+
+@pytest.mark.parametrize('role,priority', [('TX', 20), ('RX can0', 21)])
+def test_can_rt_targets_calling_thread(can_node, role, priority):
+    can_node.can_rt_enabled = True
+    with patch('motor_control_hybrid.python_can_node.os.sched_setscheduler') as setter:
+        can_node._configure_can_scheduling(role, priority)
+    assert setter.call_args.args[0] == 0
+    assert setter.call_args.args[2].sched_priority == priority
+
+
+def test_can_rt_permission_failure_keeps_worker_alive(can_node):
+    can_node.can_rt_enabled = True
+    logger = Mock()
+    can_node.get_logger = lambda: logger
+    with patch('motor_control_hybrid.python_can_node.os.sched_setscheduler',
+               side_effect=PermissionError('denied')):
+        can_node._configure_can_scheduling('TX', 20)
+    logger.warning.assert_called_once()

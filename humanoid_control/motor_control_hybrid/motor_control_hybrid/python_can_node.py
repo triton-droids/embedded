@@ -33,6 +33,15 @@ class PythonCanNode(Node):
         super().__init__('python_can_node')
 
         self.declare_parameter('motor_config_file', '')
+        self.declare_parameter('can_rt_enabled', False)
+        self.declare_parameter('can_tx_rt_priority', 20)
+        self.declare_parameter('can_rx_rt_priority', 21)
+        self.can_rt_enabled = self.get_parameter('can_rt_enabled').value
+        self.can_tx_rt_priority = self.get_parameter('can_tx_rt_priority').value
+        self.can_rx_rt_priority = self.get_parameter('can_rx_rt_priority').value
+        for priority in (self.can_tx_rt_priority, self.can_rx_rt_priority):
+            if not 1 <= priority <= 99:
+                raise ValueError('CAN RT priorities must be between 1 and 99')
         self.declare_parameter('publish_rate_hz', 50.0)
         # Legacy launch compatibility only: RX now continuously consumes frames.
         self.declare_parameter('feedback_poll_hz', 50.0)
@@ -250,6 +259,19 @@ class PythonCanNode(Node):
             self.state_buffer[joint_name] = (pos, vel, tq, temp,
                                              time.monotonic() if received_at is None else received_at)
 
+    def _configure_can_scheduling(self, role, priority):
+        tid = threading.get_native_id()
+        if not self.can_rt_enabled:
+            self.get_logger().info(f'CAN {role} TID={tid}: existing scheduling')
+            return
+        try:
+            os.sched_setscheduler(0, os.SCHED_RR, os.sched_param(priority))
+            self.get_logger().info(f'CAN {role} TID={tid}: SCHED_RR priority={priority}')
+        except (OSError, AttributeError) as exc:
+            self.get_logger().warning(
+                f'CAN {role} TID={tid}: cannot set SCHED_RR priority={priority}: '
+                f'{exc}; continuing with existing scheduling')
+
     def _can_rx_loop(self, bus):
         """The only receiver for this interface; a missing motor cannot block TX.
 
@@ -257,6 +279,7 @@ class PythonCanNode(Node):
         soon as a frame arrives. Kernel frame age is preserved in host monotonic
         seconds so queued feedback is not relabelled as a fresh measurement.
         """
+        self._configure_can_scheduling(f'RX {bus.channel}', self.can_rx_rt_priority)
         while self.running and rclpy.ok():
             try:
                 frame = bus.channel_handler.recv(timeout=0.01)
@@ -290,6 +313,7 @@ class PythonCanNode(Node):
                 time.sleep(0.01)  # RX error backoff only; TX is independent.
 
     def _can_tx_loop(self):
+        self._configure_can_scheduling('TX', self.can_tx_rt_priority)
         self.get_logger().info('CAN TX thread started; feedback never blocks TX')
         while self.running and rclpy.ok():
             begin = time.monotonic()

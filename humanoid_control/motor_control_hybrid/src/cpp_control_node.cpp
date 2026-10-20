@@ -6,6 +6,9 @@
 
 #include <atomic>
 #include <chrono>
+#include <sched.h>
+#include <cerrno>
+#include <cstring>
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -26,6 +29,12 @@ public:
   CppControlNode()
   : Node("cpp_control_node")
   {
+    this->declare_parameter<bool>("control_rt_enabled", false);
+    this->declare_parameter<int>("control_rt_priority", 10);
+    const auto priority = this->get_parameter("control_rt_priority").as_int();
+    if (priority < 1 || priority > 99) {
+      throw std::invalid_argument("control_rt_priority must be between 1 and 99");
+    }
     // Parameters
     this->declare_parameter<double>("control_rate_hz", 50.0);
     this->declare_parameter<double>("state_timeout_s", 0.2);
@@ -602,7 +611,21 @@ private:
 int main(int argc, char * argv[])
 {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<CppControlNode>());
+  auto node = std::make_shared<CppControlNode>();
+  // Configure after ROS/DDS initialization so their existing worker threads
+  // keep their policies. This thread executes both timer and subscriptions.
+  if (node->get_parameter("control_rt_enabled").as_bool()) {
+    sched_param param{};
+    param.sched_priority = static_cast<int>(node->get_parameter("control_rt_priority").as_int());
+    if (sched_setscheduler(0, SCHED_RR, &param) == 0) {
+      RCLCPP_INFO(node->get_logger(), "Control executor: SCHED_RR priority=%d", param.sched_priority);
+    } else {
+      RCLCPP_WARN(node->get_logger(),
+        "Cannot set control executor SCHED_RR: %s; continuing with existing scheduling",
+        std::strerror(errno));
+    }
+  }
+  rclcpp::spin(node);
   rclcpp::shutdown();
   return 0;
 }

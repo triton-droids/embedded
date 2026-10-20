@@ -3,6 +3,7 @@ from launch.actions import DeclareLaunchArgument, LogInfo, OpaqueFunction
 from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 import yaml
 
@@ -25,6 +26,8 @@ def make_cpp_control(context):
             'joint_names': registry_joint_names(context),
             'control_rate_hz': float(LaunchConfiguration('control_rate_hz').perform(context)),
             'cmd_timeout_s': float(LaunchConfiguration('cmd_timeout_s').perform(context)),
+            'control_rt_enabled': ParameterValue(LaunchConfiguration('control_rt_enabled'), value_type=bool),
+            'control_rt_priority': ParameterValue(LaunchConfiguration('control_rt_priority'), value_type=int),
             'enable_rl': LaunchConfiguration('enable_rl'),
             'rl_model_path': LaunchConfiguration('rl_model_path'),
         }],
@@ -109,7 +112,7 @@ def generate_launch_description():
 
     enable_sdk_gateway_arg = DeclareLaunchArgument(
         'enable_sdk_gateway',
-        default_value='true',
+        default_value='false',
         description='Start gRPC SDK motor gateway node'
     )
 
@@ -197,6 +200,9 @@ def generate_launch_description():
             {'feedback_poll_hz': LaunchConfiguration('feedback_poll_hz')},
             {'feedback_poll_when_idle': True},
             {'command_timeout_s': LaunchConfiguration('can_command_timeout_s')},
+            {'can_rt_enabled': ParameterValue(LaunchConfiguration('can_rt_enabled'), value_type=bool)},
+            {'can_tx_rt_priority': ParameterValue(LaunchConfiguration('can_tx_rt_priority'), value_type=int)},
+            {'can_rx_rt_priority': ParameterValue(LaunchConfiguration('can_rx_rt_priority'), value_type=int)},
         ],
     )
 
@@ -247,6 +253,11 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        DeclareLaunchArgument('can_rt_enabled', default_value='false'),
+        DeclareLaunchArgument('can_tx_rt_priority', default_value='20'),
+        DeclareLaunchArgument('can_rx_rt_priority', default_value='21'),
+        DeclareLaunchArgument('control_rt_enabled', default_value='false'),
+        DeclareLaunchArgument('control_rt_priority', default_value='10'),
         motor_config_arg,
         control_rate_arg,
         feedback_poll_rate_arg,
