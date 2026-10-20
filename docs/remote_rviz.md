@@ -1,5 +1,12 @@
 # Live joint visualization over ROS 2
 
+The relay now belongs to `humanoid_safety`; the old executable is a compatibility
+wrapper. The unified modes are `ros2 launch humanoid_safety safety.launch.py
+mode:=web|rviz|monitor` (choose one value). They consume `/joint_states` by default
+and inherit ROS network/domain settings. See the [safety monitor guide](../humanoid_control/humanoid_safety/README.md)
+for current Web/RViz commands, topics and mode behavior. The legacy commands below
+remain supported.
+
 `joint_state_monitor_node` forwards a selected `sensor_msgs/msg/JointState`
 stream to `/joint_states`. It preserves names, positions, timestamps and optional
 velocity/effort arrays, drops malformed/non-finite samples, and stops publishing

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Motor Web UI · ROS Monitor</title><link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div><h1>Motor Web UI</h1><p id="subtitle">Waiting for ROS feedback…</p></div>
+    <div class="connection" id="connection"><span class="dot"></span><span id="connectionText">Waiting</span></div>
+  </header>
+  <p class="notice" id="safety">Safety status: unknown</p>
+  <main class="layout"><section class="panel motors-panel">
+    <div class="panel-head"><div><h2>Motor Status</h2><p id="summary">0 motors</p></div></div>
+    <div class="table-wrap"><table><thead><tr>
+      <th>Joint</th><th>ID</th><th>Model</th><th>Position rad</th><th>Velocity rad/s</th>
+      <th>Torque Nm</th><th>Temp °C</th><th>Source age ms</th><th>State</th>
+    </tr></thead><tbody id="motorRows"></tbody></table></div>
+  </section></main>
+  <p class="notice">Read-only ROS feedback. Stale values remain visible and are marked offline. Base pose is not estimated.</p>
+  <script src="/app.js"></script>
+</body></html>

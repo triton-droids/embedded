@@ -18,6 +18,7 @@ setup(
         ("share/" + package_name, ["package.xml"]),
         (os.path.join("share", package_name, "config"), glob("config/*.yaml")),
         (os.path.join("share", package_name, "launch"), glob("launch/*.launch.py")),
+        (os.path.join("share", package_name, "web_ui"), glob("web_ui/*")),
     ],
     install_requires=["setuptools"],
     zip_safe=True,
@@ -29,6 +30,8 @@ setup(
     entry_points={
         "console_scripts": [
             "safety_node = humanoid_safety.safety_node:main",
+            "motor_web_node = humanoid_safety.motor_web_node:main",
+            "joint_state_monitor_node = humanoid_safety.joint_state_monitor_node:main",
         ],
     },
 )

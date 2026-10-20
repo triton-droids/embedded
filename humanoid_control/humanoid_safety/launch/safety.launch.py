@@ -1,23 +1,67 @@
+"""Safety supervisor and read-only ROS network monitoring modes."""
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction, SetEnvironmentVariable
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import EnvironmentVariable, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 
+def mode_nodes(context):
+    mode = LaunchConfiguration('mode').perform(context)
+    nodes = []
+    if mode in ('supervisor', 'all'):
+        nodes.append(Node(package='humanoid_safety', executable='safety_node',
+            name='safety_node', output='screen',
+            parameters=[LaunchConfiguration('safety_config')]))
+    if mode in ('web', 'monitor', 'all'):
+        parameters = {
+            'source_topic': LaunchConfiguration('source_topic'),
+            'motor_status_topic': LaunchConfiguration('motor_status_topic'),
+            'host': LaunchConfiguration('host'),
+            'port': ParameterValue(LaunchConfiguration('port'), value_type=int),
+        }
+        # Empty means auto-detect the optional installed motor registry in the node.
+        config = LaunchConfiguration('motor_config_file').perform(context)
+        if config:
+            parameters['motor_config_file'] = config
+        nodes.append(Node(package='humanoid_safety', executable='motor_web_node',
+                          output='screen', parameters=[parameters]))
+    if mode in ('rviz', 'monitor', 'all'):
+        nodes.append(Node(package='humanoid_safety', executable='joint_state_monitor_node',
+            output='screen', parameters=[{
+                'source_topic': LaunchConfiguration('source_topic'),
+                'output_topic': LaunchConfiguration('display_topic'),
+            }]))
+        if LaunchConfiguration('start_display').perform(context).lower() == 'true':
+            nodes.append(IncludeLaunchDescription(PythonLaunchDescriptionSource(
+                PathJoinSubstitution([FindPackageShare('humanoid_leg_description'),
+                                      'launch', 'display.launch.py'])),
+                launch_arguments={
+                    'use_joint_state_gui': 'false',
+                    'use_rviz': LaunchConfiguration('use_rviz'),
+                    'joint_states_topic': LaunchConfiguration('display_topic'),
+                }.items()))
+    return nodes
+
+
 def generate_launch_description():
-    config_arg = DeclareLaunchArgument(
-        "safety_config",
-        default_value=PathJoinSubstitution(
-            [FindPackageShare("humanoid_safety"), "config", "safety.yaml"]
-        ),
-        description="Safety node parameter file",
-    )
-    node = Node(
-        package="humanoid_safety",
-        executable="safety_node",
-        name="safety_node",
-        output="screen",
-        parameters=[LaunchConfiguration("safety_config")],
-    )
-    return LaunchDescription([config_arg, node])
+    return LaunchDescription([
+        DeclareLaunchArgument('mode', default_value='supervisor',
+            choices=['supervisor', 'web', 'rviz', 'monitor', 'all'],
+            description='supervisor; read-only web/rviz; monitor=both views; all=supervisor+views'),
+        DeclareLaunchArgument('ros_domain_id', default_value=EnvironmentVariable('ROS_DOMAIN_ID', default_value='0')),
+        SetEnvironmentVariable('ROS_DOMAIN_ID', LaunchConfiguration('ros_domain_id')),
+        DeclareLaunchArgument('source_topic', default_value='/joint_states'),
+        DeclareLaunchArgument('motor_status_topic', default_value='/motor_status'),
+        DeclareLaunchArgument('display_topic', default_value='/safety/visualization/joint_states'),
+        DeclareLaunchArgument('host', default_value='127.0.0.1'),
+        DeclareLaunchArgument('port', default_value='8080'),
+        DeclareLaunchArgument('motor_config_file', default_value=''),
+        DeclareLaunchArgument('start_display', default_value='true', choices=['true', 'false']),
+        DeclareLaunchArgument('use_rviz', default_value='true', choices=['true', 'false']),
+        DeclareLaunchArgument('safety_config', default_value=PathJoinSubstitution(
+            [FindPackageShare('humanoid_safety'), 'config', 'safety.yaml'])),
+        OpaqueFunction(function=mode_nodes),
+    ])
