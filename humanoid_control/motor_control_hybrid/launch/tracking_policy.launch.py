@@ -20,9 +20,10 @@ def generate_launch_description():
         'model_path': str(Path(get_package_share_directory('motor_control_hybrid')) /
                           'models/20260914_170827/20260914_170827.onnx'),
         'port': '/dev/ttyACM0', 'baud': '460800', 'input_format': 'json',
-        'start_imu_reader': 'true', 'imu_topic': '/imu/data_raw',
+        'start_imu_reader': 'false', 'imu_topic': '/imu/data_raw',
         'joint_states_topic': '/policy/joint_states',
         'joint_feedback_mode': 'zero', 'calibration_seconds': '2.0',
+        'max_input_skew_s': '0.02', 'max_inference_s': '0.02',
         'use_fake_joint_states': 'false', 'run_cpp_control': 'false',
     }
     args = [DeclareLaunchArgument(name, default_value=value)
@@ -47,6 +48,8 @@ def generate_launch_description():
             'imu_topic': cfg('imu_topic'), 'joint_states_topic': cfg('joint_states_topic'),
             'joint_feedback_mode': cfg('joint_feedback_mode'),
             'calibration_seconds': ParameterValue(cfg('calibration_seconds'), value_type=float),
+            'max_input_skew_s': ParameterValue(cfg('max_input_skew_s'), value_type=float),
+            'max_inference_s': ParameterValue(cfg('max_inference_s'), value_type=float),
         }])
     fake = Node(
         package='motor_control_hybrid', executable='fake_motor_node', namespace='policy',
@@ -56,7 +59,7 @@ def generate_launch_description():
     control = Node(
         package='motor_control_hybrid', executable='cpp_control_node', output='screen',
         condition=IfCondition(cfg('run_cpp_control')),
-        parameters=[{'control_rate_hz': 50.0}],
+        parameters=[{'control_rate_hz': 50.0, 'joint_names': names}],
         remappings=[('/joint_states', cfg('joint_states_topic')),
                     ('/desired_motor_subset', '/policy/desired_motor_subset'),
                     ('/desired_velocity_subset', '/policy/desired_velocity_subset'),

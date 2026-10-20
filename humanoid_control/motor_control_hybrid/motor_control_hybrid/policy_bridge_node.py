@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import math
+import time
 from pathlib import Path
 from typing import Any
 
@@ -268,6 +269,9 @@ class PolicyBridgeNode(Node):
         self.declare_parameter("joint_state_timeout_s", 0.25)
         self.declare_parameter("imu_timeout_s", 0.25)
         self.declare_parameter("publish_mode", "motion")
+        timeout = float(self.get_parameter("joint_state_timeout_s").value)
+        if not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError('joint_state_timeout_s must be finite and positive')
 
         config_path_param = str(self.get_parameter("config_path").value)
         if not config_path_param:
@@ -336,7 +340,7 @@ class PolicyBridgeNode(Node):
         self.joint_vel_by_name: dict[str, float] = {}
         self.ang_vel_body: np.ndarray | None = None
         self.up_body: np.ndarray | None = None
-        self.last_joint_state_time = None
+        self.joint_sample_times: dict[str, tuple[float, float]] = {}
         self.last_imu_time = None
         self.obs_initialized = False
         self.warned_waiting = False
@@ -388,12 +392,21 @@ class PolicyBridgeNode(Node):
         return path
 
     def _joint_state_callback(self, msg: JointState) -> None:
-        self.last_joint_state_time = self.get_clock().now()
+        # Only complete finite position/velocity pairs renew a joint. Partial
+        # messages may update individual joints, but cannot refresh missing ones.
+        if (len(set(msg.name)) != len(msg.name)
+                or len(msg.position) != len(msg.name)
+                or len(msg.velocity) != len(msg.name)
+                or not np.isfinite(msg.position).all()
+                or not np.isfinite(msg.velocity).all()):
+            self.joint_sample_times.clear()
+            return
+        received_at = time.monotonic()
+        stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         for index, name in enumerate(msg.name):
-            if index < len(msg.position):
-                self.joint_pos_by_name[name] = float(msg.position[index])
-            if index < len(msg.velocity):
-                self.joint_vel_by_name[name] = float(msg.velocity[index])
+            self.joint_pos_by_name[name] = float(msg.position[index])
+            self.joint_vel_by_name[name] = float(msg.velocity[index])
+            self.joint_sample_times[name] = (received_at, stamp)
 
     def _imu_callback(self, msg: Imu) -> None:
         self.last_imu_time = self.get_clock().now()
@@ -478,10 +491,15 @@ class PolicyBridgeNode(Node):
         if self.ang_vel_body is None or self.up_body is None:
             self._warn_waiting("waiting for /imu")
             return False
-        if self.last_joint_state_time is not None:
-            timeout = float(self.get_parameter("joint_state_timeout_s").value)
-            if timeout > 0.0 and (now - self.last_joint_state_time).nanoseconds * 1e-9 > timeout:
-                self._warn_waiting("joint state timeout")
+        timeout = float(self.get_parameter("joint_state_timeout_s").value)
+        now_mono = time.monotonic()
+        now_ros = now.nanoseconds * 1e-9
+        for name in self.obs_builder.real_joint_order:
+            sample = self.joint_sample_times.get(name)
+            if (sample is None or sample[1] <= 0
+                    or not 0 <= now_mono - sample[0] <= timeout
+                    or not -0.01 <= now_ros - sample[1] <= timeout):
+                self._warn_waiting(f'joint state timeout or invalid timestamp: {name}')
                 return False
         if self.last_imu_time is not None:
             timeout = float(self.get_parameter("imu_timeout_s").value)

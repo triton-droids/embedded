@@ -22,12 +22,13 @@ class Capture:
 
 
 @pytest.fixture
-def node():
+def node(monkeypatch):
     model = (Path.home() / 'Github/simulation/logs/legs_tracking/'
              '20260914_170827/20260914_170827.onnx')
     if not model.exists():
         pytest.skip('LFS policy export absent')
     rclpy.init(args=['--ros-args', '-p', 'calibration_seconds:=0.0'])
+    monkeypatch.setattr(TrackingPolicyNode, "run_worker", lambda self: None)
     policy_node = TrackingPolicyNode()
     policy_node.angles_pub = Capture()
     policy_node.actions_pub = Capture()
@@ -51,7 +52,8 @@ def test_valid_imu_publishes_angles_and_monitor_commands(node):
     assert len(node.angles_pub.messages) == 1
     assert node.angles_pub.messages[0].name == node.policy.names
     np.testing.assert_allclose(node.angles_pub.messages[0].position,
-                               np.array(node.actions_pub.messages[0].data) * 0.2, rtol=1e-6)
+                               np.clip(np.array(node.actions_pub.messages[0].data) * 0.2,
+                                       *node.policy.target_limits), rtol=1e-6)
     assert all(mode == 2 for mode in node.command_pub.messages[0].mode)
 
 

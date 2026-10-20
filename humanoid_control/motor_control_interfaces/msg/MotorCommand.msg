@@ -1,4 +1,8 @@
+# Source observation time for policy commands; forwarding must preserve it.
 std_msgs/Header header
+# Absolute ROS expiry. Zero keeps the legacy source-stamp watchdog contract.
+# Every hop may shorten this deadline, never renew it. DISABLE is always allowed.
+builtin_interfaces/Time valid_until
 string[] joint_name
 uint8[] mode
 float64[] position

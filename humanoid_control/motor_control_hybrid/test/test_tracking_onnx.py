@@ -34,7 +34,7 @@ def test_observation_matches_tracking_export(policy):
     np.testing.assert_array_equal(obs[0, 53:], [0, 0, -1])
     assert obs.dtype == np.float32
     action, target = policy.run(obs, 17)
-    np.testing.assert_allclose(target, action * 0.2, rtol=1e-6)
+    np.testing.assert_allclose(target, np.clip(action * 0.2, *policy.target_limits), rtol=1e-6)
     assert policy.frames == 299
 
 

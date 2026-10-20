@@ -1,6 +1,7 @@
 """Registry/model consistency and calibrated command tests without CAN I/O."""
 import copy
 import hashlib
+import importlib.util
 from pathlib import Path
 import threading
 import time
@@ -11,12 +12,12 @@ import yaml
 
 from motor_control_hybrid.motor_configuration import MotorSettings, validate_registry
 from motor_control_hybrid.python_can_node import PythonCanNode
-from motor_control_hybrid.tracking_onnx import TrackingPolicy, validate_tracking_registry, apply_runtime_policy
 
 
 REPO = Path(__file__).resolve().parents[3]
 REGISTRY = REPO / 'humanoid_control/motor_control_hybrid/config/motors.yaml'
 MODEL = REPO.parent / 'simulation/logs/legs_tracking/20260914_170827/20260914_170827.onnx'
+HAS_ONNX = importlib.util.find_spec('onnx') is not None and importlib.util.find_spec('onnxruntime') is not None
 
 
 class MotorConfigurationTest(unittest.TestCase):
@@ -29,13 +30,20 @@ class MotorConfigurationTest(unittest.TestCase):
         self.assertEqual(len(settings), 10)
 
     def test_runtime_settings_match_source_by_name(self):
+        from motor_control_hybrid.tracking_onnx import apply_runtime_policy
         params = yaml.safe_load(REGISTRY.read_text())['motor_control_node']['ros__parameters']
-        policy = SimpleNamespace(names=list(reversed(params['motors'])))
+        names = list(reversed(params['motors']))
+        policy = SimpleNamespace(names=names,
+                                 kp=[params['motors'][n]['kp'] for n in names],
+                                 kd=[params['motors'][n]['kd'] for n in names],
+                                 offset=[0.] * 10, scale=[0.2] * 10)
         apply_runtime_policy(policy, params)
-        self.assertEqual(policy.kp[0], 120)
-        self.assertAlmostEqual(policy.offset[0], 0.4, places=6)
-        self.assertEqual(policy.scale[0], 1)
-        self.assertEqual(params['runtime_policy']['control_hz'], 50)
+        self.assertEqual(policy.kp[0], 20)
+        self.assertEqual(policy.kd[0], 1)
+        self.assertEqual(policy.offset, [0.] * 10)
+        self.assertEqual(policy.scale, [0.2] * 10)
+        self.assertNotIn('runtime_policy', params)
+        self.assertEqual(params['model_contract']['control_hz'], 50)
 
     def test_ankle_conversion_round_trip(self):
         params = yaml.safe_load(REGISTRY.read_text())['motor_control_node']['ros__parameters']
@@ -74,9 +82,14 @@ class MotorConfigurationTest(unittest.TestCase):
         settings = MotorSettings.from_config({'kp': 80, 'kd': 1}, {})
         commands = []
         node = SimpleNamespace(estop_active=threading.Event(), motor_name_by_joint={'knee': 'motor_12'},
+                               transport_fault=threading.Event(), _tx_wakeup=threading.Event(),
                                motor_settings={'knee': settings},
-                               command_queue=SimpleNamespace(put_nowait=commands.append))
-        msg = SimpleNamespace(joint_name=['knee'], mode=[2], position=[0.2], velocity=[],
+                               command_timeout_s=0.5,
+                               get_clock=lambda: SimpleNamespace(now=lambda: SimpleNamespace(nanoseconds=100 * 10**9)),
+                               command_queue=SimpleNamespace(put_nowait=commands.extend))
+        from builtin_interfaces.msg import Time
+        msg = SimpleNamespace(header=SimpleNamespace(stamp=Time(sec=100)), valid_until=Time(),
+                              joint_name=['knee'], mode=[2], position=[0.2], velocity=[],
                               acceleration=[], torque=[], kp=[], kd=[])
         PythonCanNode._cmd_callback(node, msg)
         self.assertEqual((commands[0]['kp'], commands[0]['kd']), (80, 1))
@@ -118,6 +131,15 @@ class MotorConfigurationTest(unittest.TestCase):
         node.motor_settings = {'knee': settings}
         node.bus_locks = {'can0': threading.Lock()}
         node.current_mode_by_joint = {'knee': 0}
+        node.estop_active = threading.Event()
+        node.transport_fault = threading.Event()
+        node.command_deadlines = {'knee': time.monotonic() + 0.5}
+        node.inhibited_since = {}
+        node.pending_disable = set()
+        node.enable_pending = {}
+        node._awaiting_enable_ack = threading.Event()
+        node.active_commands = {}
+        node.active_command_lock = threading.Lock()
         node.max_vel_rad_s = 4.5
         node.default_kp, node.default_kd = 10.0, 0.2
         node._try_read_feedback = lambda joint: None
@@ -129,8 +151,9 @@ class MotorConfigurationTest(unittest.TestCase):
         self.assertAlmostEqual(sent[0][1], -0.6)
         self.assertEqual(sent[0][2:], (80, 1, -0.3, -5))
 
-    @unittest.skipUnless(MODEL.exists(), 'External tracking export unavailable')
+    @unittest.skipUnless(MODEL.exists() and HAS_ONNX, 'External tracking export or ONNX dependencies unavailable')
     def test_registry_matches_model_and_detects_drift(self):
+        from motor_control_hybrid.tracking_onnx import TrackingPolicy, validate_tracking_registry
         params = yaml.safe_load(REGISTRY.read_text())['motor_control_node']['ros__parameters']
         policy = TrackingPolicy(MODEL)
         sha = hashlib.sha256(MODEL.read_bytes()).hexdigest()

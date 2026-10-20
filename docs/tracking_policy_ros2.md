@@ -3,15 +3,40 @@
 This integration runs the `humanoid_locomotion_v3` tracking ONNX export at
 **50 Hz (20 ms per control period)**. It reads the existing attitude-sensing
 package's ROS messages and publishes ten target joint angles. The default launch
-uses the physical ESP32-S3 IMU at `/dev/ttyACM0`, 460800 baud, and zero joint-state
-placeholders because no motors or encoders are connected.
+consumes an external `/imu/data_raw` publisher (micro-ROS Agent path) and uses zero
+joint-state placeholders. It does not open a serial device unless
+`start_imu_reader:=true` is explicitly set for the legacy JSON firmware.
+See [body micro-ROS firmware](../imu_process/policy_imu_microros/README.md) and
+[deadline contract](control_watchdogs.md#asynchronous-onnx-inference-and-end-to-end-expiry).
+
+## Current model PD and angle-limit selection
+
+The active ONNX path uses `joint_stiffness` / `joint_damping` from the model
+metadata. Kp is 100 for both hip joints and the thigh, 80 for the knee, and 20
+for the ankle on each leg; Kd is 1 for every joint. There is no Ki field.
+The motor registry must match these values. Legacy `runtime_policy` overrides
+are rejected at startup and removed by the sync script.
+
+`chrobot_16kg_candidate.xml` must accompany the ONNX file. Its explicit radian
+joint ranges supply the target-angle bounds; the motor registry is checked
+against those ranges. Targets are clipped to the full bounds, without the old
+95% shrink. The sync script also restores model PD and XML angle limits while
+preserving direction, encoder offsets, CAN IDs, motor models and ankle linkage
+calibration. It keeps `hardware_verified: false`.
+
+The original action contract is active: zero default posture, action scaling
+0.2 rad per action unit, no fixed [-1, 1] action clamp, and the raw previous action
+in the next observation. Target positions are still bounded by the training XML
+angle limits. The saved actuated XML's force limit is a simulation total-force cap,
+not proof that the MIT backend enforces that total torque on physical hardware.
+No hardware operation is performed by configuration synchronization.
 
 ## Data path
 
 ```mermaid
 flowchart LR
-  ESP[ESP32-S3 / six-axis IMU] -->|SI JSON / USB serial| Reader[imu_reader_node]
-  Reader -->|/imu/data_raw| Policy[tracking_policy_node / ONNX / 50 Hz]
+  ESP[Body ESP32-S3 / six-axis IMU] -->|binary serial / synchronized read stamp| Agent[micro-ROS Agent]
+  Agent -->|/imu/data_raw| Policy[tracking_policy_node / independent ONNX worker / 50 Hz]
   Feedback[JointState feedback / optional fake node] --> Policy
   Policy --> Angles[/policy/target_angles / radians]
   Policy --> Desired[/policy/desired_motor_subset]
@@ -78,7 +103,9 @@ transport and scheduler behavior, not actuator dynamics or walking stability.
 On an upstream timeout the existing C++ watchdog publishes disable messages on
 the isolated bench topic.
 
-For a separate IMU publisher, set `start_imu_reader:=false imu_topic:=/your/imu`.
+External IMU publication is the default; select its topic with `imu_topic:=/your/imu`.
+For legacy JSON firmware set `start_imu_reader:=true`. The Agent and JSON reader
+must not share a serial device.
 For real joint feedback, set `joint_feedback_mode:=joint_states
 joint_states_topic:=/joint_states`. Every message must contain all ten policy
 joint names with finite positions **and velocities**, in radians and radians/s;

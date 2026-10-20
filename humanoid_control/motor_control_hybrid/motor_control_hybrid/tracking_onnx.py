@@ -1,15 +1,18 @@
 """Tracking-policy math, independent of ROS. All joint angles are radians."""
 import math
+from pathlib import Path
+import xml.etree.ElementTree as ET
 
 import numpy as np
-import onnx
-import onnxruntime as ort
 
 
 class TrackingPolicy:
     """The 56-input, ten-joint tracking export with embedded reference motion."""
 
     def __init__(self, model_path):
+        import onnx
+        import onnxruntime as ort
+
         options = ort.SessionOptions()
         options.intra_op_num_threads = 1
         options.inter_op_num_threads = 1
@@ -30,6 +33,9 @@ class TrackingPolicy:
         self.scale = self._vector(meta['action_scale'])
         self.kp = self._vector(meta['joint_stiffness'])
         self.kd = self._vector(meta['joint_damping'])
+        # The export records PD metadata, while its saved training XML records
+        # the physical joint-angle bounds. Both are expressed in joint space.
+        self.target_limits = training_joint_limits(model_path, self.names)
         tensors = {item.name: onnx.numpy_helper.to_array(item)
                    for item in onnx.load(str(model_path)).graph.initializer}
         self.reference_q = tensors['joint_pos.1']
@@ -70,8 +76,6 @@ class TrackingPolicy:
             'obs': obs, 'time_step': np.asarray([[frame]], dtype=np.float32)})[0][0]
         if actions.shape != (10,) or not np.isfinite(actions).all():
             raise ValueError('Invalid policy output')
-        if hasattr(self, "action_clip"):
-            actions = np.clip(actions, -self.action_clip, self.action_clip)
         targets = self.offset + self.scale * actions
         if hasattr(self, "target_limits"):
             targets = np.clip(targets, *self.target_limits)
@@ -79,6 +83,22 @@ class TrackingPolicy:
             raise ValueError('Invalid position targets')
         # This export has no [-1, 1] clamp. Preserve its trained action semantics.
         return actions, targets
+
+
+def training_joint_limits(model_path, names):
+    """Read radian joint bounds from the XML shipped beside this exact export."""
+    path = Path(model_path).parent / 'chrobot_16kg_candidate.xml'
+    root = ET.parse(path).getroot()
+    compiler = root.find('compiler')
+    if compiler is None or compiler.get('angle') != 'radian':
+        raise ValueError('Training joint limits must be explicitly expressed in radians')
+    joints = {joint.get('name'): joint for joint in root.iter('joint')}
+    limits = np.asarray([[float(value) for value in joints[name].attrib['range'].split()]
+                         for name in names], dtype=np.float32)
+    if (limits.shape != (len(names), 2) or not np.isfinite(limits).all()
+            or not np.all(limits[:, 0] < limits[:, 1])):
+        raise ValueError('Invalid training joint limits')
+    return limits[:, 0], limits[:, 1]
 
 
 class GravityEstimator:
@@ -134,13 +154,15 @@ def validate_tracking_registry(policy, params, model_sha256):
         configured = np.asarray(contract[key], dtype=np.float32)
         if configured.shape != values.shape or not np.array_equal(configured, values):
             raise ValueError(f'Motor registry {key} differs from ONNX metadata')
-    if 'runtime_policy' in params:
-        return
     for index, name in enumerate(policy.names):
         motor = params['motors'][name]
         if (np.float32(motor['kp']) != policy.kp[index]
                 or np.float32(motor['kd']) != policy.kd[index]):
             raise ValueError(f'{name}: motor gains differ from tracking ONNX metadata')
+        configured_limits = np.asarray([motor['min_position'], motor['max_position']], dtype=np.float32)
+        model_limits = np.asarray([policy.target_limits[0][index], policy.target_limits[1][index]])
+        if not np.array_equal(configured_limits, model_limits):
+            raise ValueError(f'{name}: motor limits differ from saved training XML')
 
 
 def fresh(receipt_time, stamp_time, now_monotonic, now_ros, timeout):
@@ -151,23 +173,11 @@ def fresh(receipt_time, stamp_time, now_monotonic, now_ros, timeout):
 
 
 def apply_runtime_policy(policy, params):
-    """Apply explicit deployment settings after validating original ONNX metadata."""
-    runtime = params.get('runtime_policy')
-    if runtime is None:
-        return
-    if runtime['control_hz'] != 50.0:
-        raise ValueError('Runtime policy must remain at 50 Hz')
-    names = policy.names
-    policy.offset = np.asarray([runtime['default_joint_pos_real_rad_by_joint'][n] for n in names], dtype=np.float32)
-    policy.scale = np.asarray([runtime['action_scale_by_joint'].get(n, runtime['action_scale']) for n in names], dtype=np.float32)
-    policy.kp = np.asarray([params['motors'][n]['kp'] for n in names], dtype=np.float32)
-    policy.kd = np.asarray([params['motors'][n]['kd'] for n in names], dtype=np.float32)
-    policy.action_clip = float(runtime['policy_action_clip'])
-    if not all(np.isfinite(v).all() for v in (policy.offset, policy.scale, policy.kp, policy.kd)) or not math.isfinite(policy.action_clip) or policy.action_clip <= 0:
-        raise ValueError('Invalid runtime policy settings')
-    if runtime['use_soft_joint_limits']:
-        factor = float(runtime['soft_joint_limit_factor'])
-        lower = np.asarray([params['motors'][n]['min_position'] for n in names])
-        upper = np.asarray([params['motors'][n]['max_position'] for n in names])
-        center, half = (lower + upper) / 2, (upper - lower) * factor / 2
-        policy.target_limits = (center - half, center + half)
+    """Reject legacy overrides; model metadata owns action/observation semantics.
+
+    Kept as a startup compatibility check for existing callers. The raw action
+    (including values outside [-1, 1]) is also the next observation's prior action.
+    Hardware angle bounds and polarity conversion are applied separately.
+    """
+    if 'runtime_policy' in params:
+        raise ValueError('runtime_policy overrides are unsupported; resync the model registry')

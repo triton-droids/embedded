@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
-"""
-ROS2 CAN node using the installed robstride_dynamics SDK directly.
+"""ROS 2 RobStride adapter with event-driven TX and independent per-bus RX.
 
-The CAN access pattern intentionally matches the working scripts in
-robstride_control/MotorTest:
-- one RobstrideBus per CAN interface
-- explicit enable/disable only
-- continuous command loop for active commands
-- feedback is read by the same thread that writes commands
+TX submits zero-wait SocketCAN frames; it never waits for motor feedback.
+Model timing remains 50 Hz. Fresh commands wake TX immediately, while hold-last
+retransmission uses a monotonic deadline without adding a sleep after work.
 """
 
 import json
+import math
 import os
 import queue
 import struct
@@ -26,6 +23,7 @@ from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from robstride_dynamics import CommunicationType, Motor, ParameterType, RobstrideBus
 from motor_control_hybrid.motor_configuration import validate_registry
+from motor_control_hybrid.can_transport import NonblockingRobstrideBus, LatestCommandMailbox
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool, String
 
@@ -36,19 +34,24 @@ class PythonCanNode(Node):
 
         self.declare_parameter('motor_config_file', '')
         self.declare_parameter('publish_rate_hz', 50.0)
+        # Legacy launch compatibility only: RX now continuously consumes frames.
         self.declare_parameter('feedback_poll_hz', 50.0)
         self.declare_parameter('feedback_poll_when_idle', True)
         self.declare_parameter('feedback_timeout_s', 0.1)
+        # A transport-local watchdog: upstream process death must not leave MIT
+        # targets being retransmitted forever. Zero/negative disables are forbidden.
+        self.declare_parameter('command_timeout_s', 0.5)
+        self.command_timeout_s = float(self.get_parameter('command_timeout_s').value)
+        if not math.isfinite(self.command_timeout_s) or self.command_timeout_s <= 0:
+            raise ValueError('command_timeout_s must be finite and positive')
         self.feedback_timeout_s = float(self.get_parameter('feedback_timeout_s').value)
         if not 0 < self.feedback_timeout_s <= 1.0:
             raise ValueError('feedback_timeout_s must be in (0, 1]')
 
         cfg_path = self.get_parameter('motor_config_file').get_parameter_value().string_value
         publish_rate = self.get_parameter('publish_rate_hz').get_parameter_value().double_value
-        feedback_poll_hz = self.get_parameter('feedback_poll_hz').get_parameter_value().double_value
-        self.feedback_poll_when_idle = (
-            self.get_parameter('feedback_poll_when_idle').get_parameter_value().bool_value
-        )
+        if not math.isfinite(publish_rate) or publish_rate <= 0:
+            raise ValueError('publish_rate_hz must be finite and positive')
 
         self.default_iface = 'can0'
         self.default_master = 255
@@ -71,25 +74,40 @@ class PythonCanNode(Node):
         self.state_buffer: Dict[str, Tuple[float, float, float, float, float]] = {}
         self.state_lock = threading.Lock()
 
-        self.command_queue = queue.Queue()
+        self.command_queue = LatestCommandMailbox()
         self.active_commands = {}
         self.active_command_lock = threading.Lock()
+        # These watchdog structures belong exclusively to the CAN worker thread.
+        self.command_deadlines = {}
+        self.inhibited_since = {joint: float('-inf') for joint in self.motor_name_by_joint}
+        self.pending_disable = set()
+        self.enable_pending = {}
+        self.enable_reports = {}
+        self.enable_report_lock = threading.Lock()
+        self._awaiting_enable_ack = threading.Event()
         self.tx_period_s = 1.0 / publish_rate if publish_rate > 0.0 else 0.02
-        self.feedback_poll_period_s = (
-            1.0 / feedback_poll_hz if feedback_poll_hz > 0.0 else self.tx_period_s
-        )
-        self._next_feedback_poll_time = 0.0
+        self._tx_wakeup = threading.Event()
+        self.transport_fault = threading.Event()
         self.running = True
+        self.timing = {'tx_cycles': 0, 'tx_max_work_ms': 0.0, 'tx_errors': 0,
+                       'rx_frames': 0, 'rx_ignored': 0}
+        self._joint_by_motor = {
+            (bus.channel, self.motor_name_by_joint[joint]): joint
+            for joint, bus in self.bus_by_joint.items()}
+        self.can_rx_threads = [threading.Thread(
+            target=self._can_rx_loop, args=(bus,), daemon=True,
+            name=f'CAN_RX_{bus.channel}') for bus in self.buses.values()]
 
         self.can_tx_thread = threading.Thread(
             target=self._can_tx_loop,
             daemon=True,
             name='CAN_TX_Thread',
         )
-        self.can_tx_thread.start()
 
         self.joint_state_pub = self.create_publisher(JointState, 'joint_states', 10)
         self.motor_status_pub = self.create_publisher(String, 'motor_status', 10)
+        self.timing_pub = self.create_publisher(String, 'can_timing', 1)
+        self.timing_timer = self.create_timer(1.0, self._publish_timing)
         self.cmd_sub = self.create_subscription(
             MotorCommand,
             'motor_commands',
@@ -110,6 +128,9 @@ class PythonCanNode(Node):
 
         period = 1.0 / publish_rate if publish_rate > 0.0 else 0.02
         self.timer = self.create_timer(period, self._publish_states)
+        for thread in self.can_rx_threads:
+            thread.start()
+        self.can_tx_thread.start()
 
         self.get_logger().info(
             f'Python CAN node started with {len(self.motor_name_by_joint)} motors '
@@ -162,7 +183,7 @@ class PythonCanNode(Node):
 
         for iface, motors in motors_by_iface.items():
             try:
-                bus = RobstrideBus(iface, motors, {})
+                bus = NonblockingRobstrideBus(iface, motors, {})
                 bus.host_id = next(
                     cfg.get('master_id', self.default_master) for cfg in motors_cfg.values()
                     if cfg.get('can_interface', self.default_iface) == iface)
@@ -188,14 +209,13 @@ class PythonCanNode(Node):
         data = struct.pack('<HH', param_id, 0x00) + value_buffer
         bus.transmit(CommunicationType.WRITE_PARAMETER, bus.host_id, device_id, data)
 
-    def _write_parameter_and_update_feedback(
+    def _write_parameter(
         self,
         bus: RobstrideBus,
         joint_name: str,
         motor_name: str,
         parameter_type: tuple,
         value,
-        timeout: float = 0.1,
     ):
         device_id = bus.motors[motor_name].id
         param_id, param_dtype, param_name = parameter_type
@@ -221,89 +241,111 @@ class PythonCanNode(Node):
         data = struct.pack('<HH', param_id, 0x00) + value_buffer
         bus.transmit(CommunicationType.WRITE_PARAMETER, bus.host_id, device_id, data)
 
-        try:
-            pos, vel, tq, temp = bus.receive_status_frame(motor_name)
-            self._update_state(joint_name, pos, vel, tq, temp)
-            return True
-        except Exception as e:
-            if 'No response' not in str(e):
-                self.get_logger().warn(
-                    f'Write feedback failed for {joint_name} ({param_name}): {e}'
-                )
-            return False
+        return True  # Submitted, not acknowledged; RX owns all feedback.
 
-    def _update_state(self, joint_name: str, pos: float, vel: float, tq: float, temp: float):
+    def _update_state(self, joint_name: str, pos: float, vel: float, tq: float, temp: float,
+                      received_at=None):
         pos, vel, tq = self.motor_settings[joint_name].feedback(pos, vel, tq)
         with self.state_lock:
-            self.state_buffer[joint_name] = (pos, vel, tq, temp, time.monotonic())
+            self.state_buffer[joint_name] = (pos, vel, tq, temp,
+                                             time.monotonic() if received_at is None else received_at)
 
-    def _try_read_feedback(self, joint_name: str):
-        bus = self.bus_by_joint.get(joint_name)
-        motor_name = self.motor_name_by_joint.get(joint_name)
-        if bus is None or motor_name is None:
-            return
+    def _can_rx_loop(self, bus):
+        """The only receiver for this interface; a missing motor cannot block TX.
 
-        try:
-            pos, vel, tq, temp = bus.read_operation_frame(motor_name)
-            self._update_state(joint_name, pos, vel, tq, temp)
-        except Exception as e:
-            if 'No response' not in str(e):
-                self.get_logger().warn(f'Feedback read failed for {joint_name}: {e}')
+        recv() has a bounded idle wait on this separate thread and returns as
+        soon as a frame arrives. Kernel frame age is preserved in host monotonic
+        seconds so queued feedback is not relabelled as a fresh measurement.
+        """
+        while self.running and rclpy.ok():
+            try:
+                frame = bus.channel_handler.recv(timeout=0.01)
+                if frame is None:
+                    continue
+                sample = bus.decode_feedback(frame)
+                if sample is None:
+                    self.timing['rx_ignored'] += 1
+                    continue
+                self.timing['rx_frames'] += 1
+                if sample.fault_bits:
+                    raise RuntimeError(f'{sample.motor_name}: status fault bits 0x{sample.fault_bits:02x}')
+                age = max(0.0, time.time() - sample.timestamp) if sample.timestamp > 0 else 0.0
+                if age > self.feedback_timeout_s:
+                    continue
+                joint = self._joint_by_motor[(bus.channel, sample.motor_name)]
+                if self._awaiting_enable_ack.is_set():
+                    with self.enable_report_lock:
+                        self.enable_reports[joint] = (time.monotonic() - age, sample.mode)
+                    self._tx_wakeup.set()
+                self._update_state(joint, sample.position, sample.velocity,
+                                   sample.torque, sample.temperature, time.monotonic() - age)
+            except Exception as exc:
+                # A local transport/motor fault cannot be cleared by a healthy
+                # supervisor publishing false; restart after diagnosis to reset.
+                if not self.transport_fault.is_set():
+                    self.transport_fault.set()
+                    self._estop_disable_pending.set()
+                    self._tx_wakeup.set()
+                self.get_logger().error(f'CAN RX fault on {bus.channel}: {exc}', throttle_duration_sec=1.0)
+                time.sleep(0.01)  # RX error backoff only; TX is independent.
 
     def _can_tx_loop(self):
-        self.get_logger().info('CAN TX/control thread started')
-
+        self.get_logger().info('CAN TX thread started; feedback never blocks TX')
         while self.running and rclpy.ok():
+            begin = time.monotonic()
+            self._tx_wakeup.clear()
+            self._expire_commands()
             self._drain_command_queue()
-
-            if self.estop_active.is_set():
+            self._process_enable_reports()
+            if self.estop_active.is_set() or self.transport_fault.is_set():
                 self._enforce_estop()
-                if self.feedback_poll_when_idle:
-                    self._poll_all_feedback_if_due()
-                time.sleep(self.tx_period_s)
-                continue
+            else:
+                with self.active_command_lock:
+                    active = list(self.active_commands.values())
+                for cmd in active:
+                    self._send_active_command(cmd)
+            end = time.monotonic()
+            self.timing['tx_cycles'] += 1
+            self.timing['tx_max_work_ms'] = max(self.timing['tx_max_work_ms'], (end - begin) * 1000)
+            # Wait only the remainder of the period, or wake immediately on a
+            # new command, stop request, or an earlier per-joint deadline.
+            wake_at = min([begin + self.tx_period_s] + list(self.command_deadlines.values()))
+            self._tx_wakeup.wait(max(0.0, wake_at - end))
 
-            with self.active_command_lock:
-                active = list(self.active_commands.values())
+    def _publish_timing(self):
+        payload = dict(self.timing)
+        payload.update(pending_commands=self.command_queue.qsize(),
+                       transport_fault=self.transport_fault.is_set(),
+                       repeat_hz=1.0 / self.tx_period_s)
+        payload['interfaces'] = {name: {'tx_submitted': bus.tx_frames, 'tx_errors': bus.tx_errors}
+                                 for name, bus in self.buses.items()}
+        self.timing_pub.publish(String(data=json.dumps(payload)))
 
-            for cmd in active:
-                self._send_active_command(cmd)
+    def _process_enable_reports(self):
+        """Complete enables asynchronously on fresh healthy Motor-mode status.
 
-            if self.feedback_poll_when_idle:
-                self._poll_all_feedback_if_due()
-
-            time.sleep(self.tx_period_s)
-
-    def _poll_all_feedback_if_due(self):
-        now = time.time()
-        if now < self._next_feedback_poll_time:
-            return
-        self._next_feedback_poll_time = now + self.feedback_poll_period_s
-
-        active_joints = set()
-        with self.active_command_lock:
-            active_joints.update(self.active_commands.keys())
-
-        for joint_name in self.motor_name_by_joint.keys():
-            if joint_name in active_joints:
-                continue
-
-            bus = self.bus_by_joint.get(joint_name)
-            if bus is None:
-                continue
-
-            try:
-                with self.bus_locks[bus.channel]:
-                    self._try_read_feedback(joint_name)
-            except Exception as e:
-                if 'No response' not in str(e):
-                    self.get_logger().warn(
-                        f'Idle feedback poll failed for {joint_name}: {e}'
-                    )
+        Type-2 status mode 2 means Motor/run, distinct from run_mode parameter 2
+        (velocity control). No motion is sent while enable confirmation is pending.
+        """
+        with self.enable_report_lock:
+            reports = self.enable_reports.copy()
+            self.enable_reports.clear()
+        for joint, (received_at, mode) in reports.items():
+            submitted_at = self.enable_pending.get(joint)
+            if (submitted_at is not None and received_at >= submitted_at and mode == 2
+                    and time.monotonic() < self.command_deadlines.get(joint, 0)):
+                self.enable_pending.pop(joint, None)
+                self.inhibited_since.pop(joint, None)
+        if not self.enable_pending:
+            self._awaiting_enable_ack.clear()
 
     def _enforce_estop(self):
         if not self._estop_disable_pending.is_set():
             return
+        self.command_deadlines.clear()
+        self.enable_pending.clear()
+        self._awaiting_enable_ack.clear()
+        self.inhibited_since.update({joint: time.monotonic() for joint in self.bus_by_joint})
         with self.active_command_lock:
             self.active_commands.clear()
 
@@ -321,10 +363,12 @@ class PythonCanNode(Node):
                 )
         if all_disabled:
             self._estop_disable_pending.clear()
-            self.get_logger().fatal('ESTOP enforced: all configured motors disabled')
+            self.get_logger().fatal('ESTOP disable requests submitted; verify physical stop via feedback')
 
     def _drain_command_queue(self):
-        while True:
+        # Bound work even when producers continuously update targets.
+        for _ in range(2 * len(self.motor_name_by_joint)):
+            self._expire_commands()
             try:
                 cmd = self.command_queue.get_nowait()
             except queue.Empty:
@@ -341,30 +385,58 @@ class PythonCanNode(Node):
                 self.get_logger().warn(f'No bus for joint: {joint_name}')
                 continue
 
+            # Queue residence consumes the original lifetime. A delayed ENABLE
+            # must not restart a joint after the watchdog has already stopped it.
+            if mode != MotorCommand.MODE_DISABLE:
+                if self.estop_active.is_set() or self.transport_fault.is_set() or time.monotonic() >= cmd['deadline']:
+                    continue
+                if mode == MotorCommand.MODE_ENABLE:
+                    if joint_name in self.pending_disable:
+                        continue
+                    if cmd['received_at'] <= self.inhibited_since.get(joint_name, float('-inf')):
+                        continue
+                elif joint_name in self.inhibited_since and joint_name not in self.enable_pending:
+                    continue
+
             try:
                 if mode == MotorCommand.MODE_ENABLE:
+                    # Arm before I/O: an enable may reach hardware even when
+                    # its acknowledgement fails. Never retain an older target.
+                    with self.active_command_lock:
+                        self.active_commands.pop(joint_name, None)
+                    self.command_deadlines[joint_name] = cmd['deadline']
+                    self.enable_pending[joint_name] = time.monotonic()
+                    self.inhibited_since.setdefault(joint_name, cmd['received_at'])
+                    self._awaiting_enable_ack.set()
                     with self.bus_locks[bus.channel]:
                         motor_name = self.motor_name_by_joint[joint_name]
-                        bus.enable(motor_name)
                         self._set_mode_raw(bus, motor_name, 0)
+                        bus.enable(motor_name)
                         self.current_mode_by_joint[joint_name] = None
-                        time.sleep(0.05)
-                        self._try_read_feedback(joint_name)
-                    self.get_logger().info(f'Enabled {joint_name}')
+                    self.pending_disable.discard(joint_name)
+                    self.command_deadlines[joint_name] = cmd['deadline']
+                    self.get_logger().info(f'Enable submitted for {joint_name}')
                     continue
 
                 if mode == MotorCommand.MODE_DISABLE:
                     with self.active_command_lock:
                         self.active_commands.pop(joint_name, None)
+                    self.command_deadlines.pop(joint_name, None)
+                    self.enable_pending.pop(joint_name, None)
+                    self.inhibited_since[joint_name] = time.monotonic()
+                    self.pending_disable.add(joint_name)
                     with self.bus_locks[bus.channel]:
                         bus.disable(self.motor_name_by_joint[joint_name])
                         self.current_mode_by_joint[joint_name] = None
-                    self.get_logger().info(f'Disabled {joint_name}')
+                    self.pending_disable.discard(joint_name)
+                    self.get_logger().info(f'Disable submitted for {joint_name}')
                     continue
 
                 with self.active_command_lock:
                     previous_cmd = self.active_commands.get(joint_name)
                     self.active_commands[joint_name] = cmd
+                if joint_name not in self.enable_pending:
+                    self.command_deadlines[joint_name] = cmd['deadline']
 
                 if mode == MotorCommand.MODE_VELOCITY and (
                     previous_cmd is None
@@ -373,19 +445,57 @@ class PythonCanNode(Node):
                 ):
                     self.current_mode_by_joint[joint_name] = None
 
-                self.get_logger().info(
+                self.get_logger().debug(
                     f"Active command for {joint_name}: mode={mode}, "
                     f"pos={cmd['position']:.4f}, vel={cmd['velocity']:.4f}, "
                     f"kp={cmd['kp']:.2f}, kd={cmd['kd']:.2f}"
                 )
 
             except Exception as e:
+                if mode == MotorCommand.MODE_ENABLE:
+                    self.command_deadlines.pop(joint_name, None)
+                    self.enable_pending.pop(joint_name, None)
+                    self.inhibited_since[joint_name] = time.monotonic()
+                    self.pending_disable.add(joint_name)
                 self.get_logger().error(
                     f'Failed to apply command for {joint_name}: {e}'
                 )
 
+    def _expire_commands(self):
+        """Stop expired joints and retry failed disables on every worker pass.
+
+        All deadlines use host monotonic seconds, including time spent queued or
+        descheduled. A fresh explicit ENABLE is required to recover;
+        ordinary motion traffic cannot renew a joint that has timed out.
+        """
+        now = time.monotonic()
+        for joint, deadline in list(self.command_deadlines.items()):
+            if now >= deadline:
+                self.command_deadlines.pop(joint, None)
+                self.enable_pending.pop(joint, None)
+                self.inhibited_since[joint] = now
+                with self.active_command_lock:
+                    self.active_commands.pop(joint, None)
+                self.pending_disable.add(joint)
+                self.get_logger().error(f'Command timeout for {joint}; explicit enable required')
+        if not self.enable_pending:
+            self._awaiting_enable_ack.clear()
+        for joint in list(self.pending_disable):
+            bus = self.bus_by_joint[joint]
+            try:
+                with self.bus_locks[bus.channel]:
+                    bus.disable(self.motor_name_by_joint[joint])
+                    self.current_mode_by_joint[joint] = None
+                self.pending_disable.discard(joint)
+            except Exception as exc:
+                self.get_logger().error(f'Watchdog disable failed for {joint}; retrying: {exc}')
+
     def _send_active_command(self, cmd):
+        # Host scheduling may exhaust the deadline after the active snapshot.
+        self._expire_commands()
         joint_name = cmd['joint']
+        if self.estop_active.is_set() or self.transport_fault.is_set() or joint_name in self.inhibited_since:
+            return
         bus = self.bus_by_joint.get(joint_name)
         motor_name = self.motor_name_by_joint.get(joint_name)
         if bus is None or motor_name is None:
@@ -403,36 +513,36 @@ class PythonCanNode(Node):
                     self._send_position_command(bus, joint_name, motor_name, cmd)
                 elif mode == MotorCommand.MODE_MOTION:
                     self._send_motion_command(bus, joint_name, motor_name, cmd)
-                self._try_read_feedback(joint_name)
         except Exception as e:
+            self.timing['tx_errors'] += 1
             self.get_logger().error(
-                f'Failed to send active command to {joint_name}: {e}'
+                f'Failed to send active command to {joint_name}: {e}', throttle_duration_sec=1.0
             )
 
     def _send_velocity_command(self, bus: RobstrideBus, joint_name: str, motor_name: str, cmd):
         if self.current_mode_by_joint.get(joint_name) != 2:
-            self._write_parameter_and_update_feedback(
+            self._write_parameter(
                 bus,
                 joint_name,
                 motor_name,
                 ParameterType.MODE,
                 2,
             )
-            self._write_parameter_and_update_feedback(
+            self._write_parameter(
                 bus,
                 joint_name,
                 motor_name,
                 ParameterType.CURRENT_LIMIT,
                 5.0,
             )
-            self._write_parameter_and_update_feedback(
+            self._write_parameter(
                 bus,
                 joint_name,
                 motor_name,
                 ParameterType.VEL_ACCELERATION_TARGET,
                 cmd.get('acceleration', 10.0),
             )
-            self._write_parameter_and_update_feedback(
+            self._write_parameter(
                 bus,
                 joint_name,
                 motor_name,
@@ -446,7 +556,7 @@ class PythonCanNode(Node):
             -self.max_vel_rad_s,
             self.max_vel_rad_s,
         )
-        self._write_parameter_and_update_feedback(
+        self._write_parameter(
             bus,
             joint_name,
             motor_name,
@@ -497,6 +607,7 @@ class PythonCanNode(Node):
             newly_asserted = not self.estop_active.is_set()
             self.estop_active.set()
             self._estop_disable_pending.set()
+            self._tx_wakeup.set()
             with self.active_command_lock:
                 self.active_commands.clear()
             while True:
@@ -517,10 +628,25 @@ class PythonCanNode(Node):
                 )
 
     def _cmd_callback(self, msg: MotorCommand):
-        if self.estop_active.is_set():
+        if self.estop_active.is_set() or self.transport_fault.is_set():
             return
         if not msg.joint_name:
             return
+
+        received_at = time.monotonic()
+        now_ros = self.get_clock().now().nanoseconds * 1e-9
+        stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+        age = now_ros - stamp
+        source_valid = (msg.header.stamp.sec >= 0 and msg.header.stamp.nanosec < 10**9
+                        and stamp > 0 and -0.01 <= age < self.command_timeout_s)
+        # The source age and local queue time both count against the lifetime.
+        deadline = received_at + self.command_timeout_s - max(0.0, age)
+        expiry = msg.valid_until.sec + msg.valid_until.nanosec * 1e-9
+        if expiry != 0:
+            source_valid = (source_valid and msg.valid_until.sec >= 0
+                            and msg.valid_until.nanosec < 10**9
+                            and expiry > now_ros and expiry > stamp)
+            deadline = min(deadline, received_at + expiry - now_ros)
 
         if len(msg.mode) == 1:
             modes = [msg.mode[0]] * len(msg.joint_name)
@@ -529,13 +655,21 @@ class PythonCanNode(Node):
         else:
             modes = msg.mode
 
+        commands = []
         for i, joint in enumerate(msg.joint_name):
             if joint not in self.motor_name_by_joint:
                 continue
 
+            mode = modes[i] if i < len(modes) else MotorCommand.MODE_VELOCITY
+            if mode != MotorCommand.MODE_DISABLE and not source_valid:
+                self.get_logger().warn(f'Rejecting stale or invalid command timestamp for {joint}')
+                continue
+
             cmd = {
                 'joint': joint,
-                'mode': modes[i] if i < len(modes) else MotorCommand.MODE_VELOCITY,
+                'mode': mode,
+                'received_at': received_at,
+                'deadline': deadline,
                 'position': msg.position[i] if i < len(msg.position) else 0.0,
                 'velocity': msg.velocity[i] if i < len(msg.velocity) else 0.0,
                 'acceleration': msg.acceleration[i] if i < len(msg.acceleration) else 0.0,
@@ -544,14 +678,15 @@ class PythonCanNode(Node):
                 'kd': msg.kd[i] if i < len(msg.kd) else self.motor_settings[joint].kd,
             }
 
-            try:
-                self.command_queue.put_nowait(cmd)
-            except queue.Full:
-                self.get_logger().warn(f'Command queue full, dropping command for {joint}')
+            commands.append(cmd)
+        if commands:
+            self.command_queue.put_nowait(commands)
+            self._tx_wakeup.set()
 
     def _publish_states(self):
         msg = JointState()
         msg.header.stamp = self.get_clock().now().to_msg()
+        oldest_age = 0.0
 
         with self.state_lock:
             now = time.monotonic()
@@ -560,12 +695,18 @@ class PythonCanNode(Node):
                 if sample is None or now - sample[4] > self.feedback_timeout_s:
                     continue
                 pos, vel, tq, temp, timestamp = sample
+                oldest_age = max(oldest_age, now - timestamp)
                 msg.name.append(joint_name)
                 msg.position.append(pos)
                 msg.velocity.append(vel)
                 msg.effort.append(tq)
 
         if msg.name:
+            # JointState has only one stamp: conservatively use the oldest
+            # included host receipt, rather than making cached data look new.
+            stamp_ns = max(0, msg.header.stamp.sec * 10**9 + msg.header.stamp.nanosec
+                           - int(oldest_age * 10**9))
+            msg.header.stamp.sec, msg.header.stamp.nanosec = divmod(stamp_ns, 10**9)
             self.joint_state_pub.publish(msg)
 
         self._publish_motor_status()
@@ -592,6 +733,12 @@ class PythonCanNode(Node):
     def destroy_node(self):
         self.get_logger().info('Shutting down Python CAN node...')
         self.running = False
+        self._tx_wakeup.set()
+        # Join owners before sending final disables and closing their sockets.
+        for thread in [self.can_tx_thread] + self.can_rx_threads:
+            thread.join(timeout=1.0)
+            if thread.is_alive():
+                raise RuntimeError(f'{thread.name} did not stop; CAN sockets left open')
 
         for joint_name, bus in self.bus_by_joint.items():
             motor_name = self.motor_name_by_joint[joint_name]

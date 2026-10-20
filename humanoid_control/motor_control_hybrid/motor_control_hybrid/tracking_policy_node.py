@@ -5,6 +5,10 @@ import hashlib
 import json
 from pathlib import Path
 import time
+import threading
+from functools import wraps
+
+from builtin_interfaces.msg import Time
 
 import numpy as np
 import yaml
@@ -21,6 +25,15 @@ from motor_control_hybrid.tracking_onnx import (
     GravityEstimator, TrackingPolicy, fresh, joint_feedback, validate_tracking_registry, apply_runtime_policy)
 
 
+def synchronized(method):
+    """Serialize short state operations; never hold this lock across inference."""
+    @wraps(method)
+    def call(self, *args, **kwargs):
+        with self.state_lock:
+            return method(self, *args, **kwargs)
+    return call
+
+
 class TrackingPolicyNode(Node):
     def __init__(self):
         super().__init__('tracking_policy_node')
@@ -32,6 +45,7 @@ class TrackingPolicyNode(Node):
             'imu_topic': '/imu/data_raw', 'joint_states_topic': '/joint_states',
             'joint_feedback_mode': 'zero', 'input_timeout_s': 0.1,
             'calibration_seconds': 2.0, 'imu_frame': 'imu_link',
+            'max_input_skew_s': 0.02, 'max_inference_s': 0.02,
             'orientation_source': 'complementary',
             'imu_to_body_rotation': [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
         }
@@ -40,6 +54,12 @@ class TrackingPolicyNode(Node):
         param = lambda name: self.get_parameter(name).value
         self.rate = float(param('control_rate_hz'))
         self.timeout = float(param('input_timeout_s'))
+        self.max_input_skew = float(param('max_input_skew_s'))
+        self.max_inference = float(param('max_inference_s'))
+        if not (0 < self.max_input_skew <= self.timeout and 0 < self.max_inference <= 1 / self.rate):
+            raise ValueError('Input skew must fit input timeout; inference budget must fit one policy period')
+        self.state_lock = threading.RLock()
+        self.stopping = threading.Event()
         self.calibration_seconds = float(param('calibration_seconds'))
         # The reference and previous-action observations were trained at 50 Hz.
         if self.rate != 50.0 or not 0 < self.timeout <= 1.0:
@@ -88,12 +108,13 @@ class TrackingPolicyNode(Node):
         self.inference_ms = deque(maxlen=3000)
         self.work_ms = deque(maxlen=3000)
         self.frame = 0
-        self.angles_pub = self.create_publisher(JointState, '/policy/target_angles', 1)
-        self.actions_pub = self.create_publisher(Float64MultiArray, '/policy/actions', 1)
+        stream_qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
+        self.angles_pub = self.create_publisher(JointState, '/policy/target_angles', stream_qos)
+        self.actions_pub = self.create_publisher(Float64MultiArray, '/policy/actions', stream_qos)
         # A monitor topic with the existing C++ scheduler's message contract.
         # The launch never forwards this to a hardware motor topic.
-        self.command_pub = self.create_publisher(MotorCommand, '/policy/desired_motor_subset', 1)
-        self.status_pub = self.create_publisher(String, '/policy/status', 1)
+        self.command_pub = self.create_publisher(MotorCommand, '/policy/desired_motor_subset', stream_qos)
+        self.status_pub = self.create_publisher(String, '/policy/status', stream_qos)
         self.create_subscription(Imu, str(param('imu_topic')), self.on_imu,
                                  qos_profile_sensor_data)
         self.create_subscription(JointState, str(param('joint_states_topic')),
@@ -102,7 +123,9 @@ class TrackingPolicyNode(Node):
                               reliability=ReliabilityPolicy.RELIABLE)
         self.create_subscription(Bool, '/safety/estop', self.on_estop, estop_qos)
         self.steady_clock = Clock(clock_type=ClockType.STEADY_TIME)
-        self.create_timer(1 / self.rate, self.tick, clock=self.steady_clock)
+        # Single inference worker, no pending FIFO: every iteration snapshots latest inputs.
+        self.worker = threading.Thread(target=self.run_worker, name='tracking-inference', daemon=True)
+        self.worker.start()
         self.create_timer(1.0, self.publish_status, clock=self.steady_clock)
         self.get_logger().info(
             f'ONNX tracking: 50 Hz, feedback={self.feedback_mode}, '
@@ -116,17 +139,22 @@ class TrackingPolicyNode(Node):
     def ros_seconds(self):
         return self.get_clock().now().nanoseconds * 1e-9
 
+    @synchronized
     def latch_fault(self, reason):
+        if self.stopping.is_set():
+            return
         if self.fault is None:
             self.get_logger().error(reason + '; restart the node to reset')
         self.fault = reason
         self.previous[:] = 0
 
+    @synchronized
     def on_estop(self, msg):
         self.estop = msg.data
         if self.estop:
             self.latch_fault('estop')
 
+    @synchronized
     def on_joints(self, msg):
         try:
             q, dq = joint_feedback(msg.name, msg.position, msg.velocity, self.policy.names)
@@ -136,6 +164,7 @@ class TrackingPolicyNode(Node):
             if self.started is not None and self.feedback_mode == 'joint_states':
                 self.latch_fault(str(exc))
 
+    @synchronized
     def on_imu(self, msg):
         if self.fault is not None:
             return
@@ -144,7 +173,8 @@ class TrackingPolicyNode(Node):
         # DDS discovery can deliver old queued samples at startup. Reject them
         # without replacing the last valid sample; the control watchdog checks
         # that a current sample actually arrives before any inference continues.
-        if not fresh(now, stamp, now, self.ros_seconds(), self.timeout):
+        if (stamp <= 0 or not fresh(now, stamp, now, self.ros_seconds(), self.timeout)
+                or (self.imu is not None and stamp <= self.imu[1])):
             self.rejected_imu_timestamps += 1
             return
         try:
@@ -186,70 +216,121 @@ class TrackingPolicyNode(Node):
                 gravity = self.rotation @ np.array([
                     2 * (w*y - x*z), -2 * (y*z + w*x), 2 * (x*x + y*y) - 1])
             else:
-                gravity = self.filter.update(acc, omega, now)
+                gravity = self.filter.update(acc, omega, stamp)
             self.imu = (now, stamp, omega, gravity)
         except ValueError as exc:
             self.imu = None
             self.latch_fault(str(exc))
 
+    def run_worker(self):
+        next_tick = time.monotonic()
+        while not self.stopping.is_set():
+            self.tick()
+            next_tick += 1 / self.rate
+            now = time.monotonic()
+            # Missed periods are skipped, never replayed in a catch-up burst.
+            if next_tick < now:
+                next_tick = now + 1 / self.rate
+            self.stopping.wait(max(0, next_tick - now))
+
+    def destroy_node(self):
+        self.stopping.set()
+        self.worker.join(timeout=1.0)
+        # A late inference checks stopping before touching a publisher.
+        with self.state_lock:
+            return super().destroy_node()
+
+    @staticmethod
+    def time_message(seconds):
+        ns = int(seconds * 1e9)
+        sec, nanosec = divmod(ns, 10**9)
+        return Time(sec=sec, nanosec=nanosec)
+
     def tick(self):
-        begin = time.monotonic()
-        if self.fault or self.estop:
-            self.state = 'fault'
-            return
-        if self.imu is None:
-            return
-        now_ros = self.ros_seconds()
-        if not fresh(*self.imu[:2], begin, now_ros, self.timeout):
-            self.latch_fault('IMU timeout')
-            return
-        if self.feedback_mode == 'joint_states':
-            if self.joints is None:
-                self.state = 'waiting_for_joint_states'
+        with self.state_lock:
+            begin = time.monotonic()
+            if self.stopping.is_set() or self.fault or self.estop:
+                self.state = 'fault' if self.fault or self.estop else 'stopping'
                 return
-            if not fresh(*self.joints[:2], begin, now_ros, self.timeout):
-                self.latch_fault('JointState timeout')
+            if self.imu is None:
                 return
-            q, dq = self.joints[2:]
-        else:
-            q, dq = self.policy.offset, np.zeros(10, dtype=np.float32)
-        if self.started is None:
-            self.started = begin
-        self.frame = min(int((begin - self.started) * 50), self.policy.frames - 1)
+            now_ros = self.ros_seconds()
+            imu = self.imu  # Callbacks replace tuples and never mutate their arrays.
+            joints = self.joints if self.feedback_mode == 'joint_states' else None
+            if not fresh(*imu[:2], begin, now_ros, self.timeout):
+                self.latch_fault('IMU timeout')
+                return
+            if self.feedback_mode == 'joint_states':
+                if joints is None:
+                    self.state = 'waiting_for_joint_states'
+                    return
+                if not fresh(*joints[:2], begin, now_ros, self.timeout):
+                    self.latch_fault('JointState timeout')
+                    return
+                if abs(imu[1] - joints[1]) > self.max_input_skew:
+                    self.state = 'waiting_for_aligned_inputs'
+                    return
+                q, dq = joints[2:]
+            else:
+                q, dq = self.policy.offset, np.zeros(10, dtype=np.float32)
+            if self.started is None:
+                self.started = begin
+            frame = min(int((begin - self.started) * 50), self.policy.frames - 1)
+            source_stamp = min(imu[1], joints[1]) if joints else imu[1]
+            valid_until = source_stamp + self.timeout
+            previous = self.previous.copy()
         try:
-            obs = self.policy.observation(self.frame, *self.imu[2:], q, dq, self.previous)
+            obs = self.policy.observation(frame, *imu[2:], q, dq, previous)
             start_inference = time.monotonic()
-            actions, targets = self.policy.run(obs, self.frame)
-            self.inference_ms.append((time.monotonic() - start_inference) * 1000)
-            self.previous = actions
-            angles = JointState()
-            angles.header.stamp = self.get_clock().now().to_msg()
-            angles.header.frame_id = 'policy_body'
-            angles.name = self.policy.names
-            angles.position = targets.astype(float).tolist()
-            self.angles_pub.publish(angles)
-            self.actions_pub.publish(Float64MultiArray(data=actions.astype(float).tolist()))
-            command = MotorCommand()
-            command.header = angles.header
-            command.joint_name = self.policy.names
-            command.mode = [MotorCommand.MODE_MOTION] * 10
-            command.position = angles.position
-            command.velocity = [0.0] * 10
-            command.acceleration = [0.0] * 10
-            command.torque = [0.0] * 10
-            command.kp = self.policy.kp.astype(float).tolist()
-            command.kd = self.policy.kd.astype(float).tolist()
-            self.command_pub.publish(command)
-            self.count += 1
-            if self.last_tick is not None:
-                self.intervals.append((begin - self.last_tick) * 1000)
-            self.last_tick = begin
-            work_ms = (time.monotonic() - begin) * 1000
-            self.work_ms.append(work_ms)
-            self.overruns += int(work_ms > 1000 / self.rate)
-            self.state = 'running'
-        except (ValueError, RuntimeError) as exc:
-            self.latch_fault(str(exc))
+            actions, targets = self.policy.run(obs, frame)
+            finished = time.monotonic()
+            with self.state_lock:
+                self.inference_ms.append((finished - start_inference) * 1000)
+                if self.stopping.is_set() or self.fault or self.estop:
+                    return
+                # Validate the immutable inputs used by this result, not newer callbacks.
+                checked_at = time.monotonic()
+                if (checked_at - begin > self.max_inference
+                        or not fresh(*imu[:2], checked_at, self.ros_seconds(), self.timeout)
+                        or (joints is not None and not fresh(
+                            *joints[:2], checked_at, self.ros_seconds(), self.timeout))):
+                    self.latch_fault('Inference result expired')
+                    return
+                if not np.isfinite(actions).all() or not np.isfinite(targets).all():
+                    raise ValueError('Non-finite policy output')
+                angles = JointState()
+                angles.header.stamp = self.time_message(source_stamp)
+                angles.header.frame_id = 'policy_body'
+                angles.name = self.policy.names
+                angles.position = targets.astype(float).tolist()
+                command = MotorCommand()
+                command.header = angles.header
+                command.valid_until = self.time_message(valid_until)
+                command.joint_name = self.policy.names
+                command.mode = [MotorCommand.MODE_MOTION] * 10
+                command.position = angles.position
+                command.velocity = [0.0] * 10
+                command.acceleration = [0.0] * 10
+                command.torque = [0.0] * 10
+                command.kp = self.policy.kp.astype(float).tolist()
+                command.kd = self.policy.kd.astype(float).tolist()
+                self.command_pub.publish(command)
+                self.angles_pub.publish(angles)
+                self.actions_pub.publish(Float64MultiArray(data=actions.astype(float).tolist()))
+                # Rejected/expired results must never advance previous-action history.
+                self.previous = actions.copy()
+                self.frame = frame
+                self.count += 1
+                if self.last_tick is not None:
+                    self.intervals.append((begin - self.last_tick) * 1000)
+                self.last_tick = begin
+                work_ms = (time.monotonic() - begin) * 1000
+                self.work_ms.append(work_ms)
+                self.overruns += int(work_ms > 1000 / self.rate)
+                self.state = 'running'
+        except Exception as exc:
+            # A dead worker must not silently leave its last target running.
+            self.latch_fault(f'Policy worker: {exc}')
 
     @staticmethod
     def statistics(values):
@@ -258,10 +339,12 @@ class TrackingPolicyNode(Node):
         return {'mean': float(np.mean(values)), 'p99': float(np.percentile(values, 99)),
                 'max': float(np.max(values))}
 
+    @synchronized
     def publish_status(self):
         now = time.monotonic()
         status = {
             'state': self.state, 'fault': self.fault, 'requested_hz': self.rate,
+            'max_input_skew_s': self.max_input_skew, 'max_inference_s': self.max_inference,
             'iterations': self.count, 'reference_frame': self.frame,
             'reference_finished': self.frame == self.policy.frames - 1,
             'reference_end_behavior': 'hold_last_frame',

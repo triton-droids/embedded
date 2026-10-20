@@ -43,7 +43,8 @@ PYBIND11_MODULE(control_core_py, m) {
   py::class_<Output>(m, "Output")
       .def(py::init<>())
       .def_readwrite("joint_name", &Output::joint_name)
-      .def_readwrite("commands", &Output::commands);
+      .def_readwrite("commands", &Output::commands)
+      .def_readwrite("warnings", &Output::warnings);
 
   // Controller
   py::class_<Controller>(m, "Controller")

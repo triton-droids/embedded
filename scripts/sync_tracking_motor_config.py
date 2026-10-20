@@ -12,7 +12,7 @@ import yaml
 def main():
     repo = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--model', type=Path, default=repo.parent / 'simulation/logs/legs_tracking/'
+    parser.add_argument('--model', type=Path, default=repo / 'humanoid_control/motor_control_hybrid/models/'
                         '20260914_170827/20260914_170827.onnx')
     parser.add_argument('--output', type=Path, default=repo / 'humanoid_control/'
                         'motor_control_hybrid/config/motors.yaml')
@@ -49,8 +49,7 @@ def main():
         limits = [float(value) for value in joints[name].get('range').split()]
         motors[name] = {key: old.get(key) for key in hardware_keys}
         motors[name].update(min_position=limits[0], max_position=limits[1],
-                            kp=old.get('kp', kp[index]) if 'runtime_policy' in previous else kp[index],
-                            kd=old.get('kd', kd[index]) if 'runtime_policy' in previous else kd[index])
+                            kp=kp[index], kd=kd[index])
         if 'ankle_mapping' in old:
             motors[name]['ankle_mapping'] = old['ankle_mapping']
     params = {
@@ -65,7 +64,7 @@ def main():
         'MAX_VEL_RAD_S': previous.get('MAX_VEL_RAD_S', 4.5),
         'motors': motors,
     }
-    for key in ('runtime_policy', 'default_can_interface', 'default_master_id', 'KP', 'KD'):
+    for key in ('default_can_interface', 'default_master_id', 'KP', 'KD'):
         if key in previous:
             params[key] = previous[key]
     header = ('# Synced from the tracking ONNX export and its saved training XML.\n'

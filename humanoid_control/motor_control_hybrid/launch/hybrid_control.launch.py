@@ -1,9 +1,47 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, LogInfo
+from launch.actions import DeclareLaunchArgument, LogInfo, OpaqueFunction
 from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
+import yaml
+
+
+def registry_joint_names(context):
+    """Read the selected registry's complete order, including custom bench files."""
+    with open(LaunchConfiguration('motor_config_file').perform(context)) as stream:
+        registry = yaml.safe_load(stream)
+    params = registry.get('motor_control_node', {}).get('ros__parameters', registry)
+    return list(params['motors'])
+
+
+def make_cpp_control(context):
+    """Configure the control watchdog with the full expected robot."""
+    return [Node(
+        package='motor_control_hybrid', executable='cpp_control_node',
+        name='cpp_control_node', output='screen',
+        condition=IfCondition(LaunchConfiguration('enable_cpp_control')),
+        parameters=[{
+            'joint_names': registry_joint_names(context),
+            'control_rate_hz': float(LaunchConfiguration('control_rate_hz').perform(context)),
+            'cmd_timeout_s': float(LaunchConfiguration('cmd_timeout_s').perform(context)),
+            'enable_rl': LaunchConfiguration('enable_rl'),
+            'rl_model_path': LaunchConfiguration('rl_model_path'),
+        }],
+    )]
+
+
+def make_fake_motor(context):
+    """Keep fake feedback consistent with the controller's expected joints."""
+    return [Node(
+        package='motor_control_hybrid', executable='fake_motor_node',
+        name='fake_motor_node', output='screen',
+        condition=IfCondition(LaunchConfiguration('enable_fake_motor')),
+        parameters=[{
+            'joint_names': registry_joint_names(context),
+            'publish_rate_hz': float(LaunchConfiguration('control_rate_hz').perform(context)),
+        }],
+    )]
 
 
 def generate_launch_description():
@@ -27,13 +65,18 @@ def generate_launch_description():
     feedback_poll_rate_arg = DeclareLaunchArgument(
         'feedback_poll_hz',
         default_value='50.0',
-        description='CAN feedback polling rate for idle motors'
+        description='Legacy compatibility parameter; CAN RX now runs continuously'
     )
 
     cmd_timeout_arg = DeclareLaunchArgument(
         'cmd_timeout_s',
         default_value='0.5',
         description='Command timeout in seconds. 0.0 holds the last command indefinitely.'
+    )
+
+    can_cmd_timeout_arg = DeclareLaunchArgument(
+        'can_command_timeout_s', default_value='0.5',
+        description='Positive CAN-local command lifetime; expiry requires explicit re-enable'
     )
 
     enable_safety_arg = DeclareLaunchArgument(
@@ -139,17 +182,7 @@ def generate_launch_description():
     )
 
     # -------------------- Fake motor node --------------------
-    fake_motor_node = Node(
-        package='motor_control_hybrid',
-        executable='fake_motor_node',
-        name='fake_motor_node',
-        condition=IfCondition(LaunchConfiguration('enable_fake_motor')),
-        output='screen',
-        parameters=[
-            {'joint_names': ['test_joint', 'test_joint2']},
-            {'publish_rate_hz': LaunchConfiguration('control_rate_hz')},
-        ],
-    )
+    fake_motor_node = OpaqueFunction(function=make_fake_motor)
 
     # -------------------- Python CAN node --------------------
     real_python_can_node = Node(
@@ -163,23 +196,12 @@ def generate_launch_description():
             {'publish_rate_hz': LaunchConfiguration('control_rate_hz')},
             {'feedback_poll_hz': LaunchConfiguration('feedback_poll_hz')},
             {'feedback_poll_when_idle': True},
+            {'command_timeout_s': LaunchConfiguration('can_command_timeout_s')},
         ],
     )
 
     # -------------------- C++ Control node --------------------
-    cpp_control_node = Node(
-        package='motor_control_hybrid',
-        executable='cpp_control_node',
-        name='cpp_control_node',
-        condition=IfCondition(LaunchConfiguration('enable_cpp_control')),
-        output='screen',
-        parameters=[
-            {'control_rate_hz': LaunchConfiguration('control_rate_hz')},
-            {'cmd_timeout_s': LaunchConfiguration('cmd_timeout_s')},
-            {'enable_rl': LaunchConfiguration('enable_rl')},
-            {'rl_model_path': LaunchConfiguration('rl_model_path')},
-        ],
-    )
+    cpp_control_node = OpaqueFunction(function=make_cpp_control)
 
     # -------------------- SDK gRPC Gateway node --------------------
     sdk_gateway_node = Node(
@@ -229,6 +251,7 @@ def generate_launch_description():
         control_rate_arg,
         feedback_poll_rate_arg,
         cmd_timeout_arg,
+        can_cmd_timeout_arg,
         enable_safety_arg,
         safety_config_arg,
         enable_rl_arg,

@@ -11,6 +11,7 @@ find_package(ament_cmake_python REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(diagnostic_msgs REQUIRED)
 find_package(motor_control_interfaces REQUIRED)
 
 # =========================
@@ -42,6 +43,7 @@ ament_target_dependencies(cpp_control_node
   rclcpp
   sensor_msgs
   std_msgs
+  diagnostic_msgs
   motor_control_interfaces
 )
 
@@ -95,6 +97,16 @@ if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
   ament_add_pytest_test(tracking_onnx_test test/test_tracking_onnx.py TIMEOUT 90)
   ament_add_pytest_test(tracking_node_test test/test_tracking_node.py TIMEOUT 90)
+  ament_add_pytest_test(inference_deadlines_test test/test_inference_deadlines.py TIMEOUT 30)
+  ament_add_pytest_test(control_watchdogs_test test/test_control_watchdogs.py TIMEOUT 30)
+  ament_add_pytest_test(model_control_settings_test test/test_model_control_settings.py TIMEOUT 30)
+  ament_add_pytest_test(can_transport_test test/test_can_transport.py TIMEOUT 30)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(cpp_state_watchdog_test test/test_cpp_state_watchdog.cpp)
+  ament_target_dependencies(cpp_state_watchdog_test rclcpp sensor_msgs std_msgs diagnostic_msgs motor_control_interfaces)
+  target_link_libraries(cpp_state_watchdog_test control_core)
+  set_tests_properties(cpp_state_watchdog_test PROPERTIES
+    ENVIRONMENT "ROS_DOMAIN_ID=179;ROS_LOCALHOST_ONLY=1;ROS_LOG_DIR=/tmp/cpp-state-watchdog-logs")
 endif()
 
 install(PROGRAMS

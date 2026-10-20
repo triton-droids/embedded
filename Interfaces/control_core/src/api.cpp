@@ -50,14 +50,20 @@ Output Controller::step(const State& state, const CommandSubset& desired_subset,
     throw std::runtime_error("Controller::step: controller not configured");
   }
 
-  // Safety placeholder: if any safety fails, keep hold-last unchanged.
-  for (auto& s : safety_) {
+  // Optional plugins are advisory. No feature is registered by the ROS node.
+  // A failed/throwing check reports diagnostics without freezing or replacing
+  // the desired action. Explicit estop/watchdogs belong to the outer node.
+  std::vector<std::string> warnings;
+  for (auto& feature : safety_) {
     std::string reason;
-    if (!s->check(state, &reason)) {
-      Output out;
-      out.joint_name = joint_order_;
-      out.commands = last_cmd_;
-      return out;
+    try {
+      if (!feature->check(state, &reason)) {
+        warnings.push_back(reason.empty() ? "SafetyFeature check failed" : reason);
+      }
+    } catch (const std::exception& error) {
+      warnings.push_back(std::string("SafetyFeature exception: ") + error.what());
+    } catch (...) {
+      warnings.push_back("SafetyFeature unknown exception");
     }
   }
 
@@ -65,6 +71,7 @@ Output Controller::step(const State& state, const CommandSubset& desired_subset,
   Output out;
   out.joint_name = joint_order_;
   out.commands = last_cmd_;
+  out.warnings = std::move(warnings);
 
   // Override only specified joints (independent per joint mode)
   for (const auto& kv : desired_subset) {
