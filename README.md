@@ -369,6 +369,9 @@ Use the ROS distribution matching the host OS. The setup examples below target
 ROS 2 Jazzy on Ubuntu 24.04 / Python 3.12. Recreate `rosenv/` on each host; do not
 copy it across Python or ROS distributions.
 
+On other Linux distributions, or to avoid a native ROS install, use the Humble
+[dev container](docs/devcontainer.md).
+
 For the control/ONNX packages, the setup script creates the virtual environment,
 installs [`requirements-policy-onnx.txt`](requirements-policy-onnx.txt), and builds
 the selected control, safety, and serial IMU packages:
