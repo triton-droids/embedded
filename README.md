@@ -20,8 +20,7 @@ same `ROS_DOMAIN_ID` and compatible DDS network settings.
 
 The red dashed enclosure marks **Legacy / Deprecated application SDK paths**.
 The active CAN transport still reuses the low-level MIT frame codec. The SDK
-gateway remains enabled by default in the hybrid launch; its deprecated label
-does not disable it.
+gateway is disabled by default in the hybrid launch.
 
 ### Control Data Flow
 
@@ -314,3 +313,12 @@ Disable:
 ros2 topic pub -1 /motor_commands motor_control_interfaces/msg/MotorCommand \
 "{joint_name:['shoulder_pitch','elbow_pitch'], mode:[4]}"
 ```
+
+## Unified startup
+
+Build the workspace, activate `rosenv`, and source `install/setup.bash`, then run
+`ros2 launch launch/system.launch.py` from the repository root. This starts
+CAN/control, safety supervision, vision and leg display. MoveIt, pendulum UI,
+SDK gateway and legacy IMU are excluded. CAN TX requests RR 20, each RX requests
+RR 21, and the C++ executor requests RR 10; `enable_rt:=false` disables requests.
+See [workspace launch instructions](launch/README.md).
