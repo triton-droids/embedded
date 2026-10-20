@@ -1,11 +1,18 @@
 # Activate the tracking policy and RViz monitor
 
+Before using these commands, open a terminal inside your checkout and set its
+location dynamically (repeat in each terminal):
+
+```bash
+export EMBEDDED_WORKSPACE="$(git rev-parse --show-toplevel)"
+```
+
 This guide starts the ESP32/MPU6050 reader, 50 Hz ONNX policy, ten fake motors,
 JointState network relay, and RViz display. It also describes the current
 real-motor feedback workflow and the remaining requirements for physical motion.
 
 Commands use the current Jetson checkout at
-`/home/darin/Documents/Github/embedded` and ROS 2 Humble. On another machine,
+`${EMBEDDED_WORKSPACE}` and ROS 2 Humble. On another machine,
 replace checkout paths with its local paths. Run each numbered terminal in a
 separate shell. Stop previous launches before starting replacements.
 
@@ -15,7 +22,7 @@ Prerequisites: ROS 2 Humble, colcon, Python venv support, and the deployment ONN
 `humanoid_control/motor_control_hybrid/models/20260914_170827/` (not an LFS pointer).
 
 ```bash
-cd /home/darin/Documents/Github/embedded
+cd "$EMBEDDED_WORKSPACE"
 bash scripts/setup_tracking_policy.sh
 
 source /opt/ros/humble/setup.bash
@@ -25,7 +32,7 @@ colcon build --symlink-install \
   --base-paths humanoid_control humanoid_leg_description \
   --packages-select motor_control_hybrid humanoid_leg_description \
   --cmake-args \
-  -DPython3_EXECUTABLE=/home/darin/Documents/Github/embedded/rosenv/bin/python
+  -DPython3_EXECUTABLE="$EMBEDDED_WORKSPACE/rosenv/bin/python"
 
 source install/setup.bash
 ```
@@ -41,7 +48,7 @@ CAN activation.
 Paste this block into **each** Jetson terminal before its ROS commands:
 
 ```bash
-cd /home/darin/Documents/Github/embedded
+cd "$EMBEDDED_WORKSPACE"
 source /opt/ros/humble/setup.bash
 source rosenv/bin/activate
 source install/setup.bash
@@ -77,7 +84,7 @@ Keep the IMU stationary during the initial two-second calibration:
 
 ```bash
 ros2 launch motor_control_hybrid tracking_policy.launch.py \
-  model_path:=/home/darin/Documents/Github/embedded/humanoid_control/motor_control_hybrid/models/20260914_170827/20260914_170827.onnx \
+  model_path:="$EMBEDDED_WORKSPACE/humanoid_control/motor_control_hybrid/models/20260914_170827/20260914_170827.onnx" \
   port:=/dev/ttyACM0 \
   baud:=115200 \
   input_format:=bno085_csv \
@@ -253,7 +260,7 @@ Terminal B, with the Jetson environment sourced:
 
 ```bash
 ros2 launch motor_control_hybrid tracking_policy.launch.py \
-  model_path:=/home/darin/Documents/Github/embedded/humanoid_control/motor_control_hybrid/models/20260914_170827/20260914_170827.onnx \
+  model_path:="$EMBEDDED_WORKSPACE/humanoid_control/motor_control_hybrid/models/20260914_170827/20260914_170827.onnx" \
   port:=/dev/ttyACM0 baud:=115200 input_format:=bno085_csv \
   use_fake_joint_states:=false \
   joint_feedback_mode:=joint_states \
@@ -322,7 +329,7 @@ configuration; a reachable IP alone does not guarantee discovery.
 To refresh the registry after choosing a different matching tracking export:
 
 ```bash
-cd /home/darin/Documents/Github/embedded
+cd "$EMBEDDED_WORKSPACE"
 source rosenv/bin/activate
 python scripts/sync_tracking_motor_config.py \
   --model /absolute/path/to/tracking_export.onnx

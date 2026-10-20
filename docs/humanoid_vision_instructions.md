@@ -1,5 +1,12 @@
 # Humanoid Vision: Current Instructions
 
+Before using these commands, open a terminal inside your checkout and set its
+location dynamically (repeat in each terminal):
+
+```bash
+export EMBEDDED_WORKSPACE="$(git rev-parse --show-toplevel)"
+```
+
 ## Scope
 
 This document describes the vision code that currently exists in this
@@ -51,7 +58,7 @@ currently placeholders. The implemented detection and 3D-estimation code is in
 Use the repository environment script from the repository root:
 
 ```bash
-cd /home/darin/Documents/Github/embedded
+cd "$EMBEDDED_WORKSPACE"
 ROS_DISTRO=humble source scripts/setup_rosenv.sh
 ```
 
@@ -302,7 +309,7 @@ Validated on the Orin Nano Super with TensorRT 10.3 / CUDA 12.6:
   preprocessing and post-processing (30 measured iterations).
 - Live CUDA node: 14.6–14.9 FPS with approximately 30 ms detection time,
   using the existing 15 FPS camera input. Preview was disabled for this test.
-- The formal workspace is `/home/darin/Documents/Github/embedded`; source
+- The formal workspace is `${EMBEDDED_WORKSPACE}`; source
   `/opt/ros/humble/setup.bash` and its `install/setup.bash` before launching.
 
 Camera FPS caps live processing FPS regardless of GPU speed. The tested
