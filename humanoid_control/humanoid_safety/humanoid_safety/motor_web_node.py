@@ -17,6 +17,7 @@ import rclpy
 from ament_index_python.packages import get_package_share_directory, PackageNotFoundError
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
+from diagnostic_msgs.msg import DiagnosticArray
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool, String
 import yaml
@@ -33,6 +34,8 @@ class MotorStatusCache:
         self.samples = {}
         self.temperatures = {}
         self.estop = None
+        self.estop_received = None
+        self.supervisor = None
 
     def observe(self, msg, monotonic_now, ros_now):
         stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
@@ -52,25 +55,67 @@ class MotorStatusCache:
                     float(msg.effort[i]) if len(msg.effort) else None)
         return True
 
-    def observe_temperatures(self, text, now):
-        """Legacy motor_status keys are registry enumeration indices, NOT IDs.
+    def observe_temperatures(self, text, now, ros_now):
+        """Accept v1 named telemetry only; legacy enumeration has no safe identity.
 
-        This unstamped ancillary topic provides receipt freshness only; it never
-        makes joint feedback online and cannot provide a hardware capture time.
+        Identity is joined by joint name + CAN interface/ID + model, independent
+        of registry order. Replayed stamps never refresh local receipt freshness.
         """
         try:
             values = json.loads(text)
-            if not isinstance(values, dict):
-                return
+            if (not isinstance(values, dict) or values.get('schema_version') != 1
+                    or not isinstance(values.get('motors'), list)
+                    or len(values['motors']) > 256):
+                return False
             updates = {}
-            for index, name in enumerate(self.registry):
-                value = values.get(str(index), {}).get('temperature')
-                if isinstance(value, (float, int)) and math.isfinite(value):
-                    updates[name] = (now, float(value))
-        except (ValueError, TypeError, AttributeError):
-            return
+            for record in values['motors']:
+                name = record['joint_name']
+                if not isinstance(name, str) or name in updates:
+                    return False
+                cfg = self.registry.get(name)
+                if cfg is not None and any(record.get(key) != cfg.get(key)
+                        for key in ('can_interface', 'motor_id', 'model')):
+                    continue
+                if self.registry and cfg is None:
+                    continue
+                if (not isinstance(record.get('can_interface'), str)
+                        or type(record.get('motor_id')) is not int):
+                    continue
+                value, stamp = record.get('temperature_c'), record.get('source_stamp')
+                if (type(value) not in (int, float) or not math.isfinite(value)
+                        or type(stamp) not in (int, float) or not math.isfinite(stamp)
+                        or stamp <= 0 or not -0.01 <= ros_now - stamp <= self.timeout):
+                    continue
+                updates[name] = (now, stamp, float(value), record)
+        except (ValueError, TypeError, KeyError, AttributeError):
+            return False
         with self.lock:
-            self.temperatures.update(updates)
+            for name, sample in updates.items():
+                if name not in self.temperatures and len(self.temperatures) >= 256:
+                    continue
+                previous = self.temperatures.get(name)
+                if previous is None or sample[1] > previous[1]:
+                    self.temperatures[name] = sample
+        return True
+
+    def observe_estop(self, value, now):
+        with self.lock:
+            self.estop, self.estop_received = bool(value), now
+
+    def observe_supervisor(self, msg, now, ros_now):
+        stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+        summaries = [s for s in msg.status if s.name == 'humanoid_safety/supervisor'
+                     and s.hardware_id == 'humanoid']
+        if (len(summaries) != 1 or stamp <= 0
+                or not -0.01 <= ros_now - stamp <= self.timeout):
+            return False
+        summary = summaries[0]
+        with self.lock:
+            if self.supervisor is not None and stamp <= self.supervisor[1]:
+                return False
+            level = summary.level[0] if isinstance(summary.level, bytes) else int(summary.level)
+            self.supervisor = (now, stamp, level, summary.message)
+        return True
 
     def snapshot(self, monotonic_now, ros_now):
         with self.lock:
@@ -82,16 +127,30 @@ class MotorStatusCache:
                 online = (sample is not None and 0 <= monotonic_now - sample[0] <= self.timeout
                           and -0.01 <= age <= self.timeout)
                 temp = self.temperatures.get(name)
+                if not self.registry and temp:
+                    cfg = temp[3]
                 motors.append(dict(joint_name=name, motor_id=cfg.get('motor_id'),
-                    model=cfg.get('model'), online=online,
+                    model=cfg.get('model'), can_interface=cfg.get('can_interface'), online=online,
                     source_age_ms=None if age is None else age * 1000,
                     position_rad=None if sample is None else sample[2],
                     velocity_radps=None if sample is None else sample[3],
                     effort_nm=None if sample is None else sample[4],
-                    temperature_c=(temp[1] if temp and online and
-                                   0 <= monotonic_now - temp[0] <= self.timeout else None)))
+                    temperature_c=(temp[2] if temp and online and
+                                   0 <= monotonic_now - temp[0] <= self.timeout and
+                                   -0.01 <= ros_now - temp[1] <= self.timeout else None),
+                    temperature_source_age_ms=None if temp is None else (ros_now - temp[1]) * 1000))
+            supervisor = self.supervisor
+            supervisor_online = (supervisor is not None and
+                0 <= monotonic_now - supervisor[0] <= self.timeout and
+                -0.01 <= ros_now - supervisor[1] <= self.timeout)
+            estop_fresh = (self.estop_received is not None and
+                0 <= monotonic_now - self.estop_received <= self.timeout)
             return dict(connected=any(m['online'] for m in motors),
-                        estop=self.estop, motors=motors)
+                        estop=self.estop if supervisor_online and estop_fresh else None,
+                        last_reported_estop=self.estop, supervisor_online=supervisor_online,
+                        supervisor_level=supervisor[2] if supervisor_online else None,
+                        supervisor_message=supervisor[3] if supervisor_online else None,
+                        motors=motors)
 
 
 def make_handler(snapshot, static_root):
@@ -137,7 +196,8 @@ class MotorWebNode(Node):
             default_registry = str(Path(get_package_share_directory('motor_control_hybrid')) / 'config/motors.yaml')
         except PackageNotFoundError:
             default_registry = ''
-        defaults = dict(source_topic='/joint_states', motor_status_topic='/motor_status',
+        defaults = dict(source_topic='/joint_states', motor_status_topic='/motor_telemetry',
+                        supervisor_status_topic='/safety/status',
                         motor_config_file=default_registry, host='127.0.0.1', port=8080,
                         state_timeout_s=0.5)
         for key, value in defaults.items():
@@ -148,15 +208,22 @@ class MotorWebNode(Node):
             raise ValueError('state_timeout_s must be finite and positive')
         registry = {}
         if param('motor_config_file'):
-            registry = yaml.safe_load(Path(param('motor_config_file')).read_text())['motor_control_node']['ros__parameters']['motors']
+            params = yaml.safe_load(Path(param('motor_config_file')).read_text())['motor_control_node']['ros__parameters']
+            registry = {name: dict(cfg, can_interface=cfg.get('can_interface',
+                        params.get('default_can_interface', 'can0')))
+                        for name, cfg in params['motors'].items()}
         self.cache = MotorStatusCache(registry, timeout)
         self.source_topic = str(param('source_topic'))
         self.create_subscription(JointState, self.source_topic, self.on_state, qos_profile_sensor_data)
         self.create_subscription(String, str(param('motor_status_topic')),
-            lambda msg: self.cache.observe_temperatures(msg.data, time.monotonic()), qos_profile_sensor_data)
+            lambda msg: self.cache.observe_temperatures(msg.data, time.monotonic(),
+                self.get_clock().now().nanoseconds * 1e-9), qos_profile_sensor_data)
         qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
                          reliability=ReliabilityPolicy.RELIABLE)
         self.create_subscription(Bool, '/safety/estop', self.on_estop, qos)
+        self.create_subscription(DiagnosticArray, str(param('supervisor_status_topic')),
+            lambda msg: self.cache.observe_supervisor(msg, time.monotonic(),
+                self.get_clock().now().nanoseconds * 1e-9), qos_profile_sensor_data)
         root = Path(get_package_share_directory('humanoid_safety')) / 'web_ui'
         self.server = MonitorHTTPServer((str(param('host')), int(param('port'))),
                                        make_handler(self.snapshot, root))
@@ -170,8 +237,7 @@ class MotorWebNode(Node):
         self.cache.observe(msg, time.monotonic(), self.get_clock().now().nanoseconds * 1e-9)
 
     def on_estop(self, msg):
-        with self.cache.lock:
-            self.cache.estop = bool(msg.data)
+        self.cache.observe_estop(msg.data, time.monotonic())
 
     def snapshot(self):
         result = self.cache.snapshot(time.monotonic(), self.get_clock().now().nanoseconds * 1e-9)

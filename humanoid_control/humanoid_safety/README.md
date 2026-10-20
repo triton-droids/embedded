@@ -58,16 +58,34 @@ visible but are marked offline. Offline is not proof of physical stopping.
 The node has a bounded per-joint cache and a single HTTP owner with bounded socket
 waits; browser polling allows only one outstanding request.
 
-If installed, `motor_control_hybrid/config/motors.yaml` supplies expected names,
-IDs/models and the legacy `/motor_status` enumeration-index mapping. Override
-using `motor_config_file:=/absolute/path/motors.yaml` when the robot uses another
-registry. Without a registry, only observed joints appear, ID/model/temperature
-remain unknown. Temperature has receipt age only because that JSON topic has no
-source timestamp; it never makes joint feedback fresh. Missing data is not polled
-from a motor SDK. POST/control requests are rejected.
+If installed, `motor_control_hybrid/config/motors.yaml` supplies expected names
+and CAN identities. Override using `motor_config_file:=/absolute/path/motors.yaml`.
+The Web monitor consumes `/motor_telemetry` (String JSON schema version 1), not
+legacy enumeration-index `/motor_status`. Each record contains `joint_name`,
+`can_interface`, `motor_id`, `model`, `source_stamp` (ROS seconds) and
+`temperature_c`. Registry order is irrelevant: identity fields must match the
+local registry for temperature to be joined. Without a registry, identity comes
+from the named telemetry. Missing/mismatched telemetry is unknown. The legacy
+SDK topic is unchanged; older CAN publishers must be upgraded to supply named
+temperature telemetry.
+
+The CAN publisher captures the source stamp when feedback is accepted, correcting
+for its known host-receipt age. Re-publishing a cached sample preserves that
+stamp. This is a host-derived feedback timestamp, not proof of synchronized motor
+capture. Temperature needs both fresh source time and monotonic receipt time;
+replayed stamps cannot refresh it or make JointState feedback online.
+
+Supervisor liveness is tracked separately through stamped `/safety/status`
+diagnostics (configurable with `supervisor_status_topic`). Only a fresh
+`humanoid_safety/supervisor` summary with `hardware_id=humanoid` renews liveness.
+The UI/API retain `last_reported_estop` as history; `estop` becomes null when the
+supervisor heartbeat or Bool receipt expires. `supervisor_online` means fresh
+heartbeat, not healthy checks: level/message are displayed separately. Paused
+ROS clocks and replayed diagnostics cannot keep a dead supervisor online.
+Freshness uses `state_timeout_s` (default 0.5 seconds).
 
 For the isolated policy bench, pass `source_topic:=/policy/joint_states` and, if
-applicable, `motor_status_topic:=/policy/motor_status`. `/policy/target_angles`
+applicable, `motor_status_topic:=/policy/motor_telemetry`. `/policy/target_angles`
 shows **commanded**, not measured, pose; do not label it actual motor feedback.
 
 ## RViz on the display PC

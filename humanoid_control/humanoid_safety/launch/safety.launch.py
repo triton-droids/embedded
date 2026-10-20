@@ -19,6 +19,7 @@ def mode_nodes(context):
         parameters = {
             'source_topic': LaunchConfiguration('source_topic'),
             'motor_status_topic': LaunchConfiguration('motor_status_topic'),
+            'supervisor_status_topic': LaunchConfiguration('supervisor_status_topic'),
             'host': LaunchConfiguration('host'),
             'port': ParameterValue(LaunchConfiguration('port'), value_type=int),
         }
@@ -54,7 +55,8 @@ def generate_launch_description():
         DeclareLaunchArgument('ros_domain_id', default_value=EnvironmentVariable('ROS_DOMAIN_ID', default_value='0')),
         SetEnvironmentVariable('ROS_DOMAIN_ID', LaunchConfiguration('ros_domain_id')),
         DeclareLaunchArgument('source_topic', default_value='/joint_states'),
-        DeclareLaunchArgument('motor_status_topic', default_value='/motor_status'),
+        DeclareLaunchArgument('motor_status_topic', default_value='/motor_telemetry'),
+        DeclareLaunchArgument('supervisor_status_topic', default_value='/safety/status'),
         DeclareLaunchArgument('display_topic', default_value='/safety/visualization/joint_states'),
         DeclareLaunchArgument('host', default_value='127.0.0.1'),
         DeclareLaunchArgument('port', default_value='8080'),

@@ -31,6 +31,7 @@ def stamp(message, seconds=100.0):
 @pytest.fixture
 def can_node():
     node = PythonCanNode.__new__(PythonCanNode)
+    node.telemetry_stamps = {}
     node.can_rt_enabled = False
     node.can_tx_rt_priority = 20
     node.can_rx_rt_priority = 21
@@ -450,3 +451,35 @@ def test_can_rt_permission_failure_keeps_worker_alive(can_node):
                side_effect=PermissionError('denied')):
         can_node._configure_can_scheduling('TX', 20)
     logger.warning.assert_called_once()
+
+
+def test_named_telemetry_keeps_feedback_stamp_and_legacy_topic(can_node):
+    import json
+    node = can_node
+    node.state_lock = threading.Lock()
+    node.state_buffer = {'a': (.1, .2, .3, 31., time.monotonic())}
+    node.telemetry_stamps = {'a': 99.98}
+    node.motor_identity = {'a': dict(joint_name='a', can_interface='can0',
+                                    motor_id=42, model='rs-03')}
+    node.motor_index_map = {'a': 0}
+    node.feedback_timeout_s = .5
+    node.motor_status_pub, node.telemetry_pub = Mock(), Mock()
+    node._publish_motor_status()
+    payload = json.loads(node.telemetry_pub.publish.call_args.args[0].data)
+    assert payload['schema_version'] == 1
+    assert payload['motors'][0] == dict(node.motor_identity['a'],
+                                       source_stamp=99.98, temperature_c=31.)
+    assert json.loads(node.motor_status_pub.publish.call_args.args[0].data)['0']['temperature'] == 31.
+    node._publish_motor_status()
+    assert json.loads(node.telemetry_pub.publish.call_args.args[0].data)['motors'][0]['source_stamp'] == 99.98
+
+
+def test_telemetry_source_stamp_preserves_received_feedback_age(can_node):
+    node = can_node
+    node.state_lock = threading.Lock()
+    node.state_buffer = {}
+    node.motor_settings['a'].feedback = lambda *values: values
+    with patch('motor_control_hybrid.python_can_node.time.monotonic', return_value=10.):
+        node._update_state('a', .1, .2, .3, 31., received_at=9.98)
+    assert node.telemetry_stamps['a'] == pytest.approx(99.98)
+    assert node.state_buffer['a'][4] == 9.98

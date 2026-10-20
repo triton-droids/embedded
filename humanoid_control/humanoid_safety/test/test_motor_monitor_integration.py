@@ -94,3 +94,70 @@ def test_safety_monitor_web_and_tf():
                 process.wait(timeout=10)
             node.destroy_node()
             rclpy.shutdown()
+
+
+@pytest.mark.skipif(os.environ.get('RUN_ROS_INTEGRATION') != '1',
+                    reason='Opt-in isolated DDS and localhost HTTP sockets required')
+def test_named_temperature_and_supervisor_death_reach_http():
+    """Real callbacks/HTTP, synthetic telemetry only; no CAN or commands."""
+    from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
+    from std_msgs.msg import Bool, String
+    from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
+    from humanoid_safety.motor_web_node import MotorWebNode
+
+    assert os.environ.get('ROS_DOMAIN_ID') not in (None, '', '0')
+    rclpy.init(args=['--ros-args', '-p', 'port:=0', '-p', 'source_topic:=/issue49/joints',
+                    '-p', 'motor_status_topic:=/issue49/telemetry',
+                    '-p', 'supervisor_status_topic:=/issue49/health'])
+    web = MotorWebNode()
+    timer = None
+    try:
+        joint, config = next(iter(web.cache.registry.items()))
+        feedback = web.create_publisher(JointState, '/issue49/joints', qos_profile_sensor_data)
+        telemetry = web.create_publisher(String, '/issue49/telemetry', qos_profile_sensor_data)
+        diagnostics = web.create_publisher(DiagnosticArray, '/issue49/health', 10)
+        qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                         reliability=ReliabilityPolicy.RELIABLE)
+        estop = web.create_publisher(Bool, '/safety/estop', qos)
+        url = f'http://127.0.0.1:{web.server.server_port}'
+        def snapshot():
+            with urlopen(url + '/api/status', timeout=1) as response:
+                return json.load(response)
+        def publish_feedback():
+            msg = JointState(name=[joint], position=[.1])
+            msg.header.stamp = web.get_clock().now().to_msg()
+            feedback.publish(msg)
+        timer = web.create_timer(.02, publish_feedback)
+        deadline = time.monotonic() + 8
+        while time.monotonic() < deadline:
+            now = web.get_clock().now()
+            telemetry.publish(String(data=json.dumps(dict(schema_version=1, motors=[dict(
+                joint_name=joint, can_interface=config['can_interface'],
+                motor_id=config['motor_id'], model=config.get('model'),
+                temperature_c=31., source_stamp=now.nanoseconds * 1e-9)]))))
+            health = DiagnosticArray(status=[DiagnosticStatus(
+                name='humanoid_safety/supervisor', hardware_id='humanoid')])
+            health.header.stamp = now.to_msg()
+            diagnostics.publish(health)
+            estop.publish(Bool(data=False))
+            rclpy.spin_once(web, timeout_sec=.02)
+            data = snapshot()
+            if data['supervisor_online'] and data['estop'] is False and data['motors'][0]['temperature_c'] == 31.:
+                break
+        else:
+            raise AssertionError('DDS telemetry/health did not reach HTTP')
+        deadline = time.monotonic() + .8
+        while time.monotonic() < deadline:
+            rclpy.spin_once(web, timeout_sec=.02)
+        stale = snapshot()
+        assert stale['connected'], 'Joint feedback must remain independent'
+        assert not stale['supervisor_online'] and stale['estop'] is None
+        assert stale['last_reported_estop'] is False
+        assert stale['motors'][0]['temperature_c'] is None
+        with urlopen(url + '/app.js', timeout=1) as response:
+            assert b'Last reported estop' in response.read()
+    finally:
+        if timer is not None:
+            timer.cancel()
+        web.destroy_node()
+        rclpy.shutdown()

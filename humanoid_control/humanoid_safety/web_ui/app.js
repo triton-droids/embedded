@@ -7,12 +7,18 @@ function render(data) {
   document.getElementById('connection').classList.toggle('ok', data.connected);
   const online = data.motors.filter(m => m.online).length;
   document.getElementById('summary').textContent = `${online}/${data.motors.length} online`;
-  document.getElementById('safety').textContent = data.estop === null ? 'Safety status: unknown' :
-    data.estop ? 'Safety estop: asserted' : 'Safety estop: released (not proof of motor enable)';
+  const lastEstop = data.last_reported_estop === null ? 'unknown' :
+    data.last_reported_estop ? 'asserted' : 'released';
+  const supervisor = data.supervisor_online ?
+    `online (diagnostic level ${data.supervisor_level}: ${data.supervisor_message})` : 'unknown / stale';
+  document.getElementById('safety').textContent =
+    `Supervisor: ${supervisor} · Last reported estop: ${lastEstop} · ` +
+    (data.estop === null ? 'Current estop: unknown' :
+      data.estop ? 'Current estop: asserted' : 'Current estop: released (not proof of motor enable)');
   rows.replaceChildren(...data.motors.map(m => {
     const tr = document.createElement('tr');
     tr.className = m.online ? '' : 'offline';
-    [m.joint_name, m.motor_id ?? '—', m.model ?? '—', fmt(m.position_rad),
+    [m.joint_name, m.can_interface ?? '—', m.motor_id ?? '—', m.model ?? '—', fmt(m.position_rad),
       fmt(m.velocity_radps), fmt(m.effort_nm), fmt(m.temperature_c),
       fmt(m.source_age_ms), m.online ? 'Live' : 'Offline / stale'].forEach(value => {
       const td = document.createElement('td'); td.textContent = value; tr.append(td);

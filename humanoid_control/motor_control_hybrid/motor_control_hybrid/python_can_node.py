@@ -80,6 +80,7 @@ class PythonCanNode(Node):
 
         self._load_config_and_connect(cfg_path)
 
+        self.telemetry_stamps = {}
         self.state_buffer: Dict[str, Tuple[float, float, float, float, float]] = {}
         self.state_lock = threading.Lock()
 
@@ -115,6 +116,7 @@ class PythonCanNode(Node):
 
         self.joint_state_pub = self.create_publisher(JointState, 'joint_states', 10)
         self.motor_status_pub = self.create_publisher(String, 'motor_status', 10)
+        self.telemetry_pub = self.create_publisher(String, 'motor_telemetry', 10)
         self.timing_pub = self.create_publisher(String, 'can_timing', 1)
         self.timing_timer = self.create_timer(1.0, self._publish_timing)
         self.cmd_sub = self.create_subscription(
@@ -169,6 +171,12 @@ class PythonCanNode(Node):
 
         self.motor_settings = validate_registry(params)
         motors_cfg = params.get('motors', {}) or {}
+        self.motor_identity = {
+            name: dict(joint_name=name,
+                       can_interface=cfg.get('can_interface', self.default_iface),
+                       motor_id=cfg['motor_id'], model=cfg.get('model'))
+            for name, cfg in motors_cfg.items()
+        }
         motors_by_iface: Dict[str, Dict[str, Motor]] = {}
 
         for motor_index, (joint_name, cfg) in enumerate(motors_cfg.items()):
@@ -255,9 +263,12 @@ class PythonCanNode(Node):
     def _update_state(self, joint_name: str, pos: float, vel: float, tq: float, temp: float,
                       received_at=None):
         pos, vel, tq = self.motor_settings[joint_name].feedback(pos, vel, tq)
+        now = time.monotonic()
+        received_at = now if received_at is None else received_at
+        source_stamp = self.get_clock().now().nanoseconds * 1e-9 - max(0.0, now - received_at)
         with self.state_lock:
-            self.state_buffer[joint_name] = (pos, vel, tq, temp,
-                                             time.monotonic() if received_at is None else received_at)
+            self.telemetry_stamps[joint_name] = source_stamp
+            self.state_buffer[joint_name] = (pos, vel, tq, temp, received_at)
 
     def _configure_can_scheduling(self, role, priority):
         tid = threading.get_native_id()
@@ -737,11 +748,16 @@ class PythonCanNode(Node):
 
     def _publish_motor_status(self):
         status_by_index = {}
+        telemetry = []
 
         with self.state_lock:
             for joint_name, (pos, vel, tq, temp, timestamp) in self.state_buffer.items():
                 if time.monotonic() - timestamp > self.feedback_timeout_s:
                     continue
+                telemetry.append(dict(
+                    self.motor_identity[joint_name],
+                    source_stamp=self.telemetry_stamps[joint_name],
+                    temperature_c=float(temp)))
                 motor_index = self.motor_index_map.get(joint_name)
                 if motor_index is None:
                     continue
@@ -753,6 +769,9 @@ class PythonCanNode(Node):
         msg = String()
         msg.data = json.dumps(status_by_index)
         self.motor_status_pub.publish(msg)
+        stamped = String()
+        stamped.data = json.dumps(dict(schema_version=1, motors=telemetry), allow_nan=False)
+        self.telemetry_pub.publish(stamped)
 
     def destroy_node(self):
         self.get_logger().info('Shutting down Python CAN node...')
