@@ -3,11 +3,44 @@
 This repository contains the ROS 2 motor-control, vision, and MoveIt sources
 plus the supporting runtime setup for the embedded humanoid stack.
 
-The current architecture keeps ROS 2 as the runtime bus for motor state, motor commands, simulated hardware, policy output, and SDK/UI bridges. Python dependencies live in a local `rosenv/` virtual environment, which is ignored by Git and recreated from `scripts/setup_rosenv.sh`.
+The current architecture keeps ROS 2 as the runtime bus for motor state, motor commands, simulated hardware, policy output, safety supervision, and read-only monitoring. Application SDK bridges remain as legacy paths. Python dependencies live in a local `rosenv/` virtual environment, which is ignored by Git and recreated from `scripts/setup_rosenv.sh`.
 
 ## Architecture
 
-![System Structure](system.struct.png)
+These diagrams show the current repository wiring and optional launch paths,
+not a live process graph. ROS nodes communicating across PC and Jetson use the
+same `ROS_DOMAIN_ID` and compatible DDS network settings.
+
+### Node Topology
+
+[Open scalable SVG](docs/architecture/node_topology.svg) ·
+[Editable Graphviz source](docs/architecture/node_topology.dot)
+
+![Current robot node topology](docs/architecture/node_topology.png)
+
+The red dashed enclosure marks **Legacy / Deprecated application SDK paths**.
+The active CAN transport still reuses the low-level MIT frame codec. The SDK
+gateway remains enabled by default in the hybrid launch; its deprecated label
+does not disable it.
+
+### Control Data Flow
+
+[Open scalable SVG](docs/architecture/control_data_flow.svg) ·
+[Editable Graphviz source](docs/architecture/control_data_flow.dot)
+
+![Current control data flow](docs/architecture/control_data_flow.png)
+
+The ONNX tracking launch keeps its optional C++/fake-motor bench under
+`/policy/*`; it does not start CAN or automatically enable motors. The hardware
+branch requires explicit topic remapping/composition. FK/collision checks and
+new speed, total-torque, and tracking-error thresholds remain unimplemented.
+
+See the [complete architecture notes](docs/current_architecture.md) for launch
+boundaries, source references, implemented checks, and figure regeneration.
+See the [safety monitoring guide](humanoid_control/humanoid_safety/README.md)
+for the `web`, `rviz`, and combined `monitor` modes.
+For the detailed change list, verification and open issues, see the
+[2026-10-19 integration update](docs/updates/2026-10-19.md).
 
 ## Supported ROS 2 Environments
 
@@ -55,8 +88,9 @@ For the 56-input leg-tracking ONNX export, see
 [ROS 2 tracking-policy integration](docs/tracking_policy_ros2.md).
 For complete terminal commands, see
 [activate the policy, fake motors, and RViz](docs/activate_tracking_system.md).
-`tracking_policy.launch.py` runs the ESP32-S3 IMU and 50 Hz policy through ROS
-topics without an SDK. Its optional C++/fake-motor bench stays under `/policy/*`.
+`tracking_policy.launch.py` consumes an external IMU publisher and runs the
+50 Hz ONNX policy through ROS topics without an application SDK. Its optional
+C++/fake-motor bench stays under `/policy/*`.
 
 For the current C++ face-detection and aligned-depth test pipeline, see
 [humanoid vision instructions](docs/humanoid_vision_instructions.md). For the
@@ -78,7 +112,7 @@ see [vision and control plan](docs/vision_control_plan.md).
 - `fake_motor_node`: local simulation stand-in for CAN hardware. Useful for build and launch smoke tests.
 - `cpp_control_node`: C++ scheduler/control adapter. Consumes joint state and desired commands, then publishes `/motor_commands`.
 - `policy_bridge_node`: Torch policy adapter. Reads joint/IMU state and publishes a desired motor subset.
-- `motor_sdk_gateway_node`: gRPC bridge for external SDK clients.
+- `motor_sdk_gateway_node`: legacy/deprecated gRPC bridge for external SDK clients.
 - `double_pendulum_websocket_node`: browser/WebSocket visualization and interaction bridge.
 - `ball_detection_node`: temporary face detector used to test aligned-depth 3D
   target publication before a ball model is installed.
@@ -209,7 +243,7 @@ ros2 launch humanoid_moveit_config demo.launch.py
 
 The MoveIt config lives in this repo under `humanoid_moveit_config/`; you do not need `ws_moveit` for normal use.
 
-### SDK Arm Demo
+### SDK Arm Demo (Legacy / Deprecated)
 
 ```bash
 python3 sdk_prototype/demo/robot_sdk_demo/arm_rotate.py \

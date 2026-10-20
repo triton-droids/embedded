@@ -1,0 +1,37 @@
+digraph Flow {
+ graph [rankdir=TB, bgcolor="#f7f9fc", pad="0.35", nodesep="0.4", ranksep="0.42", fontname="DejaVu Sans", fontsize=23, labelloc=t, label="Current Control Data Flow\nImplemented checks, timing ownership and command lifetime"];
+ node [shape=box, style="rounded,filled", fillcolor=white, color="#94a3b8", fontname="DejaVu Sans", fontsize=14, margin="0.2,0.12"];
+ edge [fontname="DejaVu Sans", fontsize=11, color="#64748b", arrowsize=.8];
+ imu [label="IMU sample\nExternal producer / micro-ROS epoch stamp\nRaw read time is not a sensor hardware trigger", fillcolor="#e0f2fe"];
+ joints [label="Joint feedback\nCAN RX → calibrated joint coordinates\nJointState stamp preserves oldest included receive age", fillcolor="#e0f2fe"];
+ snapshot [label="tracking_policy_node: acquire immutable input snapshot\nFinite / complete q and dq; source + receipt ages ≤ 100 ms\nIMU / JointState stamp skew ≤ 20 ms in real-feedback mode", fillcolor="#dbeafe"];
+ policy [label="Single ONNX worker · requested 50 Hz\nLatest input only; no inference FIFO or catch-up bursts\nOriginal observation / raw previous-action / action-scale semantics", fillcolor="#dbeafe"];
+ post [label="Post-inference validity check\nOriginal snapshot still fresh; elapsed work ≤ 20 ms by default\nFinite output; no fault / estop / shutdown\nExpired result is discarded; policy fault latches", fillcolor="#dbeafe"];
+ command [label="Joint-space MotorCommand\nTraining angle bounds + model Kp / Kd\nDesired velocity = 0; feedforward torque = 0\nheader.stamp = oldest input source time\nvalid_until = source time + input timeout", fillcolor="#dcfce7"];
+ cpp [label="cpp_control_node → control_core\nPer-joint state and held-command deadlines\nOptional SafetyFeature failures: warning only\nNo SafetyFeature registered in production", fillcolor="#dbeafe"];
+ split [label="Launch-dependent output", shape=diamond, fillcolor="#ffffff"];
+ bench [label="ONNX bench: /policy/motor_commands\nMonitor or optional fake_motor_node\nNo hardware CAN / automatic enable in tracking launch", fillcolor="#fef3c7"];
+ can [label="Hybrid hardware: /motor_commands → python_can_node\nBounded latest-command mailbox\nPer-joint monotonic deadline = earliest remaining lifetime\nFresh explicit enable + asynchronous healthy ACK required", fillcolor="#dbeafe"];
+ map [label="Final backend validation and conversion\nFinite command / nonnegative gains\nJoint bounds; desired velocity / optional feedforward torque clamp\nPreserve existing direction, offset and ankle mapping", fillcolor="#dbeafe"];
+ tx [label="CAN TX owner\nRecheck expiry before sending\nNonblocking MIT frames; independent RX threads", fillcolor="#dbeafe"];
+ motor [label="RobStride internal controller + physical robot\nPosition error and Kp / Kd generate actuator effort\nZero desired velocity / feedforward torque does not bound actual motion", fillcolor="#e0f2fe"];
+ imu -> snapshot; joints -> snapshot;
+ snapshot -> policy -> post -> command -> cpp -> split;
+ split -> bench [label="Isolated topic remap"];
+ split -> can [label="Hardware registry must be verified"];
+ can -> map -> tx -> motor;
+ motor -> joints [label="CAN feedback", color="#0284c7", constraint=false];
+
+ supervisor [label="Independent safety_node\n/safety/status heartbeat: warning-only monitor in C++\nExplicit /safety/estop still stops the existing consumers\nIMU input contract is external integration work", fillcolor="#ffedd5"];
+ supervisor -> cpp [label="Diagnostics + explicit estop", color="#d97706"];
+ supervisor -> can [label="Explicit estop", color="#dc2626"];
+ lifetime [label="LIFETIME RULE\nC++ relay and CAN retransmission never renew source time or expiry.\nInvalid / stale control state and expired commands retain their disable behavior.\nLimits and budgets shown here are configuration, not measured hardware guarantees.", shape=note, fillcolor=white, fontsize=13];
+ planned [label="DEFERRED / NOT IMPLEMENTED\nFK + self-collision / minimum-distance warnings\nNew actual-speed / total-torque / tracking-error threshold checks\nNo claim of physical sample synchronization or verified Jetson throughput", shape=note, fillcolor="#f1f5f9", fontsize=13];
+ motor -> lifetime [style=invis];
+ lifetime -> planned [style=invis];
+ subgraph cluster_sdk {
+  label="LEGACY / DEPRECATED SDK BYPASS"; style="rounded,dashed"; color="#dc2626"; penwidth=2.4; fontcolor="#991b1b"; fontsize=17;
+  old [label="Application SDK / old Web UI\ngRPC → motor_sdk_gateway_node\nDirect /motor_commands publication", fillcolor="#fff1f2"];
+ }
+ old -> can [label="Bypasses policy / C++ stage\nStill subject to CAN backend gates", color="#dc2626"];
+}
