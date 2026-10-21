@@ -24,3 +24,13 @@ self_collision_monitor_node:
     clearance_margin_m: 0.01
     max_joint_step_rad: 0.05
     max_path_poses: 100
+
+    # RViz markers for one check (see self_collision_rviz.launch.py). TF must
+    # come from that check's joint states for the markers to line up.
+    publish_markers: false
+    marker_check: measured
+    marker_topic: /safety/self_collision/markers
+    # Highlighted shapes are opaque and drawn 2% larger so they enclose the
+    # visual meshes instead of z-fighting with them. Drawing only; the checks
+    # use the exact geometry.
+    marker_inflation: 1.02

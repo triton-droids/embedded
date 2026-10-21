@@ -18,6 +18,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import JointState
+from visualization_msgs.msg import MarkerArray
 
 from ..joint_state_monitor_node import valid_joint_state
 from .checker import (
@@ -29,6 +30,7 @@ from .checker import (
     srdf_disabled_link_pairs,
     urdf_adjacent_link_pairs,
 )
+from .markers import build_markers, urdf_collision_shapes
 
 
 class SelfCollisionMonitorNode(Node):
@@ -50,6 +52,14 @@ class SelfCollisionMonitorNode(Node):
         self.declare_parameter('clearance_margin_m', 0.01)
         self.declare_parameter('max_joint_step_rad', 0.05)
         self.declare_parameter('max_path_poses', 100)
+        # Optional RViz markers for one check. They are drawn in TF link
+        # frames, so TF must come from that check's joint states (measured).
+        self.declare_parameter('publish_markers', False)
+        self.declare_parameter('marker_check', 'measured')
+        self.declare_parameter('marker_topic', '/safety/self_collision/markers')
+        # Draw opaque highlighted shapes enlarged (1.02 = 2%) so they enclose
+        # the visual meshes instead of z-fighting. Drawing only.
+        self.declare_parameter('marker_inflation', 1.02)
 
         param = lambda name: self.get_parameter(name).value
         self.timeout = float(param('input_timeout_s'))
@@ -77,6 +87,17 @@ class SelfCollisionMonitorNode(Node):
         self.checker = SelfCollisionChecker(backend, float(param('clearance_margin_m')))
         self.measured = None
         self.target = None
+
+        self.marker_pub = None
+        if param('publish_markers'):
+            self.marker_check = str(param('marker_check'))
+            if self.marker_check not in ('measured', 'target', 'path'):
+                raise ValueError('marker_check must be measured, target or path')
+            self.marker_shapes = urdf_collision_shapes(urdf_path, package_dir)
+            self.marker_inflation = float(param('marker_inflation'))
+            if not math.isfinite(self.marker_inflation) or not 1.0 <= self.marker_inflation <= 1.2:
+                raise ValueError('marker_inflation must be between 1.0 and 1.2')
+            self.marker_pub = self.create_publisher(MarkerArray, str(param('marker_topic')), 1)
 
         self.status_pub = self.create_publisher(DiagnosticArray, str(param('status_topic')), 10)
         self.create_subscription(JointState, str(param('measured_topic')),
@@ -109,6 +130,11 @@ class SelfCollisionMonitorNode(Node):
         array.header.stamp = self.get_clock().now().to_msg()
         array.status = [self.to_status(report) for report in reports]
         self.status_pub.publish(array)
+        if self.marker_pub is not None:
+            for report in reports:
+                if report.check == self.marker_check:
+                    self.marker_pub.publish(build_markers(
+                        self.marker_shapes, report.result, self.marker_inflation))
         # One log call: throttling is per call site, so separate calls per
         # check would hide later checks' warnings behind the first.
         warnings = [f'{status.name.rsplit("/", 1)[-1]}: {status.message}' for status in array.status

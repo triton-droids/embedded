@@ -62,6 +62,25 @@ In bench mode (`joint_feedback_mode: zero`) the policy's joint input is not real
 feedback; pass `measured_topic:=/policy/joint_states` if that is the stream you
 want checked.
 
+### Interactive test in RViz
+
+```bash
+ros2 launch humanoid_safety self_collision_rviz.launch.py
+```
+
+This opens joint sliders and RViz, and publishes no motor commands. The sliders
+drive `/joint_states`, which feeds TF and both monitor inputs. In RViz, links in
+collision are red and links closer than the margin are yellow. The closest pair
+and distance are on `/safety/self_collision` and in the log warnings. Coloured
+shapes are the URDF collision geometry, which is what the check uses. They and
+the robot model are opaque, because RViz sorts transparent objects as a whole and
+overlapping transparent geometry flickers. Shapes are drawn 2% larger about
+their centres (`marker_inflation`) so they enclose the visual mesh; many hull
+faces lie exactly on it and would otherwise z-fight. The inflation is drawing
+only. Parts of a visual mesh that lie outside its hull can still show through. Markers come from the `measured` check only,
+because RViz shows one robot state. The monitor publishes them when
+`publish_markers` is true, with any backend.
+
 The backend needs `ros-humble-pinocchio` (or the Jazzy equivalent), which also
 installs the Coal collision library: `rosdep install --from-paths humanoid_control/humanoid_safety`.
 
