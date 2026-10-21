@@ -32,6 +32,8 @@ setup(
             "safety_node = humanoid_safety.safety_node:main",
             "motor_web_node = humanoid_safety.motor_web_node:main",
             "joint_state_monitor_node = humanoid_safety.joint_state_monitor_node:main",
+            "self_collision_monitor_node = humanoid_safety.self_collision.monitor_node:main",
+            "benchmark_self_collision = humanoid_safety.self_collision.benchmark:main",
         ],
     },
 )
