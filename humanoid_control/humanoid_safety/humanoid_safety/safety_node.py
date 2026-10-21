@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """ROS 2 safety supervisor with a latched emergency-stop output."""
-
+""" Reset use ros2 service call /safety/reset std_srvs/srv/Trigger "{}" """
 from __future__ import annotations
 
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
