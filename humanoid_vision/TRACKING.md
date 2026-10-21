@@ -84,7 +84,7 @@ Check available arguments with `ros2 launch ... --show-args`.
 
 ### Separate processes
 
-Start the camera driver, micro-ROS Agent (see MCU/README.md), and detector.
+Start the camera driver, micro-ROS Agent (see [head MCU guide](../imu_process/head_mcu/README.md)), and detector.
 The color image dimensions and optical frame must match `CameraInfo`.
 
 ```bash

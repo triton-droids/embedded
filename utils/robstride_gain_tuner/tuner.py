@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set
 
 from . import config
-from .imu import IMUFallDetector
+from imu_process.fall_detector import IMUFallDetector
 from .logging_utils import clamp, offset_to_pi
 from .state import Excitation, MotorState
 
@@ -220,7 +220,7 @@ class GainTunerMIT:
             print("[IMU] Fall detection disabled.")
             return
         try:
-            from .imu import _import_imu
+            from imu_process.fall_detector import _import_imu
             _import_imu()
         except ImportError as exc:
             print(f"[IMU] Fall detection unavailable: {exc}")

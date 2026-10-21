@@ -12,7 +12,7 @@ touch rosenv/COLCON_IGNORE
 source rosenv/bin/activate
 python -m pip install -r requirements-policy-onnx.txt
 colcon build --symlink-install \
-  --base-paths humanoid_control Attitude_Sensing/src \
+  --base-paths humanoid_control "imu_process/Attitude_Sensing(Depreciated)/src" \
   --packages-select motor_control_interfaces humanoid_safety motor_control_hybrid attitude_sensing_pkg \
   --cmake-args "-DPython3_EXECUTABLE=$repo_dir/rosenv/bin/python"
 printf '\nReady. In each ROS terminal run:\nsource /opt/ros/%s/setup.bash\nsource %s/rosenv/bin/activate\nsource %s/install/setup.bash\n' \

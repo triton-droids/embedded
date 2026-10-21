@@ -1,7 +1,7 @@
 """Programmatic SDK wrapper for the prototype.
 
 This package is the client-facing SDK only. The demo under
-`sdk_prototype.demo.robot_sdk_demo.model` shows this SDK driving the ROS2
+`legacy.sdk_prototype.demo.robot_sdk_demo.model` shows this SDK driving the ROS2
 double-pendulum setup through the motor gateway.
 """
 from __future__ import annotations

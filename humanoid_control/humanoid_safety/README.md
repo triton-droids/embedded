@@ -1,7 +1,7 @@
 # Safety and ROS network monitors
 
 The safety package now owns the live motor status Web UI and the RViz joint
-relay. Web styling comes from the existing `sdk_prototype/webui` status table;
+relay. Web styling comes from the existing `legacy/sdk_prototype/webui` status table;
 the new backend uses ROS subscriptions only. Legacy SDK/CAN tuner tools remain
 separate. Monitoring modes do not start CAN, model inference, a fake motor, or a
 motor command publisher. They do not start a second safety supervisor implicitly.

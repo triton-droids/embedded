@@ -114,7 +114,7 @@ cores. Rebuild with the upstream library generator when those inputs differ.
 arduino-cli --config-file /path/to/isolated-core2-cli.yaml compile \
   --fqbn esp32:esp32:esp32s3:FlashSize=16M,CDCOnBoot=default \
   --libraries /path/to/arduino/libraries \
-  --build-path /tmp/body-imu-build imu_process/policy_imu_microros
+  --build-path /tmp/body-imu-build imu_process/policy_imu/policy_imu_microros
 
 # Confirm port identity and close any Agent before uploading.
 arduino-cli --config-file /path/to/isolated-core2-cli.yaml upload \
@@ -143,7 +143,7 @@ placement is allowed; upright pose and mounting calibration are not required:
 source /opt/ros/jazzy/setup.bash
 ros2 topic info /imu/data_raw --verbose
 ros2 topic echo /imu/status --once
-python3 imu_process/policy_imu_microros/check_body_imu.py
+python3 imu_process/policy_imu/policy_imu_microros/check_body_imu.py
 ```
 
 The probe deliberately subscribes Reliable, matching Safety. It checks finite
@@ -207,7 +207,7 @@ Host-only math check:
 
 ```bash
 g++ -std=c++17 -Wall -Wextra -Werror \
-  imu_process/policy_imu_microros/test/body_imu_math_test.cpp -o /tmp/body-imu-math-test
+  imu_process/policy_imu/policy_imu_microros/test/body_imu_math_test.cpp -o /tmp/body-imu-math-test
 /tmp/body-imu-math-test
 ```
 

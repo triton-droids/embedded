@@ -3,14 +3,19 @@ import sys
 import time
 from pathlib import Path
 
+# Support direct execution from this relocated example.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 ## Read motor config
 def motor_config_path() -> Path:
-    repo_root = Path(__file__).resolve().parent
+    repo_root = Path(__file__).resolve().parents[2]
     return repo_root / "humanoid_control" / "motor_control_hybrid" / "config" / "control_config.yaml"
 
 ## Must have to use SDK
 def build_sdk(config_path: Path):
-    from sdk_prototype.python.robot_sdk import RobotSDK, load_motor_configs_from_yaml
+    from legacy.sdk_prototype.python.robot_sdk import RobotSDK, load_motor_configs_from_yaml
 
     if not config_path.exists():
         raise FileNotFoundError(f"Motor config not found: {config_path}")

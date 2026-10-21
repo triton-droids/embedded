@@ -149,9 +149,15 @@ class PythonCanNode(Node):
         )
 
     def _load_config_and_connect(self, cfg_path: str):
-        if not cfg_path or not os.path.exists(cfg_path):
-            self.get_logger().warn(f'No motor config file found: {cfg_path}')
-            return
+        # Refuse to come up half-alive: a node with no motors still answers on
+        # /motor_commands, reports empty feedback and looks healthy to operators.
+        if not cfg_path:
+            raise ValueError(
+                'motor_config_file is required: refusing to start a CAN node with no motors. '
+                'Pass the hardware registry (e.g. config/motors.yaml), or run fake_motor_node '
+                'when there is no CAN hardware.')
+        if not os.path.exists(cfg_path):
+            raise FileNotFoundError(f'Motor config file not found: {cfg_path}')
 
         self.get_logger().info(f'Loading motor config from: {cfg_path}')
         with open(cfg_path, 'r') as f:

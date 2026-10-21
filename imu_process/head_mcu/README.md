@@ -51,11 +51,11 @@ Then compile with the directory containing that library:
 arduino-cli compile \
   --libraries /path/to/arduino/libraries \
   --fqbn esp32:esp32:esp32s3:FlashSize=8M,CDCOnBoot=default \
-  humanoid_vision/MCU/humanoid_vision_microros
+  imu_process/head_mcu/humanoid_vision_microros
 
 arduino-cli upload -p /dev/ttyACM0 \
   --fqbn esp32:esp32:esp32s3:FlashSize=8M,CDCOnBoot=default \
-  humanoid_vision/MCU/humanoid_vision_microros
+  imu_process/head_mcu/humanoid_vision_microros
 ```
 
 ## Build the native Humble Agent once

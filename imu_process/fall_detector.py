@@ -1,7 +1,7 @@
 """IMU fall detection with compatibility imports.
 
 The original script imported ``imu_stream`` directly.  In this repo the same
-functionality lives in ``Attitude_Sensing/.../imu_read.py`` (and on older
+functionality lives in ``imu_process/Attitude_Sensing(Depreciated)/.../imu_read.py`` (and on older
 branches as ``utils/imu_read.py``), so the import is resolved lazily and
 falls back across all known locations.
 """
@@ -14,13 +14,13 @@ import time
 from pathlib import Path
 from typing import Callable, Optional
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _add_imu_search_paths() -> None:
     candidates = (
         _REPO_ROOT,
-        _REPO_ROOT / "Attitude_Sensing" / "src" / "attitude_sensing_pkg" / "attitude_sensing_pkg",
+        _REPO_ROOT / "imu_process" / "Attitude_Sensing(Depreciated)" / "src" / "attitude_sensing_pkg" / "attitude_sensing_pkg",
         _REPO_ROOT / "utils",
     )
     for path in candidates:

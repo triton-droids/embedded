@@ -52,9 +52,10 @@ launch configurations, not a runtime routing node.
 | `safety.launch.py mode:=all` | Supervisor and both views. |
 | `head_tracking.launch.py` | Independent camera/detector/tracker/head-MCU branch. Head IMU is not substituted for the body IMU. |
 
-The legacy SDK gateway and double-pendulum demo are still enabled by default in
-`hybrid_control.launch.py`. Marking the SDK deprecated in these diagrams **does
-not disable or remove those processes**. The SDK gateway and old demo publish
+The legacy SDK gateway is **opt-in** (`enable_sdk_gateway:=true`, default `false`);
+only the double-pendulum demo is on by default in `hybrid_control.launch.py`.
+Marking the SDK deprecated in these diagrams **does not remove those processes**,
+and enabling the gateway still publishes
 `/motor_commands` directly, bypassing the C++ scheduler; CAN-local validation and
 expiry still apply. The old direct-CAN gain tuner bypasses the ROS control path.
 The new safety Web UI is read-only and is separate from these legacy tools.
@@ -88,7 +89,7 @@ measurement. Diagram frequencies/budgets are settings, not measured guarantees.
 - `humanoid_control/humanoid_safety/humanoid_safety/`
 - `humanoid_leg_description/launch/display.launch.py`
 - `humanoid_vision/launch/head_tracking.launch.py`
-- `sdk_prototype/webui/` and `sdk_prototype/robstride_webui/`
+- `legacy/sdk_prototype/webui/` and `legacy/sdk_prototype/robstride_webui/`
 
 ## Regenerate the figures
 

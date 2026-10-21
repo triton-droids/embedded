@@ -1,3 +1,6 @@
+> Legacy source location: `legacy/sdk_prototype/`. Run the commands below from
+> the repository root. Python imports use `legacy.sdk_prototype`.
+
 # SDK Prototype
 
 This package exposes a small Python SDK for robot control. The SDK is designed
@@ -13,13 +16,13 @@ The main entry points are:
 ## Install
 
 ```bash
-python3 -m pip install -r sdk_prototype/requirements.txt
+python3 -m pip install -r legacy/sdk_prototype/requirements.txt
 ```
 
 Regenerate generated gRPC files after changing the proto:
 
 ```bash
-bash sdk_prototype/python/generate_grpc_python.sh
+bash legacy/sdk_prototype/python/generate_grpc_python.sh
 ```
 
 ## Public API
@@ -27,7 +30,7 @@ bash sdk_prototype/python/generate_grpc_python.sh
 Import from:
 
 ```python
-from sdk_prototype.python.robot_sdk import (
+from legacy.sdk_prototype.python.robot_sdk import (
     RobotSDK,
     Motor,
     MotorConfig,
@@ -191,7 +194,7 @@ Utility functions in `gain_tuner.py`:
 
 ## Motor Web UI
 
-The Web UI in `sdk_prototype/webui` shows live status for every motor in
+The Web UI in `legacy/sdk_prototype/webui` shows live status for every motor in
 `humanoid_control/motor_control_hybrid/config/motors.yaml` and exposes buttons
 for the existing motor and gain-tuner commands.
 
@@ -204,7 +207,7 @@ ros2 run motor_control_hybrid motor_sdk_gateway_node
 Then serve the UI:
 
 ```bash
-python3 sdk_prototype/webui/server.py
+python3 legacy/sdk_prototype/webui/server.py
 ```
 
 Open:
@@ -216,7 +219,7 @@ http://127.0.0.1:8088
 Useful options:
 
 ```bash
-python3 sdk_prototype/webui/server.py \
+python3 legacy/sdk_prototype/webui/server.py \
   --motor-grpc-addr 127.0.0.1:50052 \
   --config humanoid_control/motor_control_hybrid/config/motors.yaml \
   --port 8088
@@ -228,14 +231,14 @@ APIs.
 
 ## Direct RobStride Web UI
 
-The Web UI in `sdk_prototype/robstride_webui` does not use ROS2 or gRPC. It
+The Web UI in `legacy/sdk_prototype/robstride_webui` does not use ROS2 or gRPC. It
 uses `utils.robstride_gain_tuner.GainTunerMIT` directly, connects to the CAN
 bus through the RobStride SDK, and runs its own control loop.
 
 Serve the UI:
 
 ```bash
-python3 sdk_prototype/robstride_webui/server.py --motor-ids "1 2 3 4 5 6 7 8 9 10"
+python3 legacy/sdk_prototype/robstride_webui/server.py --motor-ids "1 2 3 4 5 6 7 8 9 10"
 ```
 
 Open:
@@ -247,7 +250,7 @@ http://127.0.0.1:8090
 Useful options:
 
 ```bash
-python3 sdk_prototype/robstride_webui/server.py \
+python3 legacy/sdk_prototype/robstride_webui/server.py \
   --channel can0 \
   --bitrate 1000000 \
   --motor-ids "1 2 3 4 5 6 7 8 9 10" \
@@ -264,7 +267,7 @@ disables enabled motors, and disconnects the bus.
 ### Load YAML and inspect config
 
 ```python
-from sdk_prototype.python.robot_sdk import RobotSDK, load_motor_configs_from_yaml
+from legacy.sdk_prototype.python.robot_sdk import RobotSDK, load_motor_configs_from_yaml
 
 configs = load_motor_configs_from_yaml(
     "humanoid_control/motor_control_hybrid/config/control_config.yaml"

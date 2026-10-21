@@ -16,7 +16,7 @@ from humanoid_safety.self_collision.checker import (
 
 REPO = Path(__file__).resolve().parents[4]
 URDF = REPO / 'humanoid_leg_description/urdf/human_offset_corrected.urdf'
-SRDF = REPO / 'humanoid_leg_moveit_config/config/humanoid_leg.srdf'
+SRDF = REPO / 'legacy/humanoid_leg_moveit_config/config/humanoid_leg.srdf'
 
 
 class FakeBackend:

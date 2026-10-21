@@ -170,8 +170,8 @@ def generate_launch_description():
 
     imu_topic_arg = DeclareLaunchArgument(
         'imu_topic',
-        default_value='/imu',
-        description='sensor_msgs/Imu topic used by policy bridge'
+        default_value='/imu/data_raw',
+        description='sensor_msgs/Imu topic used by policy bridge; must match the body IMU producer'
     )
 
     # -------------------- Safety supervisor --------------------
@@ -288,8 +288,8 @@ def generate_launch_description():
             'Hybrid control system launched:\n',
             '  - Safety supervisor enabled: ', LaunchConfiguration('enable_safety'), '\n',
             '  - Python CAN node: handles CAN communication\n',
-            '  - C++ Control node: handles control and RL inference\n',
-            '  - SDK gRPC gateway: ', LaunchConfiguration('sdk_grpc_addr'), '\n',
+            '  - C++ Control node: schedules /motor_commands (no RL inference inside)\n',
+            '  - SDK gRPC gateway (legacy, opt-in): ', LaunchConfiguration('sdk_grpc_addr'), '\n',
             '  - Policy bridge enabled: ', LaunchConfiguration('enable_policy_bridge'), '\n',
             '  - Double-pendulum UI: http://', LaunchConfiguration('websocket_host'), ':', LaunchConfiguration('websocket_port'), '\n',
             '  - Control rate: ', LaunchConfiguration('control_rate_hz'), ' Hz\n',

@@ -13,7 +13,7 @@ from pathlib import Path
 
 
 def _add_repo_root_to_path() -> None:
-    repo_root = Path(__file__).resolve().parents[3]
+    repo_root = Path(__file__).resolve().parents[4]
     repo_root_str = str(repo_root)
     if repo_root_str not in sys.path:
         sys.path.insert(0, repo_root_str)
@@ -40,7 +40,7 @@ ARM_JOINTS = [
 
 
 def default_motor_config_path() -> Path:
-    repo_root = Path(__file__).resolve().parents[3]
+    repo_root = Path(__file__).resolve().parents[4]
     return repo_root / "humanoid_control" / "motor_control_hybrid" / "config" / "control_config.yaml"
 
 
@@ -123,7 +123,7 @@ class SingleJointArmDemo:
 
 
 def build_sdk(config_path: Path):
-    from sdk_prototype.python.robot_sdk import RobotSDK, load_motor_configs_from_yaml
+    from legacy.sdk_prototype.python.robot_sdk import RobotSDK, load_motor_configs_from_yaml
 
     motor_configs = load_motor_configs_from_yaml(config_path) if config_path.exists() else {}
     return RobotSDK(motor_configs=motor_configs)

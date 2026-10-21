@@ -6,7 +6,7 @@ package's ROS messages and publishes ten target joint angles. The default launch
 consumes an external `/imu/data_raw` publisher (micro-ROS Agent path) and uses zero
 joint-state placeholders. It does not open a serial device unless
 `start_imu_reader:=true` is explicitly set for the legacy JSON firmware.
-See [body micro-ROS firmware](../imu_process/policy_imu_microros/README.md) and
+See [body micro-ROS firmware](../imu_process/policy_imu/policy_imu_microros/README.md) and
 [deadline contract](control_watchdogs.md#asynchronous-onnx-inference-and-end-to-end-expiry).
 
 ## Current model PD and angle-limit selection
@@ -327,7 +327,7 @@ python -m pip install 'pytest>=7,<9'
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q \
   humanoid_control/motor_control_hybrid/test/test_tracking_onnx.py \
   humanoid_control/motor_control_hybrid/test/test_tracking_node.py \
-  Attitude_Sensing/src/attitude_sensing_pkg/test/test_imu_read.py
+  "imu_process/Attitude_Sensing(Depreciated)/src/attitude_sensing_pkg/test/test_imu_read.py"
 ```
 
 These check the actual model observation/action contract, name reordering,

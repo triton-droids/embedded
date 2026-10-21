@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
@@ -25,7 +25,7 @@ if rosenv.is_dir():
 import grpc
 import yaml
 
-from sdk_prototype.python.robot_sdk import GainTuner, MotorGrpcClient, load_motor_configs_from_yaml
+from legacy.sdk_prototype.python.robot_sdk import GainTuner, MotorGrpcClient, load_motor_configs_from_yaml
 
 DEFAULT_CONFIG = REPO_ROOT / "humanoid_control/motor_control_hybrid/config/motors.yaml"
 STATIC_ROOT = Path(__file__).resolve().parent

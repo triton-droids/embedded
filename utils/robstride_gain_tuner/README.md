@@ -18,7 +18,7 @@ python3 utils/robstride_gain_tuner_liveplot_mac_safe.py
 | `config.py` | All tunable constants (joint limits, torque limits, IMU/thermal thresholds, timing) |
 | `state.py` | `Excitation` and `MotorState` dataclasses |
 | `logging_utils.py` | Math helpers + debug logging + exception hooks |
-| `imu.py` | IMU fall detector and compatibility import of `imu_stream` / `imu_read` |
+| [`imu_process/fall_detector.py`](../../imu_process/fall_detector.py) | IMU fall detector and compatibility import of `imu_stream` / `imu_read` |
 | `tuner.py` | `GainTunerMIT` core (connect, control loop, safety, user commands) |
 | `plotter.py` | Matplotlib live plotter (main-thread control) |
 | `cli.py` | Motor ID parsing and interactive command loop |

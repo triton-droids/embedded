@@ -36,11 +36,11 @@ digraph Nodes {
     head [label="Head micro-ROS Agent / MCU\nPCA9685 servo command + watchdog\n/head/imu is not the body IMU", fillcolor="#ede9fe"];
   }
   subgraph cluster_sdk {
-    label="LEGACY / DEPRECATED — APPLICATION SDK PATHS\nStill in repository; SDK gateway defaults ON in hybrid launch";
+    label="LEGACY / DEPRECATED — APPLICATION SDK PATHS\nStill in repository; SDK gateway is opt-in (default OFF)";
     style="rounded,dashed"; penwidth=2.4; color="#dc2626"; fontcolor="#991b1b"; fontsize=16;
-    sdkui [label="sdk_prototype/webui\nMotorGrpcClient / SDK clients", fillcolor="#fff1f2", color="#f87171"];
+    sdkui [label="legacy/sdk_prototype/webui\nMotorGrpcClient / SDK clients", fillcolor="#fff1f2", color="#f87171"];
     gateway [label="motor_sdk_gateway_node\ngRPC server → direct ROS commands\nBypasses cpp_control_node", fillcolor="#fff1f2", color="#f87171"];
-    directui [label="sdk_prototype/robstride_webui\nLegacy direct-CAN gain tuner\nBypasses ROS control", fillcolor="#fff1f2", color="#f87171"];
+    directui [label="legacy/sdk_prototype/robstride_webui\nLegacy direct-CAN gain tuner\nBypasses ROS control", fillcolor="#fff1f2", color="#f87171"];
   }
   demo [label="double_pendulum_websocket_node\nOptional legacy demo UI\nDistinct from read-only safety Web UI", fillcolor="#f1f5f9"];
 

@@ -45,7 +45,7 @@ the policy. A check that overruns its period is logged.
 - Robot: `humanoid_leg_description/urdf/human_offset_corrected.urdf`,
   fixed base. Ground and environment contact are out of scope.
 - Adjacent links (each URDF joint's parent and child) are exempt. These are
-  exactly the "Adjacent" entries in `humanoid_leg_moveit_config`'s SRDF, which a
+  exactly the "Adjacent" entries in `legacy/humanoid_leg_moveit_config`'s SRDF, which a
   test enforces. The SRDF isn't read by default because that package depends on
   all of MoveIt. `srdf_path` can add one.
 - Further exemptions go in `extra_allowed_pairs` in
