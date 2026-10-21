@@ -361,6 +361,6 @@ exposes no endpoint that can manufacture that confirmation. A backend ACCEPTED
 response alone remains in WAITING_REBIND and ultimately times out disabled.
 Home trajectory generation and its admission interface also remain unimplemented.
 
-The unified `motor_control_hybrid/control_stack.launch.py` combines CAN (or
+The unified `motor_control_hybrid/control_test.launch.py` combines CAN (or
 explicit fake motors), C++ core, one safety supervisor, Web telemetry, the existing
 safety-owned joint relay and model TF/RViz. It generates no startup motion.

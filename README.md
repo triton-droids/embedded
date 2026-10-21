@@ -414,7 +414,7 @@ appropriate workspace. Processes on different hosts must share the intended
 
 | Task | Command | Behavior |
 |---|---|---|
-| Body control, safety, Web and RViz | `ros2 launch motor_control_hybrid control_stack.launch.py` | Starts real CAN, C++ core, one safety supervisor, WebUI, safety-owned joint relay, model TF and RViz. No startup enable/home/zero. Add `enable_fake_motor:=true` to replace CAN, or `use_rviz:=false` for headless TF. |
+| Body control, safety, Web and RViz | `ros2 launch motor_control_hybrid control_test.launch.py` | Starts real CAN, C++ core, one safety supervisor, WebUI, safety-owned joint relay, model TF and RViz. No startup enable/home/zero. Add `enable_fake_motor:=true` to replace CAN, or `use_rviz:=false` for headless TF. |
 | Control smoke test | `ros2 launch motor_control_hybrid hybrid_control.launch.py enable_fake_motor:=true enable_sdk_gateway:=false enable_websocket_ui:=false enable_policy_bridge:=false` | Starts fake motors, C++ scheduler, and safety. Joint names come from the selected registry. No automatic enable; without body IMU, safety latches after its startup grace. |
 | ONNX policy | `ros2 launch motor_control_hybrid tracking_policy.launch.py` | Uses an external IMU, zero joint feedback by default, and `/policy/*` outputs. No CAN, safety supervisor, or automatic enable is started by this launch. |
 | Optional policy bench | `ros2 launch motor_control_hybrid tracking_policy.launch.py use_fake_joint_states:=true run_cpp_control:=true joint_feedback_mode:=joint_states` | Adds fake feedback and the remapped scheduler. Fake motors remain disabled until explicitly enabled. |

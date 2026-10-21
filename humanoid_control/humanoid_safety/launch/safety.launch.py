@@ -12,9 +12,13 @@ def mode_nodes(context):
     mode = LaunchConfiguration('mode').perform(context)
     nodes = []
     if mode in ('supervisor', 'all'):
+        overrides = {}
+        for name in ('fall_detection_enabled', 'trip_on_imu_timeout'):
+            if LaunchConfiguration(name).perform(context):
+                overrides[name] = ParameterValue(LaunchConfiguration(name), value_type=bool)
         nodes.append(Node(package='humanoid_safety', executable='safety_node',
             name='safety_node', output='screen',
-            parameters=[LaunchConfiguration('safety_config')]))
+            parameters=[LaunchConfiguration('safety_config'), overrides]))
     if mode in ('web', 'monitor', 'all'):
         parameters = {
             'source_topic': LaunchConfiguration('source_topic'),
@@ -65,6 +69,10 @@ def generate_launch_description():
         DeclareLaunchArgument('motor_config_file', default_value=''),
         DeclareLaunchArgument('start_display', default_value='true', choices=['true', 'false']),
         DeclareLaunchArgument('use_rviz', default_value='true', choices=['true', 'false']),
+        DeclareLaunchArgument('fall_detection_enabled', default_value='', choices=['', 'true', 'false'],
+                             description='Override YAML fall detection; empty preserves configuration'),
+        DeclareLaunchArgument('trip_on_imu_timeout', default_value='', choices=['', 'true', 'false'],
+                             description='Override YAML IMU timeout trip; empty preserves configuration'),
         DeclareLaunchArgument('safety_config', default_value=PathJoinSubstitution(
             [FindPackageShare('humanoid_safety'), 'config', 'safety.yaml'])),
         OpaqueFunction(function=mode_nodes),

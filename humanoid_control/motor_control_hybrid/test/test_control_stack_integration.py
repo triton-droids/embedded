@@ -64,7 +64,7 @@ def test_unified_fake_control_web_safety_and_tf():
     with_rviz = os.environ.get('CONTROL_STACK_TEST_RVIZ') == '1'
     with tempfile.TemporaryFile(mode='w+') as log:
         try:
-            process = subprocess.Popen(['ros2', 'launch', 'motor_control_hybrid', 'control_stack.launch.py',
+            process = subprocess.Popen(['ros2', 'launch', 'motor_control_hybrid', 'control_test.launch.py',
                 'enable_fake_motor:=true', f'use_rviz:={str(with_rviz).lower()}', f'port:={port}'],
                 stdout=log, stderr=log, start_new_session=True)
             wait(lambda: (data := status()) and data['connected'] and data['estop'] is False

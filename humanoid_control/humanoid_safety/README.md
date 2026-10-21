@@ -208,7 +208,7 @@ with a fixed base; it does not estimate world position, odometry or base tilt.
 Start the full body stack from a sourced workspace:
 
 ```bash
-ros2 launch motor_control_hybrid control_stack.launch.py
+ros2 launch motor_control_hybrid control_test.launch.py
 ```
 
 This starts exactly one safety supervisor, the read-only motor Web UI, the
@@ -221,7 +221,7 @@ feedback on `/imu/data_raw`; without it, safety latches after its startup grace.
 For a hardware-free smoke test:
 
 ```bash
-ros2 launch motor_control_hybrid control_stack.launch.py enable_fake_motor:=true use_rviz:=false
+ros2 launch motor_control_hybrid control_test.launch.py enable_fake_motor:=true use_rviz:=false
 ```
 
 Fake mode replaces the CAN node. The Web UI defaults to `127.0.0.1:8080`;
@@ -229,6 +229,18 @@ Fake mode replaces the CAN node. The Web UI defaults to `127.0.0.1:8080`;
 `control_rate_hz` and command timeouts are launch arguments. A fake robot without
 IMU input still trips the same safety checks. `use_rviz:=false` keeps the model
 TF publisher running for headless testing.
+
+For a mechanically supported bench without an IMU, explicitly override both
+IMU-dependent checks through launch arguments:
+
+```bash
+ros2 launch motor_control_hybrid control_test.launch.py fall_detection_enabled:=false trip_on_imu_timeout:=false
+```
+
+These overrides also work with `safety.launch.py`. Omitted arguments preserve
+the selected YAML values (both true in the shipped configuration). Feedback and
+command watchdogs and the estop interface remain active. This disables fall and
+missing-IMU protection; use it only for supported bench work.
 
 RViz uses measured `/joint_states` by default. Explicitly select
 `display_source_topic:=/policy/target_angles` to inspect model target angles;

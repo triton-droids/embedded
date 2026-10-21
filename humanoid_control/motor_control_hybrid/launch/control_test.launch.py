@@ -28,6 +28,8 @@ def generate_launch_description():
         DeclareLaunchArgument('safety_config_file', default_value=safety),
         DeclareLaunchArgument('enable_fake_motor', default_value='false', choices=['true', 'false']),
         DeclareLaunchArgument('use_rviz', default_value='true', choices=['true', 'false']),
+        DeclareLaunchArgument('fall_detection_enabled', default_value='', choices=['', 'true', 'false']),
+        DeclareLaunchArgument('trip_on_imu_timeout', default_value='', choices=['', 'true', 'false']),
         DeclareLaunchArgument('ros_domain_id', default_value=EnvironmentVariable('ROS_DOMAIN_ID', default_value='0')),
         DeclareLaunchArgument('host', default_value='127.0.0.1'),
         DeclareLaunchArgument('port', default_value='8080'),
@@ -56,6 +58,8 @@ def generate_launch_description():
             'mode': 'all',
             'motor_config_file': arg('motor_config_file'),
             'safety_config': arg('safety_config_file'),
+            'fall_detection_enabled': arg('fall_detection_enabled'),
+            'trip_on_imu_timeout': arg('trip_on_imu_timeout'),
             'ros_domain_id': arg('ros_domain_id'),
             # Web always monitors measured feedback, even when RViz displays targets.
             'source_topic': '/joint_states',
