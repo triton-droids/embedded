@@ -22,6 +22,10 @@ colcon build --packages-select humanoid_safety humanoid_leg_description motor_co
 source install/setup.bash
 ```
 
+The advisory self-collision monitor has its own launch file,
+`self_collision.launch.py`; see [docs/self_collision_monitor.md](../../docs/self_collision_monitor.md).
+It publishes warnings only and is never part of the latched supervisor.
+
 ## ROS network / domain
 
 Both the robot's state publisher and the monitor must run in the same ROS domain
@@ -120,7 +124,9 @@ From a sourced workspace with system pytest available:
 
 ```bash
 python3 -m pytest -q humanoid_control/humanoid_safety/test/test_motor_monitor.py \
-  humanoid_control/humanoid_safety/test/test_checks.py
+  humanoid_control/humanoid_safety/test/test_checks.py \
+  humanoid_control/humanoid_safety/test/self_collision/test_checker.py \
+  humanoid_control/humanoid_safety/test/self_collision/test_pinocchio_backend.py
 ROS_DOMAIN_ID=184 ROS_LOCALHOST_ONLY=1 ROS_LOG_DIR=/tmp/safety-monitor-test-logs \
   RUN_ROS_INTEGRATION=1 python3 -m pytest -q \
   humanoid_control/humanoid_safety/test/test_motor_monitor_integration.py
