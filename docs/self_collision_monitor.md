@@ -50,6 +50,10 @@ the policy. A check that overruns its period is logged.
   all of MoveIt. `srdf_path` can add one.
 - Further exemptions go in `extra_allowed_pairs` in
   `humanoid_safety/config/self_collision.yaml`, each with a written reason.
+  Unknown link names stop the node at startup. Currently excluded:
+  `hip:left_leg2` and `hip:right_leg2`. They meet around each hip2 joint and
+  come within ~1 mm in ordinary poses. Excluded pairs are never reported, even
+  if they really collide.
 
 ## Running
 

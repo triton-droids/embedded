@@ -95,6 +95,10 @@ def _kinematic_joints(urdf_path: str) -> list[ET.Element]:
     return ET.parse(urdf_path).getroot().findall("joint")
 
 
+def urdf_link_names(urdf_path: str) -> set[str]:
+    return {link.get("name") for link in ET.parse(urdf_path).getroot().findall("link")}
+
+
 def urdf_joint_limits(urdf_path: str, joint_names: Sequence[str]) -> tuple[np.ndarray, np.ndarray]:
     """Lower and upper position limits (radians) for the named URDF joints."""
     joints = {joint.get("name"): joint for joint in _kinematic_joints(urdf_path)}

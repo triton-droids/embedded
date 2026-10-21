@@ -9,8 +9,8 @@ self_collision_monitor_node:
     package_dir: ""
     srdf_path: ""
     # Adjacent URDF links are always exempt. Add audited pairs here as
-    # "link_a:link_b, ..." and record the reason for each in this comment.
-    extra_allowed_pairs: ""
+    # "link_a:link_b, ..."
+    extra_allowed_pairs: "hip:left_leg2, hip:right_leg2"
 
     measured_topic: /joint_states
     target_topic: /policy/target_angles

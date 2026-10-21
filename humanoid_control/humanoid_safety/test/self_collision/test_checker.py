@@ -137,3 +137,15 @@ def test_urdf_adjacency_matches_srdf_adjacent_pairs():
     assert from_srdf <= from_urdf
     # The only URDF-only pair is the fixed world attachment.
     assert all('world' in pair for pair in from_urdf - from_srdf)
+
+
+def test_shipped_extra_allowed_pairs_name_real_urdf_links():
+    """A misspelled pair in the config would silently exempt nothing."""
+    import yaml
+    from humanoid_safety.self_collision.checker import urdf_link_names
+
+    config = Path(__file__).resolve().parents[2] / 'config/self_collision.yaml'
+    params = yaml.safe_load(config.read_text())['self_collision_monitor_node']['ros__parameters']
+    pairs = parse_link_pairs(params['extra_allowed_pairs'])
+    assert pairs == {('hip', 'left_leg2'), ('hip', 'right_leg2')}
+    assert {name for pair in pairs for name in pair} <= urdf_link_names(str(URDF))

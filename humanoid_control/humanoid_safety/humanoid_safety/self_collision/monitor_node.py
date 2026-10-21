@@ -29,6 +29,7 @@ from .checker import (
     parse_link_pairs,
     srdf_disabled_link_pairs,
     urdf_adjacent_link_pairs,
+    urdf_link_names,
 )
 from .markers import build_markers, urdf_collision_shapes
 
@@ -79,7 +80,12 @@ class SelfCollisionMonitorNode(Node):
             urdf_path = urdf_path or os.path.join(share, 'urdf', 'human_offset_corrected.urdf')
             # package:// mesh URIs resolve relative to the directory holding the package.
             package_dir = package_dir or os.path.dirname(share)
-        allowed = urdf_adjacent_link_pairs(urdf_path) | parse_link_pairs(str(param('extra_allowed_pairs')))
+        extra_allowed = parse_link_pairs(str(param('extra_allowed_pairs')))
+        # A misspelled link would silently exempt nothing; fail instead.
+        unknown = {name for pair in extra_allowed for name in pair} - urdf_link_names(urdf_path)
+        if unknown:
+            raise ValueError(f'extra_allowed_pairs names unknown URDF links: {sorted(unknown)}')
+        allowed = urdf_adjacent_link_pairs(urdf_path) | extra_allowed
         if param('srdf_path'):
             allowed |= srdf_disabled_link_pairs(str(param('srdf_path')))
 
@@ -107,7 +113,8 @@ class SelfCollisionMonitorNode(Node):
         self.create_timer(self.period, self.check)
         self.get_logger().info(
             f'Self-collision monitor (advisory): backend={backend.name}, '
-            f'{len(backend.link_pairs)} link pairs, margin={self.checker.margin_m} m, '
+            f'{len(backend.link_pairs)} link pairs ({len(extra_allowed)} extra allowed), '
+            f'margin={self.checker.margin_m} m, '
             f'measured={param("measured_topic")}, target={param("target_topic")}')
 
     def on_joint_state(self, kind, msg):
@@ -137,10 +144,12 @@ class SelfCollisionMonitorNode(Node):
                         self.marker_shapes, report.result, self.marker_inflation))
         # One log call: throttling is per call site, so separate calls per
         # check would hide later checks' warnings behind the first.
-        warnings = [f'{status.name.rsplit("/", 1)[-1]}: {status.message}' for status in array.status
+        # Each check gets its own aligned line under the header.
+        warnings = [f'  {status.name.rsplit("/", 1)[-1] + ":":<9} {status.message}'
+                    for status in array.status
                     if status.level in (DiagnosticStatus.WARN, DiagnosticStatus.ERROR)]
         if warnings:
-            self.get_logger().warn('Self-collision (advisory only): ' + '; '.join(warnings),
+            self.get_logger().warn('\n'.join(['Self-collision (advisory only):'] + warnings),
                                    throttle_duration_sec=1.0)
         elapsed = time.monotonic() - started
         if elapsed > self.period:
