@@ -15,10 +15,11 @@ from typing import Iterable, Optional, Sequence
 
 @dataclass(frozen=True)
 class ImuObservation:
-    received_at: float
+    received_at: float  # Host monotonic seconds.
     roll_rad: float
     pitch_rad: float
     valid: bool = True
+    source_age_s: float = 0.0  # Nonnegative source age at receipt, in seconds.
 
 
 @dataclass(frozen=True)
@@ -130,7 +131,11 @@ class ImuFreshnessCheck(SafetyCheck):
         self._last_received_at: Optional[float] = None
 
     def observe_imu(self, observation: ImuObservation) -> None:
-        self._last_received_at = observation.received_at
+        if not observation.valid:
+            return
+        # Preserve source delay: receipt of a 200-ms-old sample must not grant
+        # another full timeout. Subsequent expiry is independent of ROS time.
+        self._last_received_at = observation.received_at - observation.source_age_s
 
     def evaluate(self, now: float) -> CheckResult:
         if not self.enabled or self.timeout_s <= 0.0:

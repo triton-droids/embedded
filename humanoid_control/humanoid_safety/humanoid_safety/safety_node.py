@@ -3,8 +3,11 @@
 # Reset: ros2 service call /safety/reset std_srvs/srv/Trigger "{}"
 from __future__ import annotations
 
+import time
+
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 import rclpy
+from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Imu
@@ -39,12 +42,22 @@ class SafetyNode(Node):
         self.declare_parameter("reset_pitch_deg", 30.0)
         self.declare_parameter("trip_on_imu_timeout", True)
         self.declare_parameter("imu_timeout_s", 0.25)
+        self.declare_parameter("imu_future_tolerance_s", 0.01)
         self.declare_parameter("startup_grace_s", 3.0)
 
         imu_topic = str(self.get_parameter("imu_topic").value)
         estop_topic = str(self.get_parameter("estop_topic").value)
         status_topic = str(self.get_parameter("status_topic").value)
         evaluation_rate_hz = float(self.get_parameter("evaluation_rate_hz").value)
+        self._imu_timeout_s = float(self.get_parameter("imu_timeout_s").value)
+        self._imu_future_tolerance_s = float(
+            self.get_parameter("imu_future_tolerance_s").value
+        )
+        # Keep source validation bounded even when legacy timeout_s<=0 disables
+        # the receipt watchdog; fall detection still requires current attitude.
+        if self._imu_timeout_s <= 0.0:
+            self._imu_timeout_s = 0.25
+        self._last_imu_stamp_ns = None
         started_at = self._now_seconds()
 
         checks: list[SafetyCheck] = []
@@ -89,7 +102,12 @@ class SafetyNode(Node):
         )
 
         period = 1.0 / max(1.0, evaluation_rate_hz)
-        self._timer = self.create_timer(period, self._evaluate)
+        # A ROS-time timer would stop evaluating when /clock pauses. Both the
+        # watchdog timer and receipt/reset/grace accounting use steady time.
+        self._watchdog_clock = Clock(clock_type=ClockType.STEADY_TIME)
+        self._timer = self.create_timer(
+            period, self._evaluate, clock=self._watchdog_clock
+        )
         self._publish_estop()
         self.get_logger().info(
             f"Safety node started: imu={imu_topic}, estop={estop_topic}, "
@@ -97,9 +115,23 @@ class SafetyNode(Node):
         )
 
     def _now_seconds(self) -> float:
-        return self.get_clock().now().nanoseconds * 1.0e-9
+        return time.monotonic()
 
     def _imu_callback(self, msg: Imu) -> None:
+        # Source age is measured in the publisher's synchronized ROS epoch;
+        # receipt age is measured independently on the host's steady clock.
+        # Rejected packets never reach either safety check or renew freshness.
+        received_at = self._now_seconds()
+        stamp_ns = msg.header.stamp.sec * 1_000_000_000 + msg.header.stamp.nanosec
+        source_age_s = (self.get_clock().now().nanoseconds - stamp_ns) * 1.0e-9
+        if (stamp_ns <= 0
+                or not 0 <= msg.header.stamp.nanosec < 1_000_000_000
+                or source_age_s < -self._imu_future_tolerance_s
+                or source_age_s > self._imu_timeout_s
+                or (self._last_imu_stamp_ns is not None
+                    and stamp_ns <= self._last_imu_stamp_ns)):
+            return
+        self._last_imu_stamp_ns = stamp_ns
         orientation_unavailable = (
             len(msg.orientation_covariance) > 0
             and msg.orientation_covariance[0] < 0.0
@@ -111,7 +143,8 @@ class SafetyNode(Node):
             msg.orientation.w,
         )
         observation = ImuObservation(
-            received_at=self._now_seconds(),
+            received_at=received_at,
+            source_age_s=max(0.0, source_age_s),
             roll_rad=roll,
             pitch_rad=pitch,
             valid=valid and not orientation_unavailable,

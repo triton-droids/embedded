@@ -13,5 +13,7 @@ safety_node:
     reset_pitch_deg: 30.0
 
     trip_on_imu_timeout: true
+    # Source age + subsequent monotonic elapsed time must stay within timeout.
     imu_timeout_s: 0.25
+    imu_future_tolerance_s: 0.01
     startup_grace_s: 3.0

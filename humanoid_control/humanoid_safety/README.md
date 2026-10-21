@@ -137,3 +137,33 @@ feedback, runs `mode:=monitor use_rviz:=false`, checks HTTP values/expiry, the
 source-preserving relay and expected hip TF rotation, and asserts that no motor
 command publisher exists. It also verifies that HTTP command POST is rejected.
 This tests headless TF, not the graphical RViz renderer or cross-host discovery.
+
+
+### Supervisor IMU time contract
+
+The supervisor requires a synchronized, nonzero `Imu.header.stamp`. At receipt,
+source age must not exceed `imu_timeout_s` (default 0.25 s); future skew up to
+`imu_future_tolerance_s` (default 0.01 s) is tolerated. Duplicate or decreasing
+source stamps are discarded before either fall detection or freshness updates.
+Invalid/unavailable quaternions retain the existing fall-detection fault behavior
+and cannot refresh freshness. Source validation remains enabled when the receipt
+watchdog is disabled; if `imu_timeout_s<=0`, source age uses the 0.25 s default.
+
+Freshness expires when source age at receipt plus subsequent host monotonic
+elapsed time exceeds the timeout. Startup grace, reset checks and the watchdog
+timer also use steady time, so paused or jumping ROS time cannot suspend expiry.
+ROS time is still used for source-age comparison and diagnostic header stamps.
+After a backward epoch jump, samples remain rejected until their stamps again
+exceed the last accepted stamp and satisfy source age. A recovered stream does
+not clear the estop latch: explicit reset is still required.
+
+Run callback/clock regression tests after sourcing ROS Jazzy:
+
+```bash
+PYTHONPATH=humanoid_control/humanoid_safety:$PYTHONPATH python3 -m pytest -q \
+  humanoid_control/humanoid_safety/test/test_imu_time_contract.py
+# Optional isolated DDS test; starts no motor/CAN nodes:
+ROS_DOMAIN_ID=84 RUN_ROS_INTEGRATION=1 \
+  PYTHONPATH=humanoid_control/humanoid_safety:$PYTHONPATH python3 -m pytest -q \
+  humanoid_control/humanoid_safety/test/test_imu_time_contract.py
+```
