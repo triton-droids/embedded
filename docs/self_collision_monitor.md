@@ -81,8 +81,8 @@ the robot model are opaque, because RViz sorts transparent objects as a whole an
 overlapping transparent geometry flickers. Shapes are drawn 2% larger about
 their centres (`marker_inflation`) so they enclose the visual mesh; many hull
 faces lie exactly on it and would otherwise z-fight. The inflation is drawing
-only. Parts of a visual mesh that lie outside its hull can still show through. Markers come from the `measured` check only,
-because RViz shows one robot state. The monitor publishes them when
+only. Parts of a visual mesh that lie outside its hull can still show through.
+Markers come from the `measured` check only, because RViz shows one robot state. The monitor publishes them when
 `publish_markers` is true, with any backend.
 
 The backend needs `ros-humble-pinocchio` (or the Jazzy equivalent), which also
@@ -94,24 +94,49 @@ Backends implement `CollisionBackend` in `humanoid_safety/self_collision/checker
 are registered in `BACKENDS`; select one with the `backend` parameter. They are
 imported only when selected.
 
-| Backend | Method |
-|---|---|
-| `pinocchio` (default) | Coal GJK on convex shapes |
-| `pinocchio_mesh` | Coal BVH mesh-to-mesh distance (reference) |
+| Backend | Method | Runtime dependency |
+|---|---|---|
+| `pinocchio` (default) | Coal GJK on convex shapes | `ros-humble-pinocchio` |
+| `pinocchio_mesh` | Coal BVH mesh-to-mesh distance (reference) | `ros-humble-pinocchio` |
+| `moveit` | MoveIt PlanningScene (FCL) via `moveit_py`, one query per pair | `ros-humble-moveit-py` (not in `package.xml`; comparison only) |
 
 The collision meshes are `*_ch.stl` convex hulls, so the convex backend is exact
 for them. It is only an approximation for any future non-convex mesh.
 
+The `moveit` backend exists to compare against MoveIt. Humble's Python bindings
+return only the minimum distance over all allowed pairs, not per-pair
+distances, so it measures each pair separately by allowing all the others in a
+collision matrix. A colliding pair reports 0.0 because the bindings cannot
+return contact depth, so its "closest pair" in collision is the first colliding
+pair, not the deepest. It builds its own minimal SRDF and applies the same
+allowed pairs as the other backends, and loads package:// meshes through the
+ament index, so `humanoid_leg_description` must be installed and sourced.
+
 ```bash
-ros2 run humanoid_safety benchmark_self_collision --poses 100
+ros2 run humanoid_safety benchmark_self_collision --poses 200 \
+  --extra-allowed-pairs "hip:left_leg2, hip:right_leg2"
 ```
 
-Results in the Humble devcontainer (100 random poses within URDF limits, 55 pairs):
+Results in the Humble devcontainer (Intel i7-1355U, 200 random poses within URDF
+limits, 53 pairs, two runs agree):
 
-| Backend | Mean | p99 | Collisions vs reference |
-|---|---|---|---|
-| `pinocchio` | 0.14 ms | 0.18 ms | identical; distances within 1.4 µm |
-| `pinocchio_mesh` | 22.9 ms | 32.1 ms | reference |
+| Backend | Mean | p99 | Collision flags vs `pinocchio` | Clear distances vs `pinocchio` |
+|---|---|---|---|---|
+| `pinocchio` | 0.13 ms | 0.16 ms | reference | reference |
+| `pinocchio_mesh` | 21.3 ms | 31.3 ms | identical | within 1.4 µm |
+| `moveit` | 23.3 ms | 35.6 ms | identical | within 7.1 µm |
+| `moveit`, one query (overall minimum only) | 1.3 ms | 2.7 ms | — | matches per-pair minimum |
+
+In the monitor node at 20 Hz, a 10-pose path check took 1.1 ms with `pinocchio`
+and 230 ms with `moveit`, which dropped the status rate to 5.8 Hz. With a
+41-pose path, `moveit` fell to 1.7 Hz and inputs went stale between checks,
+because a long check blocks message processing.
+
+The speed difference is convex versus mesh distance, not the library:
+`moveit` costs about the same as `pinocchio_mesh`, because MoveIt checks the
+meshes as BVH meshes. Even one MoveIt query over all pairs, which cannot say
+which pairs are close, costs about 10 times one `pinocchio` evaluation.
+`pinocchio` remains the default.
 
 Timing on the robot computer has not been measured.
 

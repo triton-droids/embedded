@@ -61,6 +61,9 @@ BACKENDS = {
     # Coal BVH mesh-to-mesh distance. Slower; useful as a reference.
     "pinocchio_mesh": ("humanoid_safety.self_collision.pinocchio_backend", "PinocchioBackend",
                        {"use_convex": False}),
+    # MoveIt PlanningScene (FCL) through moveit_py, one masked query per
+    # pair. Slow: Humble's Python bindings expose no per-pair distances.
+    "moveit": ("humanoid_safety.self_collision.moveit_backend", "MoveItBackend", {}),
 }
 
 
@@ -97,6 +100,18 @@ def _kinematic_joints(urdf_path: str) -> list[ET.Element]:
 
 def urdf_link_names(urdf_path: str) -> set[str]:
     return {link.get("name") for link in ET.parse(urdf_path).getroot().findall("link")}
+
+
+def urdf_collision_link_names(urdf_path: str) -> list[str]:
+    """Links with at least one <collision> element, in URDF order."""
+    return [link.get("name") for link in ET.parse(urdf_path).getroot().findall("link")
+            if link.find("collision") is not None]
+
+
+def urdf_movable_joint_names(urdf_path: str) -> tuple[str, ...]:
+    """Non-fixed joints, in URDF order."""
+    return tuple(joint.get("name") for joint in _kinematic_joints(urdf_path)
+                 if joint.get("type") != "fixed")
 
 
 def urdf_joint_limits(urdf_path: str, joint_names: Sequence[str]) -> tuple[np.ndarray, np.ndarray]:
