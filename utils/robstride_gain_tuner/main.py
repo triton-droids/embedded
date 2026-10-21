@@ -20,7 +20,7 @@ def main() -> None:
 
     tuner = GainTunerMIT(
         motor_ids=motor_ids,
-        channel="can0",
+        channel="can1",
         bitrate=1_000_000,
         model="rs-03",   # fallback only; per-ID models are used automatically
         hz=60.0,

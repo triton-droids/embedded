@@ -1,11 +1,12 @@
-/* Feedback only: action reviews never publish or POST a motor command.
- * A future control_core integration must own admission and verified progress;
- * receiving telemetry or opening a review is never execution acknowledgement.
- */
 const el = id => document.getElementById(id);
 const rows = el('motorRows');
 const fmt = value => Number.isFinite(value) ? value.toFixed(3) : '—';
 let motors = [];
+let control = {};
+let estopReleased = false;
+let submitting = false;
+let reviewJoint = "";
+let reviewAll = false;
 let selectedJoint = '';
 let transportLive = false;
 let reviewAction = null;
@@ -53,12 +54,16 @@ function renderConfig(config) {
   }));
 }
 const actions = {
+  enable: {title: 'Enable', description: 'Enable the selected motors. Idle commands use zero gains and zero feedforward; this does not hold the robot upright.',
+    steps: ['Require fresh feedback and healthy, released safety.', 'Submit enable through control_core.', 'Verify fresh enabled-state feedback before reporting completion.']},
+  disable: {title: 'Disable', description: 'Disable the selected motors. Disabling during an active Home or zero operation interrupts it and disables its affected motors.',
+    steps: ['Submit disable even when feedback is offline or estop is asserted.', 'Discard pending motion ownership.', 'Verify fresh disabled-state feedback; without feedback, the physical state stays unverified.']},
   home: {
     title: 'Home',
-    description: 'Move the selected joint to its calibrated zero. This is physical motion; it does not redefine zero.',
+    description: 'Move the selected joint to its current coordinate zero (0 rad). This is physical motion; it does not redefine zero.',
     steps: ['control_core takes exclusive command ownership and pauses conflicting motion.',
       'Validate fresh feedback, calibration, limits and safety conditions.',
-      'Generate a bounded trajectory from the measured position to calibrated zero.',
+      'Generate a bounded trajectory from the measured position to current coordinate zero (0 rad).',
       'Verify arrival before reporting completion.']
   },
   zero: {
@@ -82,36 +87,83 @@ function updateSelection() {
   el('jointTorque').textContent = fmt(motor?.effort_nm);
   el('jointFreshness').textContent = !motor ? 'Unknown' : !transportLive ? 'UI disconnected' :
     motor.online ? `Live · ${fmt(motor.source_age_ms)} ms` : 'Offline / stale';
-  // These buttons open local reviews only; execution stays disabled unconditionally.
+  // Selection opens a review; execution is a separate explicit request.
+  el('enableButton').disabled = !motor || control.busy || submitting;
+  el('disableButton').disabled = !motor || submitting;
+  el('allEnableButton').disabled = !motors.length || control.busy || submitting;
+  el('allDisableButton').disabled = !motors.length || submitting;
   el('homeButton').disabled = !motor;
   el('zeroButton').disabled = !motor;
   for (const row of rows.children) row.classList.toggle('selected', row.dataset.joint === selectedJoint);
+  const allOnline = motors.length > 0 && motors.every(m => m.online);
+  el('allHomeButton').disabled = !motors.length || control.busy || submitting;
+  el('allZeroButton').disabled = !motors.length || control.busy || submitting;
+  const disabling = reviewAction === 'disable';
+  const selectionValid = reviewAll ? motors.length > 0 : motor && selectedJoint === reviewJoint;
+  const canSubmit = transportLive && control.connected && !submitting && selectionValid &&
+    (disabling || !control.busy && estopReleased && (reviewAll ? allOnline : motor?.online)) &&
+    ['zero', 'home', 'enable', 'disable'].includes(reviewAction);
+  el('executeButton').disabled = !canSubmit;
+  el('backendStatus').textContent = control.connected ? 'ROS control service connected; admission checks still apply.' : 'ROS control service unavailable';
+  el('executionStatus').textContent = canSubmit ? 'Ready to request ROS admission. Acceptance is not completion.' :
+    'Requires connected service, fresh feedback, released safety and no pending request.';
   if (reviewAction) {
-    el('reviewFeedback').textContent = `Current ROS feedback: position ${fmt(motor?.position_rad)} rad · velocity ${fmt(motor?.velocity_radps)} rad/s · ${el('jointFreshness').textContent}. Raw zero verification is unavailable.`;
+    el('reviewFeedback').textContent = `Current ROS feedback: position ${fmt(motor?.position_rad)} rad · velocity ${fmt(motor?.velocity_radps)} rad/s · ${reviewAll ? `${motors.filter(m => m.online).length}/${motors.length} motors online` : el('jointFreshness').textContent}. Backend verifies execution; failures stop the batch.`;
   }
 }
 function selectJoint(name) { selectedJoint = name; updateSelection(); }
-function review(action) {
+function review(action, all = false) {
   const motor = selectedMotor();
-  if (!motor) return;
+  if (!all && !motor) return;
+  reviewAll = all;
   reviewAction = action;
+  reviewJoint = all ? '*' : motor.joint_name;
   const config = actions[action];
-  el('reviewTitle').textContent = config.title;
-  el('reviewJoint').textContent = `${motor.joint_name} · ${motor.can_interface ?? 'Unknown CAN'} · ID ${motor.motor_id ?? '—'}`;
+  el('reviewTitle').textContent = all ? `All motors · ${config.title}` : config.title;
+  el('reviewJoint').textContent = all ? `${motors.length} motors · ${action === 'zero' ? 'sequential Set Zero; stop on first failure' : 'one core-owned operation; verify every motor'}` : `${motor.joint_name} · ${motor.can_interface ?? 'Unknown CAN'} · ID ${motor.motor_id ?? '—'}`;
   el('reviewDescription').textContent = config.description;
   el('reviewSteps').replaceChildren(...config.steps.map(step => {
     const item = document.createElement('li'); item.textContent = step; return item;
   }));
-  el('actionStatus').textContent = `${config.title} reviewed for ${motor.joint_name}. No action sent.`;
+  el('actionStatus').textContent = `${config.title} reviewed for ${all ? 'all motors' : motor.joint_name}. No action sent.`;
   updateSelection();
   el('actionDialog').showModal();
 }
+el('executeButton').addEventListener('click', async () => {
+  if (el('executeButton').disabled) return;
+  submitting = true; updateSelection();
+  try {
+    const response = await fetch('/api/action', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action: reviewAction, joint_name: reviewJoint})
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error ?? `HTTP ${response.status}`);
+    control.busy = true;
+    el('actionStatus').textContent = `${result.request_id} · ${result.state}: ${result.message}`;
+    el('actionDialog').close();
+  } catch (error) {
+    el('actionStatus').textContent = `Request failed or outcome unknown: ${error.message}. Check ROS status before retrying.`;
+  } finally { submitting = false; updateSelection(); }
+});
 el('jointSelect').addEventListener('change', event => selectJoint(event.target.value));
 el('homeButton').addEventListener('click', () => review('home'));
 el('zeroButton').addEventListener('click', () => review('zero'));
+el('allHomeButton').addEventListener('click', () => review('home', true));
+el('allZeroButton').addEventListener('click', () => review('zero', true));
+for (const action of ['enable', 'disable']) {
+  el(`${action}Button`).addEventListener('click', () => review(action));
+  el(`all${action[0].toUpperCase()}${action.slice(1)}Button`).addEventListener('click', () => review(action, true));
+}
 el('actionDialog').addEventListener('close', () => { reviewAction = null; });
 function render(data) {
   renderConfig(data.config);
+  control = data.control ?? {};
+  estopReleased = data.estop === false;
+  el('actionResults').replaceChildren(...(control.result?.results ?? []).map(result => {
+    const item = document.createElement('li'); item.textContent = `${result.joint_name}: ${result.state} · ${result.message}`; return item;
+  }));
+  if (control.result) el('actionStatus').textContent = `${control.result.request_id} · ${control.result.state} · ${control.result.completed ?? 0}/${control.result.total ?? 1} completed · ${control.result.current_joint ?? ''}: ${control.result.message}`;
   motors = data.motors;
   transportLive = true;
   el('subtitle').textContent = `ROS_DOMAIN_ID=${data.domain_id} · ${data.source_topic}`;

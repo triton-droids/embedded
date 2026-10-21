@@ -54,7 +54,7 @@ class MotorConfigurationTest(unittest.TestCase):
             self.assertAlmostEqual(joint, target, places=6)
 
     def test_duplicate_bus_ids_and_conflicting_master_ids_rejected(self):
-        cfg = {'motor_id': 12, 'model': 'rs-03', 'can_interface': 'can0', 'master_id': 255}
+        cfg = {'motor_id': 12, 'model': 'rs-03', 'can_interface': 'can1', 'master_id': 255}
         params = {'motors': {'a': cfg, 'b': dict(cfg)}}
         with self.assertRaisesRegex(ValueError, 'Duplicate'):
             validate_registry(params)
@@ -126,10 +126,10 @@ class MotorConfigurationTest(unittest.TestCase):
             {'direction': -1, 'encoder_offset_rad': 0.4, 'min_position': -1,
              'max_position': 1, 'kp': 80, 'kd': 1, 'max_torque_nm': 5}, {})
         node = PythonCanNode.__new__(PythonCanNode)
-        node.bus_by_joint = {'knee': SimpleNamespace(channel='can0', write_operation_frame=lambda *args: sent.append(args))}
+        node.bus_by_joint = {'knee': SimpleNamespace(channel='can1', write_operation_frame=lambda *args: sent.append(args))}
         node.motor_name_by_joint = {'knee': 'motor_12'}
         node.motor_settings = {'knee': settings}
-        node.bus_locks = {'can0': threading.Lock()}
+        node.bus_locks = {'can1': threading.Lock()}
         node.current_mode_by_joint = {'knee': 0}
         node.estop_active = threading.Event()
         node.transport_fault = threading.Event()

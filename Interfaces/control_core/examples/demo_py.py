@@ -17,7 +17,7 @@ Usage examples:
 Expected pipeline:
   demo_py.py  ->  target_gateway_node (HTTP /target)  ->  /desired_motor_subset
              ->  cpp_control_node (50 Hz)            ->  /motor_commands
-             ->  python_can_node (SocketCAN)         ->  can0/vcan0
+             ->  python_can_node (SocketCAN)         ->  can1/vcan1
 """
 
 import argparse

@@ -82,7 +82,7 @@ def validate_registry(params):
     settings = {}
     for name, cfg in motors.items():
         motor_id = cfg.get('motor_id')
-        interface = cfg.get('can_interface', params.get('default_can_interface', 'can0'))
+        interface = cfg.get('can_interface', params.get('default_can_interface', 'can1'))
         if (isinstance(motor_id, bool) or not isinstance(motor_id, int)
                 or not 1 <= motor_id < 255 or not interface or not cfg.get('model')):
             raise ValueError(f'{name}: valid motor_id, can_interface and model are required')

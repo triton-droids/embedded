@@ -67,7 +67,7 @@ motor_control_node:
     MAX_VEL_RAD_S: 4.5
     motors:
       left_hip1_joint:
-        can_interface: can0
+        can_interface: can1
         master_id: 255
         motor_id: 1
         model: rs-04
@@ -80,7 +80,7 @@ motor_control_node:
         kp: 100.0
         kd: 1.0
       left_hip2_joint:
-        can_interface: can0
+        can_interface: can1
         master_id: 255
         motor_id: 2
         model: rs-03
@@ -93,7 +93,7 @@ motor_control_node:
         kp: 100.0
         kd: 1.0
       left_thigh_joint:
-        can_interface: can0
+        can_interface: can1
         master_id: 255
         motor_id: 3
         model: rs-03
@@ -106,7 +106,7 @@ motor_control_node:
         kp: 100.0
         kd: 1.0
       left_knee_joint:
-        can_interface: can0
+        can_interface: can1
         master_id: 255
         motor_id: 4
         model: rs-04
@@ -119,7 +119,7 @@ motor_control_node:
         kp: 80.0
         kd: 1.0
       left_ankle_joint:
-        can_interface: can0
+        can_interface: can1
         master_id: 255
         motor_id: 5
         model: rs-02
@@ -141,7 +141,7 @@ motor_control_node:
           t4_to_motor_offset_deg: -90.0
           ankle_to_theta2_sign: 1.0
       right_hip1_joint:
-        can_interface: can0
+        can_interface: can1
         master_id: 255
         motor_id: 6
         model: rs-04
@@ -154,7 +154,7 @@ motor_control_node:
         kp: 100.0
         kd: 1.0
       right_hip2_joint:
-        can_interface: can0
+        can_interface: can1
         master_id: 255
         motor_id: 7
         model: rs-03
@@ -167,7 +167,7 @@ motor_control_node:
         kp: 100.0
         kd: 1.0
       right_thigh_joint:
-        can_interface: can0
+        can_interface: can1
         master_id: 255
         motor_id: 8
         model: rs-03
@@ -180,7 +180,7 @@ motor_control_node:
         kp: 100.0
         kd: 1.0
       right_knee_joint:
-        can_interface: can0
+        can_interface: can1
         master_id: 255
         motor_id: 9
         model: rs-04
@@ -193,7 +193,7 @@ motor_control_node:
         kp: 80.0
         kd: 1.0
       right_ankle_joint:
-        can_interface: can0
+        can_interface: can1
         master_id: 255
         motor_id: 10
         model: rs-02
@@ -206,7 +206,7 @@ motor_control_node:
         kp: 20.0
         kd: 1.0
         ankle_mapping: *id001
-    default_can_interface: can0
+    default_can_interface: can1
     default_master_id: 255
     KP: 10.0
     KD: 0.2

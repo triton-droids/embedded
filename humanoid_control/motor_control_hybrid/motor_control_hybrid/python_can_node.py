@@ -63,7 +63,7 @@ class PythonCanNode(Node):
         if not math.isfinite(publish_rate) or publish_rate <= 0:
             raise ValueError('publish_rate_hz must be finite and positive')
 
-        self.default_iface = 'can0'
+        self.default_iface = 'can1'
         self.default_master = 255
         self.default_kp = 10.0
         self.default_kd = 0.2
@@ -176,7 +176,7 @@ class PythonCanNode(Node):
         else:
             params = data
 
-        self.default_iface = params.get('default_can_interface', 'can0')
+        self.default_iface = params.get('default_can_interface', 'can1')
         self.default_master = int(params.get('default_master_id', 255))
         self.default_kp = float(params.get('KP', 10.0))
         self.default_kd = float(params.get('KD', 0.2))
@@ -689,17 +689,12 @@ class PythonCanNode(Node):
             self._set_mode_raw(bus, motor_name, 0)
             self.current_mode_by_joint[joint_name] = 0
 
-        vel_cmd = self._clamp(
-            cmd.get('velocity', 0.0),
-            -self.max_vel_rad_s,
-            self.max_vel_rad_s,
-        )
         bus.write_operation_frame(
             motor_name,
             cmd['position'],
             cmd.get('kp', self.default_kp),
             cmd.get('kd', self.default_kd),
-            abs(vel_cmd),
+            0.0,  # MIT velocity is feedforward, not a position speed limit.
             0.0,
         )
 

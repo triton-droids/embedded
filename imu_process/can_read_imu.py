@@ -20,7 +20,7 @@ def unit3(x, y, z, eps=1e-12):
     return (x/n, y/n, z/n)
 
 def main():
-    bus = can.interface.Bus(channel="can0", bustype="socketcan")
+    bus = can.interface.Bus(channel="can1", bustype="socketcan")
 
     print("t_ms,ax_g,ay_g,az_g,gx_dps,gy_dps,gz_dps,ugx,ugy,ugz,seq")
 

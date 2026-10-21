@@ -18,12 +18,19 @@ def registry_joint_names(context):
 
 def make_cpp_control(context):
     """Configure the control watchdog with the full expected robot."""
+    with open(LaunchConfiguration('motor_config_file').perform(context)) as stream:
+        registry = yaml.safe_load(stream)
+    params = registry.get('motor_control_node', {}).get('ros__parameters', registry)
+    motors = params['motors']
     return [Node(
         package='motor_control_hybrid', executable='cpp_control_node',
         name='cpp_control_node', output='screen',
         condition=IfCondition(LaunchConfiguration('enable_cpp_control')),
         parameters=[{
             'joint_names': registry_joint_names(context),
+            'simulation_zero_enabled': LaunchConfiguration('enable_fake_motor').perform(context).lower() == 'true',
+            'home_joint_lower': [float(cfg.get('min_position', float('nan'))) for cfg in motors.values()],
+            'home_joint_upper': [float(cfg.get('max_position', float('nan'))) for cfg in motors.values()],
             'control_rate_hz': float(LaunchConfiguration('control_rate_hz').perform(context)),
             'cmd_timeout_s': float(LaunchConfiguration('cmd_timeout_s').perform(context)),
             'control_rt_enabled': ParameterValue(LaunchConfiguration('control_rt_enabled'), value_type=bool),

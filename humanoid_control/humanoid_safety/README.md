@@ -246,3 +246,53 @@ RViz uses measured `/joint_states` by default. Explicitly select
 `display_source_topic:=/policy/target_angles` to inspect model target angles;
 that view shows commanded posture rather than measured posture. This changes
 only the model-display input; Web and control still use measured feedback.
+
+### Web action admission
+
+The selected-joint dialog submits explicit JSON requests to `/api/action`.
+The server validates the selected joint, fresh feedback and a live released
+estop, then calls `/control_core/submit_abstract_command`. Poll `/api/status`
+for admission and subsequent `/control_core/abstract_command_status` results.
+Queued/accepted is not completion; uncertain responses block automatic retries.
+The Web process owns no CAN socket and sends no direct motor command.
+
+Home moves the selected joint toward its current coordinate zero (0 rad),
+without writing encoder zero or automatically enabling motors. The core requires
+finite registry limits containing both current position and zero, settled and
+fresh complete feedback, and a live healthy supervisor. It owns the command
+stream during the move, disables other joints, limits the target ramp to
+0.1 rad/s, uses kp=2/kd=0.2, and disables outputs on completion, tracking error,
+timeout, stale feedback or estop. Completion requires measured position within
+0.01 rad and speed within 0.02 rad/s for 0.3 s. Missing registry limits reject
+Home. Validate gains and physical behavior before hardware use.
+
+Set Zero uses the existing abstract operation and retains its commissioning,
+firmware, exclusive-lease and readback admission checks. The current backend
+still rejects unimplemented zero transactions; the UI shows the reason rather
+than treating submission as successful zeroing. `/api/command` remains disabled.
+
+### All-motor actions and fake zero
+
+`All motors · Go Home` submits one core-owned HOME request for every configured
+joint. All targets ramp toward the current coordinate zero, and every selected
+joint must settle before completion. No motor is automatically enabled.
+`All motors · Set Zero` submits one joint at a time, waiting for verified completion
+before proceeding. Rejection/failure stops the remaining batch; completed counts
+and per-joint results remain visible. Offline members reject admission.
+
+With `enable_fake_motor:=true`, the core explicitly selects only
+`/simulation/motor_backend/*` services. The fake backend supports synthetic
+mechanical-zero changes; completion requires subsequent stamped zero feedback
+and a simulated coordinate rebind. This does not calibrate hardware. Real CAN
+mode keeps its commissioning and unimplemented firmware/readback guards, and
+never selects the simulation services automatically.
+
+### Enable and Disable
+
+The UI offers selected-joint and all-joint Enable/Disable. Enable waits for fresh
+raw enabled feedback and maintains only zero-gain/zero-feedforward idle commands;
+it does not hold the robot upright. Disable is allowed without live feedback or
+a released estop and may interrupt active actions. Completion requires fresh
+state confirmation, otherwise the UI reports unverified physical state. Home,
+zero, safety stops and explicit Disable end idle enable ownership.
+See [CAN audit](../../docs/can_protocol_audit.md) for protocol profiles and limits.

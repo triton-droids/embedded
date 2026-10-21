@@ -30,7 +30,7 @@ def parse_motor_ids_or_scan() -> List[int]:
             raise SystemExit("Ids must be 1..255.")
         return ids
 
-    channel = "can0"
+    channel = "can1"
     print(f"Scanning {channel} for motors (IDs 1..255) ...")
     try:
         RobstrideBus = get_robstride_sdk()["bus"]

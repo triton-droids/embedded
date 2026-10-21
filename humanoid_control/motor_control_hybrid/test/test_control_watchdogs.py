@@ -37,11 +37,11 @@ def can_node():
     node.can_rt_enabled = False
     node.can_tx_rt_priority = 20
     node.can_rx_rt_priority = 21
-    bus = Mock(channel='can0')
+    bus = Mock(channel='can1')
     node.bus_by_joint = {'a': bus, 'b': bus}
-    node.buses = {'can0': bus}
+    node.buses = {'can1': bus}
     node.motor_name_by_joint = {'a': 'motor_1', 'b': 'motor_2'}
-    node.bus_locks = {'can0': threading.Lock()}
+    node.bus_locks = {'can1': threading.Lock()}
     node.current_mode_by_joint = {'a': None, 'b': None}
     node.motor_settings = {n: SimpleNamespace(kp=10, kd=1) for n in ('a', 'b')}
     node.command_queue = LatestCommandMailbox()
@@ -438,7 +438,7 @@ def test_expired_explicit_deadline_rejects_even_recent_source(can_node):
     assert can_node.command_queue.empty()
 
 
-@pytest.mark.parametrize('role,priority', [('TX', 20), ('RX can0', 21)])
+@pytest.mark.parametrize('role,priority', [('TX', 20), ('RX can1', 21)])
 def test_can_rt_targets_calling_thread(can_node, role, priority):
     can_node.can_rt_enabled = True
     with patch('motor_control_hybrid.python_can_node.os.sched_setscheduler') as setter:
@@ -463,7 +463,7 @@ def test_named_telemetry_keeps_feedback_stamp_and_legacy_topic(can_node):
     node.state_lock = threading.Lock()
     node.state_buffer = {'a': (.1, .2, .3, 31., time.monotonic())}
     node.telemetry_stamps = {'a': 99.98}
-    node.motor_identity = {'a': dict(joint_name='a', can_interface='can0',
+    node.motor_identity = {'a': dict(joint_name='a', can_interface='can1',
                                     motor_id=42, model='rs-03')}
     node.motor_index_map = {'a': 0}
     node.feedback_timeout_s = .5

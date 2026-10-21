@@ -7,6 +7,7 @@ import time
 
 import rclpy
 from motor_control_interfaces.msg import MotorCommand
+from motor_control_interfaces.srv import ExecuteMotorOperation, GetMotorFeedback
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import JointState
@@ -28,6 +29,7 @@ class FakeMotorNode(Node):
         self._mode = {name: MotorCommand.MODE_DISABLE for name in self.joint_names}
         self._position = {name: 0.0 for name in self.joint_names}
         self._velocity = {name: 0.0 for name in self.joint_names}
+        self._position_speed = {name: 0.5 for name in self.joint_names}
         self._effort = {name: 0.0 for name in self.joint_names}
         self._temperature = {name: 28.0 for name in self.joint_names}
         self._target_position = {name: 0.0 for name in self.joint_names}
@@ -36,6 +38,9 @@ class FakeMotorNode(Node):
         self._disabled_warning_time = {name: 0.0 for name in self.joint_names}
         self._last_update = time.monotonic()
         self._estop_active = False
+        self._zero_requests = set()
+        self._sample_stamp = self.get_clock().now().to_msg()
+        self._sample_receipt = time.monotonic()
 
         self._joint_state_pub = self.create_publisher(JointState, "joint_states", 10)
         self._motor_status_pub = self.create_publisher(String, "motor_status", 10)
@@ -57,12 +62,59 @@ class FakeMotorNode(Node):
             estop_qos,
         )
 
+        self.create_service(GetMotorFeedback, '/simulation/motor_backend/get_feedback', self._get_feedback)
+        self.create_service(ExecuteMotorOperation, '/simulation/motor_backend/execute_operation', self._set_zero)
+
         period = 1.0 / publish_rate_hz if publish_rate_hz > 0.0 else 0.02
         self._timer = self.create_timer(period, self._tick)
 
         self.get_logger().info(
             f"Fake motor node started for joints: {', '.join(self.joint_names)}"
         )
+
+    def _get_feedback(self, request, response):
+        name = request.joint_name
+        if name not in self._position:
+            response.message = 'Unknown simulated joint'
+            return response
+        sample = response.feedback
+        sample.joint_name = name
+        sample.available = True
+        sample.age_s = time.monotonic() - self._sample_receipt
+        sample.fresh = sample.age_s <= 0.2
+        sample.stamp = self._sample_stamp
+        sample.position_rad = self._position[name]
+        sample.velocity_radps = self._velocity[name]
+        sample.torque_nm = self._effort[name]
+        sample.temperature_c = self._temperature[name]
+        sample.status_mode = 2 if self._enabled[name] else 0
+        response.success = sample.fresh
+        response.message = 'Synthetic feedback only; no CAN hardware'
+        return response
+
+    def _set_zero(self, request, response):
+        response.request_id = request.request_id
+        response.state = ExecuteMotorOperation.Response.REJECTED
+        if (not request.request_id or len(request.request_id) > 128 or
+                request.request_id in self._zero_requests or len(self._zero_requests) >= 256):
+            response.message = 'Invalid/duplicate simulated zero request'
+        elif request.operation != ExecuteMotorOperation.Request.SET_MECHANICAL_ZERO or request.joint_name not in self._position:
+            response.message = 'Unknown simulated operation or joint'
+        elif self._estop_active or any(abs(v) > 0.01 for v in self._velocity.values()):
+            response.message = 'Simulated estop active or motors not settled'
+        else:
+            for name in self.joint_names:
+                self._enabled[name] = False
+                self._mode[name] = MotorCommand.MODE_DISABLE
+                self._velocity[name] = 0.0
+            self._position[request.joint_name] = 0.0
+            self._target_position[request.joint_name] = 0.0
+            self._effort[request.joint_name] = 0.0
+            self._zero_requests.add(request.request_id)
+            response.accepted = True
+            response.state = ExecuteMotorOperation.Response.ACCEPTED
+            response.message = 'Simulated zero applied; await subsequent feedback verification'
+        return response
 
     def _estop_callback(self, msg: Bool) -> None:
         was_active = self._estop_active
@@ -100,15 +152,19 @@ class FakeMotorNode(Node):
             self._mode[joint_name] = int(mode)
 
             if mode == MotorCommand.MODE_ENABLE:
+                was_enabled = self._enabled[joint_name]
                 self._enabled[joint_name] = True
                 self._velocity[joint_name] = 0.0
-                self.get_logger().info(f"Enabled {joint_name}")
+                if not was_enabled:
+                    self.get_logger().info(f"Enabled {joint_name}")
                 continue
 
             if mode == MotorCommand.MODE_DISABLE:
+                was_enabled = self._enabled[joint_name]
                 self._enabled[joint_name] = False
                 self._velocity[joint_name] = 0.0
-                self.get_logger().info(f"Disabled {joint_name}")
+                if was_enabled:
+                    self.get_logger().info(f"Disabled {joint_name}")
                 continue
 
             if not self._enabled[joint_name]:
@@ -127,7 +183,7 @@ class FakeMotorNode(Node):
                 self._target_position[joint_name] = self._value_at(
                     msg.position, index, self._position[joint_name]
                 )
-                self._velocity[joint_name] = abs(self._value_at(msg.velocity, index, 0.5))
+                self._position_speed[joint_name] = abs(self._value_at(msg.velocity, index, 0.5))
                 self._kp[joint_name] = self._value_at(msg.kp, index, self._kp[joint_name])
                 self._kd[joint_name] = self._value_at(msg.kd, index, self._kd[joint_name])
                 continue
@@ -136,7 +192,7 @@ class FakeMotorNode(Node):
                 self._target_position[joint_name] = self._value_at(
                     msg.position, index, self._position[joint_name]
                 )
-                self._velocity[joint_name] = self._value_at(msg.velocity, index, 0.0)
+                self._position_speed[joint_name] = abs(self._value_at(msg.velocity, index, 0.0))
                 self._effort[joint_name] = self._value_at(msg.torque, index, 0.0)
                 self._kp[joint_name] = self._value_at(msg.kp, index, self._kp[joint_name])
                 self._kd[joint_name] = self._value_at(msg.kd, index, self._kd[joint_name])
@@ -156,12 +212,17 @@ class FakeMotorNode(Node):
                 self._position[joint_name] += self._velocity[joint_name] * dt
                 self._effort[joint_name] = abs(self._velocity[joint_name]) * 0.1
             elif mode in (MotorCommand.MODE_POSITION, MotorCommand.MODE_MOTION):
+                if (mode == MotorCommand.MODE_MOTION and self._kp[joint_name] == 0
+                        and self._kd[joint_name] == 0 and self._effort[joint_name] == 0):
+                    self._velocity[joint_name] = 0.0
+                    continue  # Zero-gain idle enable is not a position trajectory.
                 error = self._target_position[joint_name] - self._position[joint_name]
-                max_step = abs(self._velocity[joint_name]) * dt
+                max_step = self._position_speed[joint_name] * dt
                 if max_step <= 0.0:
                     max_step = 0.5 * dt
                 step = math.copysign(min(abs(error), max_step), error) if error else 0.0
                 self._position[joint_name] += step
+                self._velocity[joint_name] = step / dt if dt > 0 else 0.0
                 self._effort[joint_name] = abs(error) * 0.2 + abs(self._velocity[joint_name]) * 0.05
 
             self._temperature[joint_name] += abs(self._effort[joint_name]) * 0.001
@@ -172,6 +233,8 @@ class FakeMotorNode(Node):
     def _publish_joint_states(self) -> None:
         msg = JointState()
         msg.header.stamp = self.get_clock().now().to_msg()
+        self._sample_stamp = msg.header.stamp
+        self._sample_receipt = time.monotonic()
 
         for joint_name in self.joint_names:
             msg.name.append(joint_name)
@@ -200,6 +263,7 @@ class FakeMotorNode(Node):
         self._position[joint_name] = 0.0
         self._velocity[joint_name] = 0.0
         self._effort[joint_name] = 0.0
+        self._position_speed[joint_name] = 0.5
         self._temperature[joint_name] = 28.0
         self._target_position[joint_name] = 0.0
         self._kp[joint_name] = 40.0

@@ -292,7 +292,7 @@ def main() -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8090)
     parser.add_argument("--motor-ids", default=default_ids)
-    parser.add_argument("--channel", default="can0")
+    parser.add_argument("--channel", default="can1")
     parser.add_argument("--bitrate", type=int, default=1_000_000)
     parser.add_argument("--model", default="rs-03")
     parser.add_argument("--hz", type=float, default=60.0)

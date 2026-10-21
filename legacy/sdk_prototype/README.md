@@ -251,7 +251,7 @@ Useful options:
 
 ```bash
 python3 legacy/sdk_prototype/robstride_webui/server.py \
-  --channel can0 \
+  --channel can1 \
   --bitrate 1000000 \
   --motor-ids "1 2 3 4 5 6 7 8 9 10" \
   --hz 60 \

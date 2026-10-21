@@ -17,6 +17,83 @@ struct CppControlNodeTestPeer {
     msg->effort.assign(names.size(), 0.0);
     node.state_callback(msg);
   }
+  static void home_checks(CppControlNode& node) {
+    observe(node, {"a", "b"});
+    node.home_lower_ = {-1, -1}; node.home_upper_ = {1, 1};
+    node.safety_estop_active_.store(false);
+    auto heartbeat = std::make_shared<diagnostic_msgs::msg::DiagnosticArray>();
+    heartbeat->header.stamp = node.now();
+    diagnostic_msgs::msg::DiagnosticStatus summary;
+    summary.name = "humanoid_safety/supervisor"; summary.hardware_id = "humanoid";
+    summary.level = diagnostic_msgs::msg::DiagnosticStatus::OK;
+    heartbeat->status.push_back(summary); node.supervisor_callback(heartbeat);
+    CppControlNode::Action action;
+    action.request_id = "home-test"; action.joint_name = "a"; action.operation = CppControlNode::Action::HOME;
+    action.header.stamp = node.now();
+    action.valid_until = node.now() + rclcpp::Duration::from_seconds(0.1);
+    std::string reason;
+    node.home_lower_[0] = 0.01;
+    EXPECT_FALSE(node.submit_action(action, reason));
+    node.home_lower_[0] = -1;
+    node.safety_estop_active_.store(true);
+    EXPECT_FALSE(node.submit_action(action, reason));
+    node.safety_estop_active_.store(false);
+    ASSERT_TRUE(node.submit_action(action, reason)) << reason;
+    EXPECT_TRUE(node.home_active_);
+    EXPECT_FALSE(node.action_status().zero_may_have_changed);
+    EXPECT_FALSE(node.submit_action(action, reason));
+    command(node, "b", 0.0);
+    EXPECT_FALSE(node.has_cmd_);  // Competing targets cannot steal Home ownership.
+    node.home_tick_ -= std::chrono::milliseconds(20);
+    node.step_home(node.latest_state_map_);
+    EXPECT_LT(node.home_targets_.at("a"), 0.1);
+    EXPECT_GT(node.home_targets_.at("a"), 0.09);  // Bounded target step, no jump to zero.
+    node.home_targets_.at("a") = 0;
+    node.latest_state_map_.at("a").pos = 0;
+    node.home_settle_ -= std::chrono::seconds(1);
+    node.step_home(node.latest_state_map_);
+    EXPECT_FALSE(node.home_active_);
+    EXPECT_EQ(node.action_status().stage, CppControlNode::ActionStatus::COMPLETED);
+    EXPECT_FALSE(node.has_cmd_);
+    action.request_id = "home-fault"; action.header.stamp = node.now();
+    action.valid_until = node.now() + rclcpp::Duration::from_seconds(0.1);
+    ASSERT_TRUE(node.submit_action(action, reason)) << reason;
+    expire(node, "b"); node.control_loop();
+    EXPECT_FALSE(node.home_active_);
+    EXPECT_EQ(node.action_status().stage, CppControlNode::ActionStatus::FAILED);
+  }
+  static void lifecycle_checks(CppControlNode& node) {
+    observe(node, {"a", "b"}); node.safety_estop_active_.store(false);
+    auto heartbeat = std::make_shared<diagnostic_msgs::msg::DiagnosticArray>(); heartbeat->header.stamp = node.now();
+    diagnostic_msgs::msg::DiagnosticStatus summary; summary.name = "humanoid_safety/supervisor";
+    summary.hardware_id = "humanoid"; summary.level = diagnostic_msgs::msg::DiagnosticStatus::OK;
+    heartbeat->status.push_back(summary); node.supervisor_callback(heartbeat);
+    CppControlNode::Action action; action.header.stamp = node.now();
+    action.valid_until = node.now() + rclcpp::Duration::from_seconds(0.2);
+    action.request_id = "enable-all"; action.joint_name = "*"; action.operation = CppControlNode::Action::ENABLE;
+    std::string reason;
+    ASSERT_TRUE(node.submit_action(action, reason)) << reason;
+    EXPECT_EQ(node.idle_enabled_.size(), 2u); EXPECT_TRUE(node.lifecycle_active_);
+    EXPECT_EQ(node.action_status().stage, CppControlNode::ActionStatus::WAITING_BACKEND);
+    auto expiry = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+    node.enabled_evidence_["a"] = {true, expiry}; node.enabled_evidence_["b"] = {true, expiry};
+    node.lifecycle_step(); EXPECT_FALSE(node.lifecycle_active_);
+    EXPECT_EQ(node.action_status().stage, CppControlNode::ActionStatus::COMPLETED);
+    action.header.stamp = node.now(); action.request_id = "disable-a"; action.joint_name = "a";
+    action.operation = CppControlNode::Action::DISABLE;
+    ASSERT_TRUE(node.submit_action(action, reason)) << reason;
+    EXPECT_EQ(node.idle_enabled_.count("a"), 0u); EXPECT_EQ(node.idle_enabled_.count("b"), 1u);
+    node.enabled_evidence_["a"] = {false, expiry}; node.lifecycle_step();
+    EXPECT_EQ(node.action_status().stage, CppControlNode::ActionStatus::COMPLETED);
+    node.latest_state_map_.clear(); node.safety_estop_active_.store(true);
+    action.header.stamp = node.now(); action.request_id = "disable-offline"; action.joint_name = "*";
+    ASSERT_TRUE(node.submit_action(action, reason)) << reason;
+    EXPECT_TRUE(node.idle_enabled_.empty());
+    action.operation = CppControlNode::Action::ENABLE; action.request_id = "enable-unsafe";
+    EXPECT_FALSE(node.submit_action(action, reason));
+    node.lifecycle_deadline_ -= std::chrono::seconds(3); node.lifecycle_step();
+    EXPECT_EQ(node.action_status().stage, CppControlNode::ActionStatus::FAILED);
+  }
   static bool fresh(const CppControlNode& node) {
     return node.state_is_fresh(node.joint_order_, node.latest_state_map_);
   }
@@ -105,7 +182,7 @@ struct CppControlNodeTestPeer {
     action.request_id = "default-off"; action.joint_name = "a";
     action.operation = CppControlNode::Action::SET_MECHANICAL_ZERO;
     std::string reason; EXPECT_FALSE(node.submit_action(action, reason));
-    EXPECT_NE(reason.find("disabled"), std::string::npos);
+    EXPECT_NE(reason.find("Hardware Set Zero unavailable"), std::string::npos);
   }
 
   static void check_supervisor_advisory(CppControlNode& node) {
@@ -289,4 +366,14 @@ TEST_F(CppStateWatchdogTest, AsyncMockBackendRejectionKeepsCorePaused) {
   EXPECT_TRUE(CppControlNodeTestPeer::zero_failed(*node)); EXPECT_EQ(calls, 1u);
   EXPECT_NE(CppControlNodeTestPeer::zero_reason(*node).find("mock unsupported profile"), std::string::npos);
   executor.remove_node(node); executor.remove_node(backend);
+}
+
+TEST_F(CppStateWatchdogTest, HomeUsesCurrentZeroAndHonorsOwnershipLimitsAndWatchdog) {
+  auto node = std::make_shared<CppControlNode>();
+  CppControlNodeTestPeer::home_checks(*node);
+}
+
+TEST_F(CppStateWatchdogTest, LifecycleVerifiesFeedbackAndDisableWorksOffline) {
+  auto node = std::make_shared<CppControlNode>();
+  CppControlNodeTestPeer::lifecycle_checks(*node);
 }

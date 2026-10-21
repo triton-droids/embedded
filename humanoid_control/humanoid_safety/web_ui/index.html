@@ -33,13 +33,17 @@
         </dl>
       </section>
       <section class="panel" aria-labelledby="actionsTitle">
-        <div class="panel-head"><h2 id="actionsTitle">Home & zero</h2><span class="badge">Preview only</span></div>
-        <p class="backend-status" role="status">Control backend not connected</p>
-        <div class="action"><button id="homeButton" disabled>Home · review</button><p>Move the selected joint to its calibrated zero using a limited trajectory.</p></div>
+        <div class="panel-head"><h2 id="actionsTitle">Motor control</h2><span class="badge">ROS admission</span></div>
+        <p id="backendStatus" class="backend-status" role="status">Checking ROS control service…</p>
+        <div class="action"><button id="enableButton" disabled>Selected motor · Enable</button><button id="disableButton" class="danger" disabled>Selected motor · Disable</button></div>
+        <div class="action"><button id="allEnableButton" disabled>All motors · Enable</button><button id="allDisableButton" class="danger" disabled>All motors · Disable</button></div>
+        <div class="action"><button id="allHomeButton" disabled>All motors · Go Home</button></div>
+        <div class="action"><button id="allZeroButton" class="danger" disabled>All motors · Set Zero</button></div>
+        <div class="action"><button id="homeButton" disabled>Home · review</button><p>Move the selected joint to its current coordinate zero (0 rad) using a limited trajectory.</p></div>
         <div class="action"><button id="zeroButton" class="danger" disabled>Set Zero · review</button><p>Make the current physical position the motor's mechanical zero. This changes the coordinate reference.</p></div>
-        <p class="muted">Reviews send no commands. Execution requires the control_core pause, verification and resume workflow.</p>
+        <p class="muted">Set Zero requests are submitted to control_core for admission. Home moves to the current coordinate zero (0 rad), without changing encoder zero or enabling motors.</p>
       </section>
-      <section class="panel" aria-labelledby="statusTitle"><h2 id="statusTitle">Action status</h2><p class="detail" id="actionStatus" role="status">No action sent.</p><p class="muted">Motor enable state and calibration state: unknown.</p></section>
+      <section class="panel" aria-labelledby="statusTitle"><h2 id="statusTitle">Action status</h2><p class="detail" id="actionStatus" role="status">No action sent.</p><ul id="actionResults"></ul><p class="muted">Action results show the last verified state. Continuous enable/calibration telemetry is unavailable.</p></section>
     </aside>
     <section class="panel config-panel" aria-labelledby="configTitle">
       <div class="panel-head"><div><h2 id="configTitle">Motor configuration</h2><p class="muted">All configured joints and fields · updates from the server's selected YAML file</p></div></div>
@@ -58,8 +62,8 @@
       <p id="reviewJoint" class="detail"></p><p id="reviewDescription"></p>
       <ol id="reviewSteps"></ol>
       <p id="reviewFeedback" class="muted"></p>
-      <p class="backend-status">Execution unavailable: the control_core action interface is not connected. No request has been submitted.</p>
-      <div class="dialog-actions"><button value="cancel">Back</button><button type="button" disabled>Execute · backend unavailable</button></div>
+      <p id="executionStatus" class="backend-status">Waiting for control service.</p>
+      <div class="dialog-actions"><button value="cancel">Back</button><button id="executeButton" type="button" disabled>Submit to ROS</button></div>
     </form>
   </dialog>
   <script src="/app.js"></script>

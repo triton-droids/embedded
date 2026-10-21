@@ -49,13 +49,13 @@ def telemetry(records):
     return json.dumps(dict(schema_version=1, motors=records))
 
 
-def record(name='a', motor_id=42, stamp=100., temperature=31., interface='can0'):
+def record(name='a', motor_id=42, stamp=100., temperature=31., interface='can1'):
     return dict(joint_name=name, can_interface=interface, motor_id=motor_id,
                 model='rs-03', source_stamp=stamp, temperature_c=temperature)
 
 
 def registry():
-    return {'a': dict(can_interface='can0', motor_id=42, model='rs-03'),
+    return {'a': dict(can_interface='can1', motor_id=42, model='rs-03'),
             'b': dict(can_interface='can1', motor_id=7, model='rs-03')}
 
 
@@ -162,7 +162,7 @@ def test_unregistered_monitor_uses_publisher_identity():
     cache.observe(message(('a',)), 10, 100)
     cache.observe_temperatures(telemetry([record()]), 10, 100)
     motor = cache.snapshot(10, 100)['motors'][0]
-    assert (motor['motor_id'], motor['can_interface'], motor['model']) == (42, 'can0', 'rs-03')
+    assert (motor['motor_id'], motor['can_interface'], motor['model']) == (42, 'can1', 'rs-03')
     assert motor['temperature_c'] == 31
 
 

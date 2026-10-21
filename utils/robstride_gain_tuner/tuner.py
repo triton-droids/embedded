@@ -73,7 +73,7 @@ class GainTunerMIT:
     def __init__(
         self,
         motor_ids: List[int],
-        channel: str = "can0",
+        channel: str = "can1",
         bitrate: int = 1_000_000,
         model: str = "rs-03",   # fallback if ID not in MOTOR_MODEL_BY_ID
         hz: float = 60.0,

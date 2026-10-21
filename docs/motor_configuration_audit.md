@@ -59,7 +59,7 @@ physical calibration or enforcement in CAN control.
 ## Physical motor IDs and driver gaps
 
 - `config/motors.yaml`: only test_joint -> CAN ID 12 and test_joint2 -> CAN ID 13,
-  both `rs-03` on can0. No policy leg joint is configured.
+  both `rs-03` on can1. No policy leg joint is configured.
 - `config/control_config.yaml`: four arm joints -> CAN IDs 21, 22, 23, 24. No
   policy leg joint is configured. This file also warns its models need correction.
 - Neither the active simulation XML nor ONNX metadata defines physical CAN IDs.

@@ -1,19 +1,26 @@
 """Non-waiting RobStride TX and independently decoded CAN feedback.
 
-The installed SDK remains responsible for MIT encoding and model tables. This
+The adapter owns audited MIT encoding for the deployed RS02/03/04 profiles. This
 adapter changes I/O ownership: one TX worker and one RX worker per interface.
 An enable/disable return means submitted to the host CAN stack, not acknowledged
 by the physical motor. No calibration, protocol change or zeroing is issued.
 """
 from dataclasses import dataclass
 import struct
+import math
 import threading
 import queue
 
 import can
 from robstride_dynamics import RobstrideBus, CommunicationType
-from robstride_dynamics.table import (
-    MODEL_MIT_POSITION_TABLE, MODEL_MIT_VELOCITY_TABLE, MODEL_MIT_TORQUE_TABLE)
+# CAN2.0 private protocol, pinned official manuals; see docs/can_protocol_audit.md.
+# (position magnitude, velocity magnitude, torque magnitude, kp max, kd max)
+PROTOCOL_PROFILES = {
+    'rs-02': (4 * math.pi, 44.0, 17.0, 500.0, 5.0),  # 2026-07-13
+    'rs-03': (4 * math.pi, 20.0, 60.0, 5000.0, 100.0),  # 2026-10-13
+    'rs-04': (4 * math.pi, 15.0, 120.0, 5000.0, 100.0),  # 2026-07-13
+}
+
 
 
 @dataclass(frozen=True)
@@ -29,10 +36,12 @@ class MotorFeedback:
 
 
 class NonblockingRobstrideBus(RobstrideBus):
-    """Reuse SDK encoding, with zero-wait TX and a single explicit RX owner."""
+    """Audited private-protocol encoding, zero-wait TX and one RX owner."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if any(motor.model not in PROTOCOL_PROFILES for motor in self.motors.values()):
+            raise ValueError('CAN model lacks an audited protocol profile')
         self.tx_frames = 0
         self.tx_errors = 0
 
@@ -49,8 +58,9 @@ class NonblockingRobstrideBus(RobstrideBus):
         self._motor_by_id = {motor.id: name for name, motor in self.motors.items()}
 
     def transmit(self, communication_type, extra_data, device_id, data=bytes(8)):
-        if (not 0 <= communication_type <= 31 or not 0 <= extra_data <= 65535
-                or not 1 <= device_id <= 255 or len(data) > 8):
+        if (any(type(value) is not int for value in (communication_type, extra_data, device_id))
+                or not 0 <= communication_type <= 31 or not 0 <= extra_data <= 65535
+                or not 1 <= device_id <= 254 or len(data) != 8):
             raise ValueError('Invalid RobStride frame')
         frame = can.Message(
             arbitration_id=(communication_type << 24) | (extra_data << 8) | device_id,
@@ -63,6 +73,25 @@ class NonblockingRobstrideBus(RobstrideBus):
         except can.CanError:
             self.tx_errors += 1
             raise
+
+    def write_operation_frame(self, motor, position, kp, kd, velocity=0, torque=0):
+        model = self.motors[motor].model
+        if model not in PROTOCOL_PROFILES:
+            raise ValueError(f'No audited CAN profile for {model}')
+        if not all(math.isfinite(value) for value in (position, velocity, torque, kp, kd)):
+            raise ValueError('MIT values must be finite')
+        if self.calibration:
+            calibration = self.calibration[motor]
+            position = position * calibration['direction'] + calibration['homing_offset']
+            velocity *= calibration['direction']
+            torque *= calibration['direction']
+        pmax, vmax, tmax, kpmax, kdmax = PROTOCOL_PROFILES[model]
+        def encode(value, low, high):
+            value = max(low, min(high, value))
+            return int((value - low) * 65535.0 / (high - low))
+        data = struct.pack('>HHHH', encode(position, -pmax, pmax), encode(velocity, -vmax, vmax),
+                           encode(kp, 0, kpmax), encode(kd, 0, kdmax))
+        self.transmit(CommunicationType.OPERATION_CONTROL, encode(torque, -tmax, tmax), self.motors[motor].id, data)
 
     def enable(self, motor):
         self.transmit(CommunicationType.ENABLE, self.host_id, self.motors[motor].id)
@@ -90,7 +119,8 @@ class NonblockingRobstrideBus(RobstrideBus):
         """
         if frame.is_error_frame:
             raise RuntimeError('SocketCAN error frame')
-        if not frame.is_extended_id or frame.is_remote_frame or len(frame.data) != 8:
+        if (not frame.is_extended_id or frame.is_remote_frame or frame.is_fd
+                or not 0 <= frame.arbitration_id <= 0x1FFFFFFF or frame.dlc != 8 or len(frame.data) != 8):
             return None
         kind = (frame.arbitration_id >> 24) & 31
         extra = (frame.arbitration_id >> 8) & 65535
@@ -108,11 +138,14 @@ class NonblockingRobstrideBus(RobstrideBus):
         if bytes(frame.data[:3]) == b'\x00\xc4\x56':
             return None
         model = self.motors[name].model
+        if model not in PROTOCOL_PROFILES:
+            raise ValueError(f'No audited CAN profile for {model}')
+        pmax, vmax, tmax, _, _ = PROTOCOL_PROFILES[model]
         p, v, t, temperature = struct.unpack('>HHHH', frame.data)
         return MotorFeedback(
-            name, (p / 32767.0 - 1) * MODEL_MIT_POSITION_TABLE[model],
-            (v / 32767.0 - 1) * MODEL_MIT_VELOCITY_TABLE[model],
-            (t / 32767.0 - 1) * MODEL_MIT_TORQUE_TABLE[model], temperature * 0.1,
+            name, (p / 65535.0 * 2 - 1) * pmax,
+            (v / 65535.0 * 2 - 1) * vmax,
+            (t / 65535.0 * 2 - 1) * tmax, temperature * 0.1,
             (extra >> 14) & 3, (extra >> 8) & 63, frame.timestamp)
 
 

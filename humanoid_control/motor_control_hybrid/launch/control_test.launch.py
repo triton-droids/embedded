@@ -1,4 +1,4 @@
-"""Body control + safety + Web + feedback-driven RViz, without policy/vision.
+"""Body control + safety + Web + feedback-driven collision RViz, without policy/vision.
 
 Real motors are the default; fake mode is explicit and mutually exclusive with
 CAN. No launch action enables, homes or zeros motors. The existing safety-owned
@@ -6,17 +6,17 @@ JointState relay preserves measured coordinates and timestamps. The URDF state
 publisher performs forward kinematics; world/base translation is not estimated.
 """
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable, GroupAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import EnvironmentVariable, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
 
 
 def include(package, filename, arguments):
-    return IncludeLaunchDescription(
+    return GroupAction(scoped=True, actions=[IncludeLaunchDescription(
         PythonLaunchDescriptionSource(PathJoinSubstitution([
             FindPackageShare(package), 'launch', filename])),
-        launch_arguments=arguments.items())
+        launch_arguments=arguments.items())])
 
 
 def generate_launch_description():
@@ -66,6 +66,11 @@ def generate_launch_description():
             'display_source_topic': arg('display_source_topic'),
             'display_topic': '/safety/visualization/joint_states',
             'host': arg('host'), 'port': arg('port'),
-            'start_display': 'true', 'use_rviz': arg('use_rviz'),
+            'start_display': 'false', 'use_rviz': 'false',
+        }),
+        include('humanoid_safety', 'self_collision_rviz.launch.py', {
+            'use_gui': 'false',
+            'use_rviz': arg('use_rviz'),
+            'joint_states_topic': '/safety/visualization/joint_states',
         }),
     ])

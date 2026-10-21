@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only HTTP view of DDS JointState feedback; no SDK or CAN ownership.
+"""HTTP view of DDS feedback with bounded control_core service admission.
 
 ROS callbacks update a bounded per-joint cache. HTTP runs separately and never
 waits for ROS messages. Source and local receipt ages both determine freshness.
@@ -7,6 +7,9 @@ waits for ROS messages. Source and local receipt ages both determine freshness.
 import json
 import math
 import mimetypes
+import queue
+import uuid
+from urllib.parse import urlsplit
 import os
 from pathlib import Path
 import threading
@@ -19,6 +22,9 @@ from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
 from diagnostic_msgs.msg import DiagnosticArray
 from sensor_msgs.msg import JointState
+from motor_control_interfaces.srv import SubmitAbstractCommand
+from motor_control_interfaces.msg import AbstractCommand, AbstractCommandStatus
+from rclpy.duration import Duration
 from std_msgs.msg import Bool, String
 import yaml
 
@@ -208,7 +214,7 @@ class LiveMotorConfig:
                 if not isinstance(name, str) or not name or not isinstance(cfg, dict):
                     raise ValueError('Invalid joint name or motor entry')
                 entry = dict(cfg, can_interface=cfg.get('can_interface',
-                    params.get('default_can_interface', 'can0')))
+                    params.get('default_can_interface', 'can1')))
                 if (type(entry.get('motor_id')) is not int or
                         not isinstance(entry.get('can_interface'), str) or
                         not isinstance(entry.get('model'), str)):
@@ -229,8 +235,142 @@ class LiveMotorConfig:
                     reload_interval_s=1.0)
 
 
-def make_handler(snapshot, static_root):
-    """Expose a fixed GET-only surface; filesystem paths are never user supplied."""
+class WebActionBridge:
+    """Bounded HTTP-to-ROS queue; only the executor touches the ROS client."""
+    def __init__(self, client, clock):
+        self.client, self.clock = client, clock
+        self.lock = threading.Lock()
+        self.pending = queue.Queue(maxsize=1)
+        self.available = False
+        self.result = None
+        self.active = False
+        self.deadline = None
+        self.future = None
+        self.current_id = None
+        self.batch = []
+        self.batch_action = None
+        self.all_home = False
+
+    def snapshot(self):
+        with self.lock:
+            return dict(connected=self.available, home_supported=True,
+                        zero_supported=True, busy=self.active,
+                        result=None if self.result is None else json.loads(json.dumps(self.result)))
+
+    def submit(self, body, status):
+        if (not isinstance(body, dict) or set(body) != {'action', 'joint_name'}
+                or body.get('action') not in ('zero', 'home', 'enable', 'disable') or not isinstance(body.get('joint_name'), str)):
+            raise ValueError('Expected action=zero, home, enable or disable and joint_name')
+        all_motors = body['joint_name'] == '*'
+        selected = status['motors'] if all_motors else [m for m in status['motors'] if m['joint_name'] == body['joint_name']]
+        if not selected or len(selected) > 256:
+            raise ValueError('Unknown joint or empty/oversized motor list')
+        disabling = body['action'] == 'disable'
+        if not disabling and (not all(m['online'] for m in selected) or status['estop'] is not False):
+            raise ValueError('Fresh feedback for every selected joint and a live, released safety estop are required')
+        with self.lock:
+            if not self.available or (self.active and not disabling):
+                raise ValueError('Control service unavailable or an action is already pending')
+            if disabling:
+                try:
+                    self.pending.get_nowait()
+                except queue.Empty:
+                    pass
+                if self.future is not None and not self.future.done():
+                    self.client.remove_pending_request(self.future)
+                self.deadline = None
+            request_id = str(uuid.uuid4())
+            self.result = dict(request_id=request_id, joint_name=body['joint_name'],
+                               state='queued', message='Queued for ROS admission; not completed',
+                               total=len(selected), completed=0, results=[])
+            self.active = True
+            self.batch = [m['joint_name'] for m in selected]
+            self.batch_action = body['action']
+            self.all_home = all_motors and body['action'] in ('home', 'enable', 'disable')
+            self._queue_next()
+            return dict(self.result)
+
+    def _queue_next(self):
+        index = self.result['completed']
+        self.current_id = self.result['request_id'] if self.result['total'] == 1 or self.all_home else f"{self.result['request_id']}:{index}"
+        joint = '*' if self.all_home else self.batch[index]
+        self.result.update(state='queued', current_joint=joint)
+        self.pending.put_nowait((self.current_id, joint, self.batch_action))
+
+    def _terminal(self, state, message):
+        names = self.batch if self.all_home else [self.result['current_joint']]
+        self.result['results'].extend(dict(joint_name=name, state=state, message=message) for name in names)
+        self.result.update(state=state, message=message)
+        self.deadline = None
+        if state == 'completed':
+            self.result['completed'] += self.result['total'] if self.all_home else 1
+            if self.result['completed'] < self.result['total']:
+                self._queue_next()
+                return
+        self.active = False
+
+    def tick(self):
+        with self.lock:
+            self.available = self.client.service_is_ready()
+            if self.active and self.deadline is not None and time.monotonic() > self.deadline:
+                if self.future is not None:
+                    self.client.remove_pending_request(self.future)
+                self.result.update(state='unknown', message='Service response timed out; execution outcome unknown. Do not automatically retry.')
+                # Keep admission blocked: timeout is not evidence that ROS did not execute.
+                self.deadline = None
+            try:
+                request_id, joint, action = self.pending.get_nowait()
+            except queue.Empty:
+                return
+            request = SubmitAbstractCommand.Request()
+            request.command.request_id, request.command.joint_name = request_id, joint
+            request.command.operation = {'home': AbstractCommand.HOME, 'zero': AbstractCommand.SET_MECHANICAL_ZERO,
+                                         'enable': AbstractCommand.ENABLE, 'disable': AbstractCommand.DISABLE}[action]
+            now = self.clock.now()
+            request.command.header.stamp = now.to_msg()
+            request.command.valid_until = (now + Duration(seconds=0.5)).to_msg()
+            try:
+                self.future = self.client.call_async(request)
+                self.deadline = time.monotonic() + 2.0
+            except Exception as error:
+                self.result.update(state='failed', message=str(error))
+                self.active = False
+                return
+        self.future.add_done_callback(lambda future, ident=request_id: self.on_response(future, ident))
+
+    def on_response(self, future, request_id=None):
+        with self.lock:
+            if request_id is not None and request_id != self.current_id:
+                return
+            try:
+                response = future.result()
+                if self.result['state'] in ('completed', 'failed', 'cancelled', 'rejected'):
+                    return
+                self.result.update(state='accepted' if response.accepted else 'rejected',
+                                   message=response.message, stage=response.status.stage)
+                if not response.accepted:
+                    self._terminal('rejected', response.message)
+                if response.accepted:
+                    self.result['message'] += ' (admitted; completion not yet verified)'
+            except Exception as error:
+                self.result.update(state='unknown', message=str(error))
+                # An uncertain response must not permit duplicate execution.
+            self.deadline = None
+
+    def on_status(self, msg):
+        with self.lock:
+            if self.result is None or msg.request_id != self.current_id:
+                return
+            if self.result['state'] in ('completed', 'failed', 'cancelled', 'rejected'):
+                return
+            self.result.update(stage=msg.stage, message=msg.message)
+            if msg.stage in (AbstractCommandStatus.COMPLETED, AbstractCommandStatus.FAILED,
+                             AbstractCommandStatus.CANCELLED, AbstractCommandStatus.REJECTED):
+                self._terminal({6: 'completed', 7: 'failed', 8: 'cancelled', 9: 'rejected'}[msg.stage], msg.message)
+
+
+def make_handler(snapshot, static_root, submit=None):
+    """Expose status/assets and an optional bounded same-origin action endpoint."""
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             if self.path == '/api/status':
@@ -251,7 +391,32 @@ def make_handler(snapshot, static_root):
             self.wfile.write(payload)
 
         def do_POST(self):
-            self.send_error(405, 'Read-only monitor')
+            if submit is None:
+                self.send_error(405, 'Read-only monitor')
+                return
+            if self.path != '/api/action':
+                self.send_error(405, 'Unsupported command endpoint')
+                return
+            origin = self.headers.get('Origin')
+            if ((origin and urlsplit(origin).netloc != self.headers.get('Host'))
+                    or self.headers.get('Sec-Fetch-Site') == 'cross-site'):
+                self.send_error(403, 'Same-origin requests required')
+                return
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= 4096 or self.headers.get_content_type() != 'application/json':
+                    raise ValueError('Expected a JSON body of at most 4096 bytes')
+                result = submit(json.loads(self.rfile.read(length)))
+                code = 202
+            except (ValueError, TypeError, UnicodeError) as error:
+                result, code = dict(error=str(error)), 400
+            payload = json.dumps(result, allow_nan=False).encode()
+            self.send_response(code)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(payload)))
+            self.send_header('Cache-Control', 'no-store')
+            self.end_headers()
+            self.wfile.write(payload)
 
         def log_message(self, *args):
             pass  # Frequent dashboard polling must not flood ROS logs.
@@ -296,13 +461,18 @@ class MotorWebNode(Node):
         self.create_subscription(DiagnosticArray, str(param('supervisor_status_topic')),
             lambda msg: self.cache.observe_supervisor(msg, time.monotonic(),
                 self.get_clock().now().nanoseconds * 1e-9), qos_profile_sensor_data)
+        self.action_client = self.create_client(SubmitAbstractCommand, '/control_core/submit_abstract_command')
+        self.actions = WebActionBridge(self.action_client, self.get_clock())
+        self.create_timer(0.05, self.actions.tick)
+        self.create_subscription(AbstractCommandStatus, '/control_core/abstract_command_status',
+                                 self.actions.on_status, qos)
         root = Path(get_package_share_directory('humanoid_safety')) / 'web_ui'
         self.server = MonitorHTTPServer((str(param('host')), int(param('port'))),
-                                       make_handler(self.snapshot, root))
+                                       make_handler(self.snapshot, root, lambda body: self.actions.submit(body, self.snapshot())))
         self.http_thread = threading.Thread(target=self.server.serve_forever,
                                             name='motor-status-http', daemon=True)
         self.http_thread.start()
-        self.get_logger().info(f'Read-only motor UI: http://{param("host")}:{self.server.server_port}; '
+        self.get_logger().info(f'Motor UI with ROS admission: http://{param("host")}:{self.server.server_port}; '
                                f'DDS source={self.source_topic}, domain={os.getenv("ROS_DOMAIN_ID", "0")}')
 
     def on_state(self, msg):
@@ -315,7 +485,7 @@ class MotorWebNode(Node):
         self.live_config.refresh(time.monotonic())
         result = self.cache.snapshot(time.monotonic(), self.get_clock().now().nanoseconds * 1e-9)
         return dict(result, domain_id=os.getenv('ROS_DOMAIN_ID', '0'), source_topic=self.source_topic,
-                    config=self.live_config.snapshot())
+                    config=self.live_config.snapshot(), control=self.actions.snapshot())
 
     def destroy_node(self):
         self.server.shutdown()

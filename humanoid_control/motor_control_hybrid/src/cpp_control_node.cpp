@@ -123,7 +123,11 @@ public:
     cmd_pub_ = this->create_publisher<motor_control_interfaces::msg::MotorCommand>("/motor_commands", 10);
 
     // Explicit commissioning switch; ordinary launch files leave this false.
-    actions_enabled_ = declare_parameter<bool>("abstract_actions_enabled", false);
+    home_lower_ = declare_parameter<std::vector<double>>("home_joint_lower", std::vector<double>{});
+    home_upper_ = declare_parameter<std::vector<double>>("home_joint_upper", std::vector<double>{});
+    simulation_zero_ = declare_parameter<bool>("simulation_zero_enabled", false);
+    actions_enabled_ = declare_parameter<bool>("abstract_actions_enabled", false) || simulation_zero_;
+    if (simulation_zero_) RCLCPP_WARN(get_logger(), "SIMULATION zero enabled: using only /simulation/motor_backend services");
     operation_limits_.acceleration = declare_parameter<double>("zero_stop_acceleration", 0.2);
     operation_limits_.velocity = declare_parameter<double>("zero_admission_velocity", 0.2);
     operation_limits_.max_effort = declare_parameter<double>("zero_measured_effort_trip", 1.0);
@@ -131,8 +135,8 @@ public:
     operation_limits_.kd = declare_parameter<double>("zero_stop_kd", 0.2);
     operation_limits_.settle_s = declare_parameter<double>("zero_settle_s", 0.3);
     operation_limits_.timeout_s = declare_parameter<double>("zero_timeout_s", 10.0);
-    backend_client_ = create_client<BackendOperation>("/motor_backend/execute_operation");
-    feedback_client_ = create_client<FeedbackService>("/motor_backend/get_feedback");
+    backend_client_ = create_client<BackendOperation>(simulation_zero_ ? "/simulation/motor_backend/execute_operation" : "/motor_backend/execute_operation");
+    feedback_client_ = create_client<FeedbackService>(simulation_zero_ ? "/simulation/motor_backend/get_feedback" : "/motor_backend/get_feedback");
     operation_status_pub_ = create_publisher<ActionStatus>(
       "/control_core/abstract_command_status", rclcpp::QoS(1).reliable().transient_local());
     action_service_ = create_service<ActionService>("/control_core/submit_abstract_command",
@@ -175,6 +179,15 @@ private:
   using FeedbackService = motor_control_interfaces::srv::GetMotorFeedback;
   using Steady = std::chrono::steady_clock;
 
+  struct JointDataRT {
+    double pos{0.0};
+    double vel{0.0};
+    double eff{0.0};
+    bool effort_known{false};
+    std::chrono::steady_clock::time_point received_at{};
+    double source_stamp{0.0};
+  };
+
   struct CommandTime {
     double source;
     double expiry;
@@ -182,11 +195,14 @@ private:
   };
 
   ActionStatus action_status() const {
+    if (home_status_valid_) {auto msg = home_status_; msg.header.stamp = now(); return msg;}
     const auto& status = zero_.status();
     ActionStatus msg; msg.header.stamp = now(); msg.request_id = status.request_id;
     msg.joint_name = status.joint; msg.stage = static_cast<uint8_t>(status.stage);
     msg.message = status.message; msg.zero_may_have_changed = status.zero_may_have_changed;
-    msg.calibration_epoch = status.calibration_epoch; return msg;
+    msg.calibration_epoch = status.calibration_epoch;
+    if (simulation_zero_) msg.message = "SIMULATION: " + msg.message;
+    return msg;
   }
   void publish_action_status() {operation_status_pub_->publish(action_status());}
   ActionStatus rejected_status(const Action& action, const std::string& reason) const {
@@ -195,7 +211,7 @@ private:
     msg.message = reason; msg.calibration_epoch = zero_.status().calibration_epoch; return msg;
   }
   void poll_management_feedback() {
-    if (!actions_enabled_) return;
+    if (!actions_enabled_ && !lifecycle_active_ && idle_enabled_.empty()) return;
     const auto current = Steady::now();
     for (auto it = feedback_pending_.begin(); it != feedback_pending_.end();) {
       if (current >= it->second.second) {
@@ -212,13 +228,14 @@ private:
         try {
           const auto response = result.get(); const auto& f = response->feedback;
           const double age = (now() - rclcpp::Time(f.stamp)).seconds();
+          const double freshness = simulation_zero_ ? 0.2 : 0.1;
           if (!response->success || !f.available || !f.fresh || f.joint_name != name ||
-              f.fault_bits || !std::isfinite(f.age_s) || f.age_s < 0 || f.age_s > 0.1 ||
-              age < -0.01 || age > 0.1 || (f.status_mode != 0 && f.status_mode != 2)) {
+              f.fault_bits || !std::isfinite(f.age_s) || f.age_s < 0 || f.age_s > freshness ||
+              age < -0.01 || age > freshness || (f.status_mode != 0 && f.status_mode != 2)) {
             enabled_evidence_.erase(name); return;
           }
           enabled_evidence_[name] = {f.status_mode == 2, Steady::now() +
-            std::chrono::duration_cast<Steady::duration>(std::chrono::duration<double>(0.1 - std::max(age, f.age_s)))};
+            std::chrono::duration_cast<Steady::duration>(std::chrono::duration<double>(freshness - std::max(age, f.age_s)))};
         } catch (const std::exception&) {enabled_evidence_.erase(name);}
       });
       feedback_pending_[name] = {future.request_id, current + std::chrono::milliseconds(200)};
@@ -229,6 +246,11 @@ private:
     if (!command_time(action.header.stamp, action.valid_until, timing)) {
       reason = "Expired, future or unstamped abstract command"; return false;
     }
+    if (action.operation == Action::ENABLE || action.operation == Action::DISABLE)
+      return begin_lifecycle(action, reason);
+    if (lifecycle_active_) {reason = "Enable/disable verification pending"; return false;}
+    if (action.operation == Action::HOME) return begin_home(action, reason);
+    if (home_active_) {reason = "Home owns control; wait for completion or assert estop"; return false;}
     if (action.operation == Action::CANCEL) {
       if (action.request_id != zero_.status().request_id || !zero_.blocks_normal()) {
         reason = "No matching operation to cancel"; return false;
@@ -244,7 +266,7 @@ private:
       if (accepted) {minimum_command_source_ = now().seconds(); publish_disable_all(joint_order_);}
       publish_action_status(); return accepted;
     }
-    if (!actions_enabled_) {reason = "Abstract motion actions disabled pending commissioning"; return false;}
+    if (!actions_enabled_) {reason = "Hardware Set Zero unavailable: commissioning and firmware/readback verification are not implemented. Use fake mode for simulated zero"; return false;}
     if (action.operation != Action::SET_MECHANICAL_ZERO) {reason = "Unsupported abstract operation"; return false;}
     if (!core_configured_ || safety_estop_active_.load() || !state_is_fresh(joint_order_, latest_state_map_)) {
       reason = "Estop, unconfigured core or stale joint feedback"; return false;
@@ -262,11 +284,152 @@ private:
       if (!jd.effort_known) {reason = "Measured effort required for action admission"; return false;}
       state.joints[name] = {jd.pos, jd.vel, jd.eff};
     }
+    home_status_valid_ = false;
     if (!zero_.begin(action.request_id, action.joint_name, state, joint_order_, enabled, operation_limits_, reason)) return false;
+    idle_enabled_.clear();
     // No pre-zero policy/manual target survives admission or operation reset.
     desired_subset_.clear(); command_times_.clear(); has_cmd_ = false;
     minimum_command_source_ = now().seconds(); action_tick_ = Steady::now();
     publish_action_status(); return true;
+  }
+  void publish_lifecycle(const std::vector<std::string>& names, uint8_t mode) {
+    if (names.empty()) return;
+    motor_control_interfaces::msg::MotorCommand msg;
+    msg.header.stamp = now(); msg.valid_until = now() + rclcpp::Duration::from_seconds(0.3);
+    msg.joint_name = names; msg.mode = {mode};
+    msg.position.assign(names.size(), 0); msg.velocity.assign(names.size(), 0);
+    msg.torque.assign(names.size(), 0); msg.kp.assign(names.size(), 0); msg.kd.assign(names.size(), 0);
+    // Idle enable sends zero-gain/zero-feedforward MIT frames, never an old pose target.
+    cmd_pub_->publish(msg);
+  }
+  bool begin_lifecycle(const Action& action, std::string& reason) {
+    const bool enable = action.operation == Action::ENABLE;
+    const auto selected = action.joint_name == "*" ? joint_order_ : std::vector<std::string>{action.joint_name};
+    if (action.request_id.empty() || action.request_id.size() > 128 || selected.empty()) {
+      reason = "Invalid lifecycle request"; return false;
+    }
+    for (const auto& name : selected) if (std::find(joint_order_.begin(), joint_order_.end(), name) == joint_order_.end()) {
+      reason = "Unknown lifecycle joint"; return false;
+    }
+    if (enable && (lifecycle_active_ || home_active_ || zero_.blocks_normal() || !core_configured_ ||
+        safety_estop_active_.load() || !supervisor_seen_ || !supervisor_warning_reason().empty() ||
+        !state_is_fresh(joint_order_, latest_state_map_))) {
+      reason = "Enable requires fresh complete feedback, healthy released safety and no active operation"; return false;
+    }
+    if (!enable && (home_active_ || zero_.blocks_normal() || lifecycle_active_)) publish_disable_all(joint_order_);
+    desired_subset_.clear(); command_times_.clear(); has_cmd_ = false;
+    minimum_command_source_ = now().seconds();
+    if (core_configured_) core_.configure(joint_order_);
+    lifecycle_joints_ = selected; lifecycle_enable_ = enable; lifecycle_active_ = true;
+    lifecycle_deadline_ = Steady::now() + std::chrono::seconds(2);
+    home_status_ = ActionStatus{}; home_status_valid_ = true;
+    home_status_.request_id = action.request_id; home_status_.joint_name = action.joint_name;
+    home_status_.stage = ActionStatus::WAITING_BACKEND;
+    home_status_.zero_may_have_changed = zero_.status().zero_may_have_changed;
+    home_status_.message = enable ? "Enable submitted; waiting for fresh enabled-state feedback" : "Disable submitted; waiting for fresh disabled-state feedback";
+    for (const auto& name : selected) {
+      if (enable) idle_enabled_.insert(name); else idle_enabled_.erase(name);
+      enabled_evidence_.erase(name); // A pre-command sample cannot verify this request.
+    }
+    publish_lifecycle(selected, enable ? motor_control_interfaces::msg::MotorCommand::MODE_ENABLE : motor_control_interfaces::msg::MotorCommand::MODE_DISABLE);
+    reason = home_status_.message; publish_action_status(); return true;
+  }
+  void lifecycle_step() {
+    if (!lifecycle_active_) return;
+    bool verified = true;
+    for (const auto& name : lifecycle_joints_) {
+      const auto it = enabled_evidence_.find(name);
+      verified = verified && it != enabled_evidence_.end() && Steady::now() < it->second.second && it->second.first == lifecycle_enable_;
+    }
+    if (verified) {
+      lifecycle_active_ = false; home_status_.stage = ActionStatus::COMPLETED;
+      home_status_.message = lifecycle_enable_ ? "Fresh feedback verifies enabled; idle commands have zero gains and feedforward" : "Fresh feedback verifies disabled";
+      publish_action_status();
+    } else if (Steady::now() >= lifecycle_deadline_) {
+      lifecycle_active_ = false;
+      for (const auto& name : lifecycle_joints_) idle_enabled_.erase(name);
+      publish_lifecycle(lifecycle_joints_, motor_control_interfaces::msg::MotorCommand::MODE_DISABLE);
+      home_status_.stage = ActionStatus::FAILED;
+      home_status_.message = "Enable/disable feedback timed out; disable submitted, physical state unverified";
+      publish_action_status();
+    }
+  }
+  void drive_idle_enabled() {
+    if (idle_enabled_.empty()) return;
+    if (!supervisor_seen_ || !supervisor_warning_reason().empty()) {publish_disable_all(joint_order_); return;}
+    publish_lifecycle(std::vector<std::string>(idle_enabled_.begin(), idle_enabled_.end()), motor_control_interfaces::msg::MotorCommand::MODE_MOTION);
+  }
+  bool begin_home(const Action& action, std::string& reason) {
+    if (home_status_valid_ && action.request_id == home_status_.request_id) {reason = "Duplicate Home request ID"; return false;}
+    if (home_active_ || zero_.blocks_normal()) {reason = "Another operation owns control"; return false;}
+    if (action.request_id.empty() || action.request_id.size() > 128 ||
+        !core_configured_ || safety_estop_active_.load() || !supervisor_seen_ ||
+        !supervisor_warning_reason().empty() ||
+        !state_is_fresh(joint_order_, latest_state_map_)) {
+      reason = "Invalid request, estop or stale/incomplete joint feedback"; return false;
+    }
+    const std::vector<std::string> selected = action.joint_name == "*" ? joint_order_ : std::vector<std::string>{action.joint_name};
+    if (home_lower_.size() != joint_order_.size() || home_upper_.size() != joint_order_.size()) {
+      reason = "Missing Home limits"; return false;
+    }
+    for (const auto& name : selected) {
+      const auto it = std::find(joint_order_.begin(), joint_order_.end(), name);
+      if (it == joint_order_.end()) {reason = "Unknown Home joint"; return false;}
+      const size_t i = std::distance(joint_order_.begin(), it);
+      const auto& state = latest_state_map_.at(name);
+      if (!std::isfinite(home_lower_[i]) || !std::isfinite(home_upper_[i]) ||
+          home_lower_[i] > 0 || home_upper_[i] < 0 || home_lower_[i] >= home_upper_[i] ||
+          state.pos < home_lower_[i] || state.pos > home_upper_[i] || std::abs(state.vel) > 0.05) {
+        reason = "Home needs settled joints and finite limits containing current positions and zero"; return false;
+      }
+    }
+    idle_enabled_.clear();
+    home_targets_.clear();
+    for (const auto& name : selected) home_targets_[name] = latest_state_map_.at(name).pos;
+    home_status_ = ActionStatus{};
+    home_status_.request_id = action.request_id; home_status_.joint_name = action.joint_name;
+    home_status_.stage = ActionStatus::RESUMING;
+    home_status_.message = "Moving to current coordinate zero; no encoder write or automatic enable";
+    home_status_valid_ = home_active_ = true;
+    home_start_ = home_tick_ = Steady::now(); home_settle_ = home_start_;
+    desired_subset_.clear(); command_times_.clear(); has_cmd_ = false;
+    minimum_command_source_ = now().seconds();
+    reason = "Home admitted; completion requires fresh zero-position feedback";
+    publish_action_status(); return true;
+  }
+  void step_home(const std::unordered_map<std::string, JointDataRT>& state) {
+    const auto current = Steady::now();
+    if (!supervisor_warning_reason().empty()) {publish_disable_all(joint_order_); return;}
+    if (std::chrono::duration<double>(current - home_start_).count() > 30.0) {
+      publish_disable_all(joint_order_); return;
+    }
+    const double dt = std::min(0.05, std::chrono::duration<double>(current - home_tick_).count());
+    home_tick_ = current;
+    bool settled = true;
+    for (auto& item : home_targets_) {
+      const auto& measured = state.at(item.first);
+      if (std::abs(item.second - measured.pos) > 0.2) {publish_disable_all(joint_order_); return;}
+      item.second += std::clamp(-item.second, -0.1 * dt, 0.1 * dt);
+      settled = settled && std::abs(measured.pos) <= 0.01 && std::abs(measured.vel) <= 0.02 && std::abs(item.second) <= 1e-6;
+    }
+    if (!settled) home_settle_ = current;
+    if (std::chrono::duration<double>(current - home_settle_).count() >= 0.3) {
+      home_active_ = false;
+      minimum_command_source_ = now().seconds();
+      home_status_.stage = ActionStatus::COMPLETED;
+      home_status_.message = "Verified current coordinate zero; outputs disabled";
+      publish_disable_all(joint_order_); publish_action_status(); return;
+    }
+    control_core::Output output; output.joint_name = joint_order_;
+    for (const auto& name : joint_order_) {
+      control_core::Command cmd; cmd.mode = control_core::Mode::Disable;
+      if (home_targets_.count(name)) {
+        cmd.mode = control_core::Mode::Position; cmd.position = home_targets_.at(name);
+        cmd.velocity = 0.1; cmd.kp = 2.0; cmd.kd = 0.2;
+      }
+      output.commands.push_back(cmd);
+    }
+    publish_output(output, true); publish_action_status();
   }
   void dispatch_zero() {
     if (!zero_.take_backend_request()) return;
@@ -286,7 +449,10 @@ private:
               (reply->accepted && reply->state != BackendOperation::Response::ACCEPTED) ||
               (!reply->accepted && reply->state != BackendOperation::Response::REJECTED)) {
             zero_.abort("Invalid backend acknowledgement; outcome unknown");
-          } else zero_.backend_reply(id, reply->accepted, reply->message);
+          } else {
+            zero_.backend_reply(id, reply->accepted, reply->message);
+            if (simulation_zero_ && reply->accepted) simulated_zero_reply_stamp_ = now().seconds();
+          }
         } catch (const std::exception& error) {zero_.abort(std::string("Unknown backend outcome: ") + error.what());}
         publish_action_status();
       });
@@ -294,14 +460,7 @@ private:
     } catch (const std::exception& error) {zero_.abort(std::string("Backend submission outcome unknown: ") + error.what());}
   }
 
-  struct JointDataRT {
-    double pos{0.0};
-    double vel{0.0};
-    double eff{0.0};
-    bool effort_known{false};
-    std::chrono::steady_clock::time_point received_at{};
-    double source_stamp{0.0};
-  };
+
 
   // -------- mode mapping helpers --------
   static inline control_core::Mode from_ros_mode(uint8_t m) {
@@ -415,6 +574,11 @@ private:
   void desired_motor_callback(const motor_control_interfaces::msg::MotorCommand::SharedPtr msg)
   {
     if (!msg || msg->joint_name.empty()) return;
+    if (home_active_ || lifecycle_active_) {
+      if (std::find(msg->mode.begin(), msg->mode.end(), motor_control_interfaces::msg::MotorCommand::MODE_DISABLE) != msg->mode.end())
+        publish_disable_all(joint_order_);
+      return;
+    }
     if (zero_.blocks_normal()) {
       if (std::find(msg->mode.begin(), msg->mode.end(), motor_control_interfaces::msg::MotorCommand::MODE_DISABLE) != msg->mode.end())
         zero_.abort("External disable during operation");
@@ -435,6 +599,7 @@ private:
           std::chrono::duration<double>(cmd_timeout_s_))};
     }
     if (!disable_only && timing.source <= minimum_command_source_) return;
+    for (const auto& name : msg->joint_name) idle_enabled_.erase(name);
     last_cmd_time_ = this->now();
     has_cmd_ = true;
     desired_subset_.clear();
@@ -524,12 +689,13 @@ private:
   // Backward-compatible: velocity subset via JointState
   void desired_velocity_callback(const sensor_msgs::msg::JointState::SharedPtr msg)
   {
-    if (!msg || msg->name.empty() || zero_.blocks_normal()) return;
+    if (!msg || msg->name.empty() || zero_.blocks_normal() || home_active_ || lifecycle_active_) return;
 
     std::lock_guard<std::mutex> lock(cmd_mutex_);
     CommandTime timing;
     if (!command_time(msg->header.stamp, builtin_interfaces::msg::Time{}, timing)) return;
     if (timing.source <= minimum_command_source_) return;
+    for (const auto& name : msg->name) idle_enabled_.erase(name);
     last_cmd_time_ = this->now();
     has_cmd_ = true;
 
@@ -576,6 +742,7 @@ private:
       state_map = latest_state_map_;
     }
 
+    lifecycle_step();
     if (joint_order.empty()) return;
 
     // This gate precedes all command handling and continuously publishes
@@ -598,6 +765,8 @@ private:
       return;
     }
 
+    if (home_active_) {step_home(state_map); return;}
+
     if (zero_.blocks_normal()) {
       control_core::State state;
       if (joint_order != zero_.joint_order()) {
@@ -610,6 +779,18 @@ private:
       const auto current = Steady::now();
       const double dt = std::chrono::duration<double>(current - action_tick_).count();
       action_tick_ = current;
+      if (simulation_zero_ && zero_.status().stage == control_core::OperationStage::WaitingRebind &&
+          simulated_zero_reply_stamp_ > 0) {
+        const auto& selected = state_map.at(zero_.status().joint);
+        bool new_samples = true;
+        for (const auto& item : state_map) new_samples = new_samples && item.second.source_stamp > simulated_zero_reply_stamp_;
+        if (new_samples && std::abs(selected.pos) <= 0.001 && std::abs(selected.vel) <= 0.01) {
+          zero_.confirm_rebind(zero_.status().request_id, zero_.status().calibration_epoch + 1, state);
+          simulated_zero_reply_stamp_ = 0;
+          minimum_command_source_ = now().seconds();
+          desired_subset_.clear(); command_times_.clear(); has_cmd_ = false;
+        }
+      }
       const auto output = zero_.step(state, dt);
       publish_output(output, true);
       dispatch_zero();
@@ -619,6 +800,8 @@ private:
       }
       publish_action_status(); return;
     }
+
+    drive_idle_enabled();
 
     // Snapshot desired subset
     control_core::CommandSubset desired_subset;
@@ -674,6 +857,10 @@ private:
 
     // Run core (per-joint independent mode + hold-last)
     auto out = core_.step(s, desired_subset, dt);
+    for (size_t i = 0; i < out.joint_name.size(); ++i) if (idle_enabled_.count(out.joint_name[i])) {
+      auto& cmd = out.commands[i]; cmd = control_core::Command{};
+      cmd.mode = control_core::Mode::Motion; cmd.kp = cmd.kd = 0;
+    }
     if (!out.warnings.empty()) {
       std::string reasons;
       for (const auto& warning : out.warnings) {
@@ -735,6 +922,16 @@ private:
   {
     using MC = motor_control_interfaces::msg::MotorCommand;
 
+    idle_enabled_.clear();
+    if (lifecycle_active_) {
+      lifecycle_active_ = false; home_status_.stage = ActionStatus::FAILED;
+      home_status_.message = "Lifecycle operation interrupted: outputs disabled; inspect safety/feedback";
+    }
+    if (home_active_) {
+      home_active_ = false; home_status_.stage = ActionStatus::FAILED;
+      minimum_command_source_ = now().seconds();
+      home_status_.message = "Home interrupted by watchdog, disable, tracking error or timeout";
+    }
     zero_.abort("Estop or control watchdog: outputs disabled");
     if (backend_pending_id_) {backend_client_->remove_pending_request(backend_pending_id_); backend_pending_id_ = 0;}
     if (operation_status_pub_) publish_action_status();
@@ -755,6 +952,17 @@ private:
   }
 
 private:
+  bool lifecycle_active_{false}, lifecycle_enable_{false};
+  std::vector<std::string> lifecycle_joints_;
+  std::unordered_set<std::string> idle_enabled_;
+  Steady::time_point lifecycle_deadline_;
+  bool simulation_zero_{false};
+  double simulated_zero_reply_stamp_{0};
+  bool home_active_{false}, home_status_valid_{false};
+  ActionStatus home_status_;
+  std::unordered_map<std::string, double> home_targets_;
+  Steady::time_point home_start_, home_tick_, home_settle_;
+  std::vector<double> home_lower_, home_upper_;
   control_core::ZeroOperation zero_;
   control_core::OperationLimits operation_limits_;
   bool actions_enabled_{false};

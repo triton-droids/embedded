@@ -12,7 +12,7 @@ from motor_control_hybrid.python_can_node import PythonCanNode
 @pytest.fixture
 def node():
     node = PythonCanNode.__new__(PythonCanNode)
-    node.motor_identity = {'knee': dict(joint_name='knee', can_interface='can0',
+    node.motor_identity = {'knee': dict(joint_name='knee', can_interface='can1',
                                       motor_id=4, model='rs-04')}
     node.state_lock = threading.Lock()
     node.raw_feedback = {}
