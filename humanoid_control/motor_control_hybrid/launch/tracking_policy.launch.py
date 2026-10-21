@@ -23,6 +23,7 @@ def generate_launch_description():
         'start_imu_reader': 'false', 'imu_topic': '/imu/data_raw',
         'joint_states_topic': '/policy/joint_states',
         'joint_feedback_mode': 'zero', 'calibration_seconds': '2.0',
+        'orientation_source': 'complementary',
         'max_input_skew_s': '0.02', 'max_inference_s': '0.02',
         'use_fake_joint_states': 'false', 'run_cpp_control': 'false',
     }
@@ -47,6 +48,7 @@ def generate_launch_description():
             'motor_config_file': str(registry_path),
             'imu_topic': cfg('imu_topic'), 'joint_states_topic': cfg('joint_states_topic'),
             'joint_feedback_mode': cfg('joint_feedback_mode'),
+            'orientation_source': cfg('orientation_source'),
             'calibration_seconds': ParameterValue(cfg('calibration_seconds'), value_type=float),
             'max_input_skew_s': ParameterValue(cfg('max_input_skew_s'), value_type=float),
             'max_inference_s': ParameterValue(cfg('max_inference_s'), value_type=float),
