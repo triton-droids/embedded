@@ -180,3 +180,56 @@ def test_diagnostics_for_another_component_are_not_supervisor_heartbeat():
     msg = diagnostic()
     msg.status[0].name = 'humanoid_safety/imu'
     assert not cache.observe_supervisor(msg, 10, 100)
+
+
+def test_config_hot_reload_keeps_all_motors_and_clears_changed_identity(tmp_path):
+    from humanoid_safety.motor_web_node import LiveMotorConfig
+    path = tmp_path / 'motors.yaml'
+    def write(motors):
+        import yaml
+        path.write_text(yaml.safe_dump({'motor_control_node': {'ros__parameters': {
+            'default_can_interface': 'can1', 'hardware_verified': False, 'motors': motors}}}))
+    cfg = {'a': {'motor_id': 1, 'model': 'rs-03', 'kp': 20},
+           'b': {'motor_id': 2, 'model': 'rs-04', 'kp': 30}}
+    write(cfg)
+    cache = MotorStatusCache()
+    live = LiveMotorConfig(path, cache)
+    live.refresh(10)
+    assert live.error is None
+    assert [m['joint_name'] for m in cache.snapshot(10, 100)['motors']] == ['a', 'b']
+    assert all(not m['online'] for m in cache.snapshot(10, 100)['motors'])
+    cache.observe(message(('a',), positions=[.4]), 10, 100)
+    cfg['a']['motor_id'] = 3
+    cfg['c'] = cfg.pop('b')
+    write(cfg)
+    live.refresh(10.2)  # Polling does not repeatedly parse YAML.
+    assert cache.registry['a']['motor_id'] == 1
+    live.refresh(11.1)
+    motors = cache.snapshot(11.1, 100)['motors']
+    assert [m['joint_name'] for m in motors] == ['a', 'c']
+    assert motors[0]['motor_id'] == 3 and motors[0]['position_rad'] is None
+    assert motors[0]['can_interface'] == 'can1'
+    assert live.snapshot()['parameters']['hardware_verified'] is False
+
+
+def test_invalid_config_retains_last_valid_and_recovers(tmp_path):
+    from humanoid_safety.motor_web_node import LiveMotorConfig
+    path = tmp_path / 'motors.yaml'
+    valid = 'motor_control_node:\n  ros__parameters:\n    motors:\n      a: {motor_id: 1, model: rs-03}\n'
+    path.write_text(valid)
+    cache = MotorStatusCache()
+    live = LiveMotorConfig(path, cache)
+    live.refresh(10)
+    for i, invalid in enumerate(['motor_control_node: [', 'null',
+            valid.replace('motor_id: 1', 'motor_id: true'), valid + '    KP: .nan\n']):
+        path.write_text(invalid)
+        live.refresh(12 + i * 2)
+        assert live.error
+        assert list(cache.registry) == ['a']
+        assert live.parameters['motors']['a']['motor_id'] == 1
+    path.unlink()
+    live.refresh(22)
+    assert live.error and list(cache.registry) == ['a']
+    path.write_text(valid)
+    live.refresh(24)
+    assert live.error is None

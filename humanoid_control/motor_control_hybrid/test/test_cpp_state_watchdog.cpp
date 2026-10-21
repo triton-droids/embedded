@@ -3,6 +3,7 @@
 #include "../src/cpp_control_node.cpp"
 #include <gtest/gtest.h>
 #include <limits>
+#include <thread>
 
 // A narrow test peer keeps production callbacks private while testing their
 // state transition and watchdog behavior directly, without timing sleeps.
@@ -13,6 +14,7 @@ struct CppControlNodeTestPeer {
     msg->name = names;
     msg->position.assign(names.size(), 0.1);
     msg->velocity.assign(names.size(), 0.0);
+    msg->effort.assign(names.size(), 0.0);
     node.state_callback(msg);
   }
   static bool fresh(const CppControlNode& node) {
@@ -79,6 +81,31 @@ struct CppControlNodeTestPeer {
     EXPECT_FALSE(node.has_cmd_);
     command(node, "a", -1.0);
     EXPECT_FALSE(node.has_cmd_);
+  }
+
+  static void enable_test_actions(CppControlNode& node) {
+    node.actions_enabled_ = true; node.operation_limits_.settle_s = .04;
+  }
+  static void start_zero(CppControlNode& node) {
+    observe(node, {"a", "b"});
+    CppControlNode::Action action; action.header.stamp = node.now();
+    action.request_id = "mock-zero"; action.joint_name = "a";
+    action.operation = CppControlNode::Action::SET_MECHANICAL_ZERO;
+    std::string reason;
+    ASSERT_TRUE(node.submit_action(action, reason)) << reason;
+    command(node, "a", 0); EXPECT_FALSE(node.has_cmd_); // Paused targets are discarded.
+  }
+  static bool backend_ready(CppControlNode& node) {
+    return node.backend_client_->service_is_ready() && node.enabled_evidence_.size() == 2;
+  }
+  static bool zero_failed(CppControlNode& node) {return node.zero_.status().stage == control_core::OperationStage::Failed;}
+  static std::string zero_reason(CppControlNode& node) {return node.zero_.status().message;}
+  static void check_default_action_gate(CppControlNode& node) {
+    CppControlNode::Action action; action.header.stamp = node.now();
+    action.request_id = "default-off"; action.joint_name = "a";
+    action.operation = CppControlNode::Action::SET_MECHANICAL_ZERO;
+    std::string reason; EXPECT_FALSE(node.submit_action(action, reason));
+    EXPECT_NE(reason.find("disabled"), std::string::npos);
   }
 
   static void check_supervisor_advisory(CppControlNode& node) {
@@ -222,4 +249,44 @@ TEST(ControlCoreAdvisoryTest, FailedFeaturesDoNotFreezeOrReplaceDesiredAction) {
   ASSERT_EQ(throwing.warnings.size(), 2u);
   EXPECT_NE(throwing.warnings[1].find("test exception"), std::string::npos);
   EXPECT_DOUBLE_EQ(throwing.commands[0].position, 0.3);
+}
+
+TEST_F(CppStateWatchdogTest, AbstractActionsDefaultOff) {
+  CppControlNode node; CppControlNodeTestPeer::check_default_action_gate(node);
+}
+
+TEST_F(CppStateWatchdogTest, AsyncMockBackendRejectionKeepsCorePaused) {
+  auto node = std::make_shared<CppControlNode>();
+  auto backend = std::make_shared<rclcpp::Node>("mock_zero_backend");
+  using Service = motor_control_interfaces::srv::ExecuteMotorOperation;
+  size_t calls = 0;
+  auto service = backend->create_service<Service>("/motor_backend/execute_operation",
+    [&calls](const Service::Request::SharedPtr req, Service::Response::SharedPtr res) {
+      ++calls; res->request_id = req->request_id; res->accepted = false;
+      res->state = Service::Response::REJECTED; res->message = "mock unsupported profile";
+    });
+  using Feedback = motor_control_interfaces::srv::GetMotorFeedback;
+  auto feedback_service = backend->create_service<Feedback>("/motor_backend/get_feedback",
+    [clock = backend->get_clock()](const Feedback::Request::SharedPtr req, Feedback::Response::SharedPtr res) {
+      res->success = true; res->feedback.joint_name = req->joint_name;
+      res->feedback.available = res->feedback.fresh = true;
+      res->feedback.stamp = clock->now(); res->feedback.age_s = 0;
+      res->feedback.status_mode = req->joint_name == "a" ? 2 : 0;
+    });
+  CppControlNodeTestPeer::enable_test_actions(*node);
+  rclcpp::executors::SingleThreadedExecutor executor;
+  executor.add_node(node); executor.add_node(backend);
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+  while (!CppControlNodeTestPeer::backend_ready(*node) && std::chrono::steady_clock::now() < deadline) {
+    executor.spin_some(); std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  }
+  ASSERT_TRUE(CppControlNodeTestPeer::backend_ready(*node));
+  CppControlNodeTestPeer::start_zero(*node);
+  while (!CppControlNodeTestPeer::zero_failed(*node) && std::chrono::steady_clock::now() < deadline) {
+    CppControlNodeTestPeer::observe(*node, {"a", "b"});
+    executor.spin_some(); std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  }
+  EXPECT_TRUE(CppControlNodeTestPeer::zero_failed(*node)); EXPECT_EQ(calls, 1u);
+  EXPECT_NE(CppControlNodeTestPeer::zero_reason(*node).find("mock unsupported profile"), std::string::npos);
+  executor.remove_node(node); executor.remove_node(backend);
 }

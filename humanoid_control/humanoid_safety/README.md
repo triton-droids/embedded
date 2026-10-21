@@ -62,8 +62,35 @@ visible but are marked offline. Offline is not proof of physical stopping.
 The node has a bounded per-joint cache and a single HTTP owner with bounded socket
 waits; browser polling allows only one outstanding request.
 
+Select a joint in the table or selector to inspect its feedback and review
+**Home** or **Set Zero**. Home means moving to the calibrated zero; Set Zero
+means making the current physical position the motor's mechanical zero.
+The reviews describe the intended control_core workflow, including pausing and
+decelerating body motion, verifying the zero write, rebinding coordinates and
+resuming previously authorized control. ROS joint position is not raw encoder
+position and cannot verify a mechanical zero write.
+
+These action panels are currently **preview only**. Execute remains disabled:
+the HTTP node still serves read-only feedback and rejects POST requests. No
+action is submitted, and no motor enable or calibration state is inferred from
+telemetry. The [command design](../../docs/robstride_abstract_command_design.md)
+describes the backend integration that remains to be implemented.
+
 If installed, `motor_control_hybrid/config/motors.yaml` supplies expected names
 and CAN identities. Override using `motor_config_file:=/absolute/path/motors.yaml`.
+Every configured motor appears even before feedback arrives. The configuration
+tables show all per-motor YAML fields and global/model parameters. The server
+checks the selected file once per second and reloads changes without a UI or node
+restart. The page reports the exact file path, last successful load time and
+reload errors. Invalid or temporarily missing files retain the last valid table;
+changed motor identities or coordinate mappings invalidate cached feedback.
+This reload changes monitoring only, not the running motor controller's settings.
+To watch the source checkout rather than an installed copy, use:
+
+```bash
+ros2 launch humanoid_safety safety.launch.py mode:=web motor_config_file:="$PWD/humanoid_control/motor_control_hybrid/config/motors.yaml"
+```
+
 The Web monitor consumes `/motor_telemetry` (String JSON schema version 1), not
 legacy enumeration-index `/motor_status`. Each record contains `joint_name`,
 `can_interface`, `motor_id`, `model`, `source_stamp` (ROS seconds) and
@@ -167,3 +194,43 @@ ROS_DOMAIN_ID=84 RUN_ROS_INTEGRATION=1 \
   PYTHONPATH=humanoid_control/humanoid_safety:$PYTHONPATH python3 -m pytest -q \
   humanoid_control/humanoid_safety/test/test_imu_time_contract.py
 ```
+
+## Unified control, safety and model display
+
+The existing `joint_state_monitor_node` is the pose display relay; no second
+angle-conversion node is needed. The CAN node already converts raw motor angles
+through polarity, encoder offset and ankle linkage mapping into named ROS joint
+angles in `/joint_states`. The relay forwards those positions and source stamps
+to `/safety/visualization/joint_states`; `robot_state_publisher` applies URDF
+forward kinematics to publish TF for RViz. This displays measured articulation,
+with a fixed base; it does not estimate world position, odometry or base tilt.
+
+Start the full body stack from a sourced workspace:
+
+```bash
+ros2 launch motor_control_hybrid control_stack.launch.py
+```
+
+This starts exactly one safety supervisor, the read-only motor Web UI, the
+Python CAN backend, the C++ control node, this package's joint-state relay,
+`robot_state_publisher` and RViz. It starts no policy, legacy command gateway or
+manual joint-state GUI, and does not automatically enable, home or zero motors.
+The usual hardware-verification gates remain in force. Provide real body IMU
+feedback on `/imu/data_raw`; without it, safety latches after its startup grace.
+
+For a hardware-free smoke test:
+
+```bash
+ros2 launch motor_control_hybrid control_stack.launch.py enable_fake_motor:=true use_rviz:=false
+```
+
+Fake mode replaces the CAN node. The Web UI defaults to `127.0.0.1:8080`;
+`host`, `port`, `ros_domain_id`, `motor_config_file`, `safety_config_file`,
+`control_rate_hz` and command timeouts are launch arguments. A fake robot without
+IMU input still trips the same safety checks. `use_rviz:=false` keeps the model
+TF publisher running for headless testing.
+
+RViz uses measured `/joint_states` by default. Explicitly select
+`display_source_topic:=/policy/target_angles` to inspect model target angles;
+that view shows commanded posture rather than measured posture. This changes
+only the model-display input; Web and control still use measured feedback.

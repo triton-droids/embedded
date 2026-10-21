@@ -21,6 +21,7 @@ set(CONTROL_CORE_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../Interfaces/control_core)
 
 add_library(control_core SHARED
   ${CONTROL_CORE_ROOT}/src/api.cpp
+  ${CONTROL_CORE_ROOT}/src/operation.cpp
 )
 
 target_include_directories(control_core PUBLIC
@@ -101,10 +102,13 @@ if(BUILD_TESTING)
   ament_add_pytest_test(control_watchdogs_test test/test_control_watchdogs.py TIMEOUT 30)
   ament_add_pytest_test(model_control_settings_test test/test_model_control_settings.py TIMEOUT 30)
   ament_add_pytest_test(can_transport_test test/test_can_transport.py TIMEOUT 30)
+  ament_add_pytest_test(motor_services_test test/test_motor_services.py TIMEOUT 30)
   find_package(ament_cmake_gtest REQUIRED)
   ament_add_gtest(cpp_state_watchdog_test test/test_cpp_state_watchdog.cpp)
   ament_target_dependencies(cpp_state_watchdog_test rclcpp sensor_msgs std_msgs diagnostic_msgs motor_control_interfaces)
   target_link_libraries(cpp_state_watchdog_test control_core)
+  ament_add_gtest(core_operation_test test/test_core_operation.cpp)
+  target_link_libraries(core_operation_test control_core)
   set_tests_properties(cpp_state_watchdog_test PROPERTIES
     ENVIRONMENT "ROS_DOMAIN_ID=179;ROS_LOCALHOST_ONLY=1;ROS_LOG_DIR=/tmp/cpp-state-watchdog-logs")
 endif()

@@ -14,6 +14,12 @@ find_package(builtin_interfaces REQUIRED)
 # Generate interfaces
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/MotorCommand.msg"
+  "msg/MotorFeedback.msg"
+  "msg/AbstractCommand.msg"
+  "msg/AbstractCommandStatus.msg"
+  "srv/GetMotorFeedback.srv"
+  "srv/ExecuteMotorOperation.srv"
+  "srv/SubmitAbstractCommand.srv"
   DEPENDENCIES std_msgs builtin_interfaces
 )
 

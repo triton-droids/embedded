@@ -103,6 +103,10 @@ class NonblockingRobstrideBus(RobstrideBus):
             raise RuntimeError(f'{name}: motor fault report {bytes(frame.data).hex()}')
         if kind != CommunicationType.OPERATION_STATUS:
             return None
+        # A firmware-query reply also uses type 2. Its management payload must
+        # never be scaled into plausible joint angles or satisfy an enable ack.
+        if bytes(frame.data[:3]) == b'\x00\xc4\x56':
+            return None
         model = self.motors[name].model
         p, v, t, temperature = struct.unpack('>HHHH', frame.data)
         return MotorFeedback(

@@ -1,0 +1,14 @@
+# Management admission only. CAN numbers are NOT accepted as ROS operation IDs.
+uint8 SET_MECHANICAL_ZERO=1
+string request_id
+string joint_name
+uint8 operation
+---
+# accepted means queued, never completed. Currently zero admission is disabled
+# until the core lease, firmware profile and verification path are implemented.
+uint8 REJECTED=0
+uint8 ACCEPTED=1
+bool accepted
+uint8 state
+string request_id
+string message

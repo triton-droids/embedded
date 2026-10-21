@@ -19,6 +19,7 @@ import numpy as np
 import rclpy
 import yaml
 from motor_control_interfaces.msg import MotorCommand
+from motor_control_interfaces.srv import ExecuteMotorOperation, GetMotorFeedback
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from robstride_dynamics import CommunicationType, Motor, ParameterType, RobstrideBus
@@ -82,6 +83,9 @@ class PythonCanNode(Node):
 
         self.telemetry_stamps = {}
         self.state_buffer: Dict[str, Tuple[float, float, float, float, float]] = {}
+        # Raw motor coordinates/status for management readback. Never infer
+        # these by inverting JointState, especially for ankle linkages.
+        self.raw_feedback = {}
         self.state_lock = threading.Lock()
 
         self.command_queue = LatestCommandMailbox()
@@ -125,6 +129,10 @@ class PythonCanNode(Node):
             self._cmd_callback,
             10,
         )
+        self.feedback_service = self.create_service(
+            GetMotorFeedback, 'motor_backend/get_feedback', self._get_feedback_callback)
+        self.operation_service = self.create_service(
+            ExecuteMotorOperation, 'motor_backend/execute_operation', self._operation_callback)
         estop_qos = QoSProfile(
             depth=1,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
@@ -307,12 +315,17 @@ class PythonCanNode(Node):
                     self.timing['rx_ignored'] += 1
                     continue
                 self.timing['rx_frames'] += 1
+                age = max(0.0, time.time() - sample.timestamp) if sample.timestamp > 0 else 0.0
+                joint = self._joint_by_motor[(bus.channel, sample.motor_name)]
+                if age <= self.feedback_timeout_s:
+                    received_at = time.monotonic() - age
+                    source_stamp = self.get_clock().now().nanoseconds * 1e-9 - age
+                    with self.state_lock:
+                        self.raw_feedback[joint] = (sample, received_at, source_stamp)
                 if sample.fault_bits:
                     raise RuntimeError(f'{sample.motor_name}: status fault bits 0x{sample.fault_bits:02x}')
-                age = max(0.0, time.time() - sample.timestamp) if sample.timestamp > 0 else 0.0
                 if age > self.feedback_timeout_s:
                     continue
-                joint = self._joint_by_motor[(bus.channel, sample.motor_name)]
                 if self._awaiting_enable_ack.is_set():
                     with self.enable_report_lock:
                         self.enable_reports[joint] = (time.monotonic() - age, sample.mode)
@@ -328,6 +341,72 @@ class PythonCanNode(Node):
                     self._tx_wakeup.set()
                 self.get_logger().error(f'CAN RX fault on {bus.channel}: {exc}', throttle_duration_sec=1.0)
                 time.sleep(0.01)  # RX error backoff only; TX is independent.
+
+    def _get_feedback_callback(self, request, response):
+        """Bounded cache lookup: service callbacks never call bus.recv/send.
+
+        Success means a fresh, healthy sample, not motor enable or calibration
+        success. available/fresh distinguish missing, stale and faulted samples.
+        Missing numeric fields are NaN so generated ROS defaults cannot look
+        like a measured zero. A stale sample remains available for diagnosis.
+        """
+        feedback = response.feedback
+        feedback.joint_name = request.joint_name
+        for name in ('age_s', 'position_rad', 'velocity_radps', 'torque_nm', 'temperature_c'):
+            setattr(feedback, name, float('nan'))
+        identity = self.motor_identity.get(request.joint_name)
+        if identity is None:
+            response.message = 'Unknown joint'
+            return response
+        feedback.can_interface = identity['can_interface']
+        feedback.motor_id = identity['motor_id']
+        feedback.model = identity['model']
+        with self.state_lock:
+            cached = self.raw_feedback.get(request.joint_name)
+        if cached is None:
+            response.message = 'No raw type-2 feedback received'
+            return response
+        sample, received_at, source_stamp = cached
+        feedback.available = True
+        feedback.age_s = time.monotonic() - received_at
+        feedback.fresh = 0 <= feedback.age_s <= self.feedback_timeout_s
+        source_ns = max(0, int(source_stamp * 1e9))
+        feedback.stamp.sec, feedback.stamp.nanosec = divmod(source_ns, 10**9)
+        feedback.position_rad = sample.position
+        feedback.velocity_radps = sample.velocity
+        feedback.torque_nm = sample.torque
+        feedback.temperature_c = sample.temperature
+        feedback.status_mode = sample.mode
+        feedback.fault_bits = sample.fault_bits
+        response.success = feedback.fresh and not sample.fault_bits and not self.transport_fault.is_set()
+        response.message = ('CAN transport fault latched' if self.transport_fault.is_set() else
+                            'Stale raw feedback' if not feedback.fresh else
+                            'Motor reports fault bits' if sample.fault_bits else 'Fresh raw feedback')
+        return response
+
+    def _operation_callback(self, request, response):
+        """Reserve typed zero admission; never offer an unguarded type-6 send.
+
+        No profile in this repository proves that the installed firmware/mode
+        supports safe zeroing. The future TX-owned transaction also requires a
+        core pause lease and post-write raw readback before it may be admitted.
+        A caller-provided 'stopped' flag cannot substitute for those mechanisms.
+        """
+        response.request_id = request.request_id
+        response.accepted = False
+        response.state = ExecuteMotorOperation.Response.REJECTED
+        if not request.request_id or len(request.request_id) > 128:
+            response.message = 'request_id must contain 1–128 characters'
+        elif request.joint_name not in self.motor_identity:
+            response.message = 'Unknown joint'
+        elif request.operation != ExecuteMotorOperation.Request.SET_MECHANICAL_ZERO:
+            response.message = 'Unsupported operation; use typed ROS constants, not CAN frame numbers'
+        elif self.estop_active.is_set() or self.transport_fault.is_set():
+            response.message = 'Safety estop or CAN transport fault is active'
+        else:
+            response.message = ('Not ready: control_core pause/exclusive lease, verified firmware/run_mode '
+                                'profile and zero readback transaction are not implemented; no CAN command sent')
+        return response
 
     def _can_tx_loop(self):
         self._configure_can_scheduling('TX', self.can_tx_rt_priority)

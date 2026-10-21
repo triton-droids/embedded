@@ -65,6 +65,12 @@ def test_fault_and_error_frames_are_not_normal_joint_samples(bus):
         bus.decode_feedback(can.Message(is_error_frame=True))
 
 
+def test_type2_firmware_reply_is_never_joint_feedback(bus):
+    frame = status(device=1)
+    frame.data = bytearray(b'\x00\xc4\x56\x01\x02\x03\x04\x00')
+    assert bus.decode_feedback(frame) is None
+
+
 def test_mailbox_coalesces_thousands_of_targets_without_losing_enable():
     mailbox = LatestCommandMailbox()
     mailbox.put_nowait(dict(joint='a', mode=3))

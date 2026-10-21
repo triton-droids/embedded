@@ -32,7 +32,7 @@ def mode_nodes(context):
     if mode in ('rviz', 'monitor', 'all'):
         nodes.append(Node(package='humanoid_safety', executable='joint_state_monitor_node',
             output='screen', parameters=[{
-                'source_topic': LaunchConfiguration('source_topic'),
+                'source_topic': LaunchConfiguration('display_source_topic'),
                 'output_topic': LaunchConfiguration('display_topic'),
             }]))
         if LaunchConfiguration('start_display').perform(context).lower() == 'true':
@@ -55,6 +55,8 @@ def generate_launch_description():
         DeclareLaunchArgument('ros_domain_id', default_value=EnvironmentVariable('ROS_DOMAIN_ID', default_value='0')),
         SetEnvironmentVariable('ROS_DOMAIN_ID', LaunchConfiguration('ros_domain_id')),
         DeclareLaunchArgument('source_topic', default_value='/joint_states'),
+        DeclareLaunchArgument('display_source_topic', default_value=LaunchConfiguration('source_topic'),
+                             description='JointState source for model display; Web keeps source_topic'),
         DeclareLaunchArgument('motor_status_topic', default_value='/motor_telemetry'),
         DeclareLaunchArgument('supervisor_status_topic', default_value='/safety/status'),
         DeclareLaunchArgument('display_topic', default_value='/safety/visualization/joint_states'),

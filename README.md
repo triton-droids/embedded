@@ -94,17 +94,31 @@ Message abbreviations below: `MotorCommand` =
 | Node | Responsibility | Publishes | Subscribes |
 |---|---|---|---|
 | [`tracking_policy_node`](humanoid_control/motor_control_hybrid/motor_control_hybrid/tracking_policy_node.py) | Runs the ten-joint ONNX policy at 50 Hz; calibrates the gyro and checks input freshness, input skew, inference deadlines, and estop. | `/policy/actions`, `/policy/target_angles`, `/policy/desired_motor_subset`, `/policy/status` | Configurable IMU and joint-state inputs; `/safety/estop` |
-| [`cpp_control_node`](humanoid_control/motor_control_hybrid/src/cpp_control_node.cpp) | Schedules per-joint commands at 50 Hz by default. Validates feedback, checks command deadlines and estop, and publishes a complete ordered command. | `/motor_commands` | `/joint_states`, `/desired_motor_subset`, `/desired_velocity_subset`, `/safety/estop`, `/safety/status` |
+| [`cpp_control_node`](humanoid_control/motor_control_hybrid/src/cpp_control_node.cpp) | Schedules per-joint commands at 50 Hz. Enforces deadlines/estop and hosts the default-disabled zero stop/wait state machine with async backend clients. | `/motor_commands`, `/control_core/abstract_command_status` | `/joint_states`, `/desired_motor_subset`, `/desired_velocity_subset`, `/control_core/abstract_command`, `/safety/estop`, `/safety/status` |
 | [`python_can_node`](humanoid_control/motor_control_hybrid/motor_control_hybrid/python_can_node.py) | Owns RobStride CAN I/O with independent TX and per-interface RX threads. Checks commands, tracks enable acknowledgements, enforces local deadlines, and publishes feedback. | `/joint_states`, `/motor_status`, `/motor_telemetry`, `/can_timing` | `/motor_commands`, `/safety/estop` |
 | [`fake_motor_node`](humanoid_control/motor_control_hybrid/motor_control_hybrid/fake_motor_node.py) | Provides simple simulated joint motion and status without CAN hardware. It is a testing backend, not a dynamics-equivalent motor model. | `/joint_states`, `/motor_status` | `/motor_commands`, `/safety/estop` |
+
+The real CAN node also serves `/motor_backend/get_feedback`
+(`motor_control_interfaces/srv/GetMotorFeedback`) for cached raw motor-coordinate
+feedback, and `/motor_backend/execute_operation`
+(`motor_control_interfaces/srv/ExecuteMotorOperation`) as a management admission
+endpoint. Set Zero requests are currently rejected as not ready; no service
+sends a calibration frame. Home admission and trajectory generation remain
+unimplemented in control_core. See the
+[backend service contract](docs/robstride_abstract_command_design.md#initial-backend-services).
+Both service names are relative in code and follow the node namespace.
+The C++ adapter also serves `/control_core/submit_abstract_command` for the same
+admission path as its abstract-command topic. Zero processing is disabled by
+default; backend acceptance alone cannot complete calibration or resume control.
 
 The policy node's standalone joint-state default is `/joint_states`; the
 tracking launch selects `/policy/joint_states`. Its default
 `joint_feedback_mode:=zero` supplies zero joint feedback internally. Select
 `joint_feedback_mode:=joint_states` to require actual JointState inputs.
 
-The C++ scheduler does not run inference, calculate PD torque, interpolate
-trajectories, or perform inverse dynamics. Its control core updates commanded
+Ordinary C++ command forwarding does not run inference, calculate PD torque or
+perform inverse dynamics. The separate zero transaction can generate bounded
+deceleration targets when explicitly commissioned. Its normal control core updates commanded
 joints and holds the previous commands for other joints, subject to command
 expiry. Missing/stale feedback from any configured joint, an expired tracked
 command, or an asserted estop causes all configured joints to be disabled and
@@ -400,6 +414,7 @@ appropriate workspace. Processes on different hosts must share the intended
 
 | Task | Command | Behavior |
 |---|---|---|
+| Body control, safety, Web and RViz | `ros2 launch motor_control_hybrid control_stack.launch.py` | Starts real CAN, C++ core, one safety supervisor, WebUI, safety-owned joint relay, model TF and RViz. No startup enable/home/zero. Add `enable_fake_motor:=true` to replace CAN, or `use_rviz:=false` for headless TF. |
 | Control smoke test | `ros2 launch motor_control_hybrid hybrid_control.launch.py enable_fake_motor:=true enable_sdk_gateway:=false enable_websocket_ui:=false enable_policy_bridge:=false` | Starts fake motors, C++ scheduler, and safety. Joint names come from the selected registry. No automatic enable; without body IMU, safety latches after its startup grace. |
 | ONNX policy | `ros2 launch motor_control_hybrid tracking_policy.launch.py` | Uses an external IMU, zero joint feedback by default, and `/policy/*` outputs. No CAN, safety supervisor, or automatic enable is started by this launch. |
 | Optional policy bench | `ros2 launch motor_control_hybrid tracking_policy.launch.py use_fake_joint_states:=true run_cpp_control:=true joint_feedback_mode:=joint_states` | Adds fake feedback and the remapped scheduler. Fake motors remain disabled until explicitly enabled. |
@@ -436,6 +451,7 @@ Retained MoveIt entry points are listed under [Legacy](#legacy).
 - [ONNX observation, action, and timing contract](docs/tracking_policy_ros2.md)
 - [Policy and visualization workflow](docs/activate_tracking_system.md)
 - [Control watchdogs](docs/control_watchdogs.md)
+- [RobStride manual review and abstract-command design](docs/robstride_abstract_command_design.md)
 - [Safety supervisor and read-only monitoring](humanoid_control/humanoid_safety/README.md)
 - [Self-collision monitoring](docs/self_collision_monitor.md)
 - [Head tracking controls and tests](humanoid_vision/TRACKING.md)

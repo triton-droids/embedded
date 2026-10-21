@@ -32,6 +32,8 @@ def stamp(message, seconds=100.0):
 def can_node():
     node = PythonCanNode.__new__(PythonCanNode)
     node.telemetry_stamps = {}
+    node.raw_feedback = {}
+    node.state_lock = threading.Lock()
     node.can_rt_enabled = False
     node.can_tx_rt_priority = 20
     node.can_rx_rt_priority = 21
@@ -350,6 +352,8 @@ def test_virtual_can_round_trip_enable_ack_and_both_joint_targets(can_node, monk
                     seen.add(device)
             assert seen == {1, 2}
             assert set(node.state_buffer) == {'a', 'b'}
+            assert set(node.raw_feedback) == {'a', 'b'}
+            assert all(sample[0].mode == 2 for sample in node.raw_feedback.values())
             assert not node.transport_fault.is_set()
         finally:
             node.running = False

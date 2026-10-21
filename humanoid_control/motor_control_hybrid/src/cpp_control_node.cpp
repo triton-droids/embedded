@@ -3,6 +3,11 @@
 #include <std_msgs/msg/bool.hpp>
 #include <diagnostic_msgs/msg/diagnostic_array.hpp>
 #include <motor_control_interfaces/msg/motor_command.hpp>
+#include <motor_control_interfaces/msg/abstract_command.hpp>
+#include <motor_control_interfaces/msg/abstract_command_status.hpp>
+#include <motor_control_interfaces/srv/submit_abstract_command.hpp>
+#include <motor_control_interfaces/srv/execute_motor_operation.hpp>
+#include <motor_control_interfaces/srv/get_motor_feedback.hpp>
 
 #include <atomic>
 #include <chrono>
@@ -21,6 +26,7 @@
 
 // New non-ROS control core API (per-joint independent mode)
 #include "control_core/api.hpp"
+#include "control_core/operation.hpp"
 
 
 class CppControlNode : public rclcpp::Node
@@ -116,6 +122,36 @@ public:
     // Output to Python CAN node
     cmd_pub_ = this->create_publisher<motor_control_interfaces::msg::MotorCommand>("/motor_commands", 10);
 
+    // Explicit commissioning switch; ordinary launch files leave this false.
+    actions_enabled_ = declare_parameter<bool>("abstract_actions_enabled", false);
+    operation_limits_.acceleration = declare_parameter<double>("zero_stop_acceleration", 0.2);
+    operation_limits_.velocity = declare_parameter<double>("zero_admission_velocity", 0.2);
+    operation_limits_.max_effort = declare_parameter<double>("zero_measured_effort_trip", 1.0);
+    operation_limits_.kp = declare_parameter<double>("zero_stop_kp", 2.0);
+    operation_limits_.kd = declare_parameter<double>("zero_stop_kd", 0.2);
+    operation_limits_.settle_s = declare_parameter<double>("zero_settle_s", 0.3);
+    operation_limits_.timeout_s = declare_parameter<double>("zero_timeout_s", 10.0);
+    backend_client_ = create_client<BackendOperation>("/motor_backend/execute_operation");
+    feedback_client_ = create_client<FeedbackService>("/motor_backend/get_feedback");
+    operation_status_pub_ = create_publisher<ActionStatus>(
+      "/control_core/abstract_command_status", rclcpp::QoS(1).reliable().transient_local());
+    action_service_ = create_service<ActionService>("/control_core/submit_abstract_command",
+      [this](const ActionService::Request::SharedPtr req, ActionService::Response::SharedPtr res) {
+        res->accepted = submit_action(req->command, res->message);
+        res->status = res->accepted ? action_status() : rejected_status(req->command, res->message);
+      });
+    action_sub_ = create_subscription<Action>("/control_core/abstract_command", 10,
+      [this](const Action::SharedPtr msg) {
+        std::string reason;
+        if (!submit_action(*msg, reason)) {
+          RCLCPP_WARN(get_logger(), "Action rejected: %s", reason.c_str());
+          operation_status_pub_->publish(rejected_status(*msg, reason));
+        }
+      });
+    feedback_timer_ = create_wall_timer(std::chrono::milliseconds(50),
+      std::bind(&CppControlNode::poll_management_feedback, this));
+    publish_action_status();
+
     // Control timer
     const double rate = std::max(1.0, control_rate_hz_);
     auto period = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -132,10 +168,137 @@ public:
 
 private:
   friend struct CppControlNodeTestPeer;
+  using Action = motor_control_interfaces::msg::AbstractCommand;
+  using ActionStatus = motor_control_interfaces::msg::AbstractCommandStatus;
+  using ActionService = motor_control_interfaces::srv::SubmitAbstractCommand;
+  using BackendOperation = motor_control_interfaces::srv::ExecuteMotorOperation;
+  using FeedbackService = motor_control_interfaces::srv::GetMotorFeedback;
+  using Steady = std::chrono::steady_clock;
+
+  struct CommandTime {
+    double source;
+    double expiry;
+    std::chrono::steady_clock::time_point deadline;
+  };
+
+  ActionStatus action_status() const {
+    const auto& status = zero_.status();
+    ActionStatus msg; msg.header.stamp = now(); msg.request_id = status.request_id;
+    msg.joint_name = status.joint; msg.stage = static_cast<uint8_t>(status.stage);
+    msg.message = status.message; msg.zero_may_have_changed = status.zero_may_have_changed;
+    msg.calibration_epoch = status.calibration_epoch; return msg;
+  }
+  void publish_action_status() {operation_status_pub_->publish(action_status());}
+  ActionStatus rejected_status(const Action& action, const std::string& reason) const {
+    ActionStatus msg; msg.header.stamp = now(); msg.request_id = action.request_id;
+    msg.joint_name = action.joint_name; msg.stage = ActionStatus::REJECTED;
+    msg.message = reason; msg.calibration_epoch = zero_.status().calibration_epoch; return msg;
+  }
+  void poll_management_feedback() {
+    if (!actions_enabled_) return;
+    const auto current = Steady::now();
+    for (auto it = feedback_pending_.begin(); it != feedback_pending_.end();) {
+      if (current >= it->second.second) {
+        feedback_client_->remove_pending_request(it->second.first);
+        it = feedback_pending_.erase(it);
+      } else ++it;
+    }
+    if (!feedback_client_->service_is_ready()) return;
+    for (const auto& name : joint_order_) {
+      if (feedback_pending_.count(name)) continue;
+      auto req = std::make_shared<FeedbackService::Request>(); req->joint_name = name;
+      auto future = feedback_client_->async_send_request(req, [this, name](rclcpp::Client<FeedbackService>::SharedFuture result) {
+        feedback_pending_.erase(name);
+        try {
+          const auto response = result.get(); const auto& f = response->feedback;
+          const double age = (now() - rclcpp::Time(f.stamp)).seconds();
+          if (!response->success || !f.available || !f.fresh || f.joint_name != name ||
+              f.fault_bits || !std::isfinite(f.age_s) || f.age_s < 0 || f.age_s > 0.1 ||
+              age < -0.01 || age > 0.1 || (f.status_mode != 0 && f.status_mode != 2)) {
+            enabled_evidence_.erase(name); return;
+          }
+          enabled_evidence_[name] = {f.status_mode == 2, Steady::now() +
+            std::chrono::duration_cast<Steady::duration>(std::chrono::duration<double>(0.1 - std::max(age, f.age_s)))};
+        } catch (const std::exception&) {enabled_evidence_.erase(name);}
+      });
+      feedback_pending_[name] = {future.request_id, current + std::chrono::milliseconds(200)};
+    }
+  }
+  bool submit_action(const Action& action, std::string& reason) {
+    CommandTime timing;
+    if (!command_time(action.header.stamp, action.valid_until, timing)) {
+      reason = "Expired, future or unstamped abstract command"; return false;
+    }
+    if (action.operation == Action::CANCEL) {
+      if (action.request_id != zero_.status().request_id || !zero_.blocks_normal()) {
+        reason = "No matching operation to cancel"; return false;
+      }
+      zero_.abort("Cancelled; remain disabled", true); reason = "Cancelled";
+      publish_action_status(); return true;
+    }
+    if (action.operation == Action::RESET) {
+      if (action.request_id != zero_.status().request_id || safety_estop_active_.load()) {
+        reason = "Reset requires matching request ID and released estop"; return false;
+      }
+      const bool accepted = zero_.reset(reason);
+      if (accepted) {minimum_command_source_ = now().seconds(); publish_disable_all(joint_order_);}
+      publish_action_status(); return accepted;
+    }
+    if (!actions_enabled_) {reason = "Abstract motion actions disabled pending commissioning"; return false;}
+    if (action.operation != Action::SET_MECHANICAL_ZERO) {reason = "Unsupported abstract operation"; return false;}
+    if (!core_configured_ || safety_estop_active_.load() || !state_is_fresh(joint_order_, latest_state_map_)) {
+      reason = "Estop, unconfigured core or stale joint feedback"; return false;
+    }
+    if (!backend_client_->service_is_ready()) {reason = "Motor backend service unavailable"; return false;}
+    control_core::State state;
+    std::unordered_map<std::string, bool> enabled;
+    for (const auto& name : joint_order_) {
+      const auto evidence = enabled_evidence_.find(name);
+      if (evidence == enabled_evidence_.end() || Steady::now() >= evidence->second.second) {
+        reason = "Fresh raw enabled-state evidence required for every joint"; return false;
+      }
+      enabled[name] = evidence->second.first;
+      const auto& jd = latest_state_map_.at(name);
+      if (!jd.effort_known) {reason = "Measured effort required for action admission"; return false;}
+      state.joints[name] = {jd.pos, jd.vel, jd.eff};
+    }
+    if (!zero_.begin(action.request_id, action.joint_name, state, joint_order_, enabled, operation_limits_, reason)) return false;
+    // No pre-zero policy/manual target survives admission or operation reset.
+    desired_subset_.clear(); command_times_.clear(); has_cmd_ = false;
+    minimum_command_source_ = now().seconds(); action_tick_ = Steady::now();
+    publish_action_status(); return true;
+  }
+  void dispatch_zero() {
+    if (!zero_.take_backend_request()) return;
+    const auto id = zero_.status().request_id;
+    if (!backend_client_->service_is_ready()) {
+      zero_.backend_reply(id, false, "Backend unavailable before submission"); return;
+    }
+    auto req = std::make_shared<BackendOperation::Request>();
+    req->request_id = id; req->joint_name = zero_.status().joint;
+    req->operation = BackendOperation::Request::SET_MECHANICAL_ZERO;
+    try {
+      auto future = backend_client_->async_send_request(req, [this, id](rclcpp::Client<BackendOperation>::SharedFuture result) {
+        backend_pending_id_ = 0;
+        try {
+          const auto reply = result.get();
+          if (reply->request_id != id ||
+              (reply->accepted && reply->state != BackendOperation::Response::ACCEPTED) ||
+              (!reply->accepted && reply->state != BackendOperation::Response::REJECTED)) {
+            zero_.abort("Invalid backend acknowledgement; outcome unknown");
+          } else zero_.backend_reply(id, reply->accepted, reply->message);
+        } catch (const std::exception& error) {zero_.abort(std::string("Unknown backend outcome: ") + error.what());}
+        publish_action_status();
+      });
+      backend_pending_id_ = future.request_id;
+    } catch (const std::exception& error) {zero_.abort(std::string("Backend submission outcome unknown: ") + error.what());}
+  }
+
   struct JointDataRT {
     double pos{0.0};
     double vel{0.0};
     double eff{0.0};
+    bool effort_known{false};
     std::chrono::steady_clock::time_point received_at{};
     double source_stamp{0.0};
   };
@@ -208,7 +371,8 @@ private:
 
       if (i < msg->position.size()) jd.pos = msg->position[i];
       if (i < msg->velocity.size()) jd.vel = msg->velocity[i];
-      if (i < msg->effort.size())   jd.eff = msg->effort[i];
+      jd.effort_known = i < msg->effort.size();
+      if (jd.effort_known) jd.eff = msg->effort[i];
       jd.received_at = received_at;
       jd.source_stamp = source_stamp;
 
@@ -228,11 +392,7 @@ private:
     }
   }
 
-  struct CommandTime {
-    double source;
-    double expiry;
-    std::chrono::steady_clock::time_point deadline;
-  };
+
 
   bool command_time(const builtin_interfaces::msg::Time& stamp,
     const builtin_interfaces::msg::Time& expiry, CommandTime& result) const
@@ -255,6 +415,11 @@ private:
   void desired_motor_callback(const motor_control_interfaces::msg::MotorCommand::SharedPtr msg)
   {
     if (!msg || msg->joint_name.empty()) return;
+    if (zero_.blocks_normal()) {
+      if (std::find(msg->mode.begin(), msg->mode.end(), motor_control_interfaces::msg::MotorCommand::MODE_DISABLE) != msg->mode.end())
+        zero_.abort("External disable during operation");
+      return;
+    }
 
     std::lock_guard<std::mutex> lock(cmd_mutex_);
     CommandTime timing;
@@ -269,6 +434,7 @@ private:
         std::chrono::duration_cast<std::chrono::steady_clock::duration>(
           std::chrono::duration<double>(cmd_timeout_s_))};
     }
+    if (!disable_only && timing.source <= minimum_command_source_) return;
     last_cmd_time_ = this->now();
     has_cmd_ = true;
     desired_subset_.clear();
@@ -358,11 +524,12 @@ private:
   // Backward-compatible: velocity subset via JointState
   void desired_velocity_callback(const sensor_msgs::msg::JointState::SharedPtr msg)
   {
-    if (!msg || msg->name.empty()) return;
+    if (!msg || msg->name.empty() || zero_.blocks_normal()) return;
 
     std::lock_guard<std::mutex> lock(cmd_mutex_);
     CommandTime timing;
     if (!command_time(msg->header.stamp, builtin_interfaces::msg::Time{}, timing)) return;
+    if (timing.source <= minimum_command_source_) return;
     last_cmd_time_ = this->now();
     has_cmd_ = true;
 
@@ -429,6 +596,28 @@ private:
     if (!state_is_fresh(joint_order, state_map)) {
       publish_disable_all(joint_order);
       return;
+    }
+
+    if (zero_.blocks_normal()) {
+      control_core::State state;
+      if (joint_order != zero_.joint_order()) {
+        publish_disable_all(joint_order); return;
+      }
+      for (const auto& item : state_map) {
+        if (!item.second.effort_known) zero_.abort("Effort feedback unavailable during operation");
+        state.joints[item.first] = {item.second.pos, item.second.vel, item.second.eff};
+      }
+      const auto current = Steady::now();
+      const double dt = std::chrono::duration<double>(current - action_tick_).count();
+      action_tick_ = current;
+      const auto output = zero_.step(state, dt);
+      publish_output(output, true);
+      dispatch_zero();
+      const auto stage = zero_.status().stage;
+      if ((stage == control_core::OperationStage::Failed || stage == control_core::OperationStage::Cancelled) && backend_pending_id_) {
+        backend_client_->remove_pending_request(backend_pending_id_); backend_pending_id_ = 0;
+      }
+      publish_action_status(); return;
     }
 
     // Snapshot desired subset
@@ -500,15 +689,15 @@ private:
   }
 
   // -------- publishing helpers --------
-  void publish_output(const control_core::Output& out)
+  void publish_output(const control_core::Output& out, bool operation_owned = false)
   {
     using MC = motor_control_interfaces::msg::MotorCommand;
 
     MC msg;
     // A single envelope conservatively covers all held per-joint commands.
     // Preserve the oldest source and earliest deadline instead of re-stamping.
-    if (command_times_.empty()) return;
-    double source = this->now().seconds(), expiry = source + cmd_timeout_s_;
+    if (!operation_owned && command_times_.empty()) return;
+    double source = this->now().seconds(), expiry = source + (operation_owned ? std::min(0.1, cmd_timeout_s_) : cmd_timeout_s_);
     for (const auto& item : command_times_) {
       source = std::min(source, item.second.source);
       expiry = std::min(expiry, item.second.expiry);
@@ -546,6 +735,9 @@ private:
   {
     using MC = motor_control_interfaces::msg::MotorCommand;
 
+    zero_.abort("Estop or control watchdog: outputs disabled");
+    if (backend_pending_id_) {backend_client_->remove_pending_request(backend_pending_id_); backend_pending_id_ = 0;}
+    if (operation_status_pub_) publish_action_status();
     // Recovery must not replay a cached ENABLE or a pre-fault hold-last target.
     {
       std::lock_guard<std::mutex> lock(cmd_mutex_);
@@ -563,6 +755,21 @@ private:
   }
 
 private:
+  control_core::ZeroOperation zero_;
+  control_core::OperationLimits operation_limits_;
+  bool actions_enabled_{false};
+  double minimum_command_source_{0};
+  Steady::time_point action_tick_{};
+  int64_t backend_pending_id_{0};
+  std::unordered_map<std::string, std::pair<bool, Steady::time_point>> enabled_evidence_;
+  std::unordered_map<std::string, std::pair<int64_t, Steady::time_point>> feedback_pending_;
+  rclcpp::Client<BackendOperation>::SharedPtr backend_client_;
+  rclcpp::Client<FeedbackService>::SharedPtr feedback_client_;
+  rclcpp::Service<ActionService>::SharedPtr action_service_;
+  rclcpp::Subscription<Action>::SharedPtr action_sub_;
+  rclcpp::Publisher<ActionStatus>::SharedPtr operation_status_pub_;
+  rclcpp::TimerBase::SharedPtr feedback_timer_;
+
   // ROS2 interfaces
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr state_sub_;
   rclcpp::Subscription<motor_control_interfaces::msg::MotorCommand>::SharedPtr desired_motor_sub_;
