@@ -11,9 +11,20 @@ safety_node:
     fall_confirm_samples: 3
     reset_roll_deg: 30.0
     reset_pitch_deg: 30.0
+    # Gyro cross-check: a tilt jump of at least glitch_jump_deg between samples
+    # while gyro magnitude is below glitch_max_gyro_rad_s is a sensor glitch and
+    # does not count toward a fall. After glitch_max_samples ignored samples in
+    # a row the reading is trusted anyway. Set fall_glitch_jump_deg to 0 to disable.
+    fall_glitch_jump_deg: 20.0
+    fall_glitch_max_gyro_rad_s: 0.5
+    fall_glitch_max_samples: 10
 
     trip_on_imu_timeout: true
     # Source age + subsequent monotonic elapsed time must stay within timeout.
     imu_timeout_s: 0.25
     imu_future_tolerance_s: 0.01
     startup_grace_s: 3.0
+
+    # IMU stuck check
+    trip_on_imu_stuck: true
+    imu_stuck_samples: 50

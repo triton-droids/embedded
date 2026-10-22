@@ -6,8 +6,7 @@ from __future__ import annotations
 import time
 
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
-import rclpy
-from rclpy.clock import Clock, ClockType
+import rclpy from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Imu
@@ -18,6 +17,7 @@ from .checks import (
     FallDetectionCheck,
     ImuFreshnessCheck,
     ImuObservation,
+    ImuStuckCheck,
     SafetyCheck,
     SafetySupervisor,
     quaternion_to_roll_pitch,
@@ -40,6 +40,11 @@ class SafetyNode(Node):
         self.declare_parameter("fall_confirm_samples", 3)
         self.declare_parameter("reset_roll_deg", 30.0)
         self.declare_parameter("reset_pitch_deg", 30.0)
+        self.declare_parameter("fall_glitch_jump_deg", 20.0)
+        self.declare_parameter("fall_glitch_max_gyro_rad_s", 0.5)
+        self.declare_parameter("fall_glitch_max_samples", 10)
+        self.declare_parameter("trip_on_imu_stuck", True)
+        self.declare_parameter("imu_stuck_samples", 50)
         self.declare_parameter("trip_on_imu_timeout", True)
         self.declare_parameter("imu_timeout_s", 0.25)
         self.declare_parameter("imu_future_tolerance_s", 0.01)
@@ -71,6 +76,15 @@ class SafetyNode(Node):
                     confirm_samples=int(
                         self.get_parameter("fall_confirm_samples").value
                     ),
+                    glitch_jump_deg=float(
+                        self.get_parameter("fall_glitch_jump_deg").value
+                    ),
+                    glitch_max_gyro_rad_s=float(
+                        self.get_parameter("fall_glitch_max_gyro_rad_s").value
+                    ),
+                    glitch_max_samples=int(
+                        self.get_parameter("fall_glitch_max_samples").value
+                    ),
                 )
             )
         checks.append(
@@ -81,6 +95,12 @@ class SafetyNode(Node):
                 ),
                 started_at=started_at,
                 enabled=bool(self.get_parameter("trip_on_imu_timeout").value),
+            )
+        )
+        checks.append(
+            ImuStuckCheck(
+                stuck_samples=int(self.get_parameter("imu_stuck_samples").value),
+                enabled=bool(self.get_parameter("trip_on_imu_stuck").value),
             )
         )
         self.supervisor = SafetySupervisor(checks)
@@ -142,12 +162,31 @@ class SafetyNode(Node):
             msg.orientation.z,
             msg.orientation.w,
         )
+        # A covariance[0] of -1 means the field is not reported (REP 145).
+        gyro_unavailable = (
+            len(msg.angular_velocity_covariance) > 0
+            and msg.angular_velocity_covariance[0] < 0.0
+        )
+        accel_unavailable = (
+            len(msg.linear_acceleration_covariance) > 0
+            and msg.linear_acceleration_covariance[0] < 0.0
+        )
         observation = ImuObservation(
             received_at=received_at,
             source_age_s=max(0.0, source_age_s),
             roll_rad=roll,
             pitch_rad=pitch,
             valid=valid and not orientation_unavailable,
+            angular_velocity=None if gyro_unavailable else (
+                msg.angular_velocity.x,
+                msg.angular_velocity.y,
+                msg.angular_velocity.z,
+            ),
+            linear_acceleration=None if accel_unavailable else (
+                msg.linear_acceleration.x,
+                msg.linear_acceleration.y,
+                msg.linear_acceleration.z,
+            ),
         )
         self.supervisor.observe_imu(observation)
 
