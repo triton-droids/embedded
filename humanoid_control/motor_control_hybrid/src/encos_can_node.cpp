@@ -11,6 +11,8 @@
 //   pub  motor_status    (String JSON)   {"<index>": {temperature, torque}}
 //   pub  motor_telemetry (String JSON)   {schema_version: 1, motors: [...]}
 //   pub  can_timing      (String JSON)   1 Hz TX/RX counters
+//   srv  motor_backend/get_feedback       cached raw motor-coordinate sample
+//   srv  motor_backend/execute_operation  zero admission; always rejected
 //   Watchdogs: source-age + valid_until deadline per joint, explicit ENABLE to
 //   recover after a timeout, latched transport fault, estop rejects commands.
 //
@@ -26,6 +28,10 @@
 //   - MODE_VELOCITY ignores acceleration (SpdControl has no ramp parameter).
 //   - Linkage (ankle_mapping) joints are rejected until the four-bar solver is
 //     ported from ankle_mapping.py; driving them without it would be wrong.
+//   - ENCOS status has no run-mode field. get_feedback's status_mode is
+//     synthesized by this node: 2 while the joint is armed (ENABLE confirmed by
+//     a healthy reply, no estop/fault), else 0. fault_bits carries the ENCOS
+//     MotorError code (0 = none; temperature warnings included).
 
 #include <encos/encos_driver.h>
 #include <pthread.h>
@@ -41,6 +47,8 @@
 #include <limits>
 #include <map>
 #include <motor_control_interfaces/msg/motor_command.hpp>
+#include <motor_control_interfaces/srv/execute_motor_operation.hpp>
+#include <motor_control_interfaces/srv/get_motor_feedback.hpp>
 #include <mutex>
 #include <optional>
 #include <rclcpp/rclcpp.hpp>
@@ -58,6 +66,9 @@
 
 namespace {
 using MotorCommand = motor_control_interfaces::msg::MotorCommand;
+using ExecuteMotorOperation =
+    motor_control_interfaces::srv::ExecuteMotorOperation;
+using GetMotorFeedback = motor_control_interfaces::srv::GetMotorFeedback;
 using Clock = std::chrono::steady_clock;
 using TimePoint = Clock::time_point;
 
@@ -232,6 +243,18 @@ struct Sample {
   double source_stamp{0.0};
 };
 
+// Motor coordinates before direction/offset; for management readback only.
+// Never reconstruct these by inverting JointState.
+struct RawSample {
+  double position{0.0};     // rad
+  double velocity{0.0};     // rad/s
+  double torque{0.0};       // Nm, current * kt
+  double temperature{0.0};  // degC
+  uint8_t error_code{0};    // encos::MotorError
+  TimePoint received_at{};
+  double source_stamp{0.0};
+};
+
 struct Joint {
   std::string name;
   size_t index{0};
@@ -320,6 +343,15 @@ class EncosCanNode : public rclcpp::Node {
     estop_sub_ = create_subscription<std_msgs::msg::Bool>(
         "/safety/estop", rclcpp::QoS(1).reliable().transient_local(),
         std::bind(&EncosCanNode::estop_callback, this, std::placeholders::_1));
+    // Relative names, like python_can_node: they follow the node namespace.
+    feedback_service_ = create_service<GetMotorFeedback>(
+        "motor_backend/get_feedback",
+        std::bind(&EncosCanNode::get_feedback_callback, this,
+                  std::placeholders::_1, std::placeholders::_2));
+    operation_service_ = create_service<ExecuteMotorOperation>(
+        "motor_backend/execute_operation",
+        std::bind(&EncosCanNode::operation_callback, this,
+                  std::placeholders::_1, std::placeholders::_2));
 
     publish_timer_ =
         create_wall_timer(std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -518,6 +550,19 @@ class EncosCanNode : public rclcpp::Node {
     const auto& joint = joints_[index];
     rx_frames_++;
     const auto received_at = Clock::now();
+    const double source_stamp = get_clock()->now().seconds();
+    {
+      // Cache before fault handling so a faulted sample stays diagnosable.
+      std::lock_guard<std::mutex> lock(state_mutex_);
+      raw_feedback_[joint.name] =
+          RawSample{status.position,
+                    status.speed,
+                    static_cast<double>(status.current) * joint.kt,
+                    status.motor_temperature,
+                    static_cast<uint8_t>(status.error),
+                    received_at,
+                    source_stamp};
+    }
     if (status.error == encos::MotorError::OverTemperatureWarning ||
         status.error == encos::MotorError::TemperatureWarning) {
       RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 1000,
@@ -542,9 +587,9 @@ class EncosCanNode : public rclcpp::Node {
     {
       std::lock_guard<std::mutex> lock(state_mutex_);
       auto& sample = state_[joint.name];
-      sample = Sample{position,    velocity,
-                      torque,      status.motor_temperature,
-                      received_at, get_clock()->now().seconds()};
+      sample =
+          Sample{position,    velocity,    torque, status.motor_temperature,
+                 received_at, source_stamp};
       if (status.error == encos::MotorError::NoError) {
         last_healthy_status_[joint.name] = received_at;
       }
@@ -610,6 +655,7 @@ class EncosCanNode : public rclcpp::Node {
         send_cycle(joint);
       }
       commit_all();
+      publish_armed_state();
 
       const auto end = Clock::now();
       tx_cycles_++;
@@ -849,8 +895,105 @@ class EncosCanNode : public rclcpp::Node {
     }
   }
 
+  // Snapshot TX-owned arm state for service callbacks (lags by <= one pass).
+  void publish_armed_state() {
+    std::set<std::string> armed;
+    if (!estop_active_ && !transport_fault_) {
+      for (const auto& joint : joints_) {
+        if (inhibited_since_.count(joint.name) == 0) {
+          armed.insert(joint.name);
+        }
+      }
+    }
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    armed_joints_ = std::move(armed);
+  }
+
   // ---------------------------------------------------------------- ROS
   // callbacks
+
+  // Bounded cache lookup: never sends CAN or waits for feedback. Success means
+  // a fresh, healthy sample, not that enabling or calibration succeeded.
+  void get_feedback_callback(
+      const std::shared_ptr<GetMotorFeedback::Request> request,
+      std::shared_ptr<GetMotorFeedback::Response> response) {
+    auto& feedback = response->feedback;
+    feedback.joint_name = request->joint_name;
+    // NaN, so generated ROS defaults cannot look like a measured zero.
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    feedback.age_s = feedback.position_rad = feedback.velocity_radps =
+        feedback.torque_nm = feedback.temperature_c = nan;
+    const auto it = joint_index_.find(request->joint_name);
+    if (it == joint_index_.end()) {
+      response->message = "Unknown joint";
+      return;
+    }
+    const auto& joint = joints_[it->second];
+    feedback.can_interface = joint.can_interface;
+    feedback.motor_id = static_cast<uint8_t>(joint.motor_id);
+    feedback.model = joint.model;
+
+    RawSample sample;
+    bool armed = false;
+    {
+      std::lock_guard<std::mutex> lock(state_mutex_);
+      const auto cached = raw_feedback_.find(joint.name);
+      if (cached == raw_feedback_.end()) {
+        response->message = "No ENCOS status feedback received";
+        return;
+      }
+      sample = cached->second;
+      armed = armed_joints_.count(joint.name) != 0;
+    }
+    feedback.available = true;
+    feedback.age_s = seconds_between(sample.received_at, Clock::now());
+    feedback.fresh =
+        feedback.age_s >= 0 && feedback.age_s <= feedback_timeout_s_;
+    feedback.stamp = rclcpp::Time(
+        static_cast<int64_t>(std::max(0.0, sample.source_stamp) * 1e9));
+    feedback.position_rad = sample.position;
+    feedback.velocity_radps = sample.velocity;
+    feedback.torque_nm = sample.torque;
+    feedback.temperature_c = sample.temperature;
+    feedback.status_mode = armed ? 2 : 0;  // synthesized; see file header
+    feedback.fault_bits = sample.error_code;
+
+    const bool fault = transport_fault_.load();
+    response->success = feedback.fresh && sample.error_code == 0 && !fault;
+    response->message = fault                    ? "CAN transport fault latched"
+                        : !feedback.fresh        ? "Stale raw feedback"
+                        : sample.error_code != 0 ? "Motor reports an error code"
+                                                 : "Fresh raw feedback";
+  }
+
+  // Reserved typed zero admission. Never sends ResetZeroPos/SetPos: no profile
+  // proves zeroing is safe on these motors, and the core pause lease and
+  // post-write readback are not implemented.
+  void operation_callback(
+      const std::shared_ptr<ExecuteMotorOperation::Request> request,
+      std::shared_ptr<ExecuteMotorOperation::Response> response) {
+    response->request_id = request->request_id;
+    response->accepted = false;
+    response->state = ExecuteMotorOperation::Response::REJECTED;
+    if (request->request_id.empty() || request->request_id.size() > 128) {
+      response->message = "request_id must contain 1-128 characters";
+    } else if (joint_index_.count(request->joint_name) == 0) {
+      response->message = "Unknown joint";
+    } else if (request->operation !=
+               ExecuteMotorOperation::Request::SET_MECHANICAL_ZERO) {
+      response->message =
+          "Unsupported operation; use typed ROS constants, not CAN frame "
+          "numbers";
+    } else if (estop_active_ || transport_fault_) {
+      response->message = "Safety estop or CAN transport fault is active";
+    } else {
+      response->message =
+          "Not ready: control_core pause/exclusive lease, verified ENCOS "
+          "firmware profile and zero readback transaction are not "
+          "implemented; no CAN command sent";
+    }
+  }
+
   void estop_callback(const std_msgs::msg::Bool::SharedPtr msg) {
     if (msg->data) {
       const bool newly_asserted = !estop_active_.exchange(true);
@@ -1037,10 +1180,13 @@ class EncosCanNode : public rclcpp::Node {
   std::atomic<bool> estop_disable_pending_{false};
   std::atomic<bool> transport_fault_{false};
   std::atomic<bool> awaiting_enable_ack_{false};
-  std::mutex
-      state_mutex_;  // guards state_ and last_healthy_status_ (RX vs ROS/TX)
+  // Guards state_, raw_feedback_, last_healthy_status_ and armed_joints_
+  // (RX vs ROS/TX threads).
+  std::mutex state_mutex_;
   std::map<std::string, Sample> state_;
+  std::map<std::string, RawSample> raw_feedback_;
   std::map<std::string, TimePoint> last_healthy_status_;
+  std::set<std::string> armed_joints_;  // written by TX each pass
   std::mutex wake_mutex_;
   std::condition_variable wake_cv_;
   bool wake_requested_{false};
@@ -1067,6 +1213,8 @@ class EncosCanNode : public rclcpp::Node {
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr timing_pub_;
   rclcpp::Subscription<MotorCommand>::SharedPtr cmd_sub_;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr estop_sub_;
+  rclcpp::Service<GetMotorFeedback>::SharedPtr feedback_service_;
+  rclcpp::Service<ExecuteMotorOperation>::SharedPtr operation_service_;
   rclcpp::TimerBase::SharedPtr publish_timer_;
   rclcpp::TimerBase::SharedPtr timing_timer_;
 };
