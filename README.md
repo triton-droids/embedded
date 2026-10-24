@@ -388,6 +388,63 @@ The real CAN backend and retained adapters additionally use dependencies in
 `source scripts/setup_rosenv.sh` installs those requirements into the local
 virtual environment. C++/ROS dependencies must be installed separately.
 
+### ENCOS backend dependency
+
+`motor_control_hybrid` builds `encos_can_node` by default. CMake first searches
+for an installed `encos_driver >= 4.0`; if none is found, it downloads official
+revision `5ae8c3a92f6387369b674bfe7563bc053a460075` (4.0.0) into the build
+directory. The downloaded driver includes only the CAN adapter and is linked
+statically into the node, so no separate ENCOS shared library or CAN plugin
+installation is required. The first configuration needs Git and network access;
+subsequent builds reuse the downloaded source.
+
+Install the system development dependencies through rosdep or, on Ubuntu:
+
+```bash
+sudo apt install libyaml-cpp-dev libspdlog-dev libfmt-dev libzstd-dev libcap-dev
+```
+
+CMake downloads the driver source; it does not install OS packages. For an
+offline build, point `-DFETCHCONTENT_SOURCE_DIR_ENCOS_DRIVER=/absolute/path/to/encos_driver`
+at a local checkout of the pinned revision, or provide an installed package
+through `-Dencos_driver_DIR=/prefix/lib/cmake/encos_driver`. Set
+`-DMOTOR_CONTROL_FETCH_ENCOS=OFF` to prohibit downloads (a missing driver then
+fails configuration), or `-DMOTOR_CONTROL_BUILD_ENCOS=OFF` to omit this backend.
+Pass these options after `colcon build --cmake-args`.
+
+#### Updating to the latest upstream source
+
+The default download is pinned; it does not automatically follow upstream
+updates. To try the latest commit on the official repository's default branch,
+clone it separately and override the FetchContent source directory:
+
+```bash
+mkdir -p "$HOME/src"
+git clone https://github.com/EncosTech/encos_driver.git "$HOME/src/encos_driver"
+git -C "$HOME/src/encos_driver" rev-parse HEAD
+CMAKE_BUILD_PARALLEL_LEVEL=1 MAKEFLAGS=-j1 colcon build \
+  --packages-select motor_control_interfaces motor_control_hybrid \
+  --executor sequential --cmake-args \
+  -DCMAKE_DISABLE_FIND_PACKAGE_encos_driver=TRUE \
+  -DFETCHCONTENT_SOURCE_DIR_ENCOS_DRIVER="$HOME/src/encos_driver"
+```
+
+For subsequent updates, run `git -C "$HOME/src/encos_driver" pull --ff-only`
+and repeat the build. Disabling package discovery ensures an installed driver
+does not take precedence over this checkout. This selects the latest development
+source, which may differ from the latest release and has not been validated by
+this repository. After reviewing and testing an update, replace `GIT_TAG` in
+`humanoid_control/motor_control_hybrid/cmake/EncosDriver.cmake` with the full
+tested commit hash and update the documented version. Remove the local override
+with `--cmake-clean-cache` when returning to the default pinned build.
+
+Building does not access CAN, grant capabilities, or enable motors. The bundled
+static adapter requires SocketCAN permissions on the final executable before
+hardware use; grant them separately on the deployment host as described in the
+[upstream permission guide](https://github.com/EncosTech/encos_driver#权限问题).
+Existing launch files still select the RobStride backend. The ENCOS bench
+registry remains `hardware_verified: false` pending physical commissioning.
+
 The full vision package requires OpenCV **4.5.x**, Eigen, `cv_bridge`, and the
 ROS dependencies in its manifest. An `opencv-python` wheel does not supply the
 C++ SDK. TensorRT/CUDA and librealsense support are optional build features.

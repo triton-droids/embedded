@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.18)
 project(motor_control_hybrid)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -61,12 +61,13 @@ target_include_directories(cpp_control_node PUBLIC
 )
 
 # =========================
-# ENCOS motor node (optional: needs encos_driver >= 4.0 installed)
-# Build encos_driver with -DENCOS_PLUGINS_LIST="can" to keep its GPL-3.0
-# EtherCAT plugin out of our build.
+# ENCOS motor node: prefer an installed driver, otherwise fetch a pinned revision.
 # =========================
-find_package(encos_driver 4.0 QUIET)
-if(encos_driver_FOUND)
+option(MOTOR_CONTROL_BUILD_ENCOS "Build the ENCOS CAN backend" ON)
+option(MOTOR_CONTROL_FETCH_ENCOS "Download encos_driver if not installed" ON)
+if(MOTOR_CONTROL_BUILD_ENCOS)
+  include(cmake/EncosDriver.cmake)
+  motor_control_find_encos_driver()
   find_package(yaml-cpp REQUIRED)
   add_executable(encos_can_node src/encos_can_node.cpp)
   target_compile_features(encos_can_node PRIVATE cxx_std_17)
@@ -78,8 +79,6 @@ if(encos_driver_FOUND)
   )
   target_link_libraries(encos_can_node Encos::encos_driver yaml-cpp)
   install(TARGETS encos_can_node DESTINATION lib/${PROJECT_NAME})
-else()
-  message(STATUS "encos_driver not found: skipping encos_can_node")
 endif()
 
 # =========================
