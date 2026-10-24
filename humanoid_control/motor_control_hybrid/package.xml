@@ -30,6 +30,8 @@
   <!-- C++ dependencies -->
   <depend>rclcpp</depend>
   <depend>diagnostic_msgs</depend>
+  <!-- encos_can_node; encos_driver itself is not a rosdep key (optional, see CMakeLists) -->
+  <depend>yaml-cpp</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_cmake_pytest</test_depend>

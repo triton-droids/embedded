@@ -61,6 +61,28 @@ target_include_directories(cpp_control_node PUBLIC
 )
 
 # =========================
+# ENCOS motor node (optional: needs encos_driver >= 4.0 installed)
+# Build encos_driver with -DENCOS_PLUGINS_LIST="can" to keep its GPL-3.0
+# EtherCAT plugin out of our build.
+# =========================
+find_package(encos_driver 4.0 QUIET)
+if(encos_driver_FOUND)
+  find_package(yaml-cpp REQUIRED)
+  add_executable(encos_can_node src/encos_can_node.cpp)
+  target_compile_features(encos_can_node PRIVATE cxx_std_17)
+  ament_target_dependencies(encos_can_node
+    rclcpp
+    sensor_msgs
+    std_msgs
+    motor_control_interfaces
+  )
+  target_link_libraries(encos_can_node Encos::encos_driver yaml-cpp)
+  install(TARGETS encos_can_node DESTINATION lib/${PROJECT_NAME})
+else()
+  message(STATUS "encos_driver not found: skipping encos_can_node")
+endif()
+
+# =========================
 # Install
 # =========================
 install(TARGETS
