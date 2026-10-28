@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.18)
 project(motor_control_hybrid)
 
+# Set explicitly so -std lands in compile_commands.json: GCC 11 already defaults
+# to C++17, so CMake would otherwise omit it and clangd would assume C++14.
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()

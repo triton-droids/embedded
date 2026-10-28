@@ -3,6 +3,11 @@
 cmake_minimum_required(VERSION 3.8)
 project(humanoid_vision)
 
+# Set explicitly so -std lands in compile_commands.json: GCC 11 already defaults
+# to C++17, so CMake would otherwise omit it and clangd would assume C++14.
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
