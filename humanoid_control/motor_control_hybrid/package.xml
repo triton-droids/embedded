@@ -30,6 +30,13 @@
   <!-- C++ dependencies -->
   <depend>rclcpp</depend>
   <depend>diagnostic_msgs</depend>
+  <!-- encos_driver is fetched by CMake when no installed package is available. -->
+  <build_depend>git</build_depend>
+  <depend>yaml-cpp</depend>
+  <depend>spdlog</depend>
+  <depend>fmt</depend>
+  <depend>libzstd-dev</depend>
+  <depend>libcap-dev</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_cmake_pytest</test_depend>
