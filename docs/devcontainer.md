@@ -34,8 +34,8 @@ valid inside the container. Delete them before building on another system.
 - **Torch is not installed** (only the legacy `policy_bridge_node` uses it).
   To add a CPU-only build, run `INSTALL_TORCH=1 bash .devcontainer/post-create.sh`
   inside the container.
-  `rosenv/.requirements.stamp` is written so `scripts/setup_rosenv.sh` does not
-  pull the multi-GB CUDA wheel.
+  The container and native hosts use the same `scripts/setup_rosenv.sh`
+  installer and `requirements-rosenv.txt`; PyTorch is opt-in in both.
 - **Vision is CPU-only**: run `ball_detection_node` with `use_cuda:=false`.
   TensorRT engines are Jetson-specific. The micro-ROS Agent is not installed.
 - **Isolated ROS network by default**: `ROS_DOMAIN_ID=42` and

@@ -373,21 +373,41 @@ copy it across Python or ROS distributions.
 On other Linux distributions, or to avoid a native ROS install, use the Humble
 [dev container](docs/devcontainer.md).
 
-For the control/ONNX packages, the setup script creates the virtual environment,
-installs [`requirements-policy-onnx.txt`](requirements-policy-onnx.txt), and builds
-the selected control, safety, and serial IMU packages:
+Install the shared control, ONNX, MuJoCo and test dependencies into `rosenv`:
+
+```bash
+ROS_DISTRO=jazzy source scripts/setup_rosenv.sh
+```
+
+The installer uses [`requirements-rosenv.txt`](requirements-rosenv.txt), checks
+the Python version against the host ROS interpreter, and refreshes dependencies
+when any included requirements file changes. `ROSENV_FORCE_INSTALL=1` forces a
+dependency check. Only a successful install updates the cache. The default ONNX
+policy does not need PyTorch; use `INSTALL_TORCH=1 source scripts/setup_rosenv.sh`
+to add CPU PyTorch for the legacy policy bridge.
+
+In every new terminal, load ROS, the virtualenv and the built workspace together:
+
+```bash
+source scripts/activate_rosenv.sh
+```
+
+Setup also adds a managed hook to `rosenv/bin/activate` so ROS executables using
+system Python can find the virtualenv packages. The package path is determined
+from the interpreter, without hardcoding Python 3.10 or 3.12.
+
+To install the same environment and build the selected control, safety and
+serial IMU packages:
 
 ```bash
 ROS_DISTRO=jazzy bash scripts/setup_tracking_policy.sh
-source /opt/ros/jazzy/setup.bash
-source rosenv/bin/activate
-source install/setup.bash
+source scripts/activate_rosenv.sh
 ```
 
-The real CAN backend and retained adapters additionally use dependencies in
-[`humanoid_control/motor_control_hybrid/requirements.txt`](humanoid_control/motor_control_hybrid/requirements.txt).
-`source scripts/setup_rosenv.sh` installs those requirements into the local
-virtual environment. C++/ROS dependencies must be installed separately.
+C++/ROS dependencies (including OpenCV, camera drivers and micro-ROS Agent)
+remain system dependencies installed through ROS/rosdep, not pip packages in
+`rosenv`. See the [simulation setup](simulation/humanoid_sim/README.md#setup)
+for building and starting MuJoCo.
 
 ### ENCOS backend dependency
 

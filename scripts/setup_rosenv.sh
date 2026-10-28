@@ -1,59 +1,93 @@
 #!/usr/bin/env bash
-
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-  echo "Run this script with source so it can activate the environment:"
-  echo "  source scripts/setup_rosenv.sh"
+  echo "Run: source scripts/setup_rosenv.sh" >&2
   exit 2
 fi
 
-# This file runs in the caller's shell. Do not enable errexit here: a failed
-# setup command (or a later terminal command) could close an SSH session.
-
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)" || return 1
-REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)" || return 1
-VENV_DIR="${REPO_ROOT}/rosenv"
-REQ_FILE="${REPO_ROOT}/humanoid_control/motor_control_hybrid/requirements.txt"
-ROS_DISTRO_NAME="${ROS_DISTRO:-jazzy}"
-ROS_SETUP="/opt/ros/${ROS_DISTRO_NAME}/setup.bash"
-
-if [[ -f "${ROS_SETUP}" ]]; then
-  # shellcheck disable=SC1090
-  source "${ROS_SETUP}" || {
-    echo "Error: could not load ROS setup at ${ROS_SETUP}" >&2
+# Do not change the caller's shell flags: a failed install must not close it.
+_setup_workspace_rosenv() {
+  local repo distro ros_python venv fingerprint stamp old_fingerprint
+  repo="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)" || return 1
+  distro="${ROS_DISTRO:-jazzy}"
+  ros_python=/usr/bin/python3
+  venv="$repo/rosenv"
+  if [[ ! -f "/opt/ros/$distro/setup.bash" ]]; then
+    echo "Error: /opt/ros/$distro/setup.bash is missing; install ROS first." >&2
     return 1
-  }
-else
-  echo "Warning: ROS setup not found at ${ROS_SETUP}" >&2
-fi
-
-if [[ ! -x "${VENV_DIR}/bin/python" ]]; then
-  python3 -m venv "${VENV_DIR}" || {
-    echo "Error: could not create rosenv at ${VENV_DIR}" >&2
+  fi
+  if [[ ! -x "$venv/bin/python" ]]; then
+    "$ros_python" -m venv "$venv" || return 1
+  fi
+  if [[ "$(env -u PYTHONPATH "$venv/bin/python" -c 'import sys; print(sys.version_info[:2])')" != \
+        "$("$ros_python" -c 'import sys; print(sys.version_info[:2])')" ]]; then
+    echo "Error: rosenv Python does not match system ROS Python; recreate rosenv for this host." >&2
     return 1
-  }
-fi
+  fi
+  touch "$venv/COLCON_IGNORE" || return 1
 
-# shellcheck disable=SC1091
-source "${VENV_DIR}/bin/activate" || {
-  echo "Error: could not activate rosenv at ${VENV_DIR}" >&2
-  return 1
+  # Hash all included requirement files, installer logic and Python/platform.
+  # A stamp from the old single-file installer is deliberately not reused.
+  fingerprint="$(env -u PYTHONPATH "$venv/bin/python" - "$repo" "${INSTALL_TORCH:-0}" <<'PY'
+import hashlib
+import platform
+from pathlib import Path
+import sys
+root = Path(sys.argv[1])
+digest = hashlib.sha256()
+def add_requirements(path):
+    digest.update(str(path.relative_to(root)).encode())
+    digest.update(path.read_bytes())
+    for line in path.read_text().splitlines():
+        if line.strip().startswith('-r '):
+            add_requirements((path.parent / line.strip()[3:].strip()).resolve())
+add_requirements(root / 'requirements-rosenv.txt')
+digest.update((root / 'scripts/setup_rosenv.sh').read_bytes())
+digest.update(f'{sys.version}|{platform.machine()}|torch={sys.argv[2]}'.encode())
+print(digest.hexdigest())
+PY
+  )" || return 1
+  stamp="$venv/.requirements.sha256"
+  old_fingerprint="$(cat "$stamp" 2>/dev/null)" || old_fingerprint=""
+  if [[ "${ROSENV_FORCE_INSTALL:-0}" == 1 || "$fingerprint" != "$old_fingerprint" ]]; then
+    env -u PYTHONPATH "$venv/bin/python" -m pip install -r "$repo/requirements-rosenv.txt" || return 1
+    if [[ "${INSTALL_TORCH:-0}" == 1 ]]; then
+      env -u PYTHONPATH "$venv/bin/python" -m pip install torch 'numpy<2' \
+        --index-url https://download.pytorch.org/whl/cpu \
+        --extra-index-url https://pypi.org/simple || return 1
+    fi
+    printf '%s\n' "$fingerprint" > "$stamp" || return 1
+  fi
+
+  # Also make plain `source rosenv/bin/activate` work for ROS console scripts.
+  # The marker makes repeated setup idempotent; no system Python is modified.
+  env -u PYTHONPATH "$venv/bin/python" - "$venv/bin/activate" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text()
+if '# embedded rosenv package-path hook' not in text:
+    marker = 'deactivate () {\n'
+    if marker not in text:
+        raise SystemExit('Unsupported virtualenv activation script; no deactivate function')
+    cleanup = '''    # Restore the package path when leaving this virtualenv.
+    if [ "${_ROSENV_SAVED_PYTHONPATH_SET+x}" ]; then
+        if [ "$_ROSENV_SAVED_PYTHONPATH_SET" = set ]; then
+            export PYTHONPATH="$_ROSENV_SAVED_PYTHONPATH"
+        else
+            unset PYTHONPATH
+        fi
+        unset _ROSENV_SAVED_PYTHONPATH_SET _ROSENV_SAVED_PYTHONPATH
+    fi
+'''
+    text = text.replace(marker, marker + cleanup, 1)
+    text += '\n# embedded rosenv package-path hook\nsource "$VIRTUAL_ENV/../scripts/rosenv_paths.sh"\n'
+    path.write_text(text)
+PY
+  [[ $? == 0 ]] || return 1
+  source "$repo/scripts/activate_rosenv.sh" || return 1
+  echo "Activated rosenv (control, ONNX, MuJoCo and test dependencies): $venv"
 }
-
-if [[ ! -f "${REQ_FILE}" ]]; then
-  echo "Warning: requirements file not found at ${REQ_FILE}" >&2
-  return 0
-fi
-
-STAMP_FILE="${VENV_DIR}/.requirements.stamp"
-if [[ ! -f "${STAMP_FILE}" || "${REQ_FILE}" -nt "${STAMP_FILE}" ]]; then
-  python -m pip install -r "${REQ_FILE}" || {
-    echo "Error: dependency installation failed; fix the error above and source this script again." >&2
-    return 1
-  }
-  touch "${STAMP_FILE}" || {
-    echo "Error: could not write requirements stamp at ${STAMP_FILE}" >&2
-    return 1
-  }
-fi
-
-echo "Activated rosenv: ${VENV_DIR}"
+_setup_workspace_rosenv
+_setup_rosenv_result=$?
+unset -f _setup_workspace_rosenv
+return "$_setup_rosenv_result"

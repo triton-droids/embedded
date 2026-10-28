@@ -2,18 +2,12 @@
 # Build only the packages needed for the ONNX/ROS bench, without SDK dependencies.
 set -eo pipefail
 repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-ros_distro="${ROS_DISTRO:-humble}"
-source "/opt/ros/${ros_distro}/setup.bash"
+ros_distro="${ROS_DISTRO:-jazzy}"
 cd "$repo_dir"
-if [[ ! -x rosenv/bin/python ]]; then
-  /usr/bin/python3 -m venv rosenv
-fi
-touch rosenv/COLCON_IGNORE
-source rosenv/bin/activate
-python -m pip install -r requirements-policy-onnx.txt
-colcon build --symlink-install \
+ROS_DISTRO="$ros_distro" source scripts/setup_rosenv.sh
+CMAKE_BUILD_PARALLEL_LEVEL=1 MAKEFLAGS=-j1 colcon build --symlink-install --executor sequential \
   --base-paths humanoid_control "imu_process/Attitude_Sensing(Depreciated)/src" \
   --packages-select motor_control_interfaces humanoid_safety motor_control_hybrid attitude_sensing_pkg \
   --cmake-args "-DPython3_EXECUTABLE=$repo_dir/rosenv/bin/python"
-printf '\nReady. In each ROS terminal run:\nsource /opt/ros/%s/setup.bash\nsource %s/rosenv/bin/activate\nsource %s/install/setup.bash\n' \
-  "$ros_distro" "$repo_dir" "$repo_dir"
+printf '\nReady. In each ROS terminal run:\nROS_DISTRO=%s source %s/scripts/activate_rosenv.sh\n' \
+  "$ros_distro" "$repo_dir"
