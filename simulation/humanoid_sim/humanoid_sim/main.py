@@ -64,7 +64,7 @@ class SimControlNode(Node):
             'robot_xml': '',
             'mesh_dir': '',
             'timestep': 0.0,
-            'foot_clearance_m': 0.05,
+            'foot_clearance_m': 0.0,
             'settle_s': 2.0,
             'start_base_held': True,
             'command_timeout_s': 0.5,
@@ -165,14 +165,25 @@ class SimControlNode(Node):
             estop_active=self.world.motors.estop_active))))
 
 
-def _run_viewer(world: SimWorld) -> None:
-    """Passive MuJoCo viewer synchronised with the physics thread until closed."""
+def _open_viewer(world: SimWorld):
+    """Finish GUI initialization before advertising simulator readiness."""
     import mujoco.viewer
-    with mujoco.viewer.launch_passive(world.model, world.data) as viewer:
-        while viewer.is_running() and rclpy.ok():
-            with world.lock:
-                viewer.sync()
-            time.sleep(1.0 / 60.0)
+    from .viewer import ViewerMirror
+
+    mirror = ViewerMirror(world)
+    viewer = mujoco.viewer.launch_passive(mirror.model, mirror.data)
+    try:
+        mirror.sync(viewer)
+    except Exception:
+        viewer.close()
+        raise
+    return mirror, viewer
+
+
+def _run_viewer(mirror, viewer) -> None:
+    while viewer.is_running() and rclpy.ok():
+        mirror.sync(viewer)
+        time.sleep(1.0 / 60.0)
 
 
 def main(args=None) -> None:
@@ -193,7 +204,16 @@ def main(args=None) -> None:
         if control.get_parameter('enable_camera').value:
             nodes.append(SimCameraNode(world))
 
-    executor = MultiThreadedExecutor()
+    mirror = viewer = None
+    if control.get_parameter('use_viewer').value:
+        try:
+            mirror, viewer = _open_viewer(world)
+        except Exception as exc:  # No display: keep running headless.
+            control.get_logger().error(f'MuJoCo viewer unavailable, running headless: {exc}')
+
+    # Sensor/feedback callbacks are short Python work. Using every host CPU
+    # creates needless GIL contention alongside physics and the GUI thread.
+    executor = MultiThreadedExecutor(num_threads=2)
     for node in nodes:
         executor.add_node(node)
     world.start()
@@ -202,10 +222,10 @@ def main(args=None) -> None:
     control.get_logger().info(
         f'{READY_MESSAGE}: ' + ', '.join(node.get_name() for node in nodes[1:]))
     try:
-        if control.get_parameter('use_viewer').value:
+        if viewer is not None:
             try:
-                _run_viewer(world)
-            except Exception as exc:  # No display: keep running headless.
+                _run_viewer(mirror, viewer)
+            except Exception as exc:
                 control.get_logger().error(f'MuJoCo viewer unavailable, running headless: {exc}')
         while rclpy.ok() and spin.is_alive():
             spin.join(timeout=0.5)
@@ -213,6 +233,8 @@ def main(args=None) -> None:
         pass
     finally:
         world.stop()
+        if viewer is not None:
+            viewer.close()
         executor.shutdown()
         for node in nodes:
             node.destroy_node()

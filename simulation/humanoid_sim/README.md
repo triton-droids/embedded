@@ -12,7 +12,7 @@ the deployed implementation, started unmodified.
 | `realsense2_camera_node` | `sim_camera` | `/camera/camera/color/{image_raw,camera_info}`, optional aligned depth |
 
 Started unmodified by `sim.launch.py`: `cpp_control_node`, `safety_node`,
-`motor_web_node`, `joint_state_monitor_node`, `robot_state_publisher` + RViz,
+`motor_web_node`, `joint_state_monitor_node`, optional `robot_state_publisher` + RViz,
 `tracking_policy_node`, and with `enable_vision:=true` the detector and
 `track_node`. `encos_can_node` is not replaced; the existing launches do not
 select it either.
@@ -23,6 +23,14 @@ In the dev container, after [Setup](#setup):
 
 ```bash
 source install/setup.bash
+ros2 launch humanoid_sim sim.launch.py auto_start:=true
+```
+
+On a host outside the dev container, use the shared activation script in each
+launch terminal after completing Setup:
+
+```bash
+source scripts/activate_rosenv.sh
 ros2 launch humanoid_sim sim.launch.py auto_start:=true
 ```
 
@@ -67,17 +75,19 @@ does not validate hardware calibration, polarity, or sim-to-real transfer.
 
 ## Setup
 
-Inside the dev container (or any ROS 2 Humble/Jazzy host), install MuJoCo into
-the workspace virtualenv, then build:
+Inside the dev container (or any ROS 2 Humble/Jazzy host), install the shared
+Python dependencies into the workspace virtualenv, then build:
 
 ```bash
-source rosenv/bin/activate
-pip install -r simulation/humanoid_sim/requirements.txt
-colcon build --symlink-install --packages-up-to humanoid_sim
+source scripts/setup_rosenv.sh  # Set ROS_DISTRO=humble on Humble hosts.
+CMAKE_BUILD_PARALLEL_LEVEL=1 MAKEFLAGS=-j1 colcon build --symlink-install \
+  --executor sequential --packages-up-to humanoid_sim
 source install/setup.bash
 ```
 
-The policy additionally needs `requirements-policy-onnx.txt`.
+The installer includes MuJoCo, ONNX Runtime, control dependencies and pytest.
+It also configures the virtualenv package path for ROS console scripts using
+system Python. No manual `PYTHONPATH` export is required.
 
 ## Run
 
@@ -85,14 +95,20 @@ The policy additionally needs `requirements-policy-onnx.txt`.
 ros2 launch humanoid_sim sim.launch.py
 ```
 
-This opens the MuJoCo viewer and RViz, starts the Web monitor on
+This opens the MuJoCo viewer, starts the Web monitor on
 `127.0.0.1:8080`, and holds the robot on a virtual gantry: a weld with the
-soles 5 cm above the floor (`foot_clearance_m`). Closer to the floor the limp
-legs fold against it and keep shaking the base, which fails the policy's
-stationary gyro calibration. After each (re)spawn the physics is pre-rolled
-for 2 s (`settle_s`) so the legs already hang still when the nodes start.
+initial soles on the floor (`foot_clearance_m: 0.0`). The limp legs may fold
+against the floor and disturb stationary gyro calibration; this setting changes
+spawn height only, not the joint-holding or policy startup sequence. After each
+(re)spawn the physics is pre-rolled for 2 s (`settle_s`).
 All motors start **disabled**; nothing in the launch enables them unless
 `auto_start:=true` is set.
+
+Autostart waits for both the gantry service and the motor command subscriber
+before enabling on a fresh policy command. Discovery has a 2 s timeout after
+the first fresh command (`sim_autostart.startup_timeout_s` node parameter).
+The node never retries an aborted start; service failure or a missing release
+response after enabling sends DISABLE. Restart the launch to try again.
 
 The robot stack starts only once the simulator logs `Simulation ready`, so
 the safety supervisor's 3 s IMU startup grace is not spent while MuJoCo
@@ -103,7 +119,8 @@ prints the same list):
 
 | Argument | Default | Effect |
 |---|---|---|
-| `use_viewer` / `use_rviz` | `true` | GUI windows; set `false` for headless runs |
+| `use_viewer` | `true` | Open the MuJoCo viewer; set `false` for headless runs |
+| `use_rviz` | `false` | Optionally start robot_state_publisher and RViz |
 | `enable_policy` | `true` | Run `tracking_policy_node` on simulated IMU and joint feedback |
 | `connect_policy` | `true` | Remap `cpp_control_node` input to `/policy/desired_motor_subset`; `false` leaves it on `/desired_motor_subset` for manual commands |
 | `auto_start` | `false` | Enable the motors and release the gantry when the policy starts its reference motion |
@@ -149,7 +166,9 @@ Every command below runs in another shell with the workspace sourced
 ### Windows
 
 - **MuJoCo viewer** (`use_viewer`): a *passive* viewer. It only displays the
-  physics, which `mujoco_sim` steps in real time, so its Run/Pause and
+  physics through an independent model/data mirror. Only state copying takes
+  the physics lock; GUI synchronization and rendering cannot hold that lock
+  and block IMU publication. `mujoco_sim` steps physics in real time, so its Run/Pause and
   reset controls are inactive and the simulation cannot be paused or slowed
   from it. The usual mouse controls move the camera, and MuJoCo's perturbation
   works: double-click a body, then Ctrl + right-drag to push it. Closing the viewer does not stop the
@@ -266,7 +285,8 @@ sometimes the robot walks part of the reference, often it falls within a
 step or two of release. Running the same policy and world in a direct loop
 (scripts not in the repository) separates the causes:
 
-- With the policy acting on the current state every 20 ms, it walks the
+- Earlier tests with 5 cm sole clearance reported that, with the policy acting
+  on the current state every 20 ms, it walks the
   reference (about 2.3 m along +Y in 6 s), including after the 5 cm drop from
   the gantry. The world model, IMU frame and motor law are therefore
   consistent with training.

@@ -53,9 +53,8 @@ class WorldOptions:
     mesh_dir: str
     joint_torque_limits: dict[str, float]
     timestep: float = 0.0  # 0 keeps the robot MJCF's timestep.
-    # Gantry height. At ~0 the limp legs fold against the floor and keep
-    # shaking the base; 5 cm lets them hang still.
-    foot_clearance_m: float = 0.05
+    # Initial sole clearance; zero places the spawn pose on the floor.
+    foot_clearance_m: float = 0.0
     add_head: bool = True
     head_mass_kg: float = 0.05
     head_range_rad: float = 1.0

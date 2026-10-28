@@ -154,7 +154,7 @@ def generate_launch_description():
     share = FindPackageShare
     defaults = [
         ('use_viewer', 'true', 'Open the interactive MuJoCo viewer'),
-        ('use_rviz', 'true', 'Start robot_state_publisher display and RViz'),
+        ('use_rviz', 'false', 'Start robot_state_publisher display and RViz'),
         ('enable_policy', 'true', 'Run tracking_policy_node on simulated IMU/joint feedback'),
         ('connect_policy', 'true', 'Route /policy/desired_motor_subset into cpp_control_node'),
         ('auto_start', 'false',

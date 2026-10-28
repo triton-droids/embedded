@@ -8,7 +8,7 @@ mujoco_sim:
     robot_xml: ""
     mesh_dir: ""
     timestep: 0.0              # 0 keeps the MJCF timestep (5 ms, as in training)
-    foot_clearance_m: 0.05     # gantry height of the soles; the robot drops this far on release
+    foot_clearance_m: 0.02     # initial soles touch the floor; no deliberate drop on release
     settle_s: 2.0              # physics pre-roll after (re)spawn so the legs hang still
     start_base_held: true      # Virtual gantry; release with /sim/hold_base false
     command_timeout_s: 0.5     # Same as python_can_node command_timeout_s

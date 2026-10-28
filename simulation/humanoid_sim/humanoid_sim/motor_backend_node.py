@@ -104,8 +104,11 @@ class SimMotorBackendNode(Node):
             self._timing['commands_rejected'] += 1
             if now_mono - self._rejected_warn >= 1.0:
                 self._rejected_warn = now_mono
+                deadline_info = (f'valid_until_remaining_ms={(valid_until - now_ros) * 1000:.1f}'
+                                 if valid_until else 'no explicit deadline')
                 self.get_logger().warn(
-                    f'Rejecting stale, invalid or non-finite command for {", ".join(rejected)}')
+                    f'Rejecting stale, invalid or non-finite command for {", ".join(rejected)}; '
+                    f'age_ms={(now_ros - stamp) * 1000:.1f}, {deadline_info}')
 
     # -------------------------------------------------------------- outputs
     def _publish_states(self) -> None:
