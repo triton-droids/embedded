@@ -1,0 +1,2 @@
+# Install into the workspace virtualenv (rosenv): pip install -r requirements.txt
+mujoco==3.3.7

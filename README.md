@@ -44,6 +44,7 @@ camera-to-servo path.
 | [`humanoid_control/motor_control_hybrid`](humanoid_control/motor_control_hybrid) | ONNX policy, C++ command scheduler, CAN transport, and fake motors. |
 | [`Interfaces/control_core`](Interfaces/control_core) | ROS-independent per-joint command selection and hold-last storage used by the scheduler. |
 | [`humanoid_control/humanoid_safety`](humanoid_control/humanoid_safety) | Latched safety supervisor, read-only Web/ROS monitoring, and advisory self-collision checks. |
+| [`simulation/humanoid_sim`](simulation/humanoid_sim) | MuJoCo simulation replacing CAN motors, IMU/head MCUs and the camera so the rest of the stack runs unmodified. |
 | [`humanoid_vision`](humanoid_vision) | Detection, optional depth projection, image viewing, and host-side head tracking. |
 | [`imu_process`](imu_process) | Body/head MCU firmware, serial IMU package, fusion utilities, fall detector, and acceptance probe. |
 | [`humanoid_leg_description`](humanoid_leg_description), [`humanoid_arm_description`](humanoid_arm_description) | URDFs, meshes, and display launch files. |
@@ -483,6 +484,7 @@ appropriate workspace. Processes on different hosts must share the intended
 | Self-collision monitor | `ros2 launch humanoid_safety self_collision.launch.py` | Starts the advisory geometry checker; requires its configured backend. |
 | Head tracking | `ros2 launch launch/head_tracking.launch.py` | Starts camera, detector, tracker, and native serial Agent. Depth defaults off; `enable_depth:=true` enables optional 3D output. |
 | Leg display | `ros2 launch launch/display.launch.py use_joint_state_gui:=false` | Displays the selected joint-state stream without publishing manual joint states. |
+| MuJoCo simulation | `ros2 launch humanoid_sim sim.launch.py` | Replaces CAN, both MCUs and the camera with MuJoCo; runs C++ scheduler, safety, Web, RViz and the ONNX policy wired to the simulated motors. Gantry-held start, motors disabled; `auto_start:=true` enables them and releases the gantry when the policy starts. See [its README](simulation/humanoid_sim/README.md). |
 | Unified system | `ros2 launch launch/system.launch.py` | Starts real CAN, C++ scheduler, safety, head tracking, leg state publisher, and RViz. Policy, legacy adapters, Web monitoring, and MoveIt are not started. |
 
 The shipped motor registry has `hardware_verified: false`; real CAN startup is
@@ -514,6 +516,7 @@ Retained MoveIt entry points are listed under [Legacy](#legacy).
 - [RobStride manual review and abstract-command design](docs/robstride_abstract_command_design.md)
 - [Safety supervisor and read-only monitoring](humanoid_control/humanoid_safety/README.md)
 - [Self-collision monitoring](docs/self_collision_monitor.md)
+- [MuJoCo simulation](simulation/humanoid_sim/README.md)
 - [Head tracking controls and tests](humanoid_vision/TRACKING.md)
 - [Head MCU interface](imu_process/head_mcu/README.md)
 - [Body IMU firmware and acceptance checks](imu_process/policy_imu/policy_imu_microros/README.md)

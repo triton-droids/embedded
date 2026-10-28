@@ -1,0 +1,53 @@
+# Parameters for the nodes inside the mujoco_sim process. Values marked
+# placeholder are simulation fixtures, not measurements of the robot.
+mujoco_sim:
+  ros__parameters:
+    # Empty paths resolve to the installed motor registry, the MJCF saved with
+    # the deployed tracking model, and humanoid_leg_description meshes.
+    motor_config_file: ""
+    robot_xml: ""
+    mesh_dir: ""
+    timestep: 0.0              # 0 keeps the MJCF timestep (5 ms, as in training)
+    foot_clearance_m: 0.05     # gantry height of the soles; the robot drops this far on release
+    settle_s: 2.0              # physics pre-roll after (re)spawn so the legs hang still
+    start_base_held: true      # Virtual gantry; release with /sim/hold_base false
+    command_timeout_s: 0.5     # Same as python_can_node command_timeout_s
+    velocity_mode_kd: 2.0      # VELOCITY-mode damping when a command carries kd=0
+    enable_head: true
+    head_mass_kg: 0.05         # placeholder; the policy was trained without a head
+    camera_fovy_deg: 42.5      # placeholder pinhole, close to a D435 color stream
+    camera_width: 640
+    camera_height: 480
+    enable_target: true
+    target_image: ""           # PNG face image for the detector; empty = plain board
+    target_distance_m: 1.5
+    target_amplitude_m: 0.4    # side-to-side sweep; 0 holds the target still
+    target_period_s: 8.0
+    ground_truth_rate_hz: 50.0
+    enable_camera: false
+    use_viewer: false
+
+sim_motor_backend:
+  ros__parameters:
+    publish_rate_hz: 50.0
+    ambient_temperature_c: 28.0
+    heating_c_per_nm2_s: 0.0005    # placeholder thermal model
+    cooling_time_constant_s: 300.0 # placeholder thermal model
+
+sim_body_imu:
+  ros__parameters:
+    rate_hz: 100.0
+    frame_id: imu_link
+    gyro_noise_std_rad_s: 0.0
+    accel_noise_std_m_s2: 0.0
+    gyro_bias_rad_s: [0.0, 0.0, 0.0]
+
+sim_head_mcu:
+  ros__parameters:
+    imu_rate_hz: 100.0
+    command_timeout_s: 0.25    # Same as the head firmware servo watchdog
+
+sim_camera:
+  ros__parameters:
+    rate_hz: 15.0
+    enable_depth: false

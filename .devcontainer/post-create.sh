@@ -31,7 +31,8 @@ touch rosenv/COLCON_IGNORE
 reqs="$(mktemp)"
 grep -v '^torch' humanoid_control/motor_control_hybrid/requirements.txt > "$reqs"
 # Without PYTHONPATH, pip only checks the venv, not ROS's /opt/ros packages.
-env -u PYTHONPATH rosenv/bin/python -m pip install -r "$reqs" -r requirements-policy-onnx.txt 'pytest>=7,<9'
+env -u PYTHONPATH rosenv/bin/python -m pip install -r "$reqs" -r requirements-policy-onnx.txt \
+  -r simulation/humanoid_sim/requirements.txt 'pytest>=7,<9'
 rm -f "$reqs"
 if [[ "${INSTALL_TORCH:-0}" == "1" ]]; then
   env -u PYTHONPATH rosenv/bin/python -m pip install torch 'numpy<2' --index-url https://download.pytorch.org/whl/cpu \

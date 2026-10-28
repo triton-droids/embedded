@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>humanoid_sim</name>
+  <version>0.1.0</version>
+  <description>MuJoCo simulation that replaces the humanoid's CAN motors, IMUs, head MCU and camera.</description>
+  <maintainer email="maxf6.283@gmail.com">Triton Droids</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>motor_control_interfaces</exec_depend>
+  <!-- Robot model, motor registry and the control/policy nodes under test. -->
+  <exec_depend>motor_control_hybrid</exec_depend>
+  <exec_depend>humanoid_leg_description</exec_depend>
+  <exec_depend>humanoid_safety</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <!-- mujoco is installed with pip from requirements.txt. -->
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
