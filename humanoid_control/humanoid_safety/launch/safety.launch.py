@@ -18,6 +18,7 @@ def mode_nodes(context):
                 overrides[name] = ParameterValue(LaunchConfiguration(name), value_type=bool)
         nodes.append(Node(package='humanoid_safety', executable='safety_node',
             name='safety_node', output='screen',
+            ros_arguments=['--log-level', LaunchConfiguration('log_level')],
             parameters=[LaunchConfiguration('safety_config'), overrides]))
     if mode in ('web', 'monitor', 'all'):
         parameters = {
@@ -32,10 +33,12 @@ def mode_nodes(context):
         if config:
             parameters['motor_config_file'] = config
         nodes.append(Node(package='humanoid_safety', executable='motor_web_node',
-                          output='screen', parameters=[parameters]))
+                          output='screen', ros_arguments=['--log-level', LaunchConfiguration('log_level')],
+                          parameters=[parameters]))
     if mode in ('rviz', 'monitor', 'all'):
         nodes.append(Node(package='humanoid_safety', executable='joint_state_monitor_node',
-            output='screen', parameters=[{
+            output='screen', ros_arguments=['--log-level', LaunchConfiguration('log_level')],
+            parameters=[{
                 'source_topic': LaunchConfiguration('display_source_topic'),
                 'output_topic': LaunchConfiguration('display_topic'),
             }]))
@@ -53,6 +56,8 @@ def mode_nodes(context):
 
 def generate_launch_description():
     return LaunchDescription([
+        DeclareLaunchArgument('log_level', default_value='warn',
+            description='ROS diagnostic severity'),
         DeclareLaunchArgument('mode', default_value='supervisor',
             choices=['supervisor', 'web', 'rviz', 'monitor', 'all'],
             description='supervisor; read-only web/rviz; monitor=both views; all=supervisor+views'),

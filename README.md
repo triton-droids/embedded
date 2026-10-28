@@ -44,7 +44,7 @@ camera-to-servo path.
 | [`humanoid_control/motor_control_hybrid`](humanoid_control/motor_control_hybrid) | ONNX policy, C++ command scheduler, CAN transport, and fake motors. |
 | [`Interfaces/control_core`](Interfaces/control_core) | ROS-independent per-joint command selection and hold-last storage used by the scheduler. |
 | [`humanoid_control/humanoid_safety`](humanoid_control/humanoid_safety) | Latched safety supervisor, read-only Web/ROS monitoring, and advisory self-collision checks. |
-| [`simulation/humanoid_sim`](simulation/humanoid_sim) | MuJoCo simulation replacing CAN motors, IMU/head MCUs and the camera so the rest of the stack runs unmodified. |
+| [`simulation/humanoid_sim`](simulation/humanoid_sim) | MuJoCo simulation with a minimal direct policy loop; optional full-stack integration replaces CAN, IMU/head MCUs and camera. |
 | [`humanoid_vision`](humanoid_vision) | Detection, optional depth projection, image viewing, and host-side head tracking. |
 | [`imu_process`](imu_process) | Body/head MCU firmware, serial IMU package, fusion utilities, fall detector, and acceptance probe. |
 | [`humanoid_leg_description`](humanoid_leg_description), [`humanoid_arm_description`](humanoid_arm_description) | URDFs, meshes, and display launch files. |
@@ -311,7 +311,8 @@ These are ROS node parameters, not additional ONNX input tensors:
 | `imu_topic` | `/imu/data_raw` | Body IMU source. |
 | `imu_frame` | `imu_link` | Required incoming IMU frame ID. |
 | `imu_to_body_rotation` | Identity 3x3 matrix, row-major | Proper rotation mapping sensor acceleration/gyro into body coordinates; identity assumes aligned mounting. |
-| `orientation_source` | `complementary` | Estimates gravity using gyro and acceleration; `message` instead uses valid IMU orientation. |
+| `orientation_source` | `message` | Uses the IMU quaternion for gravity; gyro remains a separate input. `complementary` is an explicit legacy raw-IMU option. |
+| `hold_first_frame` | `false` | Freeze the reference index at 0 while continuing feedback and policy inference for a balance experiment. |
 | `calibration_seconds` | `2.0` | Stationary startup sampling to estimate gyro bias. |
 | `joint_states_topic` | `/joint_states` standalone; `/policy/joint_states` in tracking launch | Joint feedback source when real feedback mode is selected. |
 | `joint_feedback_mode` | `zero` | `zero` for bench inputs or `joint_states` for validated position/velocity feedback. |
@@ -504,7 +505,7 @@ appropriate workspace. Processes on different hosts must share the intended
 | Self-collision monitor | `ros2 launch humanoid_safety self_collision.launch.py` | Starts the advisory geometry checker; requires its configured backend. |
 | Head tracking | `ros2 launch launch/head_tracking.launch.py` | Starts camera, detector, tracker, and native serial Agent. Depth defaults off; `enable_depth:=true` enables optional 3D output. |
 | Leg display | `ros2 launch launch/display.launch.py use_joint_state_gui:=false` | Displays the selected joint-state stream without publishing manual joint states. |
-| MuJoCo simulation | `ros2 launch humanoid_sim sim.launch.py` | Replaces CAN, both MCUs and the camera with MuJoCo; runs C++ scheduler, safety, Web, RViz and the ONNX policy wired to the simulated motors. Gantry-held start, motors disabled; `auto_start:=true` enables them and releases the gantry when the policy starts. See [its README](simulation/humanoid_sim/README.md). |
+| MuJoCo simulation | `ros2 launch humanoid_sim sim.launch.py` | Defaults to MuJoCo, body IMU, ONNX policy and safety; policy directly drives the simulated backend. Gantry-held start, motors disabled; `auto_start:=true` enables and releases only on fresh backend control. `minimal:=false` restores C++ forwarding and monitors. See [its README](simulation/humanoid_sim/README.md). |
 | Unified system | `ros2 launch launch/system.launch.py` | Starts real CAN, C++ scheduler, safety, head tracking, leg state publisher, and RViz. Policy, legacy adapters, Web monitoring, and MoveIt are not started. |
 
 The shipped motor registry has `hardware_verified: false`; real CAN startup is

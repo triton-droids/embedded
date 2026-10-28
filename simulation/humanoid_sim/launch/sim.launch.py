@@ -7,15 +7,15 @@ Hardware-facing processes are replaced by the ``mujoco_sim`` process:
   head MCU + micro-ROS Agent        -> sim_head_mcu
   realsense2_camera_node            -> sim_camera (only with enable_vision)
 
-Everything else runs unmodified: cpp_control_node, safety supervisor, Web
-monitor, joint-state relay/RViz, tracking_policy_node and the head-tracking
-detector/tracker. With connect_policy:=true the policy output is routed through
-the C++ scheduler to the simulated motors (the hardware launches keep the
-policy isolated). By default no launch action enables motors; see the package
+The default minimal loop runs tracking_policy_node and the safety supervisor.
+minimal:=false also runs cpp_control_node, Web monitoring, the joint-state relay
+and optional vision. With connect_policy:=true the minimal loop sends the
+latest policy output directly to the simulated backend; the full loop routes
+through C++ (the hardware launches keep the policy isolated). By default no launch action enables motors; see the package
 README. auto_start:=true adds sim_autostart, which enables the motors and
-releases the gantry when the policy publishes its first command.
+releases the gantry only after fresh motion commands reach the backend.
 
-The stack starts only after the simulator logs that it is ready. Otherwise
+The stack starts only after the simulator emits its readiness marker. Otherwise
 the safety supervisor's 3 s IMU startup grace can expire while MuJoCo loads,
 exactly as it would with a late IMU MCU on hardware.
 
@@ -60,10 +60,16 @@ def simulation_and_stack(context):
     params = registry.get('motor_control_node', {}).get('ros__parameters', registry)
     motors = params['motors']
     connect_policy = flag(context, 'enable_policy') and flag(context, 'connect_policy')
+    minimal = flag(context, 'minimal')
+    if minimal and flag(context, 'enable_vision'):
+        raise ValueError('enable_vision requires minimal:=false')
 
     # No name=: a __node remap would rename every node in this multi-node process.
     simulator = Node(
-            package='humanoid_sim', executable='mujoco_sim', output='screen',
+            package='humanoid_sim', executable='mujoco_sim',
+            # stdout carries the readiness handshake; diagnostics stay on stderr.
+            output={'stdout': 'log', 'stderr': 'screen'},
+            ros_arguments=['--log-level', arg('log_level')],
             parameters=[arg('sim_config_file'), {
                 'motor_config_file': registry_path,
                 'use_viewer': flag(context, 'use_viewer'),
@@ -71,40 +77,49 @@ def simulation_and_stack(context):
                 'start_base_held': flag(context, 'start_base_held'),
                 'target_image': arg('target_image').perform(context),
                 'command_timeout_s': float(arg('can_command_timeout_s').perform(context)),
+                'policy_commands_topic': '/policy/desired_motor_subset' if minimal and connect_policy else '',
+                **({'telemetry_rate_hz': 0.0, 'enable_head': False,
+                    'enable_target': False, 'ground_truth_rate_hz': 10.0} if minimal else {}),
             }, {'enable_depth': flag(context, 'enable_depth')}],
         # Without the simulator every other node would only report stale inputs.
         on_exit=[EmitEvent(event=Shutdown(reason='mujoco_sim exited'))],
     )
-    stack = [
-        # Same configuration as hybrid_control.launch.py's make_cpp_control, except
-        # that it talks to the real backend service names (served by the simulator).
-        Node(
-            package='motor_control_hybrid', executable='cpp_control_node',
-            name='cpp_control_node', output='screen',
-            parameters=[{
-                'joint_names': list(motors),
-                'simulation_zero_enabled': False,
-                'home_joint_lower': [float(cfg.get('min_position', float('nan')))
-                                     for cfg in motors.values()],
-                'home_joint_upper': [float(cfg.get('max_position', float('nan')))
-                                     for cfg in motors.values()],
-                'control_rate_hz': float(arg('control_rate_hz').perform(context)),
-                'cmd_timeout_s': float(arg('cmd_timeout_s').perform(context)),
-                'control_rt_enabled': False,
-            }],
-            remappings=[('/desired_motor_subset', '/policy/desired_motor_subset')]
-            if connect_policy else [],
-        ),
-    ]
+    stack = []
+    if not minimal:
+        stack += [
+            # Same configuration as hybrid_control.launch.py's make_cpp_control, except
+            # that it talks to the real backend service names (served by the simulator).
+            Node(
+                package='motor_control_hybrid', executable='cpp_control_node',
+                name='cpp_control_node', output='screen',
+                ros_arguments=['--log-level', arg('log_level')],
+                parameters=[{
+                    'joint_names': list(motors),
+                    'simulation_zero_enabled': False,
+                    'home_joint_lower': [float(cfg.get('min_position', float('nan')))
+                                         for cfg in motors.values()],
+                    'home_joint_upper': [float(cfg.get('max_position', float('nan')))
+                                         for cfg in motors.values()],
+                    'control_rate_hz': float(arg('control_rate_hz').perform(context)),
+                    'cmd_timeout_s': float(arg('cmd_timeout_s').perform(context)),
+                    'control_rt_enabled': False,
+                }],
+                remappings=[('/desired_motor_subset', '/policy/desired_motor_subset')]
+                if connect_policy else [],
+            ),
+        ]
     if flag(context, 'enable_policy'):
         contract = params['model_contract']
         stack.append(Node(
             package='motor_control_hybrid', executable='tracking_policy_node', output='screen',
+            ros_arguments=['--log-level', arg('log_level')],
             parameters=[{
                 'model_path': arg('model_path'),
                 'control_rate_hz': float(contract['control_hz']),
                 'motor_config_file': registry_path,
                 'imu_topic': '/imu/data_raw',
+                'orientation_source': arg('orientation_source'),
+                'hold_first_frame': ParameterValue(arg('hold_first_frame'), value_type=bool),
                 'joint_states_topic': '/joint_states',
                 'joint_feedback_mode': 'joint_states',
                 'calibration_seconds': ParameterValue(arg('calibration_seconds'), value_type=float),
@@ -112,12 +127,14 @@ def simulation_and_stack(context):
     if connect_policy and flag(context, 'auto_start'):
         stack.append(Node(
             package='humanoid_sim', executable='sim_autostart', output='screen',
+            ros_arguments=['--log-level', arg('log_level')],
             parameters=[{'release_delay_s': ParameterValue(arg('release_delay_s'),
                                                            value_type=float)}]))
     stack += [
         # Supervisor + Web monitor + measured-feedback relay/RViz, as in control_test.
         include('humanoid_safety', 'safety.launch.py', {
-            'mode': 'all',
+            'mode': 'supervisor' if minimal else 'all',
+            'log_level': arg('log_level'),
             'motor_config_file': arg('motor_config_file'),
             'safety_config': arg('safety_config_file'),
             'fall_detection_enabled': arg('fall_detection_enabled'),
@@ -129,6 +146,7 @@ def simulation_and_stack(context):
             'use_rviz': arg('use_rviz'),
         }),
         include('humanoid_vision', 'head_tracking.launch.py', {
+            'log_level': arg('log_level'),
             'start_camera': 'false',
             'start_agent': 'false',
             'start_detector': arg('start_detector'),
@@ -153,9 +171,13 @@ def generate_launch_description():
     arg = LaunchConfiguration
     share = FindPackageShare
     defaults = [
+        ('minimal', 'true', 'Direct simulated policy loop; false restores C++ forwarding and monitors'),
+        ('log_level', 'warn', 'ROS log severity: warn retains warnings, errors and fatal diagnostics'),
         ('use_viewer', 'true', 'Open the interactive MuJoCo viewer'),
         ('use_rviz', 'false', 'Start robot_state_publisher display and RViz'),
         ('enable_policy', 'true', 'Run tracking_policy_node on simulated IMU/joint feedback'),
+        ('orientation_source', 'message', 'Policy gravity source: message quaternion or legacy complementary'),
+        ('hold_first_frame', 'false', 'Keep reference frame 0 while the policy continues closed-loop corrections'),
         ('connect_policy', 'true', 'Route /policy/desired_motor_subset into cpp_control_node'),
         ('auto_start', 'false',
          'Enable motors and release the gantry when the policy starts its reference motion'),

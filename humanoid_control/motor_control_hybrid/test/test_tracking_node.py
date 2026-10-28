@@ -1,6 +1,7 @@
 """Exercise callback faults and output gating without any serial or motor I/O."""
 from pathlib import Path
 import time
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
@@ -23,8 +24,8 @@ class Capture:
 
 @pytest.fixture
 def node(monkeypatch):
-    model = (Path.home() / 'Github/simulation/logs/legs_tracking/'
-             '20260914_170827/20260914_170827.onnx')
+    model = (Path(__file__).resolve().parents[1] /
+             'models/20260914_170827/20260914_170827.onnx')
     if not model.exists():
         pytest.skip('LFS policy export absent')
     rclpy.init(args=['--ros-args', '-p', 'calibration_seconds:=0.0'])
@@ -42,6 +43,7 @@ def imu_sample(node):
     imu = Imu()
     imu.header.stamp = node.get_clock().now().to_msg()
     imu.header.frame_id = 'imu_link'
+    imu.orientation.w = 1.0
     imu.linear_acceleration.z = 9.80665
     return imu
 
@@ -55,6 +57,44 @@ def test_valid_imu_publishes_angles_and_monitor_commands(node):
                                np.clip(np.array(node.actions_pub.messages[0].data) * 0.2,
                                        *node.policy.target_limits), rtol=1e-6)
     assert all(mode == 2 for mode in node.command_pub.messages[0].mode)
+
+
+def test_default_quaternion_gravity_keeps_gyro_separate(node):
+    assert node.orientation_source == 'message'
+    assert node.filter is None
+    msg = imu_sample(node)
+    # A 30-degree sensor pitch determines gravity even if acceleration points
+    # sideways due to motion; the raw gyro must not be replaced by orientation.
+    msg.orientation.w = float(np.cos(np.pi / 12))
+    msg.orientation.y = float(np.sin(np.pi / 12))
+    msg.linear_acceleration.z = 0.0
+    msg.linear_acceleration.y = 9.80665
+    msg.angular_velocity.x = 0.12
+    msg.angular_velocity.y = -0.23
+    msg.angular_velocity.z = 0.34
+    node.on_imu(msg)
+    assert node.fault is None
+    np.testing.assert_allclose(node.imu[2], [0.12, -0.23, 0.34])
+    np.testing.assert_allclose(node.imu[3], [0.5, 0, -np.sqrt(3) / 2], atol=1e-7)
+
+
+def test_hold_first_frame_keeps_reference_fixed_but_updates_actions(node):
+    node.hold_first_frame = True
+    node.started = time.monotonic() - 0.5
+    node.policy.observation = Mock(wraps=node.policy.observation)
+    node.on_imu(imu_sample(node))
+    node.tick()
+    assert node.frame == 0
+    assert node.policy.observation.call_args.args[0] == 0
+    node.started -= 1.0
+    msg = imu_sample(node)
+    msg.angular_velocity.x = 0.2
+    node.on_imu(msg)
+    node.tick()
+    assert node.frame == 0
+    assert node.policy.observation.call_args.args[0] == 0
+    assert len(node.command_pub.messages) == 2
+    assert node.policy.observation.call_args.args[1][0] == pytest.approx(0.2)
 
 
 def test_imu_timeout_latches_and_fresh_data_cannot_restart_output(node):
@@ -125,3 +165,34 @@ def test_unavailable_attitude_quaternion_is_rejected(node):
     node.tick()
     assert node.fault == 'IMU orientation is unavailable or invalid'
     assert not node.angles_pub.messages
+
+
+@pytest.mark.parametrize('stage', ['statistics', 'publish'])
+def test_status_work_does_not_hold_feedback_state_lock(node, stage):
+    import threading
+    entered, release = threading.Event(), threading.Event()
+    original = node.statistics
+
+    def blocked(value):
+        entered.set()
+        assert release.wait(2.0)
+        return original(value) if stage == 'statistics' else None
+
+    if stage == 'statistics':
+        node.statistics = blocked
+        node.status_pub = Mock()
+    else:
+        node.status_pub = Mock()
+        node.status_pub.publish.side_effect = blocked
+    worker = threading.Thread(target=node.publish_status)
+    worker.start()
+    try:
+        assert entered.wait(1.0)
+        acquired = node.state_lock.acquire(timeout=0.05)
+        assert acquired, 'status computation/publish blocked feedback state'
+        if acquired:
+            node.state_lock.release()
+    finally:
+        release.set()
+        worker.join(timeout=2.0)
+    assert not worker.is_alive()

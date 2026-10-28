@@ -8,7 +8,8 @@ and discovery of the gantry service and motor subscriber, then once:
 
   1. publishes ENABLE for the policy joints on /motor_commands, the same
      message an operator would send on hardware;
-  2. after release_delay_s, calls /sim/hold_base false.
+  2. after release_delay_s, requires the continuing fresh command stream and
+     asks the backend to verify accepted motion before releasing /sim/hold_base.
 
 It is simulation-only and never re-arms: after /sim/reset, restart the policy
 node and this node (or enable/release by hand).
@@ -51,6 +52,8 @@ class SimAutostartNode(Node):
         self._done = False
         self._first_policy_at = None
         self._request_at = None
+        self._latest_policy_deadline_ns = 0
+        self._last_release_denial = ''
         self._enabled_joints = []
         self._waiting_logged = False
         self.create_timer(0.05, self._check_timeout)
@@ -58,7 +61,7 @@ class SimAutostartNode(Node):
                                'release the gantry')
 
     def _on_policy(self, msg: MotorCommand) -> None:
-        if self._done or self._release_timer is not None:
+        if self._done:
             return
         now_ns = self.get_clock().now().nanoseconds
         stamp_ns = msg.header.stamp.sec * 10**9 + msg.header.stamp.nanosec
@@ -67,10 +70,13 @@ class SimAutostartNode(Node):
         if (not msg.joint_name or stamp_ns <= 0 or stamp_ns > now_ns + 10_000_000
                 or deadline_ns <= max(now_ns, stamp_ns)):
             return
+        self._latest_policy_deadline_ns = deadline_ns
+        if self._release_timer is not None:
+            return
         if self._first_policy_at is None:
             self._first_policy_at = time.monotonic()
         if time.monotonic() - self._first_policy_at > self._startup_timeout:
-            self._fail('Timed out waiting for simulation service/command discovery')
+            self._fail('Timed out waiting for simulation readiness/fresh commands')
             return
         if (not self._hold_client.service_is_ready()
                 or self._command_pub.get_subscription_count() == 0):
@@ -86,7 +92,6 @@ class SimAutostartNode(Node):
         self._command_pub.publish(enable)
         self._enabled_joints = list(enable.joint_name)
         self.get_logger().warn(f'Policy started; sent ENABLE for {len(enable.joint_name)} motors')
-        self.destroy_subscription(self._policy_sub)
         self._release_timer = self.create_timer(max(0.001, self._release_delay), self._release)
 
     def _fail(self, reason: str) -> None:
@@ -98,25 +103,29 @@ class SimAutostartNode(Node):
             disable.mode = [MotorCommand.MODE_DISABLE]
             self._command_pub.publish(disable)
         action = 'DISABLE sent' if self._enabled_joints else 'no ENABLE sent'
-        self.get_logger().error(reason + f'; autostart aborted, {action}')
+        denial = getattr(self, '_last_release_denial', '')
+        self.get_logger().error(reason + (('; ' + denial) if denial else '') +
+                                f'; autostart aborted, {action}')
 
     def _check_timeout(self) -> None:
         if self._done or self._first_policy_at is None:
             return
-        if (self._release_timer is None
+        if (self._request_at is None
                 and time.monotonic() - self._first_policy_at > self._startup_timeout):
-            self._fail('Timed out waiting for simulation service/command discovery')
+            self._fail('Timed out waiting for simulation readiness/fresh commands')
         elif (self._request_at is not None
                 and time.monotonic() - self._request_at > self._startup_timeout):
             self._fail('Timed out waiting for gantry release response')
 
     def _release(self) -> None:
-        self._release_timer.cancel()
         if self._done:
             return
         if not self._hold_client.service_is_ready():
             self._fail('/sim/hold_base became unavailable; gantry not released')
             return
+        if self._latest_policy_deadline_ns <= self.get_clock().now().nanoseconds + 40_000_000:
+            return  # Keep the gantry while waiting for the continuing fresh stream.
+        self._release_timer.cancel()
         try:
             future = self._hold_client.call_async(SetBool.Request(data=False))
         except Exception as exc:
@@ -132,6 +141,13 @@ class SimAutostartNode(Node):
             response = future.result()
         except Exception as exc:
             self._fail(f'Gantry release failed: {exc}')
+            return
+        if response is not None and not response.success and getattr(response, 'message', '').startswith('Release denied:'):
+            # The fresh policy stream may arrive before the backend command.
+            # Retry readiness, never repeat ENABLE, within the startup budget.
+            self._request_at = None
+            self._last_release_denial = response.message
+            self._release_timer.reset()
             return
         if response is None or not response.success:
             self._fail('Gantry release failed')

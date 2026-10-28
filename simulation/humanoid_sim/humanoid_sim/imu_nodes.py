@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import math
 import time
+import threading
 
 import numpy as np
 from rclpy.node import Node
@@ -76,6 +77,8 @@ class SimBodyImuNode(Node):
         self._frame_id = str(self.get_parameter('frame_id').value)
         self._noise = _ImuNoise(self, int(self.get_parameter('seed').value))
         self._published = 0
+        self.first_sample = threading.Event()
+        self._invalid_reported_at = -math.inf
         # The firmware publishes Reliable/Volatile.
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
         self.imu_pub = self.create_publisher(Imu, '/imu/data_raw', qos)
@@ -84,10 +87,20 @@ class SimBodyImuNode(Node):
         self.create_timer(1.0, self._publish_status)
 
     def _publish(self) -> None:
+        if self.world.control_fault is not None:
+            return  # Do not re-stamp a frozen physical sample as fresh.
+        stamp = self.get_clock().now().to_msg()
         sample = self.world.body_imu()
         gyro, accel = self._noise.apply(sample)
+        if (not np.isfinite(gyro).all() or not np.isfinite(accel).all()
+                or not np.isfinite(sample.quat_wxyz).all()
+                or not np.isclose(np.linalg.norm(sample.quat_wxyz), 1.0, atol=0.01)):
+            if time.monotonic() - self._invalid_reported_at > 1.0:
+                self._invalid_reported_at = time.monotonic()
+                self.get_logger().error('Invalid simulated IMU sample; startup not ready')
+            return
         msg = Imu()
-        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.stamp = stamp
         msg.header.frame_id = self._frame_id
         w, x, y, z = (float(v) for v in sample.quat_wxyz)
         msg.orientation.w, msg.orientation.x, msg.orientation.y, msg.orientation.z = w, x, y, z
@@ -95,11 +108,13 @@ class SimBodyImuNode(Node):
         _fill_imu(msg, gyro, accel)
         self.imu_pub.publish(msg)
         self._published += 1
+        self.first_sample.set()
 
     def _publish_status(self) -> None:
         self.status_pub.publish(String(data=json.dumps(dict(
             simulated=True, sensor='mujoco', frame_id=self._frame_id,
-            published=self._published, clock_synced=True))))
+            published=self._published, subscribers=self.imu_pub.get_subscription_count(),
+            clock_synced=True))))
 
 
 class SimHeadMcuNode(Node):
@@ -143,6 +158,8 @@ class SimHeadMcuNode(Node):
             self.world.set_head_target(None)
 
     def _publish_imu(self) -> None:
+        if self.world.control_fault is not None:
+            return
         gyro, accel = self._noise.apply(self.world.head_imu())
         msg = Imu()
         msg.header.stamp = self.get_clock().now().to_msg()

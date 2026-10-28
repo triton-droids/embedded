@@ -11,6 +11,7 @@ mujoco_sim:
     foot_clearance_m: 0.02     # initial soles touch the floor; no deliberate drop on release
     settle_s: 2.0              # physics pre-roll after (re)spawn so the legs hang still
     start_base_held: true      # Virtual gantry; release with /sim/hold_base false
+    pause_on_control_fault: true # freeze the failure pose; reset required, no auto re-arm
     command_timeout_s: 0.5     # Same as python_can_node command_timeout_s
     velocity_mode_kd: 2.0      # VELOCITY-mode damping when a command carries kd=0
     enable_head: true
@@ -30,6 +31,7 @@ mujoco_sim:
 sim_motor_backend:
   ros__parameters:
     publish_rate_hz: 50.0
+    telemetry_rate_hz: 5.0     # dashboard temperatures/status; separate from joint feedback
     ambient_temperature_c: 28.0
     heating_c_per_nm2_s: 0.0005    # placeholder thermal model
     cooling_time_constant_s: 300.0 # placeholder thermal model

@@ -46,7 +46,8 @@ class TrackingPolicyNode(Node):
             'joint_feedback_mode': 'zero', 'input_timeout_s': 0.1,
             'calibration_seconds': 2.0, 'imu_frame': 'imu_link',
             'max_input_skew_s': 0.02, 'max_inference_s': 0.02,
-            'orientation_source': 'complementary',
+            'orientation_source': 'message',
+            'hold_first_frame': False,
             'imu_to_body_rotation': [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
         }
         for name, value in defaults.items():
@@ -70,6 +71,7 @@ class TrackingPolicyNode(Node):
         if self.feedback_mode not in ('zero', 'joint_states'):
             raise ValueError('joint_feedback_mode must be zero or joint_states')
         self.orientation_source = str(param('orientation_source'))
+        self.hold_first_frame = bool(param('hold_first_frame'))
         if self.orientation_source not in ('complementary', 'message'):
             raise ValueError('orientation_source must be complementary or message')
         self.imu_frame = str(param('imu_frame'))
@@ -91,7 +93,7 @@ class TrackingPolicyNode(Node):
                                           np.array([0, 0, -1]), self.policy.offset,
                                           np.zeros(10), self.previous)
             self.policy.run(obs, frame % self.policy.frames)
-        self.filter = GravityEstimator()
+        self.filter = GravityEstimator() if self.orientation_source == 'complementary' else None
         self.bias = np.zeros(3)
         self.calibration = []
         self.calibration_start = None
@@ -99,6 +101,7 @@ class TrackingPolicyNode(Node):
         self.imu = self.joints = None
         self.estop = False
         self.fault = None
+        self.expiry_diagnostic = None
         self.started = None
         self.state = 'waiting_for_imu'
         self.count = self.overruns = 0
@@ -128,7 +131,8 @@ class TrackingPolicyNode(Node):
         self.worker.start()
         self.create_timer(1.0, self.publish_status, clock=self.steady_clock)
         self.get_logger().info(
-            f'ONNX tracking: 50 Hz, feedback={self.feedback_mode}, '
+            f'ONNX tracking: 50 Hz, feedback={self.feedback_mode}, orientation={self.orientation_source}, '
+            f'reference={"hold_first_frame" if self.hold_first_frame else "play"}, '
             'outputs=/policy/*; no SDK, CAN or motor enable commands. '
             'Keep the IMU stationary during calibration.')
 
@@ -140,11 +144,12 @@ class TrackingPolicyNode(Node):
         return self.get_clock().now().nanoseconds * 1e-9
 
     @synchronized
-    def latch_fault(self, reason):
+    def latch_fault(self, reason, details=None):
         if self.stopping.is_set():
             return
         if self.fault is None:
-            self.get_logger().error(reason + '; restart the node to reset')
+            detail = '' if details is None else '; ' + json.dumps(details, allow_nan=False)
+            self.get_logger().error(reason + detail + '; restart the node to reset')
         self.fault = reason
         self.previous[:] = 0
 
@@ -275,7 +280,8 @@ class TrackingPolicyNode(Node):
                 q, dq = self.policy.offset, np.zeros(10, dtype=np.float32)
             if self.started is None:
                 self.started = begin
-            frame = min(int((begin - self.started) * 50), self.policy.frames - 1)
+            frame = (0 if self.hold_first_frame else
+                     min(int((begin - self.started) * 50), self.policy.frames - 1))
             source_stamp = min(imu[1], joints[1]) if joints else imu[1]
             valid_until = source_stamp + self.timeout
             previous = self.previous.copy()
@@ -285,16 +291,39 @@ class TrackingPolicyNode(Node):
             actions, targets = self.policy.run(obs, frame)
             finished = time.monotonic()
             with self.state_lock:
+                lock_acquired = time.monotonic()
                 self.inference_ms.append((finished - start_inference) * 1000)
                 if self.stopping.is_set() or self.fault or self.estop:
                     return
                 # Validate the immutable inputs used by this result, not newer callbacks.
                 checked_at = time.monotonic()
-                if (checked_at - begin > self.max_inference
-                        or not fresh(*imu[:2], checked_at, self.ros_seconds(), self.timeout)
-                        or (joints is not None and not fresh(
-                            *joints[:2], checked_at, self.ros_seconds(), self.timeout))):
-                    self.latch_fault('Inference result expired')
+                checked_ros = self.ros_seconds()
+                elapsed_expired = checked_at - begin > self.max_inference
+                imu_fresh = fresh(*imu[:2], checked_at, checked_ros, self.timeout)
+                joints_fresh = (joints is None or fresh(
+                    *joints[:2], checked_at, checked_ros, self.timeout))
+                if elapsed_expired or not imu_fresh or not joints_fresh:
+                    # Diagnose the rejected immutable snapshot, never newer callbacks.
+                    self.expiry_diagnostic = {
+                        'causes': [name for name, failed in (
+                            ('control_budget', elapsed_expired), ('imu_stale', not imu_fresh),
+                            ('joints_stale', not joints_fresh)) if failed],
+                        'elapsed_ms': (checked_at - begin) * 1000,
+                        'prepare_ms': (start_inference - begin) * 1000,
+                        'inference_ms': (finished - start_inference) * 1000,
+                        'result_lock_wait_ms': (lock_acquired - finished) * 1000,
+                        'budget_ms': self.max_inference * 1000,
+                        'input_timeout_ms': self.timeout * 1000,
+                        'imu_source_age_ms': (checked_ros - imu[1]) * 1000,
+                        'imu_receipt_age_ms': (checked_at - imu[0]) * 1000,
+                        'joint_source_age_ms': None if joints is None else
+                            (checked_ros - joints[1]) * 1000,
+                        'joint_receipt_age_ms': None if joints is None else
+                            (checked_at - joints[0]) * 1000,
+                        'reference_frame': frame,
+                        'hold_first_frame': self.hold_first_frame,
+                    }
+                    self.latch_fault('Inference result expired', details=self.expiry_diagnostic)
                     return
                 if not np.isfinite(actions).all() or not np.isfinite(targets).all():
                     raise ValueError('Non-finite policy output')
@@ -339,24 +368,36 @@ class TrackingPolicyNode(Node):
         return {'mean': float(np.mean(values)), 'p99': float(np.percentile(values, 99)),
                 'max': float(np.max(values))}
 
-    @synchronized
     def publish_status(self):
-        now = time.monotonic()
-        status = {
-            'state': self.state, 'fault': self.fault, 'requested_hz': self.rate,
-            'max_input_skew_s': self.max_input_skew, 'max_inference_s': self.max_inference,
-            'iterations': self.count, 'reference_frame': self.frame,
-            'reference_finished': self.frame == self.policy.frames - 1,
-            'reference_end_behavior': 'hold_last_frame',
-            'joint_feedback': self.feedback_mode, 'hardware_output': False,
-            'imu_age_since_receipt_ms': None if self.imu is None else (now - self.imu[0]) * 1000,
-            'gyro_bias_rad_s': self.bias.tolist(), 'model_sha256': self.model_sha256,
-            'rejected_imu_timestamps': self.rejected_imu_timestamps,
-            'inference_ms': self.statistics(self.inference_ms),
-            'control_callback_ms': self.statistics(self.work_ms),
-            'tick_interval_ms': self.statistics(self.intervals),
-            'callback_overruns_20ms': self.overruns,
-        }
+        # Copy bounded histories under lock; percentile/JSON/DDS work must not
+        # hold up feedback callbacks or the inference worker.
+        with self.state_lock:
+            if self.stopping.is_set():
+                return
+            now = time.monotonic()
+            status = {
+                'state': self.state, 'fault': self.fault, 'requested_hz': self.rate,
+                'expiry_diagnostic': self.expiry_diagnostic,
+                'max_input_skew_s': self.max_input_skew, 'max_inference_s': self.max_inference,
+                'iterations': self.count, 'reference_frame': self.frame,
+                'reference_finished': self.frame == self.policy.frames - 1,
+                'hold_first_frame': self.hold_first_frame,
+                'reference_end_behavior': 'hold_first_frame' if self.hold_first_frame else 'hold_last_frame',
+                'joint_feedback': self.feedback_mode, 'hardware_output': False,
+                'imu_age_since_receipt_ms': None if self.imu is None else (now - self.imu[0]) * 1000,
+                'gyro_bias_rad_s': self.bias.tolist(), 'model_sha256': self.model_sha256,
+                'rejected_imu_timestamps': self.rejected_imu_timestamps,
+                'inference_ms': None,
+                'control_callback_ms': None,
+                'tick_interval_ms': None,
+                'callback_overruns_20ms': self.overruns,
+            }
+            timing_samples = {
+                'inference_ms': tuple(self.inference_ms),
+                'control_callback_ms': tuple(self.work_ms),
+                'tick_interval_ms': tuple(self.intervals),
+            }
+        status.update({name: self.statistics(samples) for name, samples in timing_samples.items()})
         self.status_pub.publish(String(data=json.dumps(status, allow_nan=False)))
 
 

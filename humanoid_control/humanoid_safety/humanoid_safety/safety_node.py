@@ -50,6 +50,7 @@ class SafetyNode(Node):
         self.declare_parameter("estop_topic", "/safety/estop")
         self.declare_parameter("status_topic", "/safety/status")
         self.declare_parameter("evaluation_rate_hz", 100.0)
+        self.declare_parameter("status_rate_hz", 10.0)
         self.declare_parameter("fall_detection_enabled", True)
         self.declare_parameter("fall_roll_deg", 40.0)
         self.declare_parameter("fall_pitch_deg", 40.0)
@@ -106,6 +107,9 @@ class SafetyNode(Node):
         if self._imu_timeout_s <= 0.0:
             self._imu_timeout_s = 0.25
         self._last_imu_stamp_ns = None
+        self._imu_received = 0
+        self._imu_rejected_source = 0
+        self._imu_rejected_orientation = 0
         started_at = self._now_seconds()
 
         checks: list[SafetyCheck] = []
@@ -155,11 +159,13 @@ class SafetyNode(Node):
             reliability=ReliabilityPolicy.RELIABLE,
         )
         self._estop_pub = self.create_publisher(Bool, estop_topic, estop_qos)
+        self._last_published_estop = None
         self._status_pub = self.create_publisher(
             DiagnosticArray, status_topic, 10
         )
         self._imu_sub = self.create_subscription(
-            Imu, imu_topic, self._imu_callback, 20
+            # Safety consumes current attitude, not a 200 ms history at 100 Hz.
+            Imu, imu_topic, self._imu_callback, 1
         )
         # Only listen to streams that an enabled check uses.
         def uses(hook: str) -> bool:
@@ -193,6 +199,9 @@ class SafetyNode(Node):
         self._timer = self.create_timer(
             period, self._evaluate, clock=self._watchdog_clock
         )
+        status_rate = float(self.get_parameter("status_rate_hz").value)
+        self._status_timer = self.create_timer(
+            1.0 / max(1.0, status_rate), self._publish_status, clock=self._watchdog_clock)
         self._publish_estop()
         self.get_logger().info(
             f"Safety node started: imu={imu_topic}, estop={estop_topic}, "
@@ -334,6 +343,7 @@ class SafetyNode(Node):
         # Source age is measured in the publisher's synchronized ROS epoch;
         # receipt age is measured independently on the host's steady clock.
         # Rejected packets never reach either safety check or renew freshness.
+        self._imu_received += 1
         received_at = self._now_seconds()
         stamp_ns = msg.header.stamp.sec * 1_000_000_000 + msg.header.stamp.nanosec
         source_age_s = (self.get_clock().now().nanoseconds - stamp_ns) * 1.0e-9
@@ -343,6 +353,7 @@ class SafetyNode(Node):
                 or source_age_s > self._imu_timeout_s
                 or (self._last_imu_stamp_ns is not None
                     and stamp_ns <= self._last_imu_stamp_ns)):
+            self._imu_rejected_source += 1
             return
         self._last_imu_stamp_ns = stamp_ns
         orientation_unavailable = (
@@ -381,21 +392,28 @@ class SafetyNode(Node):
                 msg.linear_acceleration.z,
             ),
         )
+        if not observation.valid:
+            self._imu_rejected_orientation += 1
         self.supervisor.observe(observation)
 
     def _evaluate(self) -> None:
         newly_tripped = self.supervisor.evaluate(self._now_seconds())
+        # Deliver the latch before potentially blocking diagnostic/log output.
+        self._publish_estop()
         if newly_tripped:
+            self._publish_status()
             self.get_logger().fatal(
                 f"SAFETY ESTOP LATCHED: {self.supervisor.reason}"
             )
-        self._publish_estop()
-        self._publish_status()
 
     def _publish_estop(self) -> None:
+        state = self.supervisor.latched
+        if state == self._last_published_estop:
+            return
         msg = Bool()
-        msg.data = self.supervisor.latched
+        msg.data = state
         self._estop_pub.publish(msg)
+        self._last_published_estop = state
 
     def _publish_status(self) -> None:
         array = DiagnosticArray()
@@ -414,6 +432,9 @@ class SafetyNode(Node):
             summary.level = DiagnosticStatus.OK
             summary.message = "all safety checks clear"
         summary.values = [
+            KeyValue(key="imu_received", value=str(self._imu_received)),
+            KeyValue(key="imu_rejected_source", value=str(self._imu_rejected_source)),
+            KeyValue(key="imu_rejected_orientation", value=str(self._imu_rejected_orientation)),
             KeyValue(key="latched", value=str(self.supervisor.latched)),
             KeyValue(key="reason", value=self.supervisor.reason),
         ]

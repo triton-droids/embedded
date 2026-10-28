@@ -21,7 +21,7 @@ from ament_index_python.packages import get_package_share_directory
 import mujoco
 from nav_msgs.msg import Odometry
 import rclpy
-from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
+from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
 from rclpy.node import Node
 from std_msgs.msg import String
 from std_srvs.srv import SetBool, Trigger
@@ -32,7 +32,7 @@ from .motor_model import MotorBank, limits_from_registry
 from .world import HeadServoConfig, SimWorld, TargetMotion
 
 MODEL_DIR = 'models/20260914_170827'
-# sim.launch.py starts the rest of the stack when it sees this log line.
+# sim.launch.py consumes this stdout marker independently of ROS log severity.
 READY_MESSAGE = 'Simulation ready'
 
 
@@ -68,6 +68,7 @@ class SimControlNode(Node):
             'settle_s': 2.0,
             'start_base_held': True,
             'command_timeout_s': 0.5,
+            'pause_on_control_fault': True,
             'velocity_mode_kd': 2.0,
             'enable_head': True,
             'head_mass_kg': 0.05,
@@ -110,7 +111,8 @@ class SimControlNode(Node):
             model, motors,
             head=HeadServoConfig() if options.add_head else None,
             target_motion=TargetMotion(float(p['target_amplitude_m']), float(p['target_period_s'])),
-            base_held=bool(p['start_base_held']), settle_s=float(p['settle_s']))
+            base_held=bool(p['start_base_held']), settle_s=float(p['settle_s']),
+            pause_on_control_fault=bool(p['pause_on_control_fault']))
         self.get_logger().warn(
             f'MuJoCo {mujoco.__version__} simulation: {model.nu} actuators, '
             f'timestep {model.opt.timestep * 1e3:.1f} ms, registry {registry_path}')
@@ -131,7 +133,14 @@ class SimControlNode(Node):
         return response
 
     def _hold_base(self, request, response):
-        self.world.set_base_held(request.data)
+        with self.world.lock:
+            if not request.data and (self.world.control_fault is not None or
+                    not self.world.motors.motion_ready(time.monotonic(), 0.04)):
+                response.success = False
+                response.message = ('Release denied: all motors need fresh motion commands; '
+                                    f'enabled={[j for j in self.world.joint_names if self.world.motors.is_enabled(j)]}')
+                return response
+            self.world.set_base_held(request.data)
         response.success = True
         response.message = 'Base held' if request.data else 'Base released'
         self.get_logger().info(response.message)
@@ -162,6 +171,7 @@ class SimControlNode(Node):
         self.status_pub.publish(String(data=json.dumps(dict(
             sim_time_s=sim_time, real_time_factor=round(rtf, 3),
             physics_overruns=self.world.overruns, base_held=self.world.base_held(),
+            control_fault=self.world.control_fault, physics_paused=self.world.control_fault is not None,
             estop_active=self.world.motors.estop_active))))
 
 
@@ -211,16 +221,33 @@ def main(args=None) -> None:
         except Exception as exc:  # No display: keep running headless.
             control.get_logger().error(f'MuJoCo viewer unavailable, running headless: {exc}')
 
-    # Sensor/feedback callbacks are short Python work. Using every host CPU
-    # creates needless GIL contention alongside physics and the GUI thread.
-    executor = MultiThreadedExecutor(num_threads=2)
+    # The minimal loop has short callbacks; avoid a Python worker pool and
+    # its extra GIL/dispatch contention. Physics remains on its own thread.
+    executor = SingleThreadedExecutor()
     for node in nodes:
         executor.add_node(node)
     world.start()
     spin = threading.Thread(target=executor.spin, name='ros_executor', daemon=True)
     spin.start()
-    control.get_logger().info(
-        f'{READY_MESSAGE}: ' + ', '.join(node.get_name() for node in nodes[1:]))
+    # Launch captures stdout in its log and uses this marker to start the stack.
+    # Keep readiness independent of the diagnostics severity (WARN by default).
+    # Threads being alive is not proof that the executor has published sensors.
+    ready_until = time.monotonic() + 5.0
+    while rclpy.ok() and spin.is_alive() and time.monotonic() < ready_until:
+        if nodes[1].first_feedback.is_set() and nodes[2].first_sample.is_set():
+            break
+        time.sleep(0.01)
+    else:
+        world.stop()
+        if viewer is not None:
+            viewer.close()
+        executor.shutdown()
+        for node in nodes:
+            node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
+        raise RuntimeError('Simulator failed to publish initial IMU/joint feedback')
+    print(READY_MESSAGE, flush=True)
     try:
         if viewer is not None:
             try:

@@ -104,7 +104,8 @@ On an upstream timeout the existing C++ watchdog publishes disable messages on
 the isolated bench topic.
 
 External IMU publication is the default; select its topic with `imu_topic:=/your/imu`.
-For legacy JSON firmware set `start_imu_reader:=true`. The Agent and JSON reader
+For legacy JSON firmware without a quaternion, set `start_imu_reader:=true
+orientation_source:=complementary`. The Agent and JSON reader
 must not share a serial device.
 For real joint feedback, set `joint_feedback_mode:=joint_states
 joint_states_topic:=/joint_states`. Every message must contain all ten policy
@@ -119,6 +120,12 @@ Default model:
 
 The inputs are `obs: float32[1,56]` and `time_step: float32[1,1]`. Observation
 normalization is already embedded in the ONNX graph.
+
+`hold_first_frame:=true` freezes the reference index and `time_step` at 0 for a
+balance experiment. Sensor feedback, previous-action history and inference keep
+updating at 50 Hz; the original frame-0 reference velocities are retained. The
+default is `false` (play the walking reference). This is an experimental mode,
+not a separately trained standing controller.
 
 | Observation slice | Meaning | Units |
 | --- | --- | --- |
@@ -154,15 +161,20 @@ The existing reader now recognizes these SI keys, rejects missing/non-finite
 samples instead of publishing zeros, and handles the 32-bit microsecond counter
 wrap. Older `acc`/`gyro` JSON and BNO085 CSV parsing are preserved.
 
-The default policy estimator propagates the down vector with gyro measurements
-and corrects it using acceleration when its magnitude is near 1 g. Upright
-gravity is `[0,0,-1]`. This is a six-axis bench estimator; translational
-acceleration can distort its attitude correction. Identity IMU-to-body mounting
-is the bench assumption, not a verified robot installation.
+By default (`orientation_source:=message`) the policy computes projected gravity
+from the IMU message quaternion. Angular velocity remains a separate,
+bias-corrected gyro input; no complementary filter is constructed or run in this
+mode. Upright gravity is `[0,0,-1]`. The hardware and simulation policy launches
+use this default for the fused body IMU and MuJoCo frame quaternion.
+
+For legacy raw-only IMUs, explicitly select `orientation_source:=complementary`.
+This six-axis bench estimator propagates the down vector with gyro measurements
+and corrects it using acceleration near 1 g. Translational acceleration can
+distort that correction. Identity IMU-to-body mounting remains an assumption,
+not a verified robot installation.
 
 Direct-node parameters support a row-major `imu_to_body_rotation` (orthonormal,
-determinant +1), an expected `imu_frame`, and `orientation_source:=message` for
-an external attitude estimator. A message quaternion must be normalized and
+determinant +1) and an expected `imu_frame`. The default message quaternion must be normalized and
 represent world-from-sensor orientation; unavailable orientation (`covariance[0]
 < 0`) is rejected. Gyro and gravity are rotated into the policy's body frame.
 Use the training model's body-axis conventions when calibrating the mounting.
@@ -301,6 +313,17 @@ samples after CLI discovery.
 Also inspect `inference_ms`, `control_callback_ms`, and `tick_interval_ms` in
 status. `callback_overruns_20ms=0` only means each successful callback's measured
 work took at most 20 ms; it does **not** mean every callback started on time.
+On `Inference result expired`, the ERROR log and `/policy/status.expiry_diagnostic`
+identify the failed check: `control_budget` (20 ms from the input snapshot through
+result validation), `imu_stale`, or `joints_stale` (100 ms input freshness).
+`prepare_ms` includes snapshot preparation and observation construction;
+`inference_ms` measures ONNX; `result_lock_wait_ms` measures elapsed time from
+ONNX completion until reacquiring the state lock, including scheduling delay.
+Source and receipt ages describe the immutable inputs used for the rejected
+result. The roughly six-second reference end does not stop inference; normal
+playback holds its last frame, and `hold_first_frame` holds frame zero.
+No additional per-cycle logs are emitted by these diagnostics.
+
 Check status again after the capture: C++ can keep publishing disable messages
 after policy failure, so its frequency alone cannot validate the policy.
 

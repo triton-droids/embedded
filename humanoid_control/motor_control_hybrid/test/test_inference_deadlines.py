@@ -35,6 +35,7 @@ def node(monkeypatch):
     n.imu = (10.0, 99.99, np.zeros(3), np.array([0., 0., -1.]))
     n.joints = (10.0, 99.985, np.zeros(10), np.zeros(10))
     n.feedback_mode = 'joint_states'
+    n.hold_first_frame = False
     n.estop, n.fault, n.started = False, None, None
     n.state = 'waiting_for_imu'
     n.frame = n.count = n.overruns = 0
@@ -61,8 +62,44 @@ def test_slow_inference_is_discarded_and_does_not_advance_history(node):
     node.policy.run = slow
     node.tick()
     assert node.fault == 'Inference result expired'
+    assert node.expiry_diagnostic['causes'] == ['control_budget']
+    assert node.expiry_diagnostic['inference_ms'] == pytest.approx(30)
+    assert node.expiry_diagnostic['result_lock_wait_ms'] == pytest.approx(0)
     node.command_pub.publish.assert_not_called()
     np.testing.assert_array_equal(node.previous, np.zeros(10))
+
+
+def test_result_lock_wait_is_reported_separately_from_inference(node):
+    class DelayedResultLock:
+        def __init__(self):
+            self.lock = threading.RLock()
+            self.entries = 0
+
+        def __enter__(self):
+            self.entries += 1
+            if self.entries == 2:
+                node.clock_values[:] = [10.025, 100.025]
+            self.lock.acquire()
+            return self
+
+        def __exit__(self, *args):
+            self.lock.release()
+
+    node.state_lock = DelayedResultLock()
+    node.tick()
+    assert node.fault == 'Inference result expired'
+    assert node.expiry_diagnostic['causes'] == ['control_budget']
+    assert node.expiry_diagnostic['inference_ms'] == pytest.approx(0)
+    assert node.expiry_diagnostic['result_lock_wait_ms'] == pytest.approx(25)
+    node.command_pub.publish.assert_not_called()
+
+
+def test_reference_end_does_not_expire_a_fresh_result(node):
+    node.started = 3.0  # Seven seconds elapsed; the 299-frame clip has ended.
+    node.tick()
+    assert node.frame == 298
+    assert node.fault is None
+    node.command_pub.publish.assert_called_once()
 
 
 def test_new_feedback_cannot_make_old_snapshot_fresh(node):
@@ -76,6 +113,9 @@ def test_new_feedback_cannot_make_old_snapshot_fresh(node):
     node.policy.run = run
     node.tick()
     assert node.fault == 'Inference result expired'
+    assert node.expiry_diagnostic['causes'] == ['imu_stale', 'joints_stale']
+    assert node.expiry_diagnostic['imu_source_age_ms'] == pytest.approx(105)
+    assert node.expiry_diagnostic['joint_source_age_ms'] == pytest.approx(105)
     node.command_pub.publish.assert_not_called()
 
 

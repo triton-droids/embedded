@@ -119,3 +119,42 @@ def test_release_success(node):
     node._released(future)
     assert node._done
     assert node._command_pub.publish.call_count == 1
+
+
+def test_release_waits_for_continuing_fresh_commands(node):
+    start(node)
+    node.get_clock().now.return_value.nanoseconds = 10_080_000_000
+    node._release()
+    node._hold_client.call_async.assert_not_called()
+    node._release_timer.cancel.assert_not_called()
+    fresh = policy_command()
+    fresh.header.stamp = Time(sec=10, nanosec=80_000_000)
+    fresh.valid_until = Time(sec=10, nanosec=180_000_000)
+    node._on_policy(fresh)
+    node._release()
+    node._hold_client.call_async.assert_called_once()
+    assert node._command_pub.publish.call_count == 1  # Never repeat ENABLE.
+
+
+def test_stopped_policy_aborts_with_gantry_held(node):
+    start(node)
+    node.get_clock().now.return_value.nanoseconds = 11_000_000_000
+    node._release()
+    node._hold_client.call_async.assert_not_called()
+    node._first_policy_at -= 3
+    node._check_timeout()
+    assert node._done
+    assert list(node._command_pub.publish.call_args.args[0].mode) == [MotorCommand.MODE_DISABLE]
+
+
+def test_backend_not_ready_retries_without_enabling_again(node):
+    start(node)
+    node._release()
+    future = Mock()
+    future.result.return_value = SimpleNamespace(
+        success=False, message='Release denied: all motors need fresh motion commands')
+    node._released(future)
+    assert not node._done
+    assert node._request_at is None
+    node._release_timer.reset.assert_called_once()
+    assert node._command_pub.publish.call_count == 1

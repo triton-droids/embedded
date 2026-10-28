@@ -70,6 +70,7 @@ class _JointState:
     # POSITION mode moves this reference toward q_target at position_speed.
     q_ref: float = 0.0
     position_speed: float = 0.0
+    motion_received: bool = False
     events: list = field(default_factory=list)
 
 
@@ -129,6 +130,13 @@ class MotorBank:
 
     def mode(self, joint: str) -> int:
         return self._joints[joint].mode
+
+    def motion_ready(self, now_mono_s: float, min_remaining_s: float = 0.0) -> bool:
+        """Every joint has an enabled, unexpired closed-loop motion command."""
+        return (not self.estop_active and bool(self._joints) and all(
+            state.enabled and state.mode == MODE_MOTION and state.motion_received and state.kp > 0
+            and state.deadline > now_mono_s + min_remaining_s
+            for state in self._joints.values()))
 
     def pop_events(self) -> list[str]:
         """Return and clear human-readable state changes for logging."""
@@ -195,6 +203,7 @@ class MotorBank:
                 if not state.enabled:
                     state.events.append(f'Enabled {joint}')
                 state.enabled = True
+                state.motion_received = False
                 state.inhibited = False
                 # The real driver enables in an idle, zero-gain state.
                 state.mode = MODE_MOTION
@@ -220,6 +229,7 @@ class MotorBank:
                 state.dq_target = 0.0
                 state.tau_ff = 0.0
             elif mode == MODE_MOTION:
+                state.motion_received = True
                 state.q_target = _clip(position, limits.lower, limits.upper)
                 state.q_ref = state.q_target
                 state.dq_target = _clip(velocity, -limits.max_velocity, limits.max_velocity)
@@ -264,6 +274,7 @@ class MotorBank:
         if state.enabled:
             state.events.append(f'Disabled {joint}')
         state.enabled = False
+        state.motion_received = False
         state.mode = MODE_DISABLE
         state.deadline = math.inf
         state.kp = state.kd = state.tau_ff = state.dq_target = 0.0

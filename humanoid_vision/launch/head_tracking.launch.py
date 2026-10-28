@@ -66,6 +66,7 @@ def setup(context):
         elif mode == 'native':
             actions.append(Node(
                 package='micro_ros_agent', executable='micro_ros_agent',
+                ros_arguments=['--log-level', value('log_level')],
                 arguments=['serial', '--dev', port, '-b', baud, '-v4'],
                 output='screen', on_exit=stop_with('micro-ROS Agent')))
         else:
@@ -78,6 +79,7 @@ def setup(context):
         actions.append(Node(
             package='realsense2_camera', executable='realsense2_camera_node',
             namespace='camera', name='camera', output='screen',
+            ros_arguments=['--log-level', value('log_level')],
             parameters=[{
                 'enable_color': True, 'enable_depth': depth,
                 'align_depth.enable': depth,
@@ -101,6 +103,7 @@ def setup(context):
             parameters['use_cuda'] = boolean('use_cuda')
         actions.append(Node(
             package='humanoid_vision', executable='ball_detection_node',
+            ros_arguments=['--log-level', value('log_level')],
             parameters=[parameters], output='screen',
             remappings=[('/vision/target_center', value('target_topic'))],
             on_exit=stop_with('detector')))
@@ -115,6 +118,7 @@ def setup(context):
             'axis', 'camera_info_topic', 'target_topic', 'command_topic')})
         actions.append(Node(
             package='humanoid_vision', executable='track_node',
+            ros_arguments=['--log-level', value('log_level')],
             parameters=[parameters], output='screen',
             on_exit=stop_with('tracker')))
     return actions
@@ -127,6 +131,7 @@ def generate_launch_description():
     detector; external camera/Agent processes are never stopped by this launch.
     """
     arguments = [
+        ('log_level', 'warn', 'ROS diagnostic severity'),
         ('start_camera', 'true', 'Start the RealSense color camera'),
         ('start_agent', 'true', 'Start Agent; false when one already owns serial'),
         ('start_detector', 'true', 'Start box detection'),

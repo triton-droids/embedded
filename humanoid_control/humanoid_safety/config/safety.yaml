@@ -4,6 +4,7 @@ safety_node:
     estop_topic: /safety/estop
     status_topic: /safety/status
     evaluation_rate_hz: 100.0
+    status_rate_hz: 10.0  # Diagnostics only; safety evaluation remains 100 Hz.
 
     fall_detection_enabled: true
     fall_roll_deg: 40.0

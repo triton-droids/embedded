@@ -21,6 +21,7 @@ def harness():
     node._imu_timeout_s = 0.25
     node._imu_future_tolerance_s = 0.01
     node._last_imu_stamp_ns = None
+    node._imu_received = node._imu_rejected_source = node._imu_rejected_orientation = 0
     node._publish_estop = Mock()
     node._publish_status = Mock()
     node.get_logger = lambda: Mock()
@@ -138,6 +139,19 @@ def test_paused_ros_clock_and_replayed_dds_imu_still_timeout():
         assert node.supervisor.latched
         assert 'imu_freshness' in node.supervisor.reason
         assert not node.supervisor.try_reset(node._now_seconds())[0]
+        # A subscriber joining after the single trip publication still sees True.
+        from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
+        from std_msgs.msg import Bool
+        retained = []
+        late_sub = node.create_subscription(
+            Bool, '/issue45/estop', lambda message: retained.append(message.data),
+            QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                       reliability=ReliabilityPolicy.RELIABLE))
+        deadline = time.monotonic() + 1.0
+        while not retained and time.monotonic() < deadline:
+            rclpy.spin_once(node, timeout_sec=0.01)
+        assert retained == [True]
+        node.destroy_subscription(late_sub)
         # A strictly newer sample restores health, while the latch needs reset.
         msg.header.stamp.nanosec = 1
         deadline = time.monotonic() + 0.1
@@ -165,3 +179,33 @@ def test_invalid_quaternion_preserves_fall_fault(quaternion):
     SafetyNode._imu_callback(node, msg)
     assert node.supervisor.evaluate(node.steady)
     assert 'invalid IMU orientation' in node.supervisor.reason
+
+
+def test_estop_publishes_changes_and_retains_initial_state():
+    node = SimpleNamespace(
+        supervisor=SimpleNamespace(latched=False),
+        _last_published_estop=None, _estop_pub=Mock())
+    SafetyNode._publish_estop(node)
+    SafetyNode._publish_estop(node)
+    assert node._estop_pub.publish.call_count == 1
+    node.supervisor.latched = True
+    SafetyNode._publish_estop(node)
+    SafetyNode._publish_estop(node)
+    assert node._estop_pub.publish.call_count == 2
+    node.supervisor.latched = False
+    SafetyNode._publish_estop(node)
+    assert [c.args[0].data for c in node._estop_pub.publish.call_args_list] == [False, True, False]
+
+
+def test_estop_signal_precedes_trip_diagnostics():
+    node = harness()
+    events = []
+    node._publish_estop.side_effect = lambda: events.append('estop')
+    node._publish_status.side_effect = lambda: events.append('status')
+    logger = Mock()
+    node.get_logger = lambda: logger
+    logger.fatal.side_effect = lambda message: events.append('log')
+    node.steady = 10.3
+    SafetyNode._evaluate(node)
+    assert node.supervisor.latched
+    assert events == ['estop', 'status', 'log']

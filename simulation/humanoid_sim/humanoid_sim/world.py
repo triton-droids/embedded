@@ -63,7 +63,8 @@ class SimWorld:
     def __init__(self, model: mujoco.MjModel, motors: MotorBank, *,
                  head: HeadServoConfig | None = None,
                  target_motion: TargetMotion | None = None,
-                 base_held: bool = True, settle_s: float = 2.0) -> None:
+                 base_held: bool = True, settle_s: float = 2.0,
+                 pause_on_control_fault: bool = False) -> None:
         self.model = model
         self.data = mujoco.MjData(model)
         self.motors = motors
@@ -71,6 +72,8 @@ class SimWorld:
         self.overruns = 0
         self.steps = 0
         self.settle_s = float(settle_s)
+        self.pause_on_control_fault = pause_on_control_fault
+        self.control_fault: str | None = None
 
         self.joint_names = list(motors.joint_names)
         self._qpos = np.array([model.joint(n).qposadr[0] for n in self.joint_names])
@@ -127,6 +130,17 @@ class SimWorld:
         dt = model.opt.timestep
         with self.lock:
             self.motors.expire(now_mono)
+            if (self.pause_on_control_fault and not self.data.eq_active[self._weld]
+                    and not self.motors.motion_ready(now_mono)):
+                self.control_fault = self.control_fault or 'Motor control lost: disabled, expired or estop'
+            if self.control_fault is not None:
+                # A simulation diagnostic stop: preserve the exact failure pose.
+                # Never continue an expired target or automatically re-arm.
+                for joint in self.joint_names:
+                    self.motors.disable(joint)
+                data.ctrl[:] = 0.0
+                model.actuator_biasprm[:, 1:3] = 0.0
+                return
             for i, joint in enumerate(self.joint_names):
                 q = float(data.qpos[self._qpos[i]])
                 self.motors.seed_reference(joint, q)
@@ -174,6 +188,7 @@ class SimWorld:
         which the policy's gyro calibration requires.
         """
         with self.lock:
+            self.control_fault = None
             mujoco.mj_resetData(self.model, self.data)
             for joint in self.joint_names:
                 self.motors.disable(joint)

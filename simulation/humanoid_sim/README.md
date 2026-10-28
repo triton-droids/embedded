@@ -11,11 +11,14 @@ the deployed implementation, started unmodified.
 | Head MCU + micro-ROS Agent | `sim_head_mcu` | `/head/imu`, `/head/mcu_status`, `/head/servo_target_rad` (250 ms watchdog) |
 | `realsense2_camera_node` | `sim_camera` | `/camera/camera/color/{image_raw,camera_info}`, optional aligned depth |
 
-Started unmodified by `sim.launch.py`: `cpp_control_node`, `safety_node`,
-`motor_web_node`, `joint_state_monitor_node`, optional `robot_state_publisher` + RViz,
-`tracking_policy_node`, and with `enable_vision:=true` the detector and
-`track_node`. `encos_can_node` is not replaced; the existing launches do not
-select it either.
+The default `minimal:=true` loop runs only MuJoCo, the body IMU, the tracking
+policy, the safety supervisor and optional autostart. Policy motion commands go
+directly to the simulated backend with a depth-one best-effort subscription;
+reliable ENABLE/DISABLE commands remain separate on `/motor_commands`. This
+removes the second 50 Hz C++ forwarding cycle. Hardware launches are unchanged.
+
+Use `minimal:=false` to restore `cpp_control_node`, the Web monitor, joint-state
+relay, head MCU and optional RViz/vision for full-stack integration testing.
 
 ## Quick start
 
@@ -25,6 +28,17 @@ In the dev container, after [Setup](#setup):
 source install/setup.bash
 ros2 launch humanoid_sim sim.launch.py auto_start:=true
 ```
+
+To try balancing around reference frame 0 without advancing the walk:
+
+```bash
+ros2 launch humanoid_sim sim.launch.py auto_start:=true hold_first_frame:=true
+```
+
+This keeps the model's original frame-0 joint position/velocity reference and
+continues closed-loop policy corrections at 50 Hz. It does not lock the joints
+or turn the walking model into a validated standing policy. Omit the argument
+to play the walking reference normally.
 
 On a host outside the dev container, use the shared activation script in each
 launch terminal after completing Setup:
@@ -95,11 +109,9 @@ system Python. No manual `PYTHONPATH` export is required.
 ros2 launch humanoid_sim sim.launch.py
 ```
 
-This opens the MuJoCo viewer, starts the Web monitor on
-`127.0.0.1:8080`, and holds the robot on a virtual gantry: a weld with the
-initial soles on the floor (`foot_clearance_m: 0.0`). The limp legs may fold
-against the floor and disturb stationary gyro calibration; this setting changes
-spawn height only, not the joint-holding or policy startup sequence. After each
+This opens the MuJoCo viewer and holds the robot on a virtual gantry, with
+2 cm initial foot clearance (`foot_clearance_m: 0.02`). The default minimal
+loop does not start Web/RViz, the head MCU, camera or moving target. After each
 (re)spawn the physics is pre-rolled for 2 s (`settle_s`).
 All motors start **disabled**; nothing in the launch enables them unless
 `auto_start:=true` is set.
@@ -107,27 +119,41 @@ All motors start **disabled**; nothing in the launch enables them unless
 Autostart waits for both the gantry service and the motor command subscriber
 before enabling on a fresh policy command. Discovery has a 2 s timeout after
 the first fresh command (`sim_autostart.startup_timeout_s` node parameter).
-The node never retries an aborted start; service failure or a missing release
-response after enabling sends DISABLE. Restart the launch to try again.
+After ENABLE, autostart keeps watching the fresh policy stream. The simulator
+allows release only when all motors have accepted motion commands with positive
+position gains and at least 40 ms remaining lifetime. A not-yet-ready backend
+can be checked again within the startup budget, without repeating ENABLE.
+An aborted start sends DISABLE and keeps the gantry engaged; it never re-arms.
 
-The robot stack starts only once the simulator logs `Simulation ready`, so
+The robot stack starts only once the simulator emits its private `Simulation ready`
+stdout handshake after the first valid body IMU and joint feedback have actually
+been published (captured in the launch log), so
 the safety supervisor's 3 s IMU startup grace is not spent while MuJoCo
 loads. If `mujoco_sim` exits, the whole launch shuts down.
+
+ROS nodes default to `WARN`, including the simulated motor backend and included
+safety/vision nodes. Routine per-motor enable/disable INFO logs are suppressed.
+For temporary diagnostics, pass `log_level:=info`. ROS launch may still print
+its own process start/stop notices.
 
 Launch arguments (`ros2 launch humanoid_sim sim.launch.py --show-args`
 prints the same list):
 
 | Argument | Default | Effect |
 |---|---|---|
+| `minimal` | `true` | Direct policy-to-sim loop; `false` restores full-stack integration |
+| `log_level` | `warn` | Only ROS warnings, errors and fatal diagnostics by default |
 | `use_viewer` | `true` | Open the MuJoCo viewer; set `false` for headless runs |
-| `use_rviz` | `false` | Optionally start robot_state_publisher and RViz |
+| `use_rviz` | `false` | With `minimal:=false`, start robot_state_publisher and RViz |
 | `enable_policy` | `true` | Run `tracking_policy_node` on simulated IMU and joint feedback |
-| `connect_policy` | `true` | Remap `cpp_control_node` input to `/policy/desired_motor_subset`; `false` leaves it on `/desired_motor_subset` for manual commands |
+| `orientation_source` | `message` | Use the simulated quaternion for gravity; `complementary` selects the legacy estimator explicitly |
+| `hold_first_frame` | `false` | Freeze the reference at frame 0 while continuing policy inference and feedback corrections |
+| `connect_policy` | `true` | Connect policy directly to the backend in minimal mode, or through C++ in full mode |
 | `auto_start` | `false` | Enable the motors and release the gantry when the policy starts its reference motion |
 | `release_delay_s` | `0.1` | With `auto_start`: delay from enable to gantry release |
 | `start_base_held` | `true` | Start on the gantry |
 | `calibration_seconds` | `2.0` | Policy gyro calibration; keep the base held meanwhile |
-| `enable_vision` | `false` | Render the head camera and start detector + head tracker |
+| `enable_vision` | `false` | Requires `minimal:=false`; render camera and start detector + tracker |
 | `start_detector` | `true` | Set `false` for `TRACK_ONLY` builds |
 | `use_cuda` | `false` | Detector backend |
 | `enable_depth` | `false` | Also render aligned depth (needed for the detector's 3D output) |
@@ -139,7 +165,7 @@ prints the same list):
 | `trip_on_imu_timeout` | empty | Override `safety.yaml` IMU-timeout trip |
 | `localhost_only` | `1` | Confine DDS discovery to this host |
 | `ros_domain_id` | `$ROS_DOMAIN_ID` or `0` | ROS domain for every node in the launch |
-| `web_port` | `8080` | Web monitor port |
+| `web_port` | `8080` | Web monitor port with `minimal:=false` |
 | `motor_config_file` | installed `motors.yaml` | Motor registry for the backend, controller and policy |
 | `safety_config_file` | installed `safety.yaml` | Safety supervisor configuration |
 | `sim_config_file` | installed `config/sim.yaml` | Parameters of the nodes inside `mujoco_sim` |
@@ -185,7 +211,7 @@ Every command below runs in another shell with the workspace sourced
 
 | Topic | Shows |
 |---|---|
-| `/sim/status` | Simulated time, real-time factor, physics overruns, gantry, estop |
+| `/sim/status` | Simulated time, real-time factor, gantry, estop, `physics_paused` and `control_fault` |
 | `/sim/ground_truth/odom` | True base pose and velocity (world frame) |
 | `/policy/status` | Policy state (`calibrating`, `running`, `fault`), reference frame, fault reason |
 | `/joint_states`, `/motor_status`, `/motor_telemetry` | Simulated motor feedback, as from `python_can_node` |
@@ -193,6 +219,25 @@ Every command below runs in another shell with the workspace sourced
 | `/safety/estop`, `/safety/status` | Safety supervisor latch and diagnostics |
 
 For example `ros2 topic echo /policy/status`.
+
+With `pause_on_control_fault: true` (default), loss of enabled, valid motor
+control after release freezes physics at the failure pose and disables every
+motor. This is a simulation diagnostic stop, not successful balance or physical
+safety validation. IMU/joint publishers stop rather than re-stamping the frozen
+sample as fresh. Inspect `/sim/status` and restart the launch to recover; traffic
+alone never clears the pause. Set this simulator parameter to `false` only when
+intentionally observing uncontrolled physics.
+
+Safety still evaluates at 100 Hz. Its IMU subscription retains only the latest
+sample (Reliable/Volatile, depth 1); ordinary diagnostics publish at 10 Hz.
+The Reliable/Transient Local estop state publishes on initialization and changes,
+so new subscribers still receive the current latch without a 100 Hz duplicate
+stream. A new trip is sent before logging or diagnostic work.
+
+In the minimal loop, `/motor_commands` carries lifecycle commands, so its Hz is
+not the policy-control rate. Measure `/policy/desired_motor_subset` instead.
+Temperature/status JSON is disabled in the minimal loop; full mode publishes it
+at 5 Hz separately from the 50 Hz joint feedback.
 
 ### Commands
 

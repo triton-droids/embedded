@@ -98,3 +98,51 @@ def test_head_servo_tracks_and_releases(world):
     world.set_head_target(None)
     run(world, 0.1, start=0.5)
     assert world.data.actuator(mb.HEAD_ACTUATOR).force[0] == 0.0
+
+
+def test_release_readiness_requires_motion_and_remaining_budget(world):
+    assert not world.motors.motion_ready(0.0)
+    command_all(world, MODE_ENABLE)
+    assert not world.motors.motion_ready(0.0)
+    command_all(world, MODE_MOTION)
+    assert world.motors.motion_ready(0.0, 0.04)
+    assert not world.motors.motion_ready(0.48, 0.04)
+    world.motors.disable(world.joint_names[0])
+    assert not world.motors.motion_ready(0.0)
+
+
+def test_control_expiry_pauses_physics_without_rearming(world):
+    world.pause_on_control_fault = True
+    command_all(world, MODE_ENABLE)
+    command_all(world, MODE_MOTION)
+    world.set_base_held(False)
+    world.step(0.0)
+    position = world.data.qpos.copy()
+    sim_time = world.data.time
+    world.step(0.51)  # The last motion command has expired.
+    assert world.control_fault is not None
+    assert world.data.time == sim_time
+    np.testing.assert_array_equal(world.data.qpos, position)
+    assert not any(world.motors.is_enabled(j) for j in world.joint_names)
+    command_all(world, MODE_ENABLE, t=0.52)
+    command_all(world, MODE_MOTION, t=0.52)
+    world.step(0.53)
+    assert world.data.time == sim_time  # New traffic cannot clear the pause.
+    assert not any(world.motors.is_enabled(j) for j in world.joint_names)
+    world.reset(base_held=True)
+    assert world.control_fault is None
+    assert world.base_held()
+
+
+def test_rejected_packet_does_not_replace_still_valid_motion(world):
+    world.pause_on_control_fault = True
+    command_all(world, MODE_ENABLE)
+    command_all(world, MODE_MOTION)
+    world.set_base_held(False)
+    rejected = world.motors.submit(
+        world.joint_names, [MODE_MOTION], [], [], [], [], [],
+        stamp_s=99.0, valid_until_s=99.1, now_ros_s=100.0, now_mono_s=0.03)
+    assert rejected == world.joint_names
+    world.step(0.03)
+    assert world.control_fault is None
+    assert world.data.time > 0
