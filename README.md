@@ -44,7 +44,7 @@ camera-to-servo path.
 | [`humanoid_control/motor_control_hybrid`](humanoid_control/motor_control_hybrid) | ONNX policy, C++ command scheduler, CAN transport, and fake motors. |
 | [`Interfaces/control_core`](Interfaces/control_core) | ROS-independent per-joint command selection and hold-last storage used by the scheduler. |
 | [`humanoid_control/humanoid_safety`](humanoid_control/humanoid_safety) | Latched safety supervisor, read-only Web/ROS monitoring, and advisory self-collision checks. |
-| [`simulation/humanoid_sim`](simulation/humanoid_sim) | MuJoCo simulation with a minimal direct policy loop; optional full-stack integration replaces CAN, IMU/head MCUs and camera. |
+| [`simulation/humanoid_sim`](simulation/humanoid_sim) | MuJoCo simulation with C++ command forwarding, Web and safety; replaces CAN, IMU/head MCUs and camera. |
 | [`humanoid_vision`](humanoid_vision) | Detection, optional depth projection, image viewing, and host-side head tracking. |
 | [`imu_process`](imu_process) | Body/head MCU firmware, serial IMU package, fusion utilities, fall detector, and acceptance probe. |
 | [`humanoid_leg_description`](humanoid_leg_description), [`humanoid_arm_description`](humanoid_arm_description) | URDFs, meshes, and display launch files. |
@@ -505,7 +505,7 @@ appropriate workspace. Processes on different hosts must share the intended
 | Self-collision monitor | `ros2 launch humanoid_safety self_collision.launch.py` | Starts the advisory geometry checker; requires its configured backend. |
 | Head tracking | `ros2 launch launch/head_tracking.launch.py` | Starts camera, detector, tracker, and native serial Agent. Depth defaults off; `enable_depth:=true` enables optional 3D output. |
 | Leg display | `ros2 launch launch/display.launch.py use_joint_state_gui:=false` | Displays the selected joint-state stream without publishing manual joint states. |
-| MuJoCo simulation | `ros2 launch humanoid_sim sim.launch.py` | Defaults to MuJoCo, body IMU, ONNX policy and safety; policy directly drives the simulated backend. Gantry-held start, motors disabled; `auto_start:=true` enables and releases only on fresh backend control. `minimal:=false` restores C++ forwarding and monitors. See [its README](simulation/humanoid_sim/README.md). |
+| MuJoCo simulation | `ros2 launch humanoid_sim sim.launch.py` | Defaults to MuJoCo, IMUs, ONNX policy, C++ forwarding, Web and safety; RViz and the joint-state relay are off. Gantry-held start, motors disabled; `auto_start:=true` enables and releases only on fresh backend control. Connected policy always routes through C++. See [its README](simulation/humanoid_sim/README.md). |
 | Unified system | `ros2 launch launch/system.launch.py` | Starts real CAN, C++ scheduler, safety, head tracking, leg state publisher, and RViz. Policy, legacy adapters, Web monitoring, and MoveIt are not started. |
 
 The shipped motor registry has `hardware_verified: false`; real CAN startup is

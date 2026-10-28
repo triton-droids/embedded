@@ -11,6 +11,7 @@ from launch_ros.substitutions import FindPackageShare
 def mode_nodes(context):
     mode = LaunchConfiguration('mode').perform(context)
     nodes = []
+    joint_monitor = LaunchConfiguration('start_joint_state_monitor').perform(context).lower() == 'true'
     if mode in ('supervisor', 'all'):
         overrides = {}
         for name in ('fall_detection_enabled', 'trip_on_imu_timeout'):
@@ -36,12 +37,13 @@ def mode_nodes(context):
                           output='screen', ros_arguments=['--log-level', LaunchConfiguration('log_level')],
                           parameters=[parameters]))
     if mode in ('rviz', 'monitor', 'all'):
-        nodes.append(Node(package='humanoid_safety', executable='joint_state_monitor_node',
-            output='screen', ros_arguments=['--log-level', LaunchConfiguration('log_level')],
-            parameters=[{
-                'source_topic': LaunchConfiguration('display_source_topic'),
-                'output_topic': LaunchConfiguration('display_topic'),
-            }]))
+        if joint_monitor:
+            nodes.append(Node(package='humanoid_safety', executable='joint_state_monitor_node',
+                output='screen', ros_arguments=['--log-level', LaunchConfiguration('log_level')],
+                parameters=[{
+                    'source_topic': LaunchConfiguration('display_source_topic'),
+                    'output_topic': LaunchConfiguration('display_topic'),
+                }]))
         if LaunchConfiguration('start_display').perform(context).lower() == 'true':
             nodes.append(IncludeLaunchDescription(PythonLaunchDescriptionSource(
                 PathJoinSubstitution([FindPackageShare('humanoid_leg_description'),
@@ -49,7 +51,8 @@ def mode_nodes(context):
                 launch_arguments={
                     'use_joint_state_gui': 'false',
                     'use_rviz': LaunchConfiguration('use_rviz'),
-                    'joint_states_topic': LaunchConfiguration('display_topic'),
+                    'joint_states_topic': LaunchConfiguration(
+                        'display_topic' if joint_monitor else 'display_source_topic'),
                 }.items()))
     return nodes
 
@@ -72,6 +75,8 @@ def generate_launch_description():
         DeclareLaunchArgument('host', default_value='127.0.0.1'),
         DeclareLaunchArgument('port', default_value='8080'),
         DeclareLaunchArgument('motor_config_file', default_value=''),
+        DeclareLaunchArgument('start_joint_state_monitor', default_value='true', choices=['true', 'false'],
+                             description='Start the joint-state visualization relay'),
         DeclareLaunchArgument('start_display', default_value='true', choices=['true', 'false']),
         DeclareLaunchArgument('use_rviz', default_value='true', choices=['true', 'false']),
         DeclareLaunchArgument('fall_detection_enabled', default_value='', choices=['', 'true', 'false'],

@@ -7,11 +7,11 @@ Hardware-facing processes are replaced by the ``mujoco_sim`` process:
   head MCU + micro-ROS Agent        -> sim_head_mcu
   realsense2_camera_node            -> sim_camera (only with enable_vision)
 
-The default minimal loop runs tracking_policy_node and the safety supervisor.
-minimal:=false also runs cpp_control_node, Web monitoring, the joint-state relay
-and optional vision. With connect_policy:=true the minimal loop sends the
-latest policy output directly to the simulated backend; the full loop routes
-through C++ (the hardware launches keep the policy isolated). By default no launch action enables motors; see the package
+The default loop keeps cpp_control_node, Web monitoring, the head MCU,
+tracking_policy_node and the safety supervisor. RViz and the joint-state relay
+are disabled by default. Connected policy output always routes through C++;
+minimal mode is restricted to disconnected diagnostics. By default no launch
+action enables motors; see the package
 README. auto_start:=true adds sim_autostart, which enables the motors and
 releases the gantry only after fresh motion commands reach the backend.
 
@@ -61,6 +61,8 @@ def simulation_and_stack(context):
     motors = params['motors']
     connect_policy = flag(context, 'enable_policy') and flag(context, 'connect_policy')
     minimal = flag(context, 'minimal')
+    if minimal and connect_policy:
+        raise ValueError('Connected policy requires minimal:=false; cpp_control_node must remain in the command path')
     if minimal and flag(context, 'enable_vision'):
         raise ValueError('enable_vision requires minimal:=false')
 
@@ -77,7 +79,7 @@ def simulation_and_stack(context):
                 'start_base_held': flag(context, 'start_base_held'),
                 'target_image': arg('target_image').perform(context),
                 'command_timeout_s': float(arg('can_command_timeout_s').perform(context)),
-                'policy_commands_topic': '/policy/desired_motor_subset' if minimal and connect_policy else '',
+                'policy_commands_topic': '',
                 **({'telemetry_rate_hz': 0.0, 'enable_head': False,
                     'enable_target': False, 'ground_truth_rate_hz': 10.0} if minimal else {}),
             }, {'enable_depth': flag(context, 'enable_depth')}],
@@ -142,6 +144,7 @@ def simulation_and_stack(context):
             'ros_domain_id': arg('ros_domain_id'),
             'source_topic': '/joint_states',
             'port': arg('web_port'),
+            'start_joint_state_monitor': arg('start_joint_state_monitor'),
             'start_display': arg('use_rviz'),
             'use_rviz': arg('use_rviz'),
         }),
@@ -171,9 +174,10 @@ def generate_launch_description():
     arg = LaunchConfiguration
     share = FindPackageShare
     defaults = [
-        ('minimal', 'true', 'Direct simulated policy loop; false restores C++ forwarding and monitors'),
+        ('minimal', 'false', 'Disconnected diagnostics only; connected policy requires false and C++ forwarding'),
         ('log_level', 'warn', 'ROS log severity: warn retains warnings, errors and fatal diagnostics'),
         ('use_viewer', 'true', 'Open the interactive MuJoCo viewer'),
+        ('start_joint_state_monitor', 'false', 'Start joint-state relay in the full stack'),
         ('use_rviz', 'false', 'Start robot_state_publisher display and RViz'),
         ('enable_policy', 'true', 'Run tracking_policy_node on simulated IMU/joint feedback'),
         ('orientation_source', 'message', 'Policy gravity source: message quaternion or legacy complementary'),

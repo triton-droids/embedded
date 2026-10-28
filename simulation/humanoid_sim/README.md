@@ -11,14 +11,14 @@ the deployed implementation, started unmodified.
 | Head MCU + micro-ROS Agent | `sim_head_mcu` | `/head/imu`, `/head/mcu_status`, `/head/servo_target_rad` (250 ms watchdog) |
 | `realsense2_camera_node` | `sim_camera` | `/camera/camera/color/{image_raw,camera_info}`, optional aligned depth |
 
-The default `minimal:=true` loop runs only MuJoCo, the body IMU, the tracking
-policy, the safety supervisor and optional autostart. Policy motion commands go
-directly to the simulated backend with a depth-one best-effort subscription;
-reliable ENABLE/DISABLE commands remain separate on `/motor_commands`. This
-removes the second 50 Hz C++ forwarding cycle. Hardware launches are unchanged.
+The default `minimal:=false` loop retains `cpp_control_node`, the Web monitor,
+head MCU, policy and safety supervisor. Policy motion commands always pass through
+C++ before reaching the simulated backend. RViz and the joint-state relay are
+both disabled by default (`use_rviz:=false start_joint_state_monitor:=false`).
+Vision remains opt-in through `enable_vision:=true`.
 
-Use `minimal:=false` to restore `cpp_control_node`, the Web monitor, joint-state
-relay, head MCU and optional RViz/vision for full-stack integration testing.
+Minimal mode is available only for disconnected diagnostics (`connect_policy:=false`);
+it cannot bypass the C++ command path for a connected policy.
 
 ## Quick start
 
@@ -110,8 +110,8 @@ ros2 launch humanoid_sim sim.launch.py
 ```
 
 This opens the MuJoCo viewer and holds the robot on a virtual gantry, with
-2 cm initial foot clearance (`foot_clearance_m: 0.02`). The default minimal
-loop does not start Web/RViz, the head MCU, camera or moving target. After each
+2 cm initial foot clearance (`foot_clearance_m: 0.02`). The default loop keeps Web, C++ forwarding, the head MCU and the moving target;
+RViz and the joint-state relay stay off, and camera/vision remain opt-in. After each
 (re)spawn the physics is pre-rolled for 2 s (`settle_s`).
 All motors start **disabled**; nothing in the launch enables them unless
 `auto_start:=true` is set.
@@ -141,14 +141,15 @@ prints the same list):
 
 | Argument | Default | Effect |
 |---|---|---|
-| `minimal` | `true` | Direct policy-to-sim loop; `false` restores full-stack integration |
+| `minimal` | `false` | Full stack by default; `true` requires disconnected policy |
+| `start_joint_state_monitor` | `false` | Start the optional joint-state visualization relay |
 | `log_level` | `warn` | Only ROS warnings, errors and fatal diagnostics by default |
 | `use_viewer` | `true` | Open the MuJoCo viewer; set `false` for headless runs |
 | `use_rviz` | `false` | With `minimal:=false`, start robot_state_publisher and RViz |
 | `enable_policy` | `true` | Run `tracking_policy_node` on simulated IMU and joint feedback |
 | `orientation_source` | `message` | Use the simulated quaternion for gravity; `complementary` selects the legacy estimator explicitly |
 | `hold_first_frame` | `false` | Freeze the reference at frame 0 while continuing policy inference and feedback corrections |
-| `connect_policy` | `true` | Connect policy directly to the backend in minimal mode, or through C++ in full mode |
+| `connect_policy` | `true` | Connect policy through C++; requires `minimal:=false` |
 | `auto_start` | `false` | Enable the motors and release the gantry when the policy starts its reference motion |
 | `release_delay_s` | `0.1` | With `auto_start`: delay from enable to gantry release |
 | `start_base_held` | `true` | Start on the gantry |
@@ -234,7 +235,7 @@ The Reliable/Transient Local estop state publishes on initialization and changes
 so new subscribers still receive the current latch without a 100 Hz duplicate
 stream. A new trip is sent before logging or diagnostic work.
 
-In the minimal loop, `/motor_commands` carries lifecycle commands, so its Hz is
+In disconnected minimal mode, `/motor_commands` carries lifecycle commands, so its Hz is
 not the policy-control rate. Measure `/policy/desired_motor_subset` instead.
 Temperature/status JSON is disabled in the minimal loop; full mode publishes it
 at 5 Hz separately from the 50 Hz joint feedback.
