@@ -28,3 +28,40 @@ safety_node:
     # IMU stuck check
     trip_on_imu_stuck: true
     imu_stuck_samples: 50
+
+    # ---- Motor, joint, CAN and battery checks (checks/motors.py, joints.py,
+    # comms.py, power.py). All off until tested on the robot. Joint lists,
+    # position limits and per-joint max_torque_nm come from
+    # motor_control_hybrid/config/motors.yaml unless motor_config_file is set.
+    joint_states_topic: /joint_states
+    motor_telemetry_topic: /motor_telemetry
+    can_timing_topic: /can_timing
+    battery_topic: /battery_state
+    motor_config_file: ""
+
+    motor_temperature_enabled: false
+    motor_max_temp_c: 80.0
+    motor_reset_temp_c: 70.0
+    # python_can_node does not publish per-motor fault bits yet; it stops
+    # itself and reports transport_fault, which can_link_enabled catches.
+    motor_fault_enabled: false
+    motor_torque_enabled: false
+    motor_max_torque_nm: 60.0  # Used where motors.yaml max_torque_nm is null.
+    motor_torque_confirm_samples: 5
+    motor_feedback_enabled: false
+    motor_feedback_timeout_s: 0.25
+
+    joint_position_enabled: false
+    joint_position_margin_rad: 0.05
+    joint_velocity_enabled: false
+    joint_max_velocity_rad_s: 8.0
+    joint_velocity_confirm_samples: 3
+
+    can_link_enabled: false
+    can_timeout_s: 3.0  # /can_timing is published at 1 Hz.
+
+    # Nothing publishes /battery_state yet. Set voltages for the real pack.
+    battery_enabled: false
+    battery_min_voltage_v: 42.0
+    battery_reset_voltage_v: 44.0
+    battery_confirm_samples: 10

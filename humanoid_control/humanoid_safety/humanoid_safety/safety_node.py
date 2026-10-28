@@ -3,21 +3,37 @@
 # Reset: ros2 service call /safety/reset std_srvs/srv/Trigger "{}"
 from __future__ import annotations
 
+import json
+import math
 import time
+from pathlib import Path
 
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
-import rclpy from rclpy.clock import Clock, ClockType
+import rclpy
+from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
-from sensor_msgs.msg import Imu
-from std_msgs.msg import Bool
+from sensor_msgs.msg import BatteryState, Imu, JointState
+from std_msgs.msg import Bool, String
 from std_srvs.srv import Trigger
 
 from .checks import (
+    BatteryVoltageCheck,
+    CanLinkCheck,
+    CanObservation,
     FallDetectionCheck,
     ImuFreshnessCheck,
     ImuObservation,
     ImuStuckCheck,
+    JointObservation,
+    JointPositionLimitCheck,
+    JointVelocityLimitCheck,
+    MotorFaultCheck,
+    MotorFeedbackCheck,
+    MotorObservation,
+    MotorTemperatureCheck,
+    MotorTorqueCheck,
+    PowerObservation,
     SafetyCheck,
     SafetySupervisor,
     quaternion_to_roll_pitch,
@@ -49,6 +65,33 @@ class SafetyNode(Node):
         self.declare_parameter("imu_timeout_s", 0.25)
         self.declare_parameter("imu_future_tolerance_s", 0.01)
         self.declare_parameter("startup_grace_s", 3.0)
+
+        # Motor, joint, CAN and battery checks. All are off by default.
+        self.declare_parameter("joint_states_topic", "/joint_states")
+        self.declare_parameter("motor_telemetry_topic", "/motor_telemetry")
+        self.declare_parameter("can_timing_topic", "/can_timing")
+        self.declare_parameter("battery_topic", "/battery_state")
+        self.declare_parameter("motor_config_file", "")
+        self.declare_parameter("motor_temperature_enabled", False)
+        self.declare_parameter("motor_max_temp_c", 80.0)
+        self.declare_parameter("motor_reset_temp_c", 70.0)
+        self.declare_parameter("motor_fault_enabled", False)
+        self.declare_parameter("motor_torque_enabled", False)
+        self.declare_parameter("motor_max_torque_nm", 60.0)
+        self.declare_parameter("motor_torque_confirm_samples", 5)
+        self.declare_parameter("motor_feedback_enabled", False)
+        self.declare_parameter("motor_feedback_timeout_s", 0.25)
+        self.declare_parameter("joint_position_enabled", False)
+        self.declare_parameter("joint_position_margin_rad", 0.05)
+        self.declare_parameter("joint_velocity_enabled", False)
+        self.declare_parameter("joint_max_velocity_rad_s", 8.0)
+        self.declare_parameter("joint_velocity_confirm_samples", 3)
+        self.declare_parameter("can_link_enabled", False)
+        self.declare_parameter("can_timeout_s", 3.0)
+        self.declare_parameter("battery_enabled", False)
+        self.declare_parameter("battery_min_voltage_v", 42.0)
+        self.declare_parameter("battery_reset_voltage_v", 44.0)
+        self.declare_parameter("battery_confirm_samples", 10)
 
         imu_topic = str(self.get_parameter("imu_topic").value)
         estop_topic = str(self.get_parameter("estop_topic").value)
@@ -103,6 +146,7 @@ class SafetyNode(Node):
                 enabled=bool(self.get_parameter("trip_on_imu_stuck").value),
             )
         )
+        checks.extend(self._build_hardware_checks(started_at))
         self.supervisor = SafetySupervisor(checks)
 
         estop_qos = QoSProfile(
@@ -117,6 +161,27 @@ class SafetyNode(Node):
         self._imu_sub = self.create_subscription(
             Imu, imu_topic, self._imu_callback, 20
         )
+        # Only listen to streams that an enabled check uses.
+        def uses(hook: str) -> bool:
+            return any(getattr(type(check), hook) is not getattr(SafetyCheck, hook)
+                       for check in checks)
+
+        if uses("observe_joints"):
+            self.create_subscription(
+                JointState, str(self.get_parameter("joint_states_topic").value),
+                self._joint_state_callback, 20)
+        if uses("observe_motors"):
+            self.create_subscription(
+                String, str(self.get_parameter("motor_telemetry_topic").value),
+                self._motor_telemetry_callback, 10)
+        if uses("observe_can"):
+            self.create_subscription(
+                String, str(self.get_parameter("can_timing_topic").value),
+                self._can_timing_callback, 10)
+        if uses("observe_power"):
+            self.create_subscription(
+                BatteryState, str(self.get_parameter("battery_topic").value),
+                self._battery_callback, 10)
         self._reset_srv = self.create_service(
             Trigger, "/safety/reset", self._reset_callback
         )
@@ -136,6 +201,134 @@ class SafetyNode(Node):
 
     def _now_seconds(self) -> float:
         return time.monotonic()
+
+    def _param(self, name: str):
+        return self.get_parameter(name).value
+
+    def _build_hardware_checks(self, started_at: float) -> list[SafetyCheck]:
+        checks: list[SafetyCheck] = []
+        grace = float(self._param("startup_grace_s"))
+        needs_motor_config = any(self._param(name) for name in (
+            "motor_torque_enabled", "motor_feedback_enabled", "joint_position_enabled"))
+        motors = self._load_motor_config() if needs_motor_config else {}
+
+        if self._param("motor_temperature_enabled"):
+            checks.append(MotorTemperatureCheck(
+                max_temp_c=float(self._param("motor_max_temp_c")),
+                reset_temp_c=float(self._param("motor_reset_temp_c"))))
+        if self._param("motor_fault_enabled"):
+            checks.append(MotorFaultCheck())
+        if self._param("motor_torque_enabled"):
+            checks.append(MotorTorqueCheck(
+                default_limit_nm=float(self._param("motor_max_torque_nm")),
+                limits_nm={joint: cfg["max_torque_nm"] for joint, cfg in motors.items()
+                           if cfg.get("max_torque_nm") is not None},
+                confirm_samples=int(self._param("motor_torque_confirm_samples"))))
+        if self._param("motor_feedback_enabled"):
+            checks.append(MotorFeedbackCheck(
+                expected_joints=list(motors),
+                timeout_s=float(self._param("motor_feedback_timeout_s")),
+                startup_grace_s=grace,
+                started_at=started_at))
+        if self._param("joint_position_enabled"):
+            checks.append(JointPositionLimitCheck(
+                limits_rad={joint: (cfg["min_position"], cfg["max_position"])
+                            for joint, cfg in motors.items()
+                            if cfg.get("min_position") is not None
+                            and cfg.get("max_position") is not None},
+                margin_rad=float(self._param("joint_position_margin_rad"))))
+        if self._param("joint_velocity_enabled"):
+            checks.append(JointVelocityLimitCheck(
+                max_velocity_rad_s=float(self._param("joint_max_velocity_rad_s")),
+                confirm_samples=int(self._param("joint_velocity_confirm_samples"))))
+        if self._param("can_link_enabled"):
+            checks.append(CanLinkCheck(
+                timeout_s=float(self._param("can_timeout_s")),
+                startup_grace_s=grace,
+                started_at=started_at))
+        if self._param("battery_enabled"):
+            checks.append(BatteryVoltageCheck(
+                min_voltage_v=float(self._param("battery_min_voltage_v")),
+                reset_voltage_v=float(self._param("battery_reset_voltage_v")),
+                confirm_samples=int(self._param("battery_confirm_samples"))))
+        return checks
+
+    def _load_motor_config(self) -> dict:
+        """Return the motors: table from motor_control_hybrid's motors.yaml."""
+        import yaml
+
+        path = str(self._param("motor_config_file"))
+        if not path:
+            from ament_index_python.packages import get_package_share_directory
+            path = str(Path(get_package_share_directory("motor_control_hybrid"))
+                       / "config" / "motors.yaml")
+        data = yaml.safe_load(Path(path).read_text()) or {}
+        for node_config in data.values():
+            motors = (node_config or {}).get("ros__parameters", {}).get("motors")
+            if motors:
+                return dict(motors)
+        # Fail loudly: an enabled check with no joints would silently pass.
+        raise ValueError(f"no motors table found in {path}")
+
+    def _source_age_s(self, stamp) -> float:
+        stamp_ns = stamp.sec * 1_000_000_000 + stamp.nanosec
+        if stamp_ns <= 0:
+            return 0.0
+        return max(0.0, (self.get_clock().now().nanoseconds - stamp_ns) * 1.0e-9)
+
+    def _joint_state_callback(self, msg: JointState) -> None:
+        def by_name(values) -> dict:
+            return {name: float(value) for name, value in zip(msg.name, values)}
+
+        self.supervisor.observe(JointObservation(
+            received_at=self._now_seconds(),
+            positions=by_name(msg.position),
+            velocities=by_name(msg.velocity),
+            efforts=by_name(msg.effort),
+            source_age_s=self._source_age_s(msg.header.stamp),
+        ))
+
+    def _motor_telemetry_callback(self, msg: String) -> None:
+        # python_can_node publishes {"schema_version": 1, "motors": [{...}]}.
+        try:
+            motors = json.loads(msg.data)["motors"]
+            temperatures = {m["joint_name"]: float(m.get("temperature_c", math.nan))
+                            for m in motors}
+            faults = {m["joint_name"]: int(m["fault_bits"])
+                      for m in motors if "fault_bits" in m}
+        except (ValueError, KeyError, TypeError) as exc:
+            self.get_logger().warn(f"ignoring bad motor telemetry: {exc}",
+                                   throttle_duration_sec=1.0)
+            return
+        self.supervisor.observe(MotorObservation(
+            received_at=self._now_seconds(),
+            temperatures_c=temperatures,
+            fault_bits=faults,
+        ))
+
+    def _can_timing_callback(self, msg: String) -> None:
+        try:
+            payload = json.loads(msg.data)
+            tx_errors = sum(int(iface.get("tx_errors", 0))
+                            for iface in payload.get("interfaces", {}).values())
+            transport_fault = bool(payload.get("transport_fault", False))
+        except (ValueError, AttributeError, TypeError) as exc:
+            self.get_logger().warn(f"ignoring bad CAN status: {exc}",
+                                   throttle_duration_sec=1.0)
+            return
+        self.supervisor.observe(CanObservation(
+            received_at=self._now_seconds(),
+            transport_fault=transport_fault,
+            tx_errors=tx_errors,
+        ))
+
+    def _battery_callback(self, msg: BatteryState) -> None:
+        percentage = float(msg.percentage)
+        self.supervisor.observe(PowerObservation(
+            received_at=self._now_seconds(),
+            voltage_v=float(msg.voltage),
+            percentage=percentage if math.isfinite(percentage) else None,
+        ))
 
     def _imu_callback(self, msg: Imu) -> None:
         # Source age is measured in the publisher's synchronized ROS epoch;
@@ -188,7 +381,7 @@ class SafetyNode(Node):
                 msg.linear_acceleration.z,
             ),
         )
-        self.supervisor.observe_imu(observation)
+        self.supervisor.observe(observation)
 
     def _evaluate(self) -> None:
         newly_tripped = self.supervisor.evaluate(self._now_seconds())

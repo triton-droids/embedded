@@ -1,54 +1,11 @@
-"""Pure safety checks and the latched supervisor state machine.
-
-Checks do not depend on ROS, which keeps them deterministic and easy to test.
-New checks implement SafetyCheck and register with SafetySupervisor without
-changing the shared latch/reset behavior.
-"""
+"""IMU checks: fall detection, stale data and a frozen sensor."""
 
 from __future__ import annotations
 
 import math
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Iterable, Optional, Sequence, Tuple
+from typing import Optional
 
-Vector3 = Tuple[float, float, float]
-
-
-@dataclass(frozen=True)
-class ImuObservation:
-    received_at: float  # Host monotonic seconds.
-    roll_rad: float
-    pitch_rad: float
-    valid: bool = True
-    source_age_s: float = 0.0  # Nonnegative source age at receipt, in seconds.
-    angular_velocity: Optional[Vector3] = None  # rad/s; None if not reported.
-    linear_acceleration: Optional[Vector3] = None  # m/s^2; None if not reported.
-
-
-@dataclass(frozen=True)
-class CheckResult:
-    name: str
-    active: bool
-    healthy: bool
-    clearable: bool
-    reason: str
-
-
-class SafetyCheck(ABC):
-    """Interface for a safety condition managed by the supervisor."""
-
-    name: str
-
-    def observe_imu(self, observation: ImuObservation) -> None:
-        del observation
-
-    @abstractmethod
-    def evaluate(self, now: float) -> CheckResult:
-        """Return the check's current state."""
-
-    def reset(self) -> None:
-        """Clear non-latched internal counters after a supervisor reset."""
+from .base import CheckResult, FreshnessCheck, ImuObservation, SafetyCheck
 
 
 class FallDetectionCheck(SafetyCheck):
@@ -207,7 +164,7 @@ class ImuStuckCheck(SafetyCheck):
         )
 
 
-class ImuFreshnessCheck(SafetyCheck):
+class ImuFreshnessCheck(FreshnessCheck):
     name = "imu_freshness"
 
     def __init__(
@@ -218,99 +175,18 @@ class ImuFreshnessCheck(SafetyCheck):
         started_at: float,
         enabled: bool = True,
     ) -> None:
-        self.timeout_s = max(0.0, float(timeout_s))
-        self.startup_grace_s = max(0.0, float(startup_grace_s))
-        self.started_at = float(started_at)
-        self.enabled = bool(enabled)
-        self._last_received_at: Optional[float] = None
+        super().__init__(
+            label="IMU",
+            timeout_s=timeout_s,
+            startup_grace_s=startup_grace_s,
+            started_at=started_at,
+            enabled=enabled,
+        )
 
     def observe_imu(self, observation: ImuObservation) -> None:
         if not observation.valid:
             return
-        # Preserve source delay: receipt of a 200-ms-old sample must not grant
-        # another full timeout. Subsequent expiry is independent of ROS time.
-        self._last_received_at = observation.received_at - observation.source_age_s
-
-    def evaluate(self, now: float) -> CheckResult:
-        if not self.enabled or self.timeout_s <= 0.0:
-            return CheckResult(self.name, False, True, True, "disabled")
-
-        if self._last_received_at is None:
-            age = now - self.started_at
-            in_grace = age <= self.startup_grace_s
-            reason = (
-                f"waiting for IMU ({age:.3f}s/{self.startup_grace_s:.3f}s grace)"
-                if in_grace
-                else f"no IMU received within {self.startup_grace_s:.3f}s"
-            )
-            return CheckResult(
-                self.name,
-                not in_grace,
-                in_grace,
-                False,
-                reason,
-            )
-
-        age = max(0.0, now - self._last_received_at)
-        fresh = age <= self.timeout_s
-        return CheckResult(
-            self.name,
-            not fresh,
-            fresh,
-            fresh,
-            f"IMU age={age:.3f}s limit={self.timeout_s:.3f}s",
-        )
-
-
-class SafetySupervisor:
-    """Evaluate registered checks and latch any unsafe condition."""
-
-    def __init__(self, checks: Iterable[SafetyCheck]) -> None:
-        self._checks = list(checks)
-        self.latched = False
-        self.reason = ""
-        self.tripped_at: Optional[float] = None
-        self.results: Sequence[CheckResult] = ()
-
-    @property
-    def checks(self) -> Sequence[SafetyCheck]:
-        return tuple(self._checks)
-
-    def observe_imu(self, observation: ImuObservation) -> None:
-        for check in self._checks:
-            check.observe_imu(observation)
-
-    def evaluate(self, now: float) -> bool:
-        self.results = tuple(check.evaluate(now) for check in self._checks)
-        active = [result for result in self.results if result.active]
-        if active and not self.latched:
-            self.latched = True
-            self.tripped_at = now
-            self.reason = "; ".join(
-                f"{result.name}: {result.reason}" for result in active
-            )
-            return True
-        return False
-
-    def try_reset(self, now: float) -> tuple[bool, str]:
-        self.results = tuple(check.evaluate(now) for check in self._checks)
-        blockers = [
-            result
-            for result in self.results
-            if not result.healthy or not result.clearable
-        ]
-        if blockers:
-            reason = "; ".join(
-                f"{result.name}: {result.reason}" for result in blockers
-            )
-            return False, f"reset blocked: {reason}"
-
-        for check in self._checks:
-            check.reset()
-        self.latched = False
-        self.reason = ""
-        self.tripped_at = None
-        return True, "safety latch reset; motors remain disabled until explicitly enabled"
+        self._mark(observation.received_at, observation.source_age_s)
 
 
 def quaternion_to_roll_pitch(
@@ -333,3 +209,4 @@ def quaternion_to_roll_pitch(
     sinp = 2.0 * (w * y - z * x)
     pitch = math.asin(max(-1.0, min(1.0, sinp)))
     return roll, pitch, True
+
