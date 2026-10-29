@@ -1,3 +1,5 @@
+**Note: The main branch is depreciated. Further update to be added.**
+
 # Humanoid ROS 2 Control Stack
 
 This repository contains the ROS 2 motor-control and MoveIt sources plus the supporting runtime setup for the embedded humanoid stack.
