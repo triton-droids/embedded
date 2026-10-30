@@ -1,6 +1,6 @@
 // ROS 2 Humble dev container for Linux hosts. See docs/devcontainer.md.
 {
-  "name": "Triton Droids ROS 2 Humble",
+  "name": "Humanoid MuJoCo Simulation",
   "build": { "dockerfile": "Dockerfile" },
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/embedded,type=bind",
   "workspaceFolder": "/workspaces/embedded",
@@ -9,10 +9,8 @@
     // DDS discovery is most reliable on the host network.
     "--network=host",
     "--shm-size=1g"
-    // Hardware passthrough. Uncomment only devices that exist on the host,
-    // otherwise the container fails to start.
+    // Optional GPU passthrough for rendering:
     // "--device=/dev/dri",      // GPU-accelerated RViz
-    // "--device=/dev/ttyACM0",  // ESP32 IMU
   ],
   "containerEnv": {
     "DISPLAY": "${localEnv:DISPLAY}",

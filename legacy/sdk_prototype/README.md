@@ -270,7 +270,7 @@ disables enabled motors, and disconnects the bus.
 from legacy.sdk_prototype.python.robot_sdk import RobotSDK, load_motor_configs_from_yaml
 
 configs = load_motor_configs_from_yaml(
-    "humanoid_control/motor_control_hybrid/config/control_config.yaml"
+    "hardware/motor_control_hybrid/config/control_config.yaml"
 )
 sdk = RobotSDK(motor_configs=configs)
 
@@ -323,7 +323,7 @@ print(reply)
 The humanoid arm config used by the demo is:
 
 ```text
-humanoid_control/motor_control_hybrid/config/control_config.yaml
+hardware/motor_control_hybrid/config/control_config.yaml
 ```
 
 The loader reads:

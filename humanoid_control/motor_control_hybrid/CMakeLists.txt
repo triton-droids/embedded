@@ -20,9 +20,9 @@ find_package(diagnostic_msgs REQUIRED)
 find_package(motor_control_interfaces REQUIRED)
 
 # =========================
-# Non-ROS control core lib (from repo root: ../../Interfaces/control_core)
+# Non-ROS control core lib (from repo root: ../../libraries/control_core)
 # =========================
-set(CONTROL_CORE_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../Interfaces/control_core)
+set(CONTROL_CORE_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../libraries/control_core)
 
 add_library(control_core SHARED
   ${CONTROL_CORE_ROOT}/src/api.cpp
@@ -60,31 +60,8 @@ target_link_libraries(cpp_control_node
 
 # Make sure the node can include headers
 target_include_directories(cpp_control_node PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
   ${CONTROL_CORE_ROOT}/include
 )
-
-# =========================
-# ENCOS motor node: prefer an installed driver, otherwise fetch a pinned revision.
-# =========================
-option(MOTOR_CONTROL_BUILD_ENCOS "Build the ENCOS CAN backend" ON)
-option(MOTOR_CONTROL_FETCH_ENCOS "Download encos_driver if not installed" ON)
-if(MOTOR_CONTROL_BUILD_ENCOS)
-  include(cmake/EncosDriver.cmake)
-  motor_control_find_encos_driver()
-  find_package(yaml-cpp REQUIRED)
-  add_executable(encos_can_node src/encos_can_node.cpp)
-  target_compile_features(encos_can_node PRIVATE cxx_std_17)
-  ament_target_dependencies(encos_can_node
-    rclcpp
-    sensor_msgs
-    std_msgs
-    motor_control_interfaces
-  )
-  target_link_libraries(encos_can_node Encos::encos_driver yaml-cpp)
-  install(TARGETS encos_can_node DESTINATION lib/${PROJECT_NAME})
-endif()
 
 # =========================
 # Install
@@ -96,7 +73,7 @@ install(TARGETS
 )
 
 # Install public headers (so other packages/programs can include them if needed)
-install(DIRECTORY include/
+install(DIRECTORY ${CONTROL_CORE_ROOT}/include/
   DESTINATION include
 )
 
@@ -125,10 +102,7 @@ if(BUILD_TESTING)
   ament_add_pytest_test(tracking_onnx_test test/test_tracking_onnx.py TIMEOUT 90)
   ament_add_pytest_test(tracking_node_test test/test_tracking_node.py TIMEOUT 90)
   ament_add_pytest_test(inference_deadlines_test test/test_inference_deadlines.py TIMEOUT 30)
-  ament_add_pytest_test(control_watchdogs_test test/test_control_watchdogs.py TIMEOUT 30)
   ament_add_pytest_test(model_control_settings_test test/test_model_control_settings.py TIMEOUT 30)
-  ament_add_pytest_test(can_transport_test test/test_can_transport.py TIMEOUT 30)
-  ament_add_pytest_test(motor_services_test test/test_motor_services.py TIMEOUT 30)
   find_package(ament_cmake_gtest REQUIRED)
   ament_add_gtest(cpp_state_watchdog_test test/test_cpp_state_watchdog.cpp)
   ament_target_dependencies(cpp_state_watchdog_test rclcpp sensor_msgs std_msgs diagnostic_msgs motor_control_interfaces)
@@ -140,29 +114,9 @@ if(BUILD_TESTING)
 endif()
 
 install(PROGRAMS
-  motor_control_hybrid/python_can_node.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME python_can_node
-)
-install(PROGRAMS
-  motor_control_hybrid/motor_sdk_gateway_node.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME motor_sdk_gateway_node
-)
-install(PROGRAMS
   motor_control_hybrid/fake_motor_node.py
   DESTINATION lib/${PROJECT_NAME}
   RENAME fake_motor_node
-)
-install(PROGRAMS
-  motor_control_hybrid/double_pendulum_websocket_node.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME double_pendulum_websocket_node
-)
-install(PROGRAMS
-  motor_control_hybrid/policy_bridge_node.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME policy_bridge_node
 )
 
 install(PROGRAMS

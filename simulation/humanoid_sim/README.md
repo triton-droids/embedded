@@ -1,4 +1,9 @@
-# humanoid_sim — MuJoCo stand-ins for the robot's hardware
+# humanoid_sim — MuJoCo humanoid simulation
+
+This is the active runtime of this simulation-only repository. Physical device
+implementations are retained in [hardware/](../../hardware/README.md), outside the
+default build and install. The names in the table below identify the original
+interfaces being simulated.
 
 Runs the robot software stack without hardware. One `mujoco_sim` process owns
 the physics and hosts one ROS node per replaced peripheral; every other node is

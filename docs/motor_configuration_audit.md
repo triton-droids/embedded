@@ -95,10 +95,10 @@ Primary files:
 
 - `humanoid_control/motor_control_hybrid/motor_control_hybrid/tracking_onnx.py`
 - `humanoid_control/motor_control_hybrid/motor_control_hybrid/tracking_policy_node.py`
-- `humanoid_control/motor_control_hybrid/motor_control_hybrid/python_can_node.py`
-- `humanoid_control/motor_control_hybrid/config/policy_bridge_config.json`
+- `hardware/motor_control_hybrid/motor_control_hybrid/python_can_node.py`
+- `legacy/motor_adapters/config/policy_bridge_config.json`
 - `humanoid_control/motor_control_hybrid/config/motors.yaml`
-- `humanoid_control/motor_control_hybrid/config/control_config.yaml`
+- `hardware/motor_control_hybrid/config/control_config.yaml`
 - `simulation/logs/legs_tracking/20260914_170827/chrobot_16kg_actuated.xml`
 - `simulation/logs/legs_tracking/20260914_170827/chrobot_16kg_candidate.xml`
 - `simulation/logs/legs_tracking/20260914_170827/tracking_body_order.json`

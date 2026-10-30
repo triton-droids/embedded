@@ -1,0 +1,5 @@
+# Archived physical-device tools; not included by the simulation installer.
+robstride-dynamics
+pyserial>=3.5,<4
+scipy
+pyyaml

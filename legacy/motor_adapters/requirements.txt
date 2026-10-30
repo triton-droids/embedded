@@ -1,0 +1,5 @@
+# Archived SDK/WebSocket/Torch adapters; not included by the simulation installer.
+grpcio
+protobuf
+websockets
+torch

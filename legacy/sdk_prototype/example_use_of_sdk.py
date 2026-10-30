@@ -11,7 +11,7 @@ if str(_REPO_ROOT) not in sys.path:
 ## Read motor config
 def motor_config_path() -> Path:
     repo_root = Path(__file__).resolve().parents[2]
-    return repo_root / "humanoid_control" / "motor_control_hybrid" / "config" / "control_config.yaml"
+    return repo_root / "hardware" / "motor_control_hybrid" / "config" / "control_config.yaml"
 
 ## Must have to use SDK
 def build_sdk(config_path: Path):

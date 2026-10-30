@@ -3,7 +3,7 @@
 <package format="3">
   <name>motor_control_hybrid</name>
   <version>0.0.0</version>
-  <description>Hybrid motor control: Python CAN + C++ Control</description>
+  <description>Simulation control: ONNX policy, C++ scheduling and fake motors</description>
   <maintainer email="rul039@ucsd.edu">rcli</maintainer>
   <license>MIT</license>
 
@@ -22,7 +22,6 @@
   <build_export_depend>motor_control_interfaces</build_export_depend>
   <exec_depend>motor_control_interfaces</exec_depend>
   <exec_depend>humanoid_safety</exec_depend>
-  <exec_depend>attitude_sensing_pkg</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
   <exec_depend>ament_index_python</exec_depend>
@@ -30,13 +29,6 @@
   <!-- C++ dependencies -->
   <depend>rclcpp</depend>
   <depend>diagnostic_msgs</depend>
-  <!-- encos_driver is fetched by CMake when no installed package is available. -->
-  <build_depend>git</build_depend>
-  <depend>yaml-cpp</depend>
-  <depend>spdlog</depend>
-  <depend>fmt</depend>
-  <depend>libzstd-dev</depend>
-  <depend>libcap-dev</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_cmake_pytest</test_depend>

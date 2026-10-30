@@ -41,7 +41,7 @@ ARM_JOINTS = [
 
 def default_motor_config_path() -> Path:
     repo_root = Path(__file__).resolve().parents[4]
-    return repo_root / "humanoid_control" / "motor_control_hybrid" / "config" / "control_config.yaml"
+    return repo_root / "hardware" / "motor_control_hybrid" / "config" / "control_config.yaml"
 
 
 class SingleJointArmDemo:

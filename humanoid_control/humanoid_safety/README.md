@@ -18,7 +18,7 @@ Build from the workspace root using existing ROS dependencies:
 
 ```bash
 source /opt/ros/jazzy/setup.bash  # Use the distribution installed on each host.
-colcon build --packages-select humanoid_safety humanoid_leg_description motor_control_hybrid
+colcon build --packages-up-to humanoid_sim
 source install/setup.bash
 ```
 
@@ -73,7 +73,7 @@ position and cannot verify a mechanical zero write.
 These action panels are currently **preview only**. Execute remains disabled:
 the HTTP node still serves read-only feedback and rejects POST requests. No
 action is submitted, and no motor enable or calibration state is inferred from
-telemetry. The [command design](../../docs/robstride_abstract_command_design.md)
+telemetry. The [command design](../../hardware/docs/robstride_abstract_command_design.md)
 describes the backend integration that remains to be implemented.
 
 If installed, `motor_control_hybrid/config/motors.yaml` supplies expected names
@@ -295,4 +295,4 @@ it does not hold the robot upright. Disable is allowed without live feedback or
 a released estop and may interrupt active actions. Completion requires fresh
 state confirmation, otherwise the UI reports unverified physical state. Home,
 zero, safety stops and explicit Disable end idle enable ownership.
-See [CAN audit](../../docs/can_protocol_audit.md) for protocol profiles and limits.
+See [CAN audit](../../hardware/docs/can_protocol_audit.md) for protocol profiles and limits.

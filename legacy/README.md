@@ -1,29 +1,30 @@
-# Legacy packages and SDK
+# Historical software archive
 
-Retained sources outside the active body-IMU, ONNX/CAN, and head-tracking
-composition. Directory relocation preserves ROS package names and interfaces.
+These retained sources are outside the default simulation build and install.
+Physical robot sources are grouped separately in [hardware/](../hardware/README.md).
 
-| Directory | Package/import | Purpose |
-|---|---|---|
-| [humanoid_leg_moveit_config](humanoid_leg_moveit_config) | `humanoid_leg_moveit_config` | Leg MoveIt and ros2_control demo. |
-| [humanoid_arm_moveit_config](humanoid_arm_moveit_config) | `humanoid_arm_moveit_config` | Arm MoveIt and ros2_control demo. |
-| [sdk_prototype](sdk_prototype) | `legacy.sdk_prototype` | Application SDK, gRPC client, browser tools, and examples. |
+| Directory | Purpose |
+|---|---|
+| [sdk_prototype](sdk_prototype/README.md) | Old SDK, gRPC client, browser tools and examples. |
+| [motor_adapters](motor_adapters/README.md) | Former ROS SDK gateway, WebSocket demo and Torch policy bridge, with protocol bindings, config and tests. |
+| [control_core_velocity](control_core_velocity/README.md) | Superseded velocity-only C++ controller. |
+| [http_gateway_examples](http_gateway_examples/README.md) | Former HTTP clients; not examples of the current control library. |
+| [motor_control](motor_control/README.md) | Historical threaded CAN backup. |
+| [humanoid_leg_moveit_config](humanoid_leg_moveit_config) | Historical leg MoveIt demo. |
+| [humanoid_arm_moveit_config](humanoid_arm_moveit_config) | Historical arm MoveIt demo. |
 
-The retained serial IMU package is now in
-[`imu_process/Attitude_Sensing`](<../imu_process/Attitude_Sensing(Depreciated)>), together with
-the other IMU sources. Its ROS package name remains `attitude_sensing_pkg`.
+`COLCON_IGNORE` excludes this archive from normal workspace discovery.
+Original ROS package/module names in archived examples describe their former
+packaging; they are not installed executables in the simulation workspace.
 
-The two MoveIt packages contain `COLCON_IGNORE` and are excluded from ordinary
-workspace builds. Their sources remain available here. To build them explicitly,
-remove the corresponding marker first and use `--cmake-clean-cache` because old
-CMake caches may still reference their former source locations. Restore the
-markers afterward to exclude them from subsequent builds.
+The active ROS-independent library moved from `Interfaces/control_core/` to
+[libraries/control_core/](../libraries/control_core/README.md). Its C++ behavior
+is unchanged. Current ROS public headers come from that library; the archived
+velocity-only headers are no longer installed alongside conflicting definitions.
 
-SDK examples now run from `legacy/sdk_prototype/`, and imports use
-`from legacy.sdk_prototype.python.robot_sdk import ...`. The former root sample
-is retained as `legacy/sdk_prototype/example_use_of_sdk.py`. Relocating these
-sources does not validate the old examples against current hardware.
-
-Generated build/install/log directories retained inside moved packages are
-historical artifacts, not portable runtime setups. Use the workspace-level
-build and install instead.
+The former root `system.struct.png` is retained as
+[a historical architecture image](../docs/architecture/historical_system.png).
+Build output and logs are disposable; model snapshots and original source assets
+are retained. Rebuild in fresh build/install directories after these relocations
+so stale installed hardware executables and old absolute source paths do not
+survive from a previous workspace build.

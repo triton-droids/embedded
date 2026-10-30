@@ -1,4 +1,10 @@
-# Current Robot Architecture
+# Shared Control Architecture
+
+This repository now targets simulation only. Physical backends and device launch
+recipes shown in the retained diagrams are archived under `hardware/`; SDK/Torch
+adapters are under `legacy/`. Those branches are not installed by the active
+build. See [the simulation guide](../simulation/humanoid_sim/README.md) for the
+supported composition.
 
 These diagrams describe the current repository's node interfaces and launch
 options. They are **not a live `ros2 node list` / `rqt_graph` capture**, and do
@@ -81,10 +87,10 @@ measurement. Diagram frequencies/budgets are settings, not measured guarantees.
 ## Source references
 
 - `humanoid_control/motor_control_hybrid/launch/tracking_policy.launch.py`
-- `humanoid_control/motor_control_hybrid/launch/hybrid_control.launch.py`
+- `hardware/motor_control_hybrid/launch/hybrid_control.launch.py`
 - `humanoid_control/motor_control_hybrid/motor_control_hybrid/tracking_policy_node.py`
 - `humanoid_control/motor_control_hybrid/src/cpp_control_node.cpp`
-- `humanoid_control/motor_control_hybrid/motor_control_hybrid/python_can_node.py`
+- `hardware/motor_control_hybrid/motor_control_hybrid/python_can_node.py`
 - `humanoid_control/humanoid_safety/launch/safety.launch.py`
 - `humanoid_control/humanoid_safety/humanoid_safety/`
 - `humanoid_leg_description/launch/display.launch.py`

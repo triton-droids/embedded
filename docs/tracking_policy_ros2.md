@@ -1,13 +1,16 @@
 # Leg tracking policy on ROS 2 (no SDK)
 
-This integration runs the `humanoid_locomotion_v3` tracking ONNX export at
-**50 Hz (20 ms per control period)**. It reads the existing attitude-sensing
-package's ROS messages and publishes ten target joint angles. The default launch
-consumes an external `/imu/data_raw` publisher (micro-ROS Agent path) and uses zero
-joint-state placeholders. It does not open a serial device unless
-`start_imu_reader:=true` is explicitly set for the legacy JSON firmware.
-See [body micro-ROS firmware](../imu_process/policy_imu/policy_imu_microros/README.md) and
-[deadline contract](control_watchdogs.md#asynchronous-onnx-inference-and-end-to-end-expiry).
+This integration runs the ten-joint tracking ONNX export at **50 Hz**. In this
+simulation-only checkout, MuJoCo supplies `/imu/data_raw` and `/joint_states`.
+Use [humanoid_sim](../simulation/humanoid_sim/README.md) for the complete loop.
+The standalone policy launch still defaults to zero joint-state placeholders;
+select `joint_feedback_mode:=joint_states` when composing a feedback bench.
+
+The original standalone launch arguments remain available, including the
+default-disabled serial-reader switch. Its physical reader package is archived
+and not installed by the simulation build. Serial/MCU setup sections below are
+reference material requiring the original hardware packaging. Command deadlines
+and model semantics remain shared.
 
 ## Current model PD and angle-limit selection
 
@@ -350,7 +353,7 @@ python -m pip install 'pytest>=7,<9'
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q \
   humanoid_control/motor_control_hybrid/test/test_tracking_onnx.py \
   humanoid_control/motor_control_hybrid/test/test_tracking_node.py \
-  "imu_process/Attitude_Sensing(Depreciated)/src/attitude_sensing_pkg/test/test_imu_read.py"
+  "hardware/attitude_sensing_pkg/test/test_imu_read.py"
 ```
 
 These check the actual model observation/action contract, name reordering,

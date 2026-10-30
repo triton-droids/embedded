@@ -1,3 +1,2 @@
-# Full legacy runtime; the shared rosenv installer makes torch opt-in.
+# Simulation runtime; archived adapters have their own dependency list.
 -r requirements-runtime.txt
-torch

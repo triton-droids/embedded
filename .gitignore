@@ -36,3 +36,9 @@ symlink_install_manifest.txt
 # overlays for isolated builds (build_verify, install_verify) and ROS log dirs.
 # Everything here is disposable and must never be committed.
 local_test/
+
+# Runtime logs and local build/tool databases
+*.log
+compile_commands.json
+.pio/
+.pytest_cache/

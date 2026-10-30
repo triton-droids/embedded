@@ -1,5 +1,10 @@
 # Humanoid Vision: Current Instructions
 
+This document retains algorithm/build details from the original robot stack.
+Physical RealSense/MCU startup sections are historical; this checkout uses
+[simulated camera tracking](../humanoid_vision/TRACKING.md), with physical
+launch recipes archived in `hardware/`.
+
 Before using these commands, open a terminal inside your checkout and set its
 location dynamically (repeat in each terminal):
 
