@@ -104,7 +104,9 @@ CMAKE_BUILD_PARALLEL_LEVEL=1 MAKEFLAGS=-j1 colcon build --symlink-install \
 source install/setup.bash
 ```
 
-The installer includes MuJoCo, ONNX Runtime, control dependencies and pytest.
+The installer includes MuJoCo, ONNX Runtime, control dependencies, pytest,
+Pinocchio and a locally built TSID with the WBC patches. Its first run downloads
+native dependencies and compiles TSID using one compiler process by default.
 It also configures the virtualenv package path for ROS console scripts using
 system Python. No manual `PYTHONPATH` export is required.
 

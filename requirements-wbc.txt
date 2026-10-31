@@ -1,0 +1,10 @@
+# Native dependencies for patched TSID 1.7.1, compatible with ROS Humble/NumPy 1.
+# TSID itself is built by scripts/setup_wbc.sh; do not install its stock wheel.
+numpy==1.26.4
+pin==2.7.0
+eigenpy==3.5.1
+eiquadprog==1.2.6
+cmeel-boost==1.83.0
+cmeel-eigen==3.4.0
+cmeel-urdfdom==3.1.1.1
+hpp-fcl==2.4.4

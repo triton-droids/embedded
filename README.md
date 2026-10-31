@@ -3,7 +3,8 @@
 MuJoCo simulation of a ten-joint humanoid leg robot with ONNX policy inference,
 C++ command scheduling, safety supervision, Web monitoring and optional visual
 head tracking. Physical-device code is archived in [hardware/](hardware/README.md).
-MPC/WBC is not implemented.
+An optional [WBC simulation path](humanoid_control/wbc_control_node/README.md)
+inserts patched TSID between the policy and command scheduler.
 
 ## Quick start
 
@@ -16,6 +17,10 @@ CMAKE_BUILD_PARALLEL_LEVEL=1 MAKEFLAGS=-j1 colcon build --symlink-install \
 source install/setup.bash
 ros2 launch humanoid_sim sim.launch.py
 ```
+
+The environment setup also installs Pinocchio and builds patched TSID for WBC.
+The first setup requires network access and a C++ toolchain; the native build
+uses one compiler process by default to limit Jetson memory use.
 
 The default simulation starts held on a virtual gantry with motors disabled.
 Add `auto_start:=true` to enable and release after fresh control is available.

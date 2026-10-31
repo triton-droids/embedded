@@ -41,7 +41,12 @@ def add_requirements(path):
         if line.strip().startswith('-r '):
             add_requirements((path.parent / line.strip()[3:].strip()).resolve())
 add_requirements(root / 'requirements-rosenv.txt')
+add_requirements(root / 'requirements-wbc.txt')
 digest.update((root / 'scripts/setup_rosenv.sh').read_bytes())
+digest.update((root / 'scripts/setup_wbc.sh').read_bytes())
+for patch in sorted((root / 'experimental').glob('tsid-1.7.1-*.patch')):
+    digest.update(patch.name.encode())
+    digest.update(patch.read_bytes())
 digest.update(f'{sys.version}|{platform.machine()}|torch={sys.argv[2]}'.encode())
 print(digest.hexdigest())
 PY
@@ -55,6 +60,8 @@ PY
         --index-url https://download.pytorch.org/whl/cpu \
         --extra-index-url https://pypi.org/simple || return 1
     fi
+    # WBC requires a patched native TSID build, not the stock PyPI wheel.
+    bash "$repo/scripts/setup_wbc.sh" || return 1
     printf '%s\n' "$fingerprint" > "$stamp" || return 1
   fi
 
@@ -85,7 +92,7 @@ if '# embedded rosenv package-path hook' not in text:
 PY
   [[ $? == 0 ]] || return 1
   source "$repo/scripts/activate_rosenv.sh" || return 1
-  echo "Activated rosenv (control, ONNX, MuJoCo and test dependencies): $venv"
+  echo "Activated rosenv (control, ONNX, MuJoCo, WBC and test dependencies): $venv"
 }
 _setup_workspace_rosenv
 _setup_rosenv_result=$?

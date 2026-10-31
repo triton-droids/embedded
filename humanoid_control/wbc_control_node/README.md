@@ -66,11 +66,14 @@ held and sends DISABLE. During zero-torque arming, stale inputs wait for fresh
 samples. Release immediately activates the latched timeout/fault checks.
 Explicit estop never resets automatically.
 
-Build after installing Pinocchio/TSID in rosenv, including the TSID rotor-setter
-binding, soft-contact removal and actuation-equality patches documented in
-`experimental/README.md`:
+The rosenv setup installs Pinocchio and builds TSID with the required rotor-setter,
+soft-contact removal and actuation-equality patches.
+The native build defaults to one compiler process to limit Jetson memory use.
+To repair only the WBC dependencies, run `bash scripts/setup_wbc.sh`.
+Patch details are documented in `experimental/README.md`.
 
 ```bash
+ROS_DISTRO=humble source scripts/setup_rosenv.sh
 source scripts/activate_rosenv.sh
 CMAKE_BUILD_PARALLEL_LEVEL=1 MAKEFLAGS=-j1 /usr/bin/python3 -m colcon build --executor sequential --symlink-install --packages-up-to wbc_control_node --cmake-args -DPython3_EXECUTABLE=/usr/bin/python3 -DPYTHON_EXECUTABLE=/usr/bin/python3
 source install/setup.bash
