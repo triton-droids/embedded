@@ -1,0 +1,52 @@
+--- a/bindings/python/tasks/task-actuation-bounds.cpp
++++ b/bindings/python/tasks/task-actuation-bounds.cpp
+@@ -17,10 +17,18 @@
+ 
+ #include "tsid/bindings/python/tasks/task-actuation-bounds.hpp"
+ #include "tsid/bindings/python/tasks/expose-tasks.hpp"
++#include "tsid/tasks/task-actuation-equality.hpp"
+ 
+ namespace tsid {
+ namespace python {
++void setActuationReference(tasks::TaskActuationEquality& task, const Eigen::VectorXd& ref) {
++  task.setReference(ref);
++}
+ void exposeTaskActuationBounds() {
++  bp::class_<tasks::TaskActuationEquality>("TaskActuationEquality", bp::no_init)
++      .def(bp::init<std::string, robots::RobotWrapper&>())
++      .def("setReference", &setActuationReference);
++
+   TaskActuationBoundsPythonVisitor<tsid::tasks::TaskActuationBounds>::expose(
+       "TaskActuationBounds");
+ }
+--- a/include/tsid/bindings/python/formulations/formulation.hpp
++++ b/include/tsid/bindings/python/formulations/formulation.hpp
+@@ -32,6 +32,7 @@
+ #include "tsid/tasks/task-com-equality.hpp"
+ #include "tsid/tasks/task-cop-equality.hpp"
+ #include "tsid/tasks/task-actuation-bounds.hpp"
++#include "tsid/tasks/task-actuation-equality.hpp"
+ #include "tsid/tasks/task-joint-bounds.hpp"
+ #include "tsid/tasks/task-joint-posVelAcc-bounds.hpp"
+ #include "tsid/tasks/task-angular-momentum-equality.hpp"
+@@ -74,6 +75,8 @@
+              bp::args("task", "weight", "priorityLevel", "transition duration"))
+         .def("addActuationTask", &InvDynPythonVisitor::addActuationTask_Bounds,
+              bp::args("task", "weight", "priorityLevel", "transition duration"))
++        .def("addActuationTask", &InvDynPythonVisitor::addActuationTask_Equality,
++             bp::args("task", "weight", "priorityLevel", "transition duration"))
+         .def("updateTaskWeight", &InvDynPythonVisitor::updateTaskWeight,
+              bp::args("task_name", "weight"))
+         .def("updateRigidContactWeights",
+@@ -180,6 +183,11 @@
+     return self.addActuationTask(task, weight, priorityLevel,
+                                  transition_duration);
+   }
++  static bool addActuationTask_Equality(T& self, tasks::TaskActuationEquality& task,
++                                      double weight, unsigned int priorityLevel,
++                                      double transition_duration) {
++    return self.addActuationTask(task, weight, priorityLevel, transition_duration);
++  }
+   static bool updateTaskWeight(T& self, const std::string& task_name,
+                                double weight) {
+     return self.updateTaskWeight(task_name, weight);

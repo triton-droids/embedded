@@ -1,0 +1,26 @@
+--- a/src/formulations/inverse-dynamics-formulation-acc-force.cpp
++++ b/src/formulations/inverse-dynamics-formulation-acc-force.cpp
+@@ -541,6 +541,14 @@
+     return false;
+   }
+ 
++  // Only level-zero motion constraints contribute to the hard equality count.
++  bool hard_motion_constraint = false;
++  for (const auto &constraint : m_hqpData[0]) {
++    if (constraint.second->name() == contactName + "_motion_task") {
++      hard_motion_constraint = true;
++      break;
++    }
++  }
+   bool first_constraint_found = removeFromHqpData(contactName + "_motion_task");
+   assert(first_constraint_found);
+ 
+@@ -556,7 +564,7 @@
+   for (auto it = m_contacts.begin(); it != m_contacts.end(); it++) {
+     if ((*it)->contact.name() == contactName) {
+       m_k -= (*it)->contact.n_force();
+-      m_eq -= (*it)->motionConstraint->rows();
++      if (hard_motion_constraint) m_eq -= (*it)->motionConstraint->rows();
+       m_in -= (*it)->forceConstraint->rows();
+       m_contacts.erase(it);
+       resizeHqpData();

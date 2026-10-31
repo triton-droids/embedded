@@ -1,6 +1,8 @@
 """GUI stalls must not prevent physics steps or IMU reads."""
 from contextlib import nullcontext
 import threading
+import sys
+import time
 from types import SimpleNamespace
 
 import numpy as np
@@ -8,7 +10,30 @@ import pytest
 
 mujoco = pytest.importorskip('mujoco')
 
-from humanoid_sim.viewer import ViewerMirror  # noqa: E402
+from humanoid_sim.viewer import ViewerMirror, ViewerProcess  # noqa: E402
+
+
+def _blocked_render_worker(model, snapshots, forces, ready, closed, stop):
+    sys.setswitchinterval(10.0)
+    ready.set()
+    end = time.monotonic() + .8
+    while time.monotonic() < end:
+        pass
+    closed.set()
+
+
+def test_render_process_holding_gil_does_not_stall_parent_physics(world):
+    viewer = ViewerProcess(world, worker=_blocked_render_worker)
+    try:
+        begin = time.monotonic()
+        for _ in range(50):
+            with world.lock:
+                mujoco.mj_step(world.model, world.data)
+            viewer.update()
+        assert time.monotonic() - begin < .3
+        assert viewer.is_running()
+    finally:
+        viewer.close()
 
 
 @pytest.fixture

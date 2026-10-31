@@ -132,7 +132,7 @@ class SimWorld:
             self.motors.expire(now_mono)
             if (self.pause_on_control_fault and not self.data.eq_active[self._weld]
                     and not self.motors.motion_ready(now_mono)):
-                self.control_fault = self.control_fault or 'Motor control lost: disabled, expired or estop'
+                self.control_fault = self.control_fault or ('Motor control lost: ' + self.motors.readiness_failure(now_mono))
             if self.control_fault is not None:
                 # A simulation diagnostic stop: preserve the exact failure pose.
                 # Never continue an expired target or automatically re-arm.
@@ -250,6 +250,24 @@ class SimWorld:
     def head_angle(self) -> float:
         with self.lock:
             return float(self.data.qpos[self._head_qpos])
+
+    def foot_contacts(self) -> tuple[np.ndarray, np.ndarray]:
+        with self.lock:
+            heights = np.array([self.data.site(name).xpos[2] for name in mb.FOOT_SITES])
+            forces = np.zeros(2)
+            floor = self.model.geom('floor').id
+            geoms = [self.model.geom(side + '_foot_collision_box').id for side in ('left', 'right')]
+            wrench = np.zeros(6)
+            for i in range(self.data.ncon):
+                contact = self.data.contact[i]
+                pair = {contact.geom1, contact.geom2}
+                if floor not in pair:
+                    continue
+                for side, geom in enumerate(geoms):
+                    if geom in pair:
+                        mujoco.mj_contactForce(self.model, self.data, i, wrench)
+                        forces[side] += max(0., wrench[0])
+            return heights, forces
 
     def base_state(self) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Ground-truth base position, orientation (wxyz), linear and angular velocity.

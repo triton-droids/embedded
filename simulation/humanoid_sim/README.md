@@ -198,9 +198,10 @@ Every command below runs in another shell with the workspace sourced
 ### Windows
 
 - **MuJoCo viewer** (`use_viewer`): a *passive* viewer. It only displays the
-  physics through an independent model/data mirror. Only state copying takes
-  the physics lock; GUI synchronization and rendering cannot hold that lock
-  and block IMU publication. `mujoco_sim` steps physics in real time, so its Run/Pause and
+  physics through an independent process and model/data mirror. Only bounded,
+  nonblocking latest-state queues connect the GUI to the physics process.
+  GUI synchronization and its Python execution lock cannot block sensor or
+  motor callbacks in `mujoco_sim`. `mujoco_sim` steps physics in real time, so its Run/Pause and
   reset controls are inactive and the simulation cannot be paused or slowed
   from it. The usual mouse controls move the camera, and MuJoCo's perturbation
   works: double-click a body, then Ctrl + right-drag to push it. Closing the viewer does not stop the
@@ -330,31 +331,13 @@ is latched too).
 
 ### Current status
 
-With `auto_start:=true` the full chain runs (policy at 50 Hz →
-`cpp_control_node` → simulated motors). Outcomes vary between launches:
-sometimes the robot walks part of the reference, often it falls within a
-step or two of release. Running the same policy and world in a direct loop
-(scripts not in the repository) separates the causes:
+With `auto_start:=true` the policy → C++ → simulated motor chain runs.
+Walking outcomes vary between launches; repeatable sustained locomotion is
+not established. Feedback age, command scheduling and contact timing affect the
+trained policy's closed loop. Validate stability under the deployed timing.
 
-- Earlier tests with 5 cm sole clearance reported that, with the policy acting
-  on the current state every 20 ms, it walks the
-  reference (about 2.3 m along +Y in 6 s), including after the 5 cm drop from
-  the gantry. The world model, IMU frame and motor law are therefore
-  consistent with training.
-- Adding the deployed chain's delays breaks it. Joint feedback up to 20 ms
-  old (`/joint_states` at 50 Hz) and up to 20 ms of command delay
-  (`cpp_control_node` forwards on its own 50 Hz tick) each degrade tracking;
-  with 10 ms or more of both, most trials fall within 1.5 s, and outcomes
-  vary run to run. Hardware adds CAN latency on top, so this is likely a
-  property of the policy (trained without latency) rather than of the
-  simulation.
-- The three 50 Hz loops (policy, `cpp_control_node`, `/joint_states`) are
-  not synchronized, so these delays are set by process start times and differ
-  between launches, which fits the launch-to-launch variation. Touchdown
-  phase and contact sensitivity add to it.
-- Rigid foot impacts produce accelerometer samples above 100 m/s². The
-  policy node rejects those as invalid and latches a fault; the real IMU's
-  range and filtering would not report them this way.
+For the optional RL → WBC → C++ → MuJoCo path, current usage and limitations
+are maintained in [wbc_control_node](../../humanoid_control/wbc_control_node/README.md).
 
 ### Simulator-only interfaces
 

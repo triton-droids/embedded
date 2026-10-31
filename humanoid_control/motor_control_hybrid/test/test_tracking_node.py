@@ -196,3 +196,43 @@ def test_status_work_does_not_hold_feedback_state_lock(node, stage):
         release.set()
         worker.join(timeout=2.0)
     assert not worker.is_alive()
+
+
+def test_reference_loop_wraps_at_the_selected_phase_without_resetting_actions(node):
+    node.reference_end_behavior = 'loop'
+    node.loop_start, node.loop_end = 50, 251
+    assert node.reference_frame(0) == (0, 0)
+    assert node.reference_frame(250) == (250, 0)
+    assert node.reference_frame(251) == (50, 1)
+    assert node.reference_frame(451) == (250, 1)
+    assert node.reference_frame(452) == (50, 2)
+    node.hold_first_frame = True
+    assert node.reference_frame(452) == (0, 0)
+
+
+def test_default_reference_still_holds_last_frame(node):
+    assert node.reference_end_behavior == 'hold_last_frame'
+    assert node.reference_frame(node.policy.frames + 100) == (node.policy.frames - 1, 0)
+
+
+def test_sim_reference_clock_waits_for_release_without_stopping_policy(node):
+    from std_msgs.msg import String
+    node.wait_for_sim_release = True
+    node.previous = np.ones(10, dtype=np.float32)
+    node.policy.observation = Mock(wraps=node.policy.observation)
+    node.started = time.monotonic() - 1.
+    node.on_imu(imu_sample(node))
+    node.tick()
+    assert node.frame == 0 and len(node.command_pub.messages) == 1
+    np.testing.assert_array_equal(node.policy.observation.call_args.args[5], 0.)
+    node.on_sim_status(String(data='{"base_held": true}'))
+    assert node.reference_started is None
+    node.on_sim_status(String(data='{"base_held": false}'))
+    assert node.reference_started is not None
+    first = node.reference_started
+    node.on_sim_status(String(data='{"base_held": false}'))
+    assert node.reference_started == first
+    node.reference_started -= .5
+    node.on_imu(imu_sample(node))
+    node.tick()
+    assert 25 <= node.frame <= 26

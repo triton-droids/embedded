@@ -1,6 +1,8 @@
 """Exercise delayed discovery and release failures without publishing to ROS."""
 from types import MethodType, SimpleNamespace
+from collections import deque
 from unittest.mock import Mock
+import time
 
 import pytest
 
@@ -23,12 +25,109 @@ def node():
         _release_delay=0.1, _hold_client=Mock(), _command_pub=Mock(),
         _policy_sub=Mock(), get_clock=Mock(return_value=clock),
         get_logger=Mock(return_value=Mock()), create_timer=Mock(),
-        destroy_subscription=Mock())
+        destroy_subscription=Mock(), _use_control_core=False)
     n._hold_client.service_is_ready.return_value = False
     n._command_pub.get_subscription_count.return_value = 1
     for name in ('_on_policy', '_release', '_released', '_fail', '_check_timeout'):
         setattr(n, name, MethodType(getattr(SimAutostartNode, name), n))
     return n
+
+
+@pytest.fixture
+def verified_node(node):
+    from rclpy.time import Time as RosTime
+    node._use_control_core = True
+    node._enable_id = 'test-verified-enable'
+    node._enable_pending = False
+    node._enable_accepted = False
+    node._enable_request_at = None
+    node._policy_sources = deque(maxlen=128)
+    node._forwarded_deadline_ns = 10_100_000_000
+    node._forwarded_ready_since = time.monotonic() - 1.
+    node._last_forwarded_at = time.monotonic()
+    node._enable_client = Mock()
+    node._enable_client.service_is_ready.return_value = True
+    node.get_clock().now.return_value = RosTime(nanoseconds=10_000_000_000)
+    for name in ('_start_verified', '_enable_reply', '_on_enable_status', '_on_forwarded'):
+        setattr(node, name, MethodType(getattr(SimAutostartNode, name), node))
+    return node
+
+
+def test_verified_enable_does_not_publish_unacknowledged_enable_or_release(verified_node):
+    from motor_control_interfaces.msg import AbstractCommand, AbstractCommandStatus
+    node = verified_node
+    node._hold_client.service_is_ready.return_value = True
+    node._on_policy(policy_command())
+    request = node._enable_client.call_async.call_args.args[0]
+    assert request.command.operation == AbstractCommand.ENABLE
+    node._command_pub.publish.assert_not_called()
+
+
+    assert node._release_timer is None
+    future = Mock()
+    future.result.return_value = SimpleNamespace(accepted=True)
+    node._enable_reply(future)
+    assert node._release_timer is None
+    for _ in range(5):
+        node._on_policy(policy_command())
+    assert node._enable_client.call_async.call_count == 1
+    status = AbstractCommandStatus()
+    status.request_id = 'unrelated'
+    status.stage = AbstractCommandStatus.COMPLETED
+    node._on_enable_status(status)
+    assert node._release_timer is None
+    status.request_id = node._enable_id
+    node._on_enable_status(status)
+    assert node._release_timer is not None
+    node._command_pub.publish.assert_not_called()
+
+
+def test_release_requires_cpp_forwarded_policy_source_not_idle_motion(verified_node):
+    node = verified_node
+    node._forwarded_deadline_ns = 0
+    node._hold_client.service_is_ready.return_value = True
+    node._policy_sources.append(10_000_000_000)
+    node._latest_policy_deadline_ns = 10_100_000_000
+    node._release_timer = Mock()
+    node._enabled_joints = ['left_hip1_joint']
+    node._release()
+    node._hold_client.call_async.assert_not_called()
+    idle = policy_command()
+    idle.header.stamp = Time(sec=10, nanosec=1000_000)
+    node._on_forwarded(idle)
+    node._release()
+    node._hold_client.call_async.assert_not_called()
+    forwarded = policy_command()
+    node._on_forwarded(forwarded)
+    node._release()
+    node._hold_client.call_async.assert_called_once()
+
+
+def test_rejected_admission_can_retry_but_not_an_accepted_enable(verified_node):
+    node = verified_node
+    node._hold_client.service_is_ready.return_value = True
+    node._on_policy(policy_command())
+    future = Mock()
+    future.result.return_value = SimpleNamespace(accepted=False, message='feedback not ready')
+    node._enable_reply(future)
+    node._on_policy(policy_command())
+    assert node._enable_client.call_async.call_count == 2
+    future.result.return_value = SimpleNamespace(accepted=True)
+    node._enable_reply(future)
+    node._on_policy(policy_command())
+    assert node._enable_client.call_async.call_count == 2
+
+
+def test_ambiguous_enable_timeout_disables_without_rearming(verified_node):
+    node = verified_node
+    node._hold_client.service_is_ready.return_value = True
+    node._on_policy(policy_command())
+    node._first_policy_at -= 3
+    node._check_timeout()
+    assert node._done
+    assert list(node._command_pub.publish.call_args.args[0].mode) == [MotorCommand.MODE_DISABLE]
+    node._on_policy(policy_command())
+    assert node._enable_client.call_async.call_count == 1
 
 
 def policy_command():
@@ -158,3 +257,36 @@ def test_backend_not_ready_retries_without_enabling_again(node):
     assert node._request_at is None
     node._release_timer.reset.assert_called_once()
     assert node._command_pub.publish.call_count == 1
+
+
+def test_verified_enable_waits_for_end_to_end_forwarding_before_arming(verified_node):
+    node = verified_node
+    node._forwarded_deadline_ns = 0
+    node._hold_client.service_is_ready.return_value = True
+    sample = policy_command()
+    node._on_policy(sample)
+    node._enable_client.call_async.assert_not_called()
+    node._on_forwarded(sample)
+    node._forwarded_ready_since -= .31
+    node._on_policy(sample)
+    node._enable_client.call_async.assert_called_once()
+    accepted = Mock()
+    accepted.result.return_value = SimpleNamespace(accepted=True)
+    node._enable_reply(accepted)
+    assert node._forwarded_deadline_ns == 0  # Require new forwarding after enable too.
+
+
+def test_preflight_requires_sustained_forwarding_not_one_good_frame(verified_node):
+    node = verified_node
+    node._hold_client.service_is_ready.return_value = True
+    node._forwarded_deadline_ns = 0
+    node._forwarded_ready_since = None
+    node._last_forwarded_at = None
+    sample = policy_command()
+    node._on_policy(sample)
+    node._on_forwarded(sample)
+    node._on_policy(sample)
+    node._enable_client.call_async.assert_not_called()
+    node._forwarded_ready_since -= .31
+    node._on_policy(sample)
+    node._enable_client.call_async.assert_called_once()

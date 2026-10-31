@@ -48,6 +48,8 @@ class TrackingPolicyNode(Node):
             'max_input_skew_s': 0.02, 'max_inference_s': 0.02,
             'orientation_source': 'message',
             'hold_first_frame': False,
+            'reference_end_behavior': 'hold_last_frame', 'wait_for_sim_release': False,
+            'reference_loop_start_frame': 50, 'reference_loop_end_frame': 251,
             'imu_to_body_rotation': [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
         }
         for name, value in defaults.items():
@@ -93,6 +95,16 @@ class TrackingPolicyNode(Node):
                                           np.array([0, 0, -1]), self.policy.offset,
                                           np.zeros(10), self.previous)
             self.policy.run(obs, frame % self.policy.frames)
+        self.reference_end_behavior = str(param('reference_end_behavior'))
+        self.loop_start = int(param('reference_loop_start_frame'))
+        self.loop_end = int(param('reference_loop_end_frame'))
+        if self.reference_end_behavior not in ('hold_last_frame', 'loop'):
+            raise ValueError('reference_end_behavior must be hold_last_frame or loop')
+        if self.reference_end_behavior == 'loop' and not 0 <= self.loop_start < self.loop_end <= self.policy.frames:
+            raise ValueError('Reference loop must fit the exported reference frames')
+        self.reference_cycles = 0
+        self.wait_for_sim_release = bool(param('wait_for_sim_release'))
+        self.reference_started = None
         self.filter = GravityEstimator() if self.orientation_source == 'complementary' else None
         self.bias = np.zeros(3)
         self.calibration = []
@@ -125,6 +137,8 @@ class TrackingPolicyNode(Node):
         estop_qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
                               reliability=ReliabilityPolicy.RELIABLE)
         self.create_subscription(Bool, '/safety/estop', self.on_estop, estop_qos)
+        if self.wait_for_sim_release:
+            self.create_subscription(String, '/sim/status', self.on_sim_status, 1)
         self.steady_clock = Clock(clock_type=ClockType.STEADY_TIME)
         # Single inference worker, no pending FIFO: every iteration snapshots latest inputs.
         self.worker = threading.Thread(target=self.run_worker, name='tracking-inference', daemon=True)
@@ -135,6 +149,24 @@ class TrackingPolicyNode(Node):
             f'reference={"hold_first_frame" if self.hold_first_frame else "play"}, '
             'outputs=/policy/*; no SDK, CAN or motor enable commands. '
             'Keep the IMU stationary during calibration.')
+
+    @synchronized
+    def on_sim_status(self, msg):
+        try:
+            status = json.loads(msg.data)
+        except (ValueError, TypeError):
+            return
+        if status.get('base_held') is False and self.reference_started is None:
+            self.reference_started = time.monotonic()
+
+    def reference_frame(self, index):
+        if self.hold_first_frame:
+            return 0, 0
+        if self.reference_end_behavior == 'loop' and index >= self.loop_end:
+            length = self.loop_end - self.loop_start
+            return (self.loop_start + (index - self.loop_start) % length,
+                    (index - self.loop_start) // length)
+        return min(index, self.policy.frames - 1), 0
 
     @staticmethod
     def stamp_seconds(msg):
@@ -259,10 +291,14 @@ class TrackingPolicyNode(Node):
                 return
             if self.imu is None:
                 return
+            waiting_for_release = self.wait_for_sim_release and self.reference_started is None
             now_ros = self.ros_seconds()
             imu = self.imu  # Callbacks replace tuples and never mutate their arrays.
             joints = self.joints if self.feedback_mode == 'joint_states' else None
             if not fresh(*imu[:2], begin, now_ros, self.timeout):
+                if waiting_for_release:
+                    self.state = 'waiting_for_fresh_sim_inputs'
+                    return
                 self.latch_fault('IMU timeout')
                 return
             if self.feedback_mode == 'joint_states':
@@ -270,6 +306,9 @@ class TrackingPolicyNode(Node):
                     self.state = 'waiting_for_joint_states'
                     return
                 if not fresh(*joints[:2], begin, now_ros, self.timeout):
+                    if waiting_for_release:
+                        self.state = 'waiting_for_fresh_sim_inputs'
+                        return
                     self.latch_fault('JointState timeout')
                     return
                 if abs(imu[1] - joints[1]) > self.max_input_skew:
@@ -278,13 +317,15 @@ class TrackingPolicyNode(Node):
                 q, dq = joints[2:]
             else:
                 q, dq = self.policy.offset, np.zeros(10, dtype=np.float32)
-            if self.started is None:
+            if self.started is None and not waiting_for_release:
                 self.started = begin
-            frame = (0 if self.hold_first_frame else
-                     min(int((begin - self.started) * 50), self.policy.frames - 1))
+            origin = self.reference_started if self.wait_for_sim_release else self.started
+            index = 0 if origin is None else max(0, int((begin - origin) * 50))
+            frame, self.reference_cycles = self.reference_frame(index)
             source_stamp = min(imu[1], joints[1]) if joints else imu[1]
             valid_until = source_stamp + self.timeout
-            previous = self.previous.copy()
+            previous = (np.zeros_like(self.previous) if self.wait_for_sim_release and self.reference_started is None
+                        else self.previous.copy())
         try:
             obs = self.policy.observation(frame, *imu[2:], q, dq, previous)
             start_inference = time.monotonic()
@@ -380,9 +421,12 @@ class TrackingPolicyNode(Node):
                 'expiry_diagnostic': self.expiry_diagnostic,
                 'max_input_skew_s': self.max_input_skew, 'max_inference_s': self.max_inference,
                 'iterations': self.count, 'reference_frame': self.frame,
-                'reference_finished': self.frame == self.policy.frames - 1,
+                'reference_finished': (self.reference_cycles > 0 if self.reference_end_behavior == 'loop'
+                                       else self.frame == self.policy.frames - 1),
+                'reference_cycles': self.reference_cycles,
+                'waiting_for_sim_release': self.wait_for_sim_release and self.reference_started is None,
                 'hold_first_frame': self.hold_first_frame,
-                'reference_end_behavior': 'hold_first_frame' if self.hold_first_frame else 'hold_last_frame',
+                'reference_end_behavior': 'hold_first_frame' if self.hold_first_frame else self.reference_end_behavior,
                 'joint_feedback': self.feedback_mode, 'hardware_output': False,
                 'imu_age_since_receipt_ms': None if self.imu is None else (now - self.imu[0]) * 1000,
                 'gyro_bias_rad_s': self.bias.tolist(), 'model_sha256': self.model_sha256,

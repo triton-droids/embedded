@@ -14,15 +14,18 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import threading
 import time
 
 from ament_index_python.packages import get_package_share_directory
 import mujoco
 from nav_msgs.msg import Odometry
+from sensor_msgs.msg import JointState
 import rclpy
 from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
 from rclpy.node import Node
+from rclpy.signals import SignalHandlerOptions
 from std_msgs.msg import String
 from std_srvs.srv import SetBool, Trigger
 import yaml
@@ -81,6 +84,8 @@ class SimControlNode(Node):
             'target_amplitude_m': 0.4,
             'target_period_s': 8.0,
             'ground_truth_rate_hz': 50.0,
+            'allow_torque_only_motion': False,
+            'publish_feet_ground_truth': False,
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -106,7 +111,8 @@ class SimControlNode(Node):
         )
         model = mb.build_model(options)
         motors = MotorBank(limits, command_timeout_s=float(p['command_timeout_s']),
-                           velocity_mode_kd=float(p['velocity_mode_kd']))
+                           velocity_mode_kd=float(p['velocity_mode_kd']),
+                           allow_torque_only_motion=bool(p['allow_torque_only_motion']))
         self.world = SimWorld(
             model, motors,
             head=HeadServoConfig() if options.add_head else None,
@@ -118,6 +124,8 @@ class SimControlNode(Node):
             f'timestep {model.opt.timestep * 1e3:.1f} ms, registry {registry_path}')
 
         self.odom_pub = self.create_publisher(Odometry, '/sim/ground_truth/odom', 10)
+        self.feet_pub = (self.create_publisher(JointState, '/sim/ground_truth/feet', 10)
+                         if p['publish_feet_ground_truth'] else None)
         self.status_pub = self.create_publisher(String, '/sim/status', 1)
         self.create_service(Trigger, '/sim/reset', self._reset)
         self.create_service(SetBool, '/sim/hold_base', self._hold_base)
@@ -141,6 +149,7 @@ class SimControlNode(Node):
                                     f'enabled={[j for j in self.world.joint_names if self.world.motors.is_enabled(j)]}')
                 return response
             self.world.set_base_held(request.data)
+        self._publish_status()
         response.success = True
         response.message = 'Base held' if request.data else 'Base released'
         self.get_logger().info(response.message)
@@ -160,6 +169,14 @@ class SimControlNode(Node):
         twist.linear.x, twist.linear.y, twist.linear.z = map(float, lin)
         twist.angular.x, twist.angular.y, twist.angular.z = map(float, ang)
         self.odom_pub.publish(msg)
+        if self.feet_pub is not None:
+            heights, forces = self.world.foot_contacts()
+            feet = JointState()
+            feet.header = msg.header
+            feet.name = ['left_foot', 'right_foot']
+            feet.position = heights.tolist()
+            feet.effort = forces.tolist()
+            self.feet_pub.publish(feet)
 
     def _publish_status(self) -> None:
         now = time.monotonic()
@@ -177,27 +194,21 @@ class SimControlNode(Node):
 
 def _open_viewer(world: SimWorld):
     """Finish GUI initialization before advertising simulator readiness."""
-    import mujoco.viewer
-    from .viewer import ViewerMirror
+    from .viewer import ViewerProcess
 
-    mirror = ViewerMirror(world)
-    viewer = mujoco.viewer.launch_passive(mirror.model, mirror.data)
-    try:
-        mirror.sync(viewer)
-    except Exception:
-        viewer.close()
-        raise
-    return mirror, viewer
+    viewer = ViewerProcess(world)
+    return viewer, viewer
 
 
 def _run_viewer(mirror, viewer) -> None:
     while viewer.is_running() and rclpy.ok():
-        mirror.sync(viewer)
+        mirror.update()
         time.sleep(1.0 / 60.0)
 
 
 def main(args=None) -> None:
-    rclpy.init(args=args)
+    rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
+    signal.signal(signal.SIGTERM, signal.default_int_handler)
     control = SimControlNode()
     world = control.world
 
@@ -238,10 +249,11 @@ def main(args=None) -> None:
             break
         time.sleep(0.01)
     else:
+        executor.shutdown()
+        spin.join(timeout=2.0)
         world.stop()
         if viewer is not None:
             viewer.close()
-        executor.shutdown()
         for node in nodes:
             node.destroy_node()
         if rclpy.ok():
@@ -259,10 +271,11 @@ def main(args=None) -> None:
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
+        executor.shutdown()
+        spin.join(timeout=2.0)
         world.stop()
         if viewer is not None:
             viewer.close()
-        executor.shutdown()
         for node in nodes:
             node.destroy_node()
         if rclpy.ok():

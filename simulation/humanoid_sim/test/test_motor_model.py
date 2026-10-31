@@ -31,6 +31,18 @@ def test_motion_requires_enable():
     assert bank.setpoint('knee', 0.0, 0.005).kp == 0.0
 
 
+def test_torque_only_readiness_is_opt_in_and_still_expires():
+    bank = make_bank()
+    submit(bank, MODE_ENABLE)
+    submit(bank, MODE_MOTION, torque=[1.], kp=[0.], kd=[0.])
+    assert not bank.motion_ready(NOW_MONO)
+    bank.allow_torque_only_motion = True
+    assert bank.motion_ready(NOW_MONO)
+    assert not bank.motion_ready(NOW_MONO + .6)
+    bank.set_estop(True)
+    assert not bank.motion_ready(NOW_MONO)
+
+
 def test_enable_is_idle_until_motion():
     bank = make_bank()
     submit(bank, MODE_ENABLE)
@@ -136,3 +148,15 @@ def test_registry_torque_defaults_by_model():
     }})
     assert limits['a'].max_torque == 120.0
     assert limits['b'].max_torque == 30.0
+
+
+def test_readiness_diagnostic_distinguishes_expiry_from_disable():
+    bank = make_bank()
+    submit(bank, MODE_ENABLE)
+    submit(bank, MODE_MOTION, position=[-.1], kp=[20.])
+    assert bank.readiness_failure(NOW_MONO) == 'ready'
+    bank.expire(NOW_MONO + .6)
+    assert bank.readiness_failure(NOW_MONO + .6) == 'command expired for knee'
+    submit(bank, MODE_ENABLE, now_mono=NOW_MONO + .6)
+    submit(bank, MODE_DISABLE, now_mono=NOW_MONO + .6)
+    assert bank.readiness_failure(NOW_MONO + .6) == 'disabled joint knee'

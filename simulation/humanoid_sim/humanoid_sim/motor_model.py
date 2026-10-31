@@ -114,13 +114,14 @@ class MotorBank:
     """
 
     def __init__(self, limits: dict[str, JointLimits], command_timeout_s: float = 0.5,
-                 velocity_mode_kd: float = 2.0) -> None:
+                 velocity_mode_kd: float = 2.0, allow_torque_only_motion: bool = False) -> None:
         if command_timeout_s <= 0.0:
             raise ValueError('command_timeout_s must be positive')
         self.limits = dict(limits)
         self.joint_names = list(limits)
         self.command_timeout_s = float(command_timeout_s)
         self.velocity_mode_kd = float(velocity_mode_kd)
+        self.allow_torque_only_motion = bool(allow_torque_only_motion)
         self.estop_active = False
         self._joints = {name: _JointState() for name in self.joint_names}
 
@@ -134,9 +135,26 @@ class MotorBank:
     def motion_ready(self, now_mono_s: float, min_remaining_s: float = 0.0) -> bool:
         """Every joint has an enabled, unexpired closed-loop motion command."""
         return (not self.estop_active and bool(self._joints) and all(
-            state.enabled and state.mode == MODE_MOTION and state.motion_received and state.kp > 0
+            state.enabled and state.mode == MODE_MOTION and state.motion_received
+            and (state.kp > 0 or self.allow_torque_only_motion)
             and state.deadline > now_mono_s + min_remaining_s
             for state in self._joints.values()))
+
+    def readiness_failure(self, now_mono_s: float) -> str:
+        if self.estop_active:
+            return 'estop active'
+        for name, state in self._joints.items():
+            if state.inhibited:
+                return f'command expired for {name}'
+            if not state.enabled:
+                return f'disabled joint {name}'
+            if state.deadline <= now_mono_s:
+                return f'command expired for {name}'
+            if state.mode != MODE_MOTION or not state.motion_received:
+                return f'no motion command for {name}'
+            if state.kp <= 0 and not self.allow_torque_only_motion:
+                return f'zero motion gain for {name}'
+        return 'ready'
 
     def pop_events(self) -> list[str]:
         """Return and clear human-readable state changes for logging."""

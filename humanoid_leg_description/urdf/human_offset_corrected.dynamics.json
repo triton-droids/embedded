@@ -1,0 +1,112 @@
+{
+  "source": "humanoid_control/motor_control_hybrid/models/20260914_170827/chrobot_16kg_candidate.xml",
+  "source_sha256": "330379c6864ea3314f86a61c353c81363c2854a6f3a6509d0f434194e088a4ac",
+  "mujoco_base_to_pin_root": {
+    "translation": [
+      -0.004500000000000004,
+      -0.022,
+      -1.0495999999999999
+    ],
+    "rotation": [
+      [
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0
+      ]
+    ]
+  },
+  "joints": {
+    "left_hip1_joint": {
+      "armature": 0.01,
+      "damping": 1.0
+    },
+    "left_hip2_joint": {
+      "armature": 0.01,
+      "damping": 1.0
+    },
+    "left_thigh_joint": {
+      "armature": 0.01,
+      "damping": 1.0
+    },
+    "left_knee_joint": {
+      "armature": 0.01,
+      "damping": 1.0
+    },
+    "left_ankle_joint": {
+      "armature": 0.01,
+      "damping": 1.0
+    },
+    "right_hip1_joint": {
+      "armature": 0.01,
+      "damping": 1.0
+    },
+    "right_hip2_joint": {
+      "armature": 0.01,
+      "damping": 1.0
+    },
+    "right_thigh_joint": {
+      "armature": 0.01,
+      "damping": 1.0
+    },
+    "right_knee_joint": {
+      "armature": 0.01,
+      "damping": 1.0
+    },
+    "right_ankle_joint": {
+      "armature": 0.01,
+      "damping": 1.0
+    }
+  },
+  "contact_points": {
+    "left_foot": [
+      [
+        0.030000000000000027,
+        0.030000000000000027,
+        -0.04999999999999999,
+        -0.04999999999999999
+      ],
+      [
+        0.13,
+        -0.07999999999999999,
+        0.13,
+        -0.07999999999999999
+      ],
+      [
+        -0.04365800000000006,
+        -0.04365800000000006,
+        -0.04365800000000006,
+        -0.04365800000000006
+      ]
+    ],
+    "right_foot": [
+      [
+        0.05000000000000002,
+        0.05000000000000002,
+        -0.03,
+        -0.03
+      ],
+      [
+        0.13,
+        -0.07999999999999999,
+        0.13,
+        -0.07999999999999999
+      ],
+      [
+        -0.04365800000000006,
+        -0.04365800000000006,
+        -0.04365800000000006,
+        -0.04365800000000006
+      ]
+    ]
+  }
+}

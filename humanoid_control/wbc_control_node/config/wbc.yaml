@@ -1,0 +1,12 @@
+wbc_control_node:
+  ros__parameters:
+    control_rate_hz: 100.0
+    input_timeout_s: 0.1
+    max_input_skew_s: 0.04
+    max_compute_s: 0.02
+    output_lifetime_s: 0.08
+    posture_weight: 1.0
+    tracking_mode: policy_impedance
+    max_policy_torque_correction_nm: 0.02
+    contact_mode: policy
+    com_reference_mode: policy
