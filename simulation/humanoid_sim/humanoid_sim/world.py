@@ -119,10 +119,12 @@ class SimWorld:
                 continue
             self.step(now)
             next_step += dt
-            if time.monotonic() - next_step > 0.1:
-                # More than 100 ms behind: slow simulated time instead of bursting.
+            now = time.monotonic()
+            if next_step < now:
+                # Missed periods are skipped, never replayed in a catch-up burst:
+                # back-to-back steps starve the executor of the lock and GIL.
                 self.overruns += 1
-                next_step = time.monotonic()
+                next_step = now + dt
 
     # -------------------------------------------------------------- physics
     def step(self, now_mono: float) -> None:
