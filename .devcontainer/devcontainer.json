@@ -17,7 +17,7 @@
     "XAUTHORITY": "/tmp/.docker.xauth/xauth",
     // Keep laptop testing off the robot network: the Jetson uses domain 0.
     // Change both of these to talk to the robot (see docs/remote_rviz.md).
-    "ROS_DOMAIN_ID": "42",
+    "ROS_DOMAIN_ID": "0",
     "ROS_LOCALHOST_ONLY": "1"
   },
   "mounts": [
