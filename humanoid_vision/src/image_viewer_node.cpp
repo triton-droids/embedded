@@ -25,7 +25,7 @@ public:
         "depth_topic", "/camera/camera/aligned_depth_to_color/image_raw");
     display_ = declare_parameter<bool>("display", true);
 
-    const auto sensor_qos = rclcpp::SensorDataQoS();
+    const auto sensor_qos = rclcpp::SensorDataQoS().keep_last(2);
 
     // Keep the latest color frame for side-by-side display.
     color_subscription_ = create_subscription<sensor_msgs::msg::Image>(

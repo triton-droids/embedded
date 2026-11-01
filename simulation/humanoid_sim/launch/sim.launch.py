@@ -51,6 +51,19 @@ def flag(context, name):
     return LaunchConfiguration(name).perform(context).lower() == 'true'
 
 
+def dds_profile(context):
+    """Apply the tuned Fast DDS writer limits only when asked for.
+
+    Accepts on/true/1: the single-line flag() helper only understands "true",
+    and silently ignoring an explicit request is worse than accepting both.
+    """
+    if LaunchConfiguration('dds_tuning').perform(context).lower() not in ('on', 'true', '1'):
+        return []
+    path = PathJoinSubstitution(
+        [FindPackageShare('humanoid_sim'), 'config', 'fastdds_profile.xml']).perform(context)
+    return [SetEnvironmentVariable('FASTRTPS_DEFAULT_PROFILES_FILE', path)]
+
+
 def simulation_and_stack(context):
     """Start the simulator, then the robot stack once the simulator is ready."""
     arg = LaunchConfiguration
@@ -70,21 +83,34 @@ def simulation_and_stack(context):
         raise ValueError('WBC requires connected policy, full C++ stack and enable_vision:=false')
 
     # No name=: a __node remap would rename every node in this multi-node process.
+    imu_split = flag(context, 'imu_split')
+    snapshot_path = arg('imu_snapshot_path').perform(context)
+    imu_extra = dict(imu_split=imu_split)
+    if snapshot_path:
+        imu_extra['imu_snapshot_path'] = snapshot_path
     simulator = Node(
             package='humanoid_sim', executable='mujoco_sim',
-            additional_env=({'RMW_FASTRTPS_PUBLICATION_MODE': 'ASYNCHRONOUS'} if enable_wbc else {}),
+            additional_env=({'RMW_FASTRTPS_PUBLICATION_MODE': arg('dds_publication_mode')} if enable_wbc else {}),
             # stdout carries the readiness handshake; diagnostics stay on stderr.
             output={'stdout': 'log', 'stderr': 'screen'},
             ros_arguments=['--log-level', arg('log_level')],
             parameters=[arg('sim_config_file'), {
                 'motor_config_file': registry_path,
                 'use_viewer': flag(context, 'use_viewer'),
+                'dedicated_imu_executor': flag(context, 'dedicated_imu_executor'),
+                'remote_viewer': flag(context, 'remote_viewer'),
+                'remote_viewer_host': arg('remote_viewer_host'),
+                'remote_viewer_port': ParameterValue(arg('remote_viewer_port'), value_type=int),
+                'remote_viewer_rate_hz': ParameterValue(arg('remote_viewer_rate_hz'), value_type=float),
                 'enable_camera': flag(context, 'enable_vision'),
+                **imu_extra,
                 'start_base_held': flag(context, 'start_base_held'),
                 'target_image': arg('target_image').perform(context),
+                'scene_builder': arg('scene_builder').perform(context),
                 'command_timeout_s': float(arg('can_command_timeout_s').perform(context)),
                 'policy_commands_topic': '',
                 **({'enable_head': False, 'enable_target': False,
+                    'dedicated_command_executor': flag(context, 'dedicated_command_executor'),
                     'foot_clearance_m': 0.0, 'allow_torque_only_motion': True,
                     'publish_feet_ground_truth': True,
                     'ground_truth_rate_hz': 100.0, 'publish_rate_hz': 200.0} if enable_wbc else {}),
@@ -94,6 +120,19 @@ def simulation_and_stack(context):
         # Without the simulator every other node would only report stale inputs.
         on_exit=[EmitEvent(event=Shutdown(reason='mujoco_sim exited'))],
     )
+    split_imu = None
+    if imu_split:
+        # Starts with the simulator: it blocks on the shared segment until the
+        # first physics step writes one, so it cannot miss the first sample.
+        imu_params = [arg('sim_config_file')]
+        if snapshot_path:
+            imu_params.append({'snapshot_path': snapshot_path})
+        split_imu = Node(
+            package='humanoid_sim', executable='sim_imu_publisher',
+            output='screen',
+            ros_arguments=['--log-level', arg('log_level')],
+            parameters=imu_params)
+
     stack = []
     if not minimal:
         stack += [
@@ -102,7 +141,7 @@ def simulation_and_stack(context):
             Node(
                 package='motor_control_hybrid', executable='cpp_control_node',
                 name='cpp_control_node', output='screen',
-                additional_env=({'RMW_FASTRTPS_PUBLICATION_MODE': 'ASYNCHRONOUS'} if enable_wbc else {}),
+                additional_env=({'RMW_FASTRTPS_PUBLICATION_MODE': arg('dds_publication_mode')} if enable_wbc else {}),
                 ros_arguments=['--log-level', arg('log_level')],
                 parameters=[{
                     'joint_names': list(motors),
@@ -145,7 +184,7 @@ def simulation_and_stack(context):
         stack.append(Node(
             package='wbc_control_node', executable='wbc_control_node',
             prefix=arg('wbc_python_executable'), output='screen',
-            additional_env={'RMW_FASTRTPS_PUBLICATION_MODE': 'ASYNCHRONOUS',
+            additional_env={'RMW_FASTRTPS_PUBLICATION_MODE': arg('dds_publication_mode'),
                             'OPENBLAS_NUM_THREADS': '1', 'OMP_NUM_THREADS': '1',
                             'MKL_NUM_THREADS': '1'},
             parameters=[PathJoinSubstitution([
@@ -160,6 +199,10 @@ def simulation_and_stack(context):
             ros_arguments=['--log-level', arg('log_level')],
             parameters=[{'release_delay_s': ParameterValue(arg('release_delay_s'),
                                                            value_type=float),
+                         # Cold DDS discovery and native imports can exceed two
+                         # seconds. Keep waiting on the gantry, never relax the
+                         # freshness/deadline checks used to admit ENABLE.
+                         'startup_timeout_s': 10.0 if enable_wbc else 2.0,
                          'policy_topic': '/wbc/desired_motor_subset' if enable_wbc
                                          else '/policy/desired_motor_subset',
                          'enable_via_control_core': enable_wbc}]))
@@ -172,8 +215,9 @@ def simulation_and_stack(context):
             'safety_config': arg('safety_config_file'),
             'fall_detection_enabled': arg('fall_detection_enabled'),
             'trip_on_imu_timeout': arg('trip_on_imu_timeout'),
+            'status_reliability': 'best_effort',
             'ros_domain_id': arg('ros_domain_id'),
-            'source_topic': '/joint_states',
+            'source_topic': '/sim/monitor/joint_states',
             'port': arg('web_port'),
             'start_joint_state_monitor': arg('start_joint_state_monitor'),
             'start_display': arg('use_rviz'),
@@ -187,6 +231,7 @@ def simulation_and_stack(context):
             'start_detector': arg('start_detector'),
             'start_tracker': 'true',
             'use_cuda': arg('use_cuda'),
+            'target_timeout_s': arg('vision_target_timeout_s'),
         }, condition=IfCondition(arg('enable_vision'))),
     ]
 
@@ -198,8 +243,10 @@ def simulation_and_stack(context):
         started.append(True)
         return stack
 
-    return [simulator, RegisterEventHandler(OnProcessIO(
-        target_action=simulator, on_stdout=start_stack_once, on_stderr=start_stack_once))]
+    nodes = [simulator] + ([split_imu] if split_imu is not None else [])
+    nodes.append(RegisterEventHandler(OnProcessIO(
+        target_action=simulator, on_stdout=start_stack_once, on_stderr=start_stack_once)))
+    return nodes
 
 
 def generate_launch_description():
@@ -209,6 +256,11 @@ def generate_launch_description():
         ('minimal', 'false', 'Disconnected diagnostics only; connected policy requires false and C++ forwarding'),
         ('log_level', 'warn', 'ROS log severity: warn retains warnings, errors and fatal diagnostics'),
         ('use_viewer', 'true', 'Open the interactive MuJoCo viewer'),
+        ('dedicated_command_executor', 'true', 'Isolate WBC command reception from sensor timers'),
+        ('remote_viewer', 'false', 'Stream read-only state to a separate viewer computer'),
+        ('remote_viewer_host', '127.0.0.1', 'Stream bind address; use SSH tunnel or trusted LAN'),
+        ('remote_viewer_port', '8765', 'Remote viewer TCP port'),
+        ('remote_viewer_rate_hz', '15.0', 'Latest-state stream rate, maximum 60 Hz'),
         ('start_joint_state_monitor', 'false', 'Start joint-state relay in the full stack'),
         ('use_rviz', 'false', 'Start robot_state_publisher display and RViz'),
         ('enable_policy', 'true', 'Run tracking_policy_node on simulated IMU/joint feedback'),
@@ -227,16 +279,25 @@ def generate_launch_description():
         ('release_delay_s', '0.1', 'With auto_start: delay from enable to gantry release'),
         ('enable_vision', 'false', 'Render the head camera and run detector + head tracker'),
         ('start_detector', 'true', 'With enable_vision: false for TRACK_ONLY builds'),
+        ('vision_target_timeout_s', '0.15', 'Head tracker source/receipt freshness limit'),
         ('use_cuda', 'false', 'Detector CUDA backend'),
+        ('dedicated_imu_executor', 'true', 'Run body IMU publication in a dedicated executor thread'),
         ('enable_depth', 'false', 'Render aligned depth for the detector 3D output'),
         ('start_base_held', 'true', 'Start on the virtual gantry'),
         ('target_image', '', 'PNG face image on the mocap target board'),
+        ('scene_builder', '', 'Optional installed module:function adding scene fixtures'),
         ('control_rate_hz', '50.0', 'C++ scheduler rate'),
         ('cmd_timeout_s', '0.5', 'C++ scheduler command timeout'),
         ('can_command_timeout_s', '0.5', 'Simulated backend command lifetime'),
         ('calibration_seconds', '2.0', 'Policy gyro calibration; keep the base held meanwhile'),
         ('fall_detection_enabled', '', 'Override safety.yaml fall detection'),
         ('trip_on_imu_timeout', '', 'Override safety.yaml IMU timeout trip'),
+        ('dds_publication_mode', 'ASYNCHRONOUS', 'Fast DDS publication mode for the simulated stack'),
+        ('dds_tuning', 'off',
+         'Apply config/fastdds_profile.xml (writer resource limits and blocking cap)'),
+        ('imu_split', 'true',
+         'Publish /imu/data_raw from a separate process reading a shared snapshot'),
+        ('imu_snapshot_path', '', 'Shared IMU snapshot file; empty uses the node default'),
         ('localhost_only', '1', 'Confine DDS discovery to this host (1) or not (0)'),
         ('ros_domain_id', EnvironmentVariable('ROS_DOMAIN_ID', default_value='0'), 'ROS domain'),
         ('web_port', '8080', 'Read-only motor Web monitor port'),
@@ -256,5 +317,7 @@ def generate_launch_description():
         + [
             SetEnvironmentVariable('ROS_DOMAIN_ID', arg('ros_domain_id')),
             SetEnvironmentVariable('ROS_LOCALHOST_ONLY', arg('localhost_only')),
+            SetEnvironmentVariable('RMW_FASTRTPS_PUBLICATION_MODE', arg('dds_publication_mode')),
+            OpaqueFunction(function=dds_profile),
             OpaqueFunction(function=simulation_and_stack),
         ])

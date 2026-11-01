@@ -72,14 +72,14 @@ public:
 
     // Keep only the newest absolute target; queued historical commands add lag.
     command_publisher_ = create_publisher<std_msgs::msg::Float32>(
-        command_topic, rclcpp::QoS(1).reliable().durability_volatile());
+        command_topic, rclcpp::QoS(2).reliable().durability_volatile());
     info_subscription_ = create_subscription<sensor_msgs::msg::CameraInfo>(
-        info_topic, rclcpp::SensorDataQoS().keep_last(1),
+        info_topic, rclcpp::SensorDataQoS().keep_last(2),
         [this](sensor_msgs::msg::CameraInfo::ConstSharedPtr msg) {
           camera_info_ = msg;
         });
     target_subscription_ = create_subscription<geometry_msgs::msg::PointStamped>(
-        target_topic, rclcpp::SensorDataQoS().keep_last(1),
+        target_topic, rclcpp::SensorDataQoS().keep_last(2),
         [this](geometry_msgs::msg::PointStamped::ConstSharedPtr msg) {
           receive_target(*msg);
         });
@@ -118,6 +118,7 @@ private:
    * tracking until a later valid message; CameraInfo may be cached between frames.
    */
   void receive_target(const geometry_msgs::msg::PointStamped &msg) {
+    if (publish_fault_) return;  // A fresh image cannot clear a command transport fault.
     // Require calibrated intrinsics for the same color image frame. Detections
     // retain the image stamp, so delayed/queued detections cannot drive motion.
     if (!camera_info_ || !fresh_stamp(msg.header.stamp) ||
@@ -158,6 +159,7 @@ private:
    * joint command rather than resetting its position to the nominal center.
    */
   void control_tick() {
+    if (publish_fault_) return;
     const auto current = Clock::now();
     const double dt = std::chrono::duration<double>(current - last_tick_).count();
     last_tick_ = current;
@@ -183,7 +185,16 @@ private:
         (angle_ <= min_angle_ && speed_ < 0.0)) speed_ = 0.0;
     std_msgs::msg::Float32 command;
     command.data = static_cast<float>(angle_);
-    command_publisher_->publish(command);
+    try {
+      command_publisher_->publish(command);
+    } catch (const rclcpp::exceptions::RCLError& error) {
+      publish_fault_ = true;
+      tracking_ = false;
+      invalidate();
+      RCLCPP_ERROR(get_logger(),
+        "Head command publication fault LATCHED; stopping output so MCU watchdog releases servo; "
+        "restart required; physical state unverified: %s", error.what());
+    }
   }
 
   // Configuration and dynamic state: radians, seconds, rad/s, and rad/s^2.
@@ -191,7 +202,7 @@ private:
   double direction_, kp_, deadband_, min_angle_, max_angle_, angle_;
   double max_speed_, max_acceleration_, timeout_;
   double error_ = 0.0, speed_ = 0.0;
-  bool target_valid_ = false, tracking_ = false;
+  bool target_valid_ = false, tracking_ = false, publish_fault_ = false;
   Clock::time_point last_tick_, received_at_;
   builtin_interfaces::msg::Time target_stamp_;
   sensor_msgs::msg::CameraInfo::ConstSharedPtr camera_info_;

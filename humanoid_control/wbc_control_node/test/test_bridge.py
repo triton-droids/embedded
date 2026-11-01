@@ -83,8 +83,28 @@ def bridge_node():
         get_logger=lambda: Mock(), last_policy_stamp=0,
     )
     node._fail = MethodType(WBCControlNode._fail, node)
+    node._send_disable = MethodType(WBCControlNode._send_disable, node)
     node._store = MethodType(WBCControlNode._store, node)
     return node
+
+
+def test_publish_failure_latches_wbc_and_retries_only_disable(bridge_node):
+    from rclpy._rclpy_pybind11 import RCLError
+    from motor_control_interfaces.msg import MotorCommand
+    from wbc_control_node.node import WBCControlNode
+    node = bridge_node
+    attempts = []
+    def publish(message):
+        attempts.append(message)
+        if len(attempts) <= 2:
+            raise RCLError('injected DDS error')
+    node.output.publish.side_effect = publish
+    WBCControlNode.tick(node)
+    assert node.fault and node.state == 'fault'
+    assert node.solved_count == 0
+    WBCControlNode.tick(node)
+    assert len(attempts) == 3
+    assert all(list(message.mode) == [MotorCommand.MODE_DISABLE] for message in attempts[1:])
 
 
 def test_bridge_solves_without_motor_pd_and_preserves_source_deadline(bridge_node):

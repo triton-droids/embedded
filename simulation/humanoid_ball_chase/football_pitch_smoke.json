@@ -1,0 +1,23 @@
+{
+  "pitch_low_high_low_rad": [
+    -0.11437361145297341,
+    -0.38567004758437073,
+    -0.21148866455065424
+  ],
+  "tracking_samples_last_second": [
+    22,
+    21,
+    8
+  ],
+  "football_confidence_max": [
+    0.9070654511451721,
+    0.9208091497421265,
+    0.918278694152832
+  ],
+  "lost_zero_frames": 17,
+  "reacquired": true,
+  "locomotion_verified": false,
+  "detector": "td-perception YOLO11n ONNX class 0",
+  "scene_forward_axis": "positive_y",
+  "vision_target_timeout_s": 1.0
+}

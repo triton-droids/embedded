@@ -11,6 +11,8 @@ import numpy as np
 
 from .world import SimWorld
 
+VIEWER_RATE_HZ = 5.0
+
 
 def _latest(queue, value):
     try:
@@ -27,6 +29,8 @@ def _latest(queue, value):
 
 
 def _viewer_worker(model, snapshots, forces, ready, closed, stop):
+    from .thread_setup import configure_thread
+    configure_thread('other')
     import mujoco.viewer
 
     data = mujoco.MjData(model)
@@ -54,7 +58,7 @@ def _viewer_worker(model, snapshots, forces, ready, closed, stop):
                 data.xfrc_applied[:] = perturbation
             viewer.sync()
             _latest(forces, data.xfrc_applied.copy())
-            time.sleep(1.0 / 60.0)
+            time.sleep(1.0 / VIEWER_RATE_HZ)
     except KeyboardInterrupt:
         pass
     finally:

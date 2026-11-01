@@ -6,6 +6,7 @@ import time
 import numpy as np
 import pinocchio as pin
 import rclpy
+from rclpy._rclpy_pybind11 import RCLError
 from ament_index_python.packages import get_package_share_directory
 from nav_msgs.msg import Odometry
 from rclpy.executors import ExternalShutdownException
@@ -86,11 +87,11 @@ class WBCControlNode(Node):
         self.solved_count = 0
         self.last_compute_ms = 0.
         self.last_torque = []
-        stream = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
-        safety = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
+        stream = QoSProfile(depth=2, reliability=ReliabilityPolicy.BEST_EFFORT)
+        safety = QoSProfile(depth=2, reliability=ReliabilityPolicy.RELIABLE,
                             durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.output = self.create_publisher(MotorCommand, p['output_topic'], stream)
-        self.status = self.create_publisher(String, '/wbc/status', 10)
+        self.status = self.create_publisher(String, '/wbc/status', 2)
         self.create_subscription(MotorCommand, p['policy_topic'], self._policy, stream)
         self.create_subscription(JointState, p['joint_states_topic'],
                                  lambda msg: self._store('joints', msg), stream)
@@ -98,7 +99,7 @@ class WBCControlNode(Node):
                                  lambda msg: self._store('odom', msg), stream)
         self.create_subscription(JointState, p['feet_topic'],
                                  lambda msg: self._store('feet', msg), stream)
-        self.create_subscription(String, '/sim/status', self._sim_status, 1)
+        self.create_subscription(String, '/sim/status', self._sim_status, 2)
         self.create_subscription(Bool, '/safety/estop', self._estop, safety)
         self.create_timer(1. / p['control_rate_hz'], self.tick)
         self.create_timer(.5, self._status)
@@ -148,25 +149,39 @@ class WBCControlNode(Node):
             return
         self.fault = reason
         self.state = 'fault'
+        self._send_disable()
+        self.get_logger().error(reason)
+
+    def _send_disable(self):
         disable = MotorCommand()
         disable.header.stamp = self.get_clock().now().to_msg()
         disable.joint_name = list(self.names)
         disable.mode = [MotorCommand.MODE_DISABLE]
-        self.output.publish(disable)
-        self.get_logger().error(reason)
+        try:
+            self.output.publish(disable)
+        except RCLError as error:
+            self.get_logger().error(f'WBC DISABLE publication failed; retrying, physical state unverified: {error}',
+                                    throttle_duration_sec=5.0)
 
     def _status(self):
-        self.status.publish(String(data=json.dumps({
+        message = String(data=json.dumps({
             'state': self.state, 'fault': self.fault, 'solved_count': self.solved_count,
             'compute_ms': self.last_compute_ms, 'solve_ms': self.controller.last_solve_ms,
             'contacts': list(self.controller.contacts),
             'joint_names': self.names, 'torques': self.last_torque,
             'nominal_torques': self.last_nominal_torque, 'tracking_mode': self.params['tracking_mode'],
             'base_held': self.base_held,
-        })))
+        }))
+        try:
+            self.status.publish(message)
+        except RCLError as error:
+            self.get_logger().error(f'WBC diagnostics publication failed: {error}', throttle_duration_sec=5.0)
 
     def tick(self):
-        if self.fault or self.estop:
+        if self.fault:
+            self._send_disable()
+            return
+        if self.estop:
             return
         if not all(name in self.inputs for name in ('policy', 'joints', 'odom', 'feet')):
             return
@@ -271,7 +286,11 @@ class WBCControlNode(Node):
             command.position = positions.tolist()
             command.velocity = [0.] * len(self.names)
             command.kp = command.kd = command.torque = [0.] * len(self.names)
-        self.output.publish(command)
+        try:
+            self.output.publish(command)
+        except RCLError as error:
+            self._fail(f'WBC command publication failed: {error}; restart required')
+            return
         self.started = self.started or not getattr(self, 'base_held', False)
         self.state = 'arming_on_gantry' if getattr(self, 'base_held', False) else 'running'
         self.solved_count += 1

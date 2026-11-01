@@ -51,9 +51,20 @@ class SimCameraNode(Node):
         self.declare_parameter('rate_hz', 15.0)
         self.declare_parameter('enable_depth', False)
         self.declare_parameter('frame_id', 'camera_color_optical_frame')
+        self.declare_parameter('base_forward_axis', 'negative_y')
+        forward_axis = self.get_parameter('base_forward_axis').value
+        if forward_axis not in ('negative_y', 'positive_y'):
+            raise ValueError('base_forward_axis must be negative_y or positive_y')
+        sign = 1.0 if forward_axis == 'positive_y' else -1.0
+        self._body_from_base = np.array([[0., -sign, 0.], [sign, 0., 0.], [0., 0., 1.]])
         self.declare_parameter('color_topic', '/camera/camera/color/image_raw')
         self.declare_parameter('camera_info_topic', '/camera/camera/color/camera_info')
         self.declare_parameter('depth_topic', '/camera/camera/aligned_depth_to_color/image_raw')
+        self.declare_parameter('publish_tf', False)
+        self._tf = None
+        if self.get_parameter('publish_tf').value:
+            from tf2_ros import TransformBroadcaster
+            self._tf = TransformBroadcaster(self)
         self.world = world
         self._period = 1.0 / float(self.get_parameter('rate_hz').value)
         self._depth = bool(self.get_parameter('enable_depth').value)
@@ -62,12 +73,12 @@ class SimCameraNode(Node):
         self._width, self._height = (int(v) for v in world.model.cam_resolution[camera])
         self._info = pinhole_info(self._width, self._height, float(world.model.cam_fovy[camera]),
                                   self._frame_id)
-        self.color_pub = self.create_publisher(Image, self.get_parameter('color_topic').value, 5)
+        self.color_pub = self.create_publisher(Image, self.get_parameter('color_topic').value, 2)
         self.info_pub = self.create_publisher(
-            CameraInfo, self.get_parameter('camera_info_topic').value, 5)
+            CameraInfo, self.get_parameter('camera_info_topic').value, 2)
         self.depth_pub = None
         if self._depth:
-            self.depth_pub = self.create_publisher(Image, self.get_parameter('depth_topic').value, 5)
+            self.depth_pub = self.create_publisher(Image, self.get_parameter('depth_topic').value, 2)
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._render_loop, name='sim_camera', daemon=True)
         self._thread.start()
@@ -78,6 +89,8 @@ class SimCameraNode(Node):
         super().destroy_node()
 
     def _render_loop(self) -> None:
+        from .thread_setup import configure_thread
+        configure_thread('other')
         try:
             color = mujoco.Renderer(self.world.model, self._height, self._width)
             depth = mujoco.Renderer(self.world.model, self._height, self._width) if self._depth else None
@@ -95,9 +108,13 @@ class SimCameraNode(Node):
                 if depth is not None:
                     depth.update_scene(self.world.data, camera=mb.HEAD_CAMERA)
                 stamp = self.get_clock().now().to_msg()
+                if self._tf is not None:
+                    transform = self._camera_transform(stamp)
             if not rclpy.ok():
                 break
             try:
+                if self._tf is not None:
+                    self._tf.sendTransform(transform)
                 self._publish_color(color.render(), stamp)
                 if depth is not None:
                     self._publish_depth(depth.render(), stamp)
@@ -113,6 +130,28 @@ class SimCameraNode(Node):
         color.close()
         if depth is not None:
             depth.close()
+
+    def _camera_transform(self, stamp):
+        """Actual moving optical extrinsics in ROS base_link axes; caller holds lock."""
+        from geometry_msgs.msg import TransformStamped
+        data = self.world.data
+        base = self.world.model.body(mb.BASE_BODY).id
+        camera = self.world.model.camera(mb.HEAD_CAMERA).id
+        # Scene-specific heading; the football scene follows the actual toes (+Y).
+        body_from_base = self._body_from_base
+        world_from_base = data.xmat[base].reshape(3, 3) @ body_from_base
+        base_from_optical = (world_from_base.T @ data.cam_xmat[camera].reshape(3, 3)
+                             @ np.diag([1., -1., -1.]))
+        position = world_from_base.T @ (data.cam_xpos[camera] - data.xpos[base])
+        quat = np.zeros(4)
+        mujoco.mju_mat2Quat(quat, base_from_optical.reshape(-1))
+        msg = TransformStamped()
+        msg.header.stamp = stamp
+        msg.header.frame_id = 'base_link'
+        msg.child_frame_id = self._frame_id
+        msg.transform.translation.x, msg.transform.translation.y, msg.transform.translation.z = map(float, position)
+        msg.transform.rotation.w, msg.transform.rotation.x, msg.transform.rotation.y, msg.transform.rotation.z = map(float, quat)
+        return msg
 
     def _publish_color(self, pixels: np.ndarray, stamp) -> None:
         msg = Image()

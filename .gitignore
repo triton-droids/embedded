@@ -42,3 +42,6 @@ local_test/
 compile_commands.json
 .pio/
 .pytest_cache/
+
+# Local raw simulation experiment output
+experimental/reference_warp/results/

@@ -1,0 +1,122 @@
+[
+  {
+    "name": "01_yaw_servo_base",
+    "group": "fixed",
+    "color": [
+      0.14,
+      0.36,
+      0.58
+    ],
+    "note": ""
+  },
+  {
+    "name": "02_yaw_deck_pitch_mount_UNVERIFIED_HORN",
+    "group": "yaw",
+    "color": [
+      0.08,
+      0.6,
+      0.61
+    ],
+    "note": "Flat horn interface at Z49; no circular enclosing rim. Four radial slots, width2.2, screw centres6..10mm; head slots width4.8/depth1.8; no printed spline."
+  },
+  {
+    "name": "03_camera_carrier_UNVERIFIED_HORN",
+    "group": "pitch",
+    "color": [
+      0.08,
+      0.6,
+      0.61
+    ],
+    "note": "M3x10 camera, 3.4mm head wells; open-sided flat pitch horn mount; Four radial slots, width2.2, screw centres6..10mm; head slots width4.8/depth1.8. Central interface unchanged per user confirmation."
+  },
+  {
+    "name": "REF_DS3225_yaw",
+    "group": "fixed",
+    "color": [
+      0.72,
+      0.16,
+      0.18
+    ],
+    "note": ""
+  },
+  {
+    "name": "REF_DS3225_pitch",
+    "group": "yaw",
+    "color": [
+      0.72,
+      0.16,
+      0.18
+    ],
+    "note": ""
+  },
+  {
+    "name": "REF_D435_envelope",
+    "group": "pitch",
+    "color": [
+      0.75,
+      0.78,
+      0.82
+    ],
+    "note": ""
+  },
+  {
+    "name": "VIS_lens_32.5",
+    "group": "pitch",
+    "color": [
+      0.1,
+      0.12,
+      0.15
+    ],
+    "note": ""
+  },
+  {
+    "name": "VIS_lens_11.5",
+    "group": "pitch",
+    "color": [
+      0.1,
+      0.12,
+      0.15
+    ],
+    "note": ""
+  },
+  {
+    "name": "VIS_lens_-17.5",
+    "group": "pitch",
+    "color": [
+      0.1,
+      0.12,
+      0.15
+    ],
+    "note": ""
+  },
+  {
+    "name": "VIS_lens_-32.5",
+    "group": "pitch",
+    "color": [
+      0.1,
+      0.12,
+      0.15
+    ],
+    "note": ""
+  },
+  {
+    "name": "REF_stock_round_horn_yaw_UNVERIFIED",
+    "group": "yaw",
+    "color": [
+      0.9,
+      0.88,
+      0.8
+    ],
+    "note": "FIT0036: OD20, small holes1.5, centre screw hole3, 14.5mm opposing centre holes per manufacturer. Plate thickness3 is assumed; spline and boss not modeled."
+  },
+  {
+    "name": "REF_stock_round_horn_pitch_UNVERIFIED",
+    "group": "pitch",
+    "color": [
+      0.9,
+      0.88,
+      0.8
+    ],
+    "note": "FIT0036: OD20, small holes1.5, centre screw hole3, 14.5mm opposing centre holes per manufacturer. Plate thickness3 is assumed; spline and boss not modeled."
+  }
+]

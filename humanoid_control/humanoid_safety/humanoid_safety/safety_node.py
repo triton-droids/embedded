@@ -6,16 +6,22 @@ from __future__ import annotations
 import json
 import math
 import time
+import os
+import importlib
+import threading
 from pathlib import Path
 
-from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
+from diagnostic_msgs.msg import DiagnosticArray
 import rclpy
+from rclpy._rclpy_pybind11 import RCLError
 from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import BatteryState, Imu, JointState
 from std_msgs.msg import Bool, String
 from std_srvs.srv import Trigger
+
+from .status_messages import SCHEMA_VERSION, render
 
 from .checks import (
     BatteryVoltageCheck,
@@ -43,14 +49,23 @@ from .checks import (
 class SafetyNode(Node):
     """Own the safety checks, latch, diagnostics, and estop signal."""
 
-    def __init__(self) -> None:
+    def __init__(self, diagnostics_node=None) -> None:
         super().__init__("safety_node")
+        status_node = diagnostics_node if diagnostics_node is not None else self
+        # The periodic diagnostics timer may run on its own thread while a trip
+        # or reset publishes from the supervisor thread.
+        self._status_lock = threading.Lock()
 
         self.declare_parameter("imu_topic", "/imu/data_raw")
         self.declare_parameter("estop_topic", "/safety/estop")
         self.declare_parameter("status_topic", "/safety/status")
+        self.declare_parameter("status_reliability", "reliable")
+        # inline: this process renders and publishes /safety/status itself.
+        # external: publish a compact snapshot for safety_diagnostics to render.
+        self.declare_parameter("status_publisher", "inline")
+        self.declare_parameter("state_topic", "/safety/supervisor_state")
         self.declare_parameter("evaluation_rate_hz", 100.0)
-        self.declare_parameter("status_rate_hz", 10.0)
+        self.declare_parameter("status_rate_hz", 1.0)
         self.declare_parameter("fall_detection_enabled", True)
         self.declare_parameter("fall_roll_deg", 40.0)
         self.declare_parameter("fall_pitch_deg", 40.0)
@@ -154,18 +169,37 @@ class SafetyNode(Node):
         self.supervisor = SafetySupervisor(checks)
 
         estop_qos = QoSProfile(
-            depth=1,
+            depth=2,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
             reliability=ReliabilityPolicy.RELIABLE,
         )
         self._estop_pub = self.create_publisher(Bool, estop_topic, estop_qos)
         self._last_published_estop = None
-        self._status_pub = self.create_publisher(
-            DiagnosticArray, status_topic, 10
-        )
+        status_reliability = str(self.get_parameter("status_reliability").value)
+        if status_reliability not in ("reliable", "best_effort"):
+            raise ValueError("status_reliability must be reliable or best_effort")
+        publisher_mode = str(self.get_parameter("status_publisher").value)
+        if publisher_mode not in ("inline", "external"):
+            raise ValueError("status_publisher must be inline or external")
+        # external: this process only writes a compact JSON snapshot; a separate
+        # process renders and publishes the DiagnosticArray. inline: unchanged.
+        self._publish_external = publisher_mode == "external"
+        if self._publish_external:
+            self._status_pub = None
+            self._state_pub = self.create_publisher(
+                String, str(self.get_parameter("state_topic").value),
+                QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT))
+        else:
+            self._state_pub = None
+            # Diagnostics describe current health; emergency stops use their own
+            # reliable, transient-local publisher regardless of this setting.
+            status_qos = (QoSProfile(depth=2, reliability=ReliabilityPolicy.BEST_EFFORT)
+                          if status_reliability == "best_effort" else QoSProfile(depth=2))
+            self._status_pub = status_node.create_publisher(
+                DiagnosticArray, status_topic, status_qos)
         self._imu_sub = self.create_subscription(
             # Safety consumes current attitude, not a 200 ms history at 100 Hz.
-            Imu, imu_topic, self._imu_callback, 1
+            Imu, imu_topic, self._imu_callback, 2
         )
         # Only listen to streams that an enabled check uses.
         def uses(hook: str) -> bool:
@@ -175,19 +209,19 @@ class SafetyNode(Node):
         if uses("observe_joints"):
             self.create_subscription(
                 JointState, str(self.get_parameter("joint_states_topic").value),
-                self._joint_state_callback, 20)
+                self._joint_state_callback, 2)
         if uses("observe_motors"):
             self.create_subscription(
                 String, str(self.get_parameter("motor_telemetry_topic").value),
-                self._motor_telemetry_callback, 10)
+                self._motor_telemetry_callback, 2)
         if uses("observe_can"):
             self.create_subscription(
                 String, str(self.get_parameter("can_timing_topic").value),
-                self._can_timing_callback, 10)
+                self._can_timing_callback, 2)
         if uses("observe_power"):
             self.create_subscription(
                 BatteryState, str(self.get_parameter("battery_topic").value),
-                self._battery_callback, 10)
+                self._battery_callback, 2)
         self._reset_srv = self.create_service(
             Trigger, "/safety/reset", self._reset_callback
         )
@@ -200,7 +234,7 @@ class SafetyNode(Node):
             period, self._evaluate, clock=self._watchdog_clock
         )
         status_rate = float(self.get_parameter("status_rate_hz").value)
-        self._status_timer = self.create_timer(
+        self._status_timer = status_node.create_timer(
             1.0 / max(1.0, status_rate), self._publish_status, clock=self._watchdog_clock)
         self._publish_estop()
         self.get_logger().info(
@@ -401,6 +435,8 @@ class SafetyNode(Node):
         # Deliver the latch before potentially blocking diagnostic/log output.
         self._publish_estop()
         if newly_tripped:
+            # Event-time diagnostics stay on this thread: the routine status
+            # timer runs on its own thread and may be a period late.
             self._publish_status()
             self.get_logger().fatal(
                 f"SAFETY ESTOP LATCHED: {self.supervisor.reason}"
@@ -412,52 +448,54 @@ class SafetyNode(Node):
             return
         msg = Bool()
         msg.data = state
-        self._estop_pub.publish(msg)
+        try:
+            self._estop_pub.publish(msg)
+        except RCLError as error:
+            self._estop_publish_failures = getattr(self, '_estop_publish_failures', 0) + 1
+            self.get_logger().error(
+                f'ESTOP publication failed; state remains pending, retrying next evaluation: {error}',
+                throttle_duration_sec=5.0)
+            return
         self._last_published_estop = state
 
+    def _status_snapshot(self) -> dict:
+        """Plain data the diagnostics renderer needs; also the external payload."""
+        return dict(
+            schema_version=SCHEMA_VERSION,
+            latched=bool(self.supervisor.latched),
+            reason=self.supervisor.reason,
+            imu_received=self._imu_received,
+            imu_rejected_source=self._imu_rejected_source,
+            imu_rejected_orientation=self._imu_rejected_orientation,
+            estop_publish_failures=getattr(self, '_estop_publish_failures', 0),
+            checks=[dict(name=result.name, active=bool(result.active),
+                         healthy=bool(result.healthy), clearable=bool(result.clearable),
+                         reason=result.reason)
+                    for result in self.supervisor.results],
+        )
+
     def _publish_status(self) -> None:
-        array = DiagnosticArray()
-        array.header.stamp = self.get_clock().now().to_msg()
-
-        summary = DiagnosticStatus()
-        summary.name = "humanoid_safety/supervisor"
-        summary.hardware_id = "humanoid"
-        if self.supervisor.latched:
-            summary.level = DiagnosticStatus.ERROR
-            summary.message = self.supervisor.reason
-        elif any(not result.healthy for result in self.supervisor.results):
-            summary.level = DiagnosticStatus.WARN
-            summary.message = "safety checks initializing or unhealthy"
-        else:
-            summary.level = DiagnosticStatus.OK
-            summary.message = "all safety checks clear"
-        summary.values = [
-            KeyValue(key="imu_received", value=str(self._imu_received)),
-            KeyValue(key="imu_rejected_source", value=str(self._imu_rejected_source)),
-            KeyValue(key="imu_rejected_orientation", value=str(self._imu_rejected_orientation)),
-            KeyValue(key="latched", value=str(self.supervisor.latched)),
-            KeyValue(key="reason", value=self.supervisor.reason),
-        ]
-        array.status.append(summary)
-
-        for result in self.supervisor.results:
-            status = DiagnosticStatus()
-            status.name = f"humanoid_safety/{result.name}"
-            status.hardware_id = "humanoid"
-            if result.active:
-                status.level = DiagnosticStatus.ERROR
-            elif not result.healthy:
-                status.level = DiagnosticStatus.WARN
+        with self._status_lock:
+            if self._publish_external:
+                self._publish_state_locked()
             else:
-                status.level = DiagnosticStatus.OK
-            status.message = result.reason
-            status.values = [
-                KeyValue(key="active", value=str(result.active)),
-                KeyValue(key="healthy", value=str(result.healthy)),
-                KeyValue(key="clearable", value=str(result.clearable)),
-            ]
-            array.status.append(status)
-        self._status_pub.publish(array)
+                self._publish_status_unlocked()
+
+    def _publish_state_locked(self) -> None:
+        message = String(data=json.dumps(self._status_snapshot()))
+        try:
+            self._state_pub.publish(message)
+        except RCLError as error:
+            self.get_logger().error(f'Safety state publication failed: {error}',
+                                    throttle_duration_sec=5.0)
+
+    def _publish_status_unlocked(self) -> None:
+        try:
+            self._status_pub.publish(render(self._status_snapshot(),
+                                            stamp=self.get_clock().now().to_msg()))
+        except RCLError as error:
+            self.get_logger().error(f'Safety diagnostics publication failed: {error}',
+                                    throttle_duration_sec=5.0)
 
     def _reset_callback(
         self,
@@ -479,7 +517,30 @@ class SafetyNode(Node):
 
 def main(args=None) -> None:
     rclpy.init(args=args)
-    node = SafetyNode()
+    scheduler = os.environ.get('HUMANOID_THREAD_SCHEDULER', '')
+    # Building and serialising a DiagnosticArray holds the GIL for the whole
+    # native write. Sharing one executor with the IMU subscription puts that
+    # write in the same queue as safety input, so a slow status publication can
+    # delay IMU receipt past the freshness timeout. The routine status timer
+    # therefore runs on its own node and thread; trip and reset still publish
+    # immediately from the supervisor thread.
+    diagnostics = Node('safety_status_worker', start_parameter_services=False,
+                       enable_rosout=False, use_global_arguments=False)
+    node = SafetyNode(diagnostics_node=diagnostics)
+    from rclpy.executors import SingleThreadedExecutor
+    executor = SingleThreadedExecutor()
+    executor.add_node(diagnostics)
+
+    def spin_diagnostics():
+        if scheduler:
+            importlib.import_module(scheduler).configure_current_thread('other')
+        try:
+            executor.spin()
+        except rclpy.executors.ExternalShutdownException:
+            pass
+
+    worker = threading.Thread(target=spin_diagnostics, name='safety_status_worker', daemon=True)
+    worker.start()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
@@ -492,7 +553,10 @@ def main(args=None) -> None:
                 if not node.supervisor.reason:
                     node.supervisor.reason = "safety node shutting down"
                 node._publish_estop()
+            executor.shutdown(timeout_sec=2.0)
+            worker.join(timeout=2.0)
             node.destroy_node()
+            diagnostics.destroy_node()
             if rclpy.ok():
                 rclpy.shutdown()
         except KeyboardInterrupt:
