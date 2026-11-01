@@ -1,2 +1,0 @@
-{"layer":"rmw","pid":254191,"tid":254339,"topic":"/ball_chase/cmd_vel","begin_ns":27998812223864,"end_ns":27999026930342,"cpu_ns":35300,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}
-{"layer":"rcl","pid":254191,"tid":254339,"topic":"/ball_chase/cmd_vel","begin_ns":27998812221657,"end_ns":27999026975926,"cpu_ns":82326,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}

@@ -75,6 +75,13 @@ disabled on the gantry by default. Add `use_viewer:=false` for headless EGL
 Camera and head tracking are simulation replacements; no physical camera or
 serial Agent is launched. No robot CAN process is launched.
 
+The chase launch enables `dds_tuning:=on` and `imu_split:=true` by default.
+The former selects the simulator's bounded-blocking Fast DDS profile; the latter
+publishes body IMU in a separate process while preserving acquisition timestamps.
+Use `dds_tuning:=off` or `imu_split:=false` for controlled comparisons. These
+options do not relax the 250 ms safety IMU timeout or establish walking stability.
+WBC is not enabled: the current shared launch rejects WBC together with vision.
+
 ## Ball controls
 
 The football is radius 0.10 m, mass 0.20 kg, with a free joint, floor

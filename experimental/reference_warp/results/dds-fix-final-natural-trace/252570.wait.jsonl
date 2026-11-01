@@ -1,4 +1,0 @@
-{"layer":"rmw","pid":252570,"tid":252830,"topic":"/sim/ground_truth/feet","begin_ns":27883473744246,"end_ns":27883573842758,"cpu_ns":53672,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}
-{"layer":"rcl","pid":252570,"tid":252830,"topic":"/sim/ground_truth/feet","begin_ns":27883473743472,"end_ns":27883573886685,"cpu_ns":97377,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}
-{"layer":"rmw","pid":252570,"tid":252830,"topic":"/sim/ground_truth/odom","begin_ns":27883595700879,"end_ns":27883667208373,"cpu_ns":48467,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}
-{"layer":"rcl","pid":252570,"tid":252830,"topic":"/sim/ground_truth/odom","begin_ns":27883595697904,"end_ns":27883667245343,"cpu_ns":87151,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}

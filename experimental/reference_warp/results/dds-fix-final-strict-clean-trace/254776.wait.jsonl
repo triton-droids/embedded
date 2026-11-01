@@ -1,4 +1,0 @@
-{"layer":"rmw","pid":254776,"tid":254941,"topic":"/ball_chase/cmd_vel","begin_ns":28032801627759,"end_ns":28032901714133,"cpu_ns":47816,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}
-{"layer":"rcl","pid":254776,"tid":254941,"topic":"/ball_chase/cmd_vel","begin_ns":28032801625144,"end_ns":28032901782533,"cpu_ns":118127,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}
-{"layer":"rmw","pid":254776,"tid":254897,"topic":"/ball_chase/cmd_vel","begin_ns":28032904033545,"end_ns":28033004139444,"cpu_ns":68394,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}
-{"layer":"rcl","pid":254776,"tid":254897,"topic":"/ball_chase/cmd_vel","begin_ns":28032904030928,"end_ns":28033004226047,"cpu_ns":155959,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}

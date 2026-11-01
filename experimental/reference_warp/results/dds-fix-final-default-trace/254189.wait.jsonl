@@ -1,2 +1,0 @@
-{"layer":"rmw","pid":254189,"tid":254189,"topic":"/experimental/chase_status","begin_ns":27998942650718,"end_ns":27999027051685,"cpu_ns":32456,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}
-{"layer":"rcl","pid":254189,"tid":254189,"topic":"/experimental/chase_status","begin_ns":27998942648361,"end_ns":27999027069064,"cpu_ns":51657,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}

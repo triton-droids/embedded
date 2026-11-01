@@ -1,2 +1,0 @@
-{"layer":"rmw","pid":250299,"tid":250299,"topic":"/head/tilt_target_rad","begin_ns":27728731058915,"end_ns":27728831140864,"cpu_ns":45873,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}
-{"layer":"rcl","pid":250299,"tid":250299,"topic":"/head/tilt_target_rad","begin_ns":27728731056069,"end_ns":27728831195142,"cpu_ns":101982,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}

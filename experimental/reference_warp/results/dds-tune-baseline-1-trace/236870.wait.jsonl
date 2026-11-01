@@ -1,2 +1,0 @@
-{"layer":"rmw","pid":236870,"tid":236870,"topic":"/head/servo_target_rad","begin_ns":26572236182915,"end_ns":26572257024262,"cpu_ns":51564,"voluntary_switches":0,"involuntary_switches":3,"minor_faults":0,"major_faults":0}
-{"layer":"rcl","pid":236870,"tid":236870,"topic":"/head/servo_target_rad","begin_ns":26572236177030,"end_ns":26572257096591,"cpu_ns":126816,"voluntary_switches":0,"involuntary_switches":3,"minor_faults":0,"major_faults":0}
