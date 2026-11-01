@@ -1,0 +1,6 @@
+{
+  "attempt": "rep1_scale1.000",
+  "category": "instrumentation_error",
+  "reason": "ROS DiagnosticStatus.level is bytes on this Jazzy build; JSON serialization failed after trial shutdown. Raw in-memory telemetry was not saved. Retained launch log must not be treated as a complete trial record.",
+  "follow_up": "Convert diagnostic level to int. Subsequent attempts use a separate result directory and do not replace this attempt."
+}

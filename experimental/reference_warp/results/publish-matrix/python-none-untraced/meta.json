@@ -1,0 +1,11 @@
+{
+  "name": "python-none-untraced",
+  "language": "python",
+  "readers": [],
+  "duration_s": 8,
+  "domain": 225,
+  "native_timing": false,
+  "exit_codes": [
+    0
+  ]
+}

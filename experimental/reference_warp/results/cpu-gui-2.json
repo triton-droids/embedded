@@ -1,0 +1,90 @@
+{
+  "case": "gui",
+  "elapsed_s": 8.019505756999934,
+  "mujoco_version": "3.3.7",
+  "physics_hz": 200.01232602145424,
+  "realtime_factor": 1.0000616301072711,
+  "overruns": 0,
+  "max_step_gap_ms": 5.524427999262116,
+  "step_wall_p99_ms": 0.6629620205785614,
+  "step_cpu_mean_ms": 0.36764472630922646,
+  "camera_hz": 0.0,
+  "processes": [
+    {
+      "pid": 149487,
+      "name": "python",
+      "role": "main",
+      "cpu_pct": 8.72871746976421
+    },
+    {
+      "pid": 149507,
+      "name": "python",
+      "role": "helper",
+      "cpu_pct": 0.0
+    },
+    {
+      "pid": 149509,
+      "name": "python",
+      "role": "gui",
+      "cpu_pct": 8.853413433617987
+    }
+  ],
+  "threads": [
+    {
+      "tid": 149487,
+      "cpu_pct": 0.24939192770754917
+    },
+    {
+      "tid": 149488,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 149489,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 149490,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 149491,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 149492,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 149493,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 149494,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 149496,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 149497,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 149506,
+      "cpu_pct": 8.35462957820289
+    },
+    {
+      "tid": 149527,
+      "cpu_pct": 0.0
+    }
+  ],
+  "system_busy_pct": 14.179927524814618,
+  "physics_thread_tid": 149506,
+  "control_fault": null,
+  "gui_windows": [
+    "0x6003fd \"MuJoCo : ch_robot_16kg_candidate\": (\"mutter-x11-frames\" \"mutter-x11-frames\")  1304x861+36+68  +36+68",
+    "0x500000b \"MuJoCo : ch_robot_16kg_candidate\": (\"MuJoCo\" \"MuJoCo\")  1280x800+12+48  +48+116"
+  ],
+  "scope": "Held full camera/CAD/football model, no policy/WBC/safety/YOLO; camera RGB-D publishers have no image subscribers"
+}

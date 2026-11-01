@@ -1,0 +1,146 @@
+{
+  "case": "camera",
+  "elapsed_s": 8.005222210000284,
+  "mujoco_version": "3.3.7",
+  "physics_hz": 199.99444837396254,
+  "realtime_factor": 0.9999722418698128,
+  "overruns": 0,
+  "max_step_gap_ms": 8.24476500019955,
+  "step_wall_p99_ms": 0.6230859999050153,
+  "step_cpu_mean_ms": 0.3798068169893817,
+  "camera_hz": 5.996085897532918,
+  "processes": [
+    {
+      "pid": 148733,
+      "name": "python",
+      "role": "main",
+      "cpu_pct": 11.367579514072826
+    }
+  ],
+  "threads": [
+    {
+      "tid": 148733,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148734,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148735,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148736,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148737,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148738,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148739,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148740,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148748,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148749,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148764,
+      "cpu_pct": 8.61937347770357
+    },
+    {
+      "tid": 148765,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148766,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148767,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148768,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148769,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148770,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148771,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148772,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148773,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148774,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148775,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148776,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148778,
+      "cpu_pct": 2.498369123972049
+    },
+    {
+      "tid": 148779,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148780,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148781,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148782,
+      "cpu_pct": 0.12491845619860245
+    },
+    {
+      "tid": 148783,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 148784,
+      "cpu_pct": 0.0
+    }
+  ],
+  "system_busy_pct": 13.994990607391477,
+  "physics_thread_tid": 148764,
+  "control_fault": null,
+  "scope": "Held full camera/CAD/football model, no policy/WBC/safety/YOLO; camera RGB-D publishers have no image subscribers"
+}

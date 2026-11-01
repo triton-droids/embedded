@@ -83,33 +83,33 @@ public:
 
     // Prefer absolute topic names to avoid namespace surprises
     state_sub_ = this->create_subscription<sensor_msgs::msg::JointState>(
-      "/joint_states", 10,
+      "/joint_states", rclcpp::QoS(2).reliable(),
       std::bind(&CppControlNode::state_callback, this, std::placeholders::_1)
     );
 
     // Recommended external command interface: MotorCommand subset
     desired_motor_sub_ = this->create_subscription<motor_control_interfaces::msg::MotorCommand>(
-      "/desired_motor_subset", rclcpp::QoS(1).best_effort(),
+      "/desired_motor_subset", rclcpp::QoS(2).best_effort(),
       std::bind(&CppControlNode::desired_motor_callback, this, std::placeholders::_1)
     );
 
     // Backward-compatible: velocity subset via JointState
     desired_vel_sub_ = this->create_subscription<sensor_msgs::msg::JointState>(
-      "/desired_velocity_subset", 1,
+      "/desired_velocity_subset", 2,
       std::bind(&CppControlNode::desired_velocity_callback, this, std::placeholders::_1)
     );
 
     // Latched safety supervisor input. Transient local receives the latest
     // estop state even when this control node starts after the safety node.
     safety_estop_sub_ = this->create_subscription<std_msgs::msg::Bool>(
-      "/safety/estop", rclcpp::QoS(1).reliable().transient_local(),
+      "/safety/estop", rclcpp::QoS(2).reliable().transient_local(),
       std::bind(&CppControlNode::safety_estop_callback, this, std::placeholders::_1)
     );
 
     // The independent supervisor is advisory when absent/unhealthy. This does
     // not alter the explicit /safety/estop or command/state watchdog contracts.
     supervisor_sub_ = this->create_subscription<diagnostic_msgs::msg::DiagnosticArray>(
-      "/safety/status", rclcpp::QoS(1).best_effort(),
+      "/safety/status", rclcpp::QoS(2).best_effort(),
       std::bind(&CppControlNode::supervisor_callback, this, std::placeholders::_1));
     supervisor_warning_timer_ = this->create_wall_timer(std::chrono::seconds(1), [this]() {
       const auto reason = supervisor_warning_reason();
@@ -120,7 +120,7 @@ public:
     });
 
     // Output to Python CAN node
-    cmd_pub_ = this->create_publisher<motor_control_interfaces::msg::MotorCommand>("/motor_commands", 10);
+    cmd_pub_ = this->create_publisher<motor_control_interfaces::msg::MotorCommand>("/motor_commands", 2);
 
     // Explicit commissioning switch; ordinary launch files leave this false.
     home_lower_ = declare_parameter<std::vector<double>>("home_joint_lower", std::vector<double>{});
@@ -138,18 +138,18 @@ public:
     backend_client_ = create_client<BackendOperation>(simulation_zero_ ? "/simulation/motor_backend/execute_operation" : "/motor_backend/execute_operation");
     feedback_client_ = create_client<FeedbackService>(simulation_zero_ ? "/simulation/motor_backend/get_feedback" : "/motor_backend/get_feedback");
     operation_status_pub_ = create_publisher<ActionStatus>(
-      "/control_core/abstract_command_status", rclcpp::QoS(1).reliable().transient_local());
+      "/control_core/abstract_command_status", rclcpp::QoS(2).reliable().transient_local());
     action_service_ = create_service<ActionService>("/control_core/submit_abstract_command",
       [this](const ActionService::Request::SharedPtr req, ActionService::Response::SharedPtr res) {
         res->accepted = submit_action(req->command, res->message);
         res->status = res->accepted ? action_status() : rejected_status(req->command, res->message);
       });
-    action_sub_ = create_subscription<Action>("/control_core/abstract_command", 10,
+    action_sub_ = create_subscription<Action>("/control_core/abstract_command", 2,
       [this](const Action::SharedPtr msg) {
         std::string reason;
         if (!submit_action(*msg, reason)) {
           RCLCPP_WARN(get_logger(), "Action rejected: %s", reason.c_str());
-          operation_status_pub_->publish(rejected_status(*msg, reason));
+          publish_status_message(rejected_status(*msg, reason));
         }
       });
     feedback_timer_ = create_wall_timer(std::chrono::milliseconds(50),
@@ -168,6 +168,12 @@ public:
       "CppControlNode started (rate=%.1f Hz, state_timeout=%.3fs, cmd_timeout=%.3fs)",
       control_rate_hz_, state_timeout_s_, cmd_timeout_s_
     );
+  }
+
+protected:
+  // Transport seam also permits deterministic publication-failure tests.
+  virtual void write_motor_command(const motor_control_interfaces::msg::MotorCommand& msg) {
+    cmd_pub_->publish(msg);
   }
 
 private:
@@ -195,6 +201,15 @@ private:
   };
 
   ActionStatus action_status() const {
+    if (command_publish_fault_) {
+      ActionStatus msg; msg.header.stamp = now(); msg.stage = ActionStatus::FAILED;
+      msg.request_id = "cpp_control_transport_fault";
+      msg.zero_may_have_changed = zero_.status().zero_may_have_changed;
+      msg.message = "Command publication fault latched; restart required; physical state unverified: " +
+        command_publish_error_ + "; failures=" + std::to_string(command_publish_failures_) +
+        "; latest_disable_delivered_to_dds=" + (last_disable_delivered_ ? "true" : "false");
+      return msg;
+    }
     if (home_status_valid_) {auto msg = home_status_; msg.header.stamp = now(); return msg;}
     const auto& status = zero_.status();
     ActionStatus msg; msg.header.stamp = now(); msg.request_id = status.request_id;
@@ -204,7 +219,14 @@ private:
     if (simulation_zero_) msg.message = "SIMULATION: " + msg.message;
     return msg;
   }
-  void publish_action_status() {operation_status_pub_->publish(action_status());}
+  void publish_status_message(const ActionStatus& msg) {
+    try {operation_status_pub_->publish(msg);}
+    catch (const rclcpp::exceptions::RCLError& error) {
+      RCLCPP_ERROR_THROTTLE(get_logger(), warning_clock_, 5000,
+        "Action status publication failed; control watchdog remains active: %s", error.what());
+    }
+  }
+  void publish_action_status() {publish_status_message(action_status());}
   ActionStatus rejected_status(const Action& action, const std::string& reason) const {
     ActionStatus msg; msg.header.stamp = now(); msg.request_id = action.request_id;
     msg.joint_name = action.joint_name; msg.stage = ActionStatus::REJECTED;
@@ -245,6 +267,11 @@ private:
     CommandTime timing;
     if (!command_time(action.header.stamp, action.valid_until, timing)) {
       reason = "Expired, future or unstamped abstract command"; return false;
+    }
+    if (command_publish_fault_) {
+      reason = "Command publication fault latched; restart required; physical state unverified";
+      if (action.operation == Action::DISABLE) {publish_disable_all(joint_order_); return true;}
+      return false;
     }
     if (action.operation == Action::ENABLE || action.operation == Action::DISABLE)
       return begin_lifecycle(action, reason);
@@ -300,7 +327,7 @@ private:
     msg.position.assign(names.size(), 0); msg.velocity.assign(names.size(), 0);
     msg.torque.assign(names.size(), 0); msg.kp.assign(names.size(), 0); msg.kd.assign(names.size(), 0);
     // Idle enable sends zero-gain/zero-feedforward MIT frames, never an old pose target.
-    cmd_pub_->publish(msg);
+    safely_publish_command(msg);
   }
   bool begin_lifecycle(const Action& action, std::string& reason) {
     const bool enable = action.operation == Action::ENABLE;
@@ -332,6 +359,7 @@ private:
       enabled_evidence_.erase(name); // A pre-command sample cannot verify this request.
     }
     publish_lifecycle(selected, enable ? motor_control_interfaces::msg::MotorCommand::MODE_ENABLE : motor_control_interfaces::msg::MotorCommand::MODE_DISABLE);
+    if (command_publish_fault_) {reason = action_status().message; return false;}
     reason = home_status_.message; publish_action_status(); return true;
   }
   void lifecycle_step() {
@@ -573,7 +601,7 @@ private:
   // Preferred: full per-joint MotorCommand subset
   void desired_motor_callback(const motor_control_interfaces::msg::MotorCommand::SharedPtr msg)
   {
-    if (!msg || msg->joint_name.empty()) return;
+    if (!msg || msg->joint_name.empty() || command_publish_fault_) return;
     if (home_active_ || lifecycle_active_) {
       if (std::find(msg->mode.begin(), msg->mode.end(), motor_control_interfaces::msg::MotorCommand::MODE_DISABLE) != msg->mode.end())
         publish_disable_all(joint_order_);
@@ -689,7 +717,7 @@ private:
   // Backward-compatible: velocity subset via JointState
   void desired_velocity_callback(const sensor_msgs::msg::JointState::SharedPtr msg)
   {
-    if (!msg || msg->name.empty() || zero_.blocks_normal() || home_active_ || lifecycle_active_) return;
+    if (!msg || msg->name.empty() || command_publish_fault_ || zero_.blocks_normal() || home_active_ || lifecycle_active_) return;
 
     std::lock_guard<std::mutex> lock(cmd_mutex_);
     CommandTime timing;
@@ -742,6 +770,10 @@ private:
       state_map = latest_state_map_;
     }
 
+    if (command_publish_fault_) {
+      publish_disable_all(joint_order);
+      return;
+    }
     lifecycle_step();
     if (joint_order.empty()) return;
 
@@ -876,6 +908,31 @@ private:
   }
 
   // -------- publishing helpers --------
+  bool safely_publish_command(const motor_control_interfaces::msg::MotorCommand& msg) {
+    using MC = motor_control_interfaces::msg::MotorCommand;
+    const bool disable = !msg.mode.empty() && std::all_of(msg.mode.begin(), msg.mode.end(),
+      [](uint8_t mode) {return mode == MC::MODE_DISABLE;});
+    if (command_publish_fault_ && !disable) return false;
+    try {
+      write_motor_command(msg);
+      if (disable) last_disable_delivered_ = true;
+      return true;
+    } catch (const rclcpp::exceptions::RCLError& error) {
+      const bool first_failure = !command_publish_fault_;
+      command_publish_fault_ = true;
+      ++command_publish_failures_;
+      command_publish_error_ = error.what();
+      last_disable_delivered_ = false;
+      RCLCPP_ERROR_THROTTLE(get_logger(), warning_clock_, 5000,
+        "Command publication fault LATCHED; rejecting motion, retrying DISABLE; "
+        "physical state unverified; backend watchdog still required: %s", error.what());
+      // One immediate disable attempt. A second failure cannot recurse; subsequent
+      // control ticks retry a new DISABLE, never the failed motion/ENABLE message.
+      if (first_failure) publish_disable_all(joint_order_);
+      return false;
+    }
+  }
+
   void publish_output(const control_core::Output& out, bool operation_owned = false)
   {
     using MC = motor_control_interfaces::msg::MotorCommand;
@@ -915,7 +972,7 @@ private:
       msg.kd[i] = c.kd;
     }
 
-    cmd_pub_->publish(msg);
+    safely_publish_command(msg);
   }
 
   void publish_disable_all(const std::vector<std::string>& joint_order)
@@ -948,10 +1005,13 @@ private:
     msg.header.stamp = this->now();
     msg.joint_name = joint_order;
     msg.mode = {MC::MODE_DISABLE};  // broadcast disable
-    cmd_pub_->publish(msg);
+    safely_publish_command(msg);
   }
 
 private:
+  bool command_publish_fault_{false}, last_disable_delivered_{false};
+  uint64_t command_publish_failures_{0};
+  std::string command_publish_error_;
   bool lifecycle_active_{false}, lifecycle_enable_{false};
   std::vector<std::string> lifecycle_joints_;
   std::unordered_set<std::string> idle_enabled_;

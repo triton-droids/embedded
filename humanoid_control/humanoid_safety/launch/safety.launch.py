@@ -13,14 +13,31 @@ def mode_nodes(context):
     nodes = []
     joint_monitor = LaunchConfiguration('start_joint_state_monitor').perform(context).lower() == 'true'
     if mode in ('supervisor', 'all'):
-        overrides = {}
+        overrides = {'status_reliability': LaunchConfiguration('status_reliability')}
         for name in ('fall_detection_enabled', 'trip_on_imu_timeout'):
             if LaunchConfiguration(name).perform(context):
                 overrides[name] = ParameterValue(LaunchConfiguration(name), value_type=bool)
+        # Rendering and publishing the DiagnosticArray in the supervisor process
+        # let a 317 ms status write delay its IMU callback past the freshness
+        # check. A separate process removes that queue; inline restores it.
+        external = LaunchConfiguration('start_diagnostics').perform(context).lower() == 'true'
+        overrides['status_publisher'] = 'external' if external else 'inline'
         nodes.append(Node(package='humanoid_safety', executable='safety_node',
             name='safety_node', output='screen',
             ros_arguments=['--log-level', LaunchConfiguration('log_level')],
             parameters=[LaunchConfiguration('safety_config'), overrides]))
+        if external:
+            nodes.append(Node(package='humanoid_safety',
+                executable='safety_diagnostics_node', name='safety_diagnostics',
+                output='screen',
+                ros_arguments=['--log-level', LaunchConfiguration('log_level')],
+                parameters=[{
+                    'state_topic': LaunchConfiguration('supervisor_state_topic'),
+                    'status_topic': LaunchConfiguration('supervisor_status_topic'),
+                    'status_reliability': LaunchConfiguration('status_reliability'),
+                    'stale_after_s': ParameterValue(
+                        LaunchConfiguration('diagnostics_stale_after_s'), value_type=float),
+                }]))
     if mode in ('web', 'monitor', 'all'):
         parameters = {
             'source_topic': LaunchConfiguration('source_topic'),
@@ -71,6 +88,14 @@ def generate_launch_description():
                              description='JointState source for model display; Web keeps source_topic'),
         DeclareLaunchArgument('motor_status_topic', default_value='/motor_telemetry'),
         DeclareLaunchArgument('supervisor_status_topic', default_value='/safety/status'),
+        DeclareLaunchArgument('supervisor_state_topic', default_value='/safety/supervisor_state',
+            description='Compact snapshot the supervisor publishes for the diagnostics process'),
+        DeclareLaunchArgument('start_diagnostics', default_value='true', choices=['true', 'false'],
+            description='Render /safety/status in a separate process; false publishes inline'),
+        DeclareLaunchArgument('diagnostics_stale_after_s', default_value='3.0',
+            description='Publish a latched diagnostic when no snapshot arrives for this long'),
+        DeclareLaunchArgument('status_reliability', default_value='reliable',
+                             choices=['reliable', 'best_effort']),
         DeclareLaunchArgument('display_topic', default_value='/safety/visualization/joint_states'),
         DeclareLaunchArgument('host', default_value='127.0.0.1'),
         DeclareLaunchArgument('port', default_value='8080'),

@@ -1,0 +1,6 @@
+{"layer":"rmw","pid":237312,"tid":237471,"topic":"/ball_chase/cmd_vel","begin_ns":26604017484269,"end_ns":26604117702923,"cpu_ns":102299,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}
+{"layer":"rcl","pid":237312,"tid":237471,"topic":"/ball_chase/cmd_vel","begin_ns":26604017481122,"end_ns":26604117833449,"cpu_ns":232993,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}
+{"layer":"rmw","pid":237312,"tid":237312,"topic":"/ball_chase/cmd_vel","begin_ns":26604120160582,"end_ns":26604220316022,"cpu_ns":55218,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}
+{"layer":"rcl","pid":237312,"tid":237312,"topic":"/ball_chase/cmd_vel","begin_ns":26604120156475,"end_ns":26604220393544,"cpu_ns":135379,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}
+{"layer":"rmw","pid":237312,"tid":237312,"topic":"/ball_chase/cmd_vel","begin_ns":26604220785295,"end_ns":26604263373282,"cpu_ns":82634,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}
+{"layer":"rcl","pid":237312,"tid":237312,"topic":"/ball_chase/cmd_vel","begin_ns":26604220781268,"end_ns":26604263445398,"cpu_ns":158440,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}

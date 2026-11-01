@@ -45,6 +45,61 @@ def command_all(world, mode, positions=None, t=0.0):
                         valid_until_s=0.0, now_ros_s=100.0, now_mono_s=t)
 
 
+@pytest.mark.parametrize('step_cost_s', [0.001, 0.004, 0.006, 0.010])
+def test_physics_pacing_does_not_add_a_period_after_slow_steps(monkeypatch, step_cost_s):
+    from types import SimpleNamespace
+    from humanoid_sim import world as module
+
+    clock = SimpleNamespace(now=0.0)
+    starts, sleeps = [], []
+
+    def sleep(delay):
+        sleeps.append(delay)
+        clock.now += delay
+
+    def step(now):
+        starts.append(now)
+        clock.now += step_cost_s
+
+    runner = SimpleNamespace(
+        model=SimpleNamespace(opt=SimpleNamespace(timestep=0.005)),
+        _stop=SimpleNamespace(is_set=lambda: len(starts) >= 20),
+        step=step, overruns=0)
+    monkeypatch.setattr(module, 'time', SimpleNamespace(
+        monotonic=lambda: clock.now, sleep=sleep))
+    SimWorld._run(runner)
+    assert np.diff(starts) == pytest.approx([max(0.005, step_cost_s)] * 19)
+    if step_cost_s > 0.005:
+        assert runner.overruns == 20
+        assert sleeps == [0.0] * 20  # Yield without a second full-period wait.
+
+
+def test_physics_pacing_does_not_replay_missed_steps(monkeypatch):
+    from types import SimpleNamespace
+    from humanoid_sim import world as module
+
+    clock = SimpleNamespace(now=0.0)
+    starts = []
+
+    def sleep(delay):
+        clock.now += delay
+        if len(starts) == 1:
+            clock.now += 0.015  # Scheduler wakes three periods late.
+
+    def step(now):
+        starts.append(now)
+        clock.now += 0.001
+
+    runner = SimpleNamespace(
+        model=SimpleNamespace(opt=SimpleNamespace(timestep=0.005)),
+        _stop=SimpleNamespace(is_set=lambda: len(starts) >= 4),
+        step=step, overruns=0)
+    monkeypatch.setattr(module, 'time', SimpleNamespace(
+        monotonic=lambda: clock.now, sleep=sleep))
+    SimWorld._run(runner)
+    assert starts == pytest.approx([0.0, 0.020, 0.025, 0.030])
+
+
 def test_feet_start_above_floor(world):
     for site in mb.FOOT_SITES:
         assert world.data.site(site).xpos[2] == pytest.approx(0.05, abs=1e-6)
@@ -146,3 +201,19 @@ def test_rejected_packet_does_not_replace_still_valid_motion(world):
     world.step(0.03)
     assert world.control_fault is None
     assert world.data.time > 0
+
+
+def test_sensor_source_time_tracks_physics_not_snapshot_reads(world, monkeypatch):
+    from humanoid_sim import world as module
+    monkeypatch.setattr(module.time, 'time_ns', lambda: 123_000_000_000)
+    world.step(0.0)
+    imu = world.body_imu()
+    joints = world.joint_snapshot()
+    assert imu.stamp_ns == joints.stamp_ns == 123_000_000_000
+    monkeypatch.setattr(module.time, 'time_ns', lambda: 125_000_000_000)
+    # Reading the same state later cannot grant it another freshness window.
+    assert world.body_imu().stamp_ns == imu.stamp_ns
+    assert world.joint_snapshot().stamp_ns == joints.stamp_ns
+    world.control_fault = 'test fault'
+    world.step(0.005)
+    assert world.body_imu().stamp_ns == imu.stamp_ns

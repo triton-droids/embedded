@@ -1,0 +1,4 @@
+{"layer":"rmw","pid":262024,"tid":262024,"topic":"/control_core/abstract_command_status","begin_ns":28834769217449,"end_ns":28835090865576,"cpu_ns":39806,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}
+{"layer":"rcl","pid":262024,"tid":262024,"topic":"/control_core/abstract_command_status","begin_ns":28834769214505,"end_ns":28835090916458,"cpu_ns":93120,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}
+{"layer":"rmw","pid":262024,"tid":262024,"topic":"/control_core/abstract_command_status","begin_ns":28835108558734,"end_ns":28835426131101,"cpu_ns":33688,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}
+{"layer":"rcl","pid":262024,"tid":262024,"topic":"/control_core/abstract_command_status","begin_ns":28835108556810,"end_ns":28835426165060,"cpu_ns":68680,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}

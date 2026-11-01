@@ -1,0 +1,831 @@
+[
+  {
+    "label": "rep1_scale1.000",
+    "manifest": {
+      "scale": 1.0,
+      "source_sha256": "90fc691abbf43b89a55956493da6ab19c59105f9167f29f8f93fc317b68c9309",
+      "model_sha256": "90fc691abbf43b89a55956493da6ab19c59105f9167f29f8f93fc317b68c9309",
+      "source_registry_sha256": "e3bb3842ba4f97cbadc11f2261677264828f36ecf26cc62b25b9a3fbc5c3ca08",
+      "hardware_verified": false,
+      "max_reference_delta_rad": 0.0,
+      "affected_joints": [
+        "left_hip1_joint",
+        "left_knee_joint",
+        "left_ankle_joint",
+        "right_hip1_joint",
+        "right_knee_joint",
+        "right_ankle_joint"
+      ],
+      "ramp_s": 1.0,
+      "control_hz": 50,
+      "neural_weights_unchanged": true
+    },
+    "category": "censored_stop",
+    "gui_seen": true,
+    "release_offset_s": 8.54661702500016,
+    "exposure_wall_s": 10.001934603000336,
+    "displacement_world_m": [
+      0.03582017317074394,
+      0.023160700593257408,
+      -0.002234708333260893
+    ],
+    "min_base_z_m": 0.7078617482732535,
+    "final_policy": {
+      "t": 18.31246018800084,
+      "value": {
+        "state": "fault",
+        "fault": "estop",
+        "requested_hz": 50.0,
+        "expiry_diagnostic": null,
+        "max_input_skew_s": 0.02,
+        "max_inference_s": 0.02,
+        "iterations": 68,
+        "reference_frame": 12,
+        "reference_finished": false,
+        "reference_cycles": 0,
+        "waiting_for_sim_release": false,
+        "hold_first_frame": false,
+        "reference_end_behavior": "loop",
+        "joint_feedback": "joint_states",
+        "hardware_output": false,
+        "imu_age_since_receipt_ms": 9523.097392000636,
+        "gyro_bias_rad_s": [
+          3.5200860007574724e-07,
+          9.019469148090476e-09,
+          1.7509507899017577e-08
+        ],
+        "model_sha256": "90fc691abbf43b89a55956493da6ab19c59105f9167f29f8f93fc317b68c9309",
+        "rejected_imu_timestamps": 4,
+        "inference_ms": {
+          "mean": 0.2784762792436916,
+          "p99": 1.9709996294477603,
+          "max": 2.0332499989308417
+        },
+        "control_callback_ms": {
+          "mean": 0.7547653969916556,
+          "p99": 2.711749370228062,
+          "max": 2.947381000922178
+        },
+        "tick_interval_ms": {
+          "mean": 21.78087774627241,
+          "p99": 64.34477885926793,
+          "max": 139.96439699985785
+        },
+        "callback_overruns_20ms": 0
+      }
+    },
+    "final_safety": {
+      "t": 18.4566488950004,
+      "value": [
+        {
+          "name": "humanoid_safety/supervisor",
+          "level": 2,
+          "message": "imu_freshness: IMU age=0.340s limit=0.250s",
+          "values": {
+            "imu_received": "40",
+            "imu_rejected_source": "0",
+            "imu_rejected_orientation": "0",
+            "latched": "True",
+            "reason": "imu_freshness: IMU age=0.340s limit=0.250s"
+          }
+        },
+        {
+          "name": "humanoid_safety/fall_detection",
+          "level": 0,
+          "message": "roll=+3.9deg pitch=+0.5deg count=0/3",
+          "values": {
+            "active": "False",
+            "healthy": "True",
+            "clearable": "True"
+          }
+        },
+        {
+          "name": "humanoid_safety/imu_freshness",
+          "level": 2,
+          "message": "IMU age=9.659s limit=0.250s",
+          "values": {
+            "active": "True",
+            "healthy": "False",
+            "clearable": "False"
+          }
+        },
+        {
+          "name": "humanoid_safety/imu_stuck",
+          "level": 0,
+          "message": "identical samples=1/50",
+          "values": {
+            "active": "False",
+            "healthy": "True",
+            "clearable": "True"
+          }
+        }
+      ]
+    },
+    "log": "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/results/20261031-184251/rep1_scale1.000.log",
+    "command": [
+      "ros2",
+      "launch",
+      "wbc_control_node",
+      "rl_wbc_sim.launch.py",
+      "auto_start:=true",
+      "use_viewer:=true",
+      "ros_domain_id:=181",
+      "web_port:=8181",
+      "model_path:=/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/scale_1.000/20260914_170827.onnx",
+      "motor_config_file:=/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/scale_1.000/motors.yaml"
+    ]
+  },
+  {
+    "label": "rep1_scale0.950",
+    "manifest": {
+      "scale": 0.95,
+      "source_sha256": "90fc691abbf43b89a55956493da6ab19c59105f9167f29f8f93fc317b68c9309",
+      "model_sha256": "e820132d8c79e815cd682ce0413506221a6378903956dfaa4f3a616640da43bd",
+      "source_registry_sha256": "e3bb3842ba4f97cbadc11f2261677264828f36ecf26cc62b25b9a3fbc5c3ca08",
+      "hardware_verified": false,
+      "max_reference_delta_rad": 0.03621378540992737,
+      "affected_joints": [
+        "left_hip1_joint",
+        "left_knee_joint",
+        "left_ankle_joint",
+        "right_hip1_joint",
+        "right_knee_joint",
+        "right_ankle_joint"
+      ],
+      "ramp_s": 1.0,
+      "control_hz": 50,
+      "neural_weights_unchanged": true
+    },
+    "category": "not_released",
+    "gui_seen": true,
+    "release_offset_s": null,
+    "exposure_wall_s": null,
+    "displacement_world_m": null,
+    "min_base_z_m": null,
+    "final_policy": {
+      "t": 24.850415193999652,
+      "value": {
+        "state": "fault",
+        "fault": "estop",
+        "requested_hz": 50.0,
+        "expiry_diagnostic": null,
+        "max_input_skew_s": 0.02,
+        "max_inference_s": 0.02,
+        "iterations": 180,
+        "reference_frame": 0,
+        "reference_finished": false,
+        "reference_cycles": 0,
+        "waiting_for_sim_release": true,
+        "hold_first_frame": false,
+        "reference_end_behavior": "loop",
+        "joint_feedback": "joint_states",
+        "hardware_output": false,
+        "imu_age_since_receipt_ms": 13381.37496300078,
+        "gyro_bias_rad_s": [
+          3.5193309403727554e-07,
+          8.506309476033914e-09,
+          1.6622231722040546e-08
+        ],
+        "model_sha256": "e820132d8c79e815cd682ce0413506221a6378903956dfaa4f3a616640da43bd",
+        "rejected_imu_timestamps": 2,
+        "inference_ms": {
+          "mean": 0.6969016111320848,
+          "p99": 3.3908289300961783,
+          "max": 6.627512000704883
+        },
+        "control_callback_ms": {
+          "mean": 1.414044883282865,
+          "p99": 4.813219899715479,
+          "max": 7.232038000438479
+        },
+        "tick_interval_ms": {
+          "mean": 20.00302844134133,
+          "p99": 23.131726380706823,
+          "max": 24.03877299911983
+        },
+        "callback_overruns_20ms": 0
+      }
+    },
+    "final_safety": {
+      "t": 24.99180477200025,
+      "value": [
+        {
+          "name": "humanoid_safety/supervisor",
+          "level": 2,
+          "message": "imu_freshness: IMU age=0.342s limit=0.250s",
+          "values": {
+            "imu_received": "1597",
+            "imu_rejected_source": "44",
+            "imu_rejected_orientation": "0",
+            "latched": "True",
+            "reason": "imu_freshness: IMU age=0.342s limit=0.250s"
+          }
+        },
+        {
+          "name": "humanoid_safety/fall_detection",
+          "level": 0,
+          "message": "roll=+0.1deg pitch=-0.0deg count=0/3",
+          "values": {
+            "active": "False",
+            "healthy": "True",
+            "clearable": "True"
+          }
+        },
+        {
+          "name": "humanoid_safety/imu_freshness",
+          "level": 0,
+          "message": "IMU age=0.011s limit=0.250s",
+          "values": {
+            "active": "False",
+            "healthy": "True",
+            "clearable": "True"
+          }
+        },
+        {
+          "name": "humanoid_safety/imu_stuck",
+          "level": 0,
+          "message": "identical samples=1/50",
+          "values": {
+            "active": "False",
+            "healthy": "True",
+            "clearable": "True"
+          }
+        }
+      ]
+    },
+    "log": "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/results/20261031-184251/rep1_scale0.950.log",
+    "command": [
+      "ros2",
+      "launch",
+      "wbc_control_node",
+      "rl_wbc_sim.launch.py",
+      "auto_start:=true",
+      "use_viewer:=true",
+      "ros_domain_id:=181",
+      "web_port:=8181",
+      "model_path:=/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/scale_0.950/20260914_170827.onnx",
+      "motor_config_file:=/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/scale_0.950/motors.yaml"
+    ]
+  },
+  {
+    "label": "rep1_scale1.050",
+    "manifest": {
+      "scale": 1.05,
+      "source_sha256": "90fc691abbf43b89a55956493da6ab19c59105f9167f29f8f93fc317b68c9309",
+      "model_sha256": "335d8fca202bf68e1817c9bd394291c3c44c10ff40aee98a93e6a2373589019a",
+      "source_registry_sha256": "e3bb3842ba4f97cbadc11f2261677264828f36ecf26cc62b25b9a3fbc5c3ca08",
+      "hardware_verified": false,
+      "max_reference_delta_rad": 0.03621378540992737,
+      "affected_joints": [
+        "left_hip1_joint",
+        "left_knee_joint",
+        "left_ankle_joint",
+        "right_hip1_joint",
+        "right_knee_joint",
+        "right_ankle_joint"
+      ],
+      "ramp_s": 1.0,
+      "control_hz": 50,
+      "neural_weights_unchanged": true
+    },
+    "category": "observed_no_fall",
+    "gui_seen": true,
+    "release_offset_s": 8.540845988998626,
+    "exposure_wall_s": 9.99918952400003,
+    "displacement_world_m": [
+      1.249450312304337,
+      4.643283408858199,
+      0.004787431855626911
+    ],
+    "min_base_z_m": 0.6763134778513188,
+    "final_policy": {
+      "t": 18.079021637999176,
+      "value": {
+        "state": "running",
+        "fault": null,
+        "requested_hz": 50.0,
+        "expiry_diagnostic": null,
+        "max_input_skew_s": 0.02,
+        "max_inference_s": 0.02,
+        "iterations": 538,
+        "reference_frame": 74,
+        "reference_finished": true,
+        "reference_cycles": 2,
+        "waiting_for_sim_release": false,
+        "hold_first_frame": false,
+        "reference_end_behavior": "loop",
+        "joint_feedback": "joint_states",
+        "hardware_output": false,
+        "imu_age_since_receipt_ms": 0.6835090007371036,
+        "gyro_bias_rad_s": [
+          3.5199373576438187e-07,
+          8.919284326492342e-09,
+          1.733628304279504e-08
+        ],
+        "model_sha256": "335d8fca202bf68e1817c9bd394291c3c44c10ff40aee98a93e6a2373589019a",
+        "rejected_imu_timestamps": 8,
+        "inference_ms": {
+          "mean": 0.48533826392922086,
+          "p99": 3.021330779447451,
+          "max": 3.777887000978808
+        },
+        "control_callback_ms": {
+          "mean": 1.1424054442498897,
+          "p99": 4.3520067292229205,
+          "max": 5.174013998839655
+        },
+        "tick_interval_ms": {
+          "mean": 20.08374107076405,
+          "p99": 23.40301964046375,
+          "max": 44.11276900100347
+        },
+        "callback_overruns_20ms": 0
+      }
+    },
+    "final_safety": {
+      "t": 18.46179061299881,
+      "value": [
+        {
+          "name": "humanoid_safety/supervisor",
+          "level": 0,
+          "message": "all safety checks clear",
+          "values": {
+            "imu_received": "1034",
+            "imu_rejected_source": "7",
+            "imu_rejected_orientation": "0",
+            "latched": "False",
+            "reason": ""
+          }
+        },
+        {
+          "name": "humanoid_safety/fall_detection",
+          "level": 0,
+          "message": "roll=+8.3deg pitch=+1.5deg count=0/3",
+          "values": {
+            "active": "False",
+            "healthy": "True",
+            "clearable": "True"
+          }
+        },
+        {
+          "name": "humanoid_safety/imu_freshness",
+          "level": 0,
+          "message": "IMU age=0.011s limit=0.250s",
+          "values": {
+            "active": "False",
+            "healthy": "True",
+            "clearable": "True"
+          }
+        },
+        {
+          "name": "humanoid_safety/imu_stuck",
+          "level": 0,
+          "message": "identical samples=1/50",
+          "values": {
+            "active": "False",
+            "healthy": "True",
+            "clearable": "True"
+          }
+        }
+      ]
+    },
+    "log": "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/results/20261031-184251/rep1_scale1.050.log",
+    "command": [
+      "ros2",
+      "launch",
+      "wbc_control_node",
+      "rl_wbc_sim.launch.py",
+      "auto_start:=true",
+      "use_viewer:=true",
+      "ros_domain_id:=181",
+      "web_port:=8181",
+      "model_path:=/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/scale_1.050/20260914_170827.onnx",
+      "motor_config_file:=/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/scale_1.050/motors.yaml"
+    ]
+  },
+  {
+    "label": "rep2_scale1.000",
+    "manifest": {
+      "scale": 1.0,
+      "source_sha256": "90fc691abbf43b89a55956493da6ab19c59105f9167f29f8f93fc317b68c9309",
+      "model_sha256": "90fc691abbf43b89a55956493da6ab19c59105f9167f29f8f93fc317b68c9309",
+      "source_registry_sha256": "e3bb3842ba4f97cbadc11f2261677264828f36ecf26cc62b25b9a3fbc5c3ca08",
+      "hardware_verified": false,
+      "max_reference_delta_rad": 0.0,
+      "affected_joints": [
+        "left_hip1_joint",
+        "left_knee_joint",
+        "left_ankle_joint",
+        "right_hip1_joint",
+        "right_knee_joint",
+        "right_ankle_joint"
+      ],
+      "ramp_s": 1.0,
+      "control_hz": 50,
+      "neural_weights_unchanged": true
+    },
+    "category": "censored_stop",
+    "gui_seen": true,
+    "release_offset_s": 8.855718732998866,
+    "exposure_wall_s": 10.00227533999896,
+    "displacement_world_m": [
+      0.05746745713891088,
+      0.8564735882149395,
+      0.007329506001293673
+    ],
+    "min_base_z_m": 0.6934451111450319,
+    "final_policy": {
+      "t": 18.67101807200015,
+      "value": {
+        "state": "fault",
+        "fault": "estop",
+        "requested_hz": 50.0,
+        "expiry_diagnostic": null,
+        "max_input_skew_s": 0.02,
+        "max_inference_s": 0.02,
+        "iterations": 225,
+        "reference_frame": 148,
+        "reference_finished": false,
+        "reference_cycles": 0,
+        "waiting_for_sim_release": false,
+        "hold_first_frame": false,
+        "reference_end_behavior": "loop",
+        "joint_feedback": "joint_states",
+        "hardware_output": false,
+        "imu_age_since_receipt_ms": 6903.149373998531,
+        "gyro_bias_rad_s": [
+          3.5201693921280624e-07,
+          9.073142827653831e-09,
+          1.7602315258352334e-08
+        ],
+        "model_sha256": "90fc691abbf43b89a55956493da6ab19c59105f9167f29f8f93fc317b68c9309",
+        "rejected_imu_timestamps": 34,
+        "inference_ms": {
+          "mean": 0.6474304310621746,
+          "p99": 5.315859640468252,
+          "max": 11.772468998969998
+        },
+        "control_callback_ms": {
+          "mean": 2.076894573385491,
+          "p99": 8.395631239545763,
+          "max": 12.353975000223727
+        },
+        "tick_interval_ms": {
+          "mean": 20.093723486606255,
+          "p99": 29.703120439608032,
+          "max": 35.049179999987246
+        },
+        "callback_overruns_20ms": 0
+      }
+    },
+    "final_safety": {
+      "t": 18.842117594998854,
+      "value": [
+        {
+          "name": "humanoid_safety/supervisor",
+          "level": 2,
+          "message": "imu_freshness: IMU age=0.257s limit=0.250s",
+          "values": {
+            "imu_received": "296",
+            "imu_rejected_source": "27",
+            "imu_rejected_orientation": "0",
+            "latched": "True",
+            "reason": "imu_freshness: IMU age=0.257s limit=0.250s"
+          }
+        },
+        {
+          "name": "humanoid_safety/fall_detection",
+          "level": 0,
+          "message": "roll=+8.0deg pitch=-2.7deg count=0/3",
+          "values": {
+            "active": "False",
+            "healthy": "True",
+            "clearable": "True"
+          }
+        },
+        {
+          "name": "humanoid_safety/imu_freshness",
+          "level": 2,
+          "message": "IMU age=7.087s limit=0.250s",
+          "values": {
+            "active": "True",
+            "healthy": "False",
+            "clearable": "False"
+          }
+        },
+        {
+          "name": "humanoid_safety/imu_stuck",
+          "level": 0,
+          "message": "identical samples=1/50",
+          "values": {
+            "active": "False",
+            "healthy": "True",
+            "clearable": "True"
+          }
+        }
+      ]
+    },
+    "log": "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/results/20261031-184251/rep2_scale1.000.log",
+    "command": [
+      "ros2",
+      "launch",
+      "wbc_control_node",
+      "rl_wbc_sim.launch.py",
+      "auto_start:=true",
+      "use_viewer:=true",
+      "ros_domain_id:=181",
+      "web_port:=8181",
+      "model_path:=/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/scale_1.000/20260914_170827.onnx",
+      "motor_config_file:=/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/scale_1.000/motors.yaml"
+    ]
+  },
+  {
+    "label": "rep2_scale0.950",
+    "manifest": {
+      "scale": 0.95,
+      "source_sha256": "90fc691abbf43b89a55956493da6ab19c59105f9167f29f8f93fc317b68c9309",
+      "model_sha256": "e820132d8c79e815cd682ce0413506221a6378903956dfaa4f3a616640da43bd",
+      "source_registry_sha256": "e3bb3842ba4f97cbadc11f2261677264828f36ecf26cc62b25b9a3fbc5c3ca08",
+      "hardware_verified": false,
+      "max_reference_delta_rad": 0.03621378540992737,
+      "affected_joints": [
+        "left_hip1_joint",
+        "left_knee_joint",
+        "left_ankle_joint",
+        "right_hip1_joint",
+        "right_knee_joint",
+        "right_ankle_joint"
+      ],
+      "ramp_s": 1.0,
+      "control_hz": 50,
+      "neural_weights_unchanged": true
+    },
+    "category": "censored_stop",
+    "gui_seen": true,
+    "release_offset_s": 11.002520423999158,
+    "exposure_wall_s": 10.002154462999897,
+    "displacement_world_m": [
+      0.20446421919780647,
+      1.5694674549647025,
+      0.00310761323604003
+    ],
+    "min_base_z_m": 0.683645586611534,
+    "final_policy": {
+      "t": 20.742304186000183,
+      "value": {
+        "state": "fault",
+        "fault": "estop",
+        "requested_hz": 50.0,
+        "expiry_diagnostic": null,
+        "max_input_skew_s": 0.02,
+        "max_inference_s": 0.02,
+        "iterations": 368,
+        "reference_frame": 214,
+        "reference_finished": false,
+        "reference_cycles": 0,
+        "waiting_for_sim_release": false,
+        "hold_first_frame": false,
+        "reference_end_behavior": "loop",
+        "joint_feedback": "joint_states",
+        "hardware_output": false,
+        "imu_age_since_receipt_ms": 5523.310700000366,
+        "gyro_bias_rad_s": [
+          3.5191570778548466e-07,
+          8.388654780025101e-09,
+          1.641880076711584e-08
+        ],
+        "model_sha256": "e820132d8c79e815cd682ce0413506221a6378903956dfaa4f3a616640da43bd",
+        "rejected_imu_timestamps": 10,
+        "inference_ms": {
+          "mean": 0.35902229344826436,
+          "p99": 2.8882797899677763,
+          "max": 5.107502000100794
+        },
+        "control_callback_ms": {
+          "mean": 1.1129678504867906,
+          "p99": 4.830230379047852,
+          "max": 5.788114000097266
+        },
+        "tick_interval_ms": {
+          "mean": 20.871965196187258,
+          "p99": 24.07388597894168,
+          "max": 279.9929829998291
+        },
+        "callback_overruns_20ms": 0
+      }
+    },
+    "final_safety": {
+      "t": 20.982471519999308,
+      "value": [
+        {
+          "name": "humanoid_safety/supervisor",
+          "level": 2,
+          "message": "imu_freshness: IMU age=0.253s limit=0.250s",
+          "values": {
+            "imu_received": "661",
+            "imu_rejected_source": "8",
+            "imu_rejected_orientation": "0",
+            "latched": "True",
+            "reason": "imu_freshness: IMU age=0.253s limit=0.250s"
+          }
+        },
+        {
+          "name": "humanoid_safety/fall_detection",
+          "level": 0,
+          "message": "roll=+10.3deg pitch=-2.1deg count=0/3",
+          "values": {
+            "active": "False",
+            "healthy": "True",
+            "clearable": "True"
+          }
+        },
+        {
+          "name": "humanoid_safety/imu_freshness",
+          "level": 2,
+          "message": "IMU age=5.773s limit=0.250s",
+          "values": {
+            "active": "True",
+            "healthy": "False",
+            "clearable": "False"
+          }
+        },
+        {
+          "name": "humanoid_safety/imu_stuck",
+          "level": 0,
+          "message": "identical samples=1/50",
+          "values": {
+            "active": "False",
+            "healthy": "True",
+            "clearable": "True"
+          }
+        }
+      ]
+    },
+    "log": "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/results/20261031-184251/rep2_scale0.950.log",
+    "command": [
+      "ros2",
+      "launch",
+      "wbc_control_node",
+      "rl_wbc_sim.launch.py",
+      "auto_start:=true",
+      "use_viewer:=true",
+      "ros_domain_id:=181",
+      "web_port:=8181",
+      "model_path:=/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/scale_0.950/20260914_170827.onnx",
+      "motor_config_file:=/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/scale_0.950/motors.yaml"
+    ]
+  },
+  {
+    "label": "rep2_scale1.050",
+    "manifest": {
+      "scale": 1.05,
+      "source_sha256": "90fc691abbf43b89a55956493da6ab19c59105f9167f29f8f93fc317b68c9309",
+      "model_sha256": "335d8fca202bf68e1817c9bd394291c3c44c10ff40aee98a93e6a2373589019a",
+      "source_registry_sha256": "e3bb3842ba4f97cbadc11f2261677264828f36ecf26cc62b25b9a3fbc5c3ca08",
+      "hardware_verified": false,
+      "max_reference_delta_rad": 0.03621378540992737,
+      "affected_joints": [
+        "left_hip1_joint",
+        "left_knee_joint",
+        "left_ankle_joint",
+        "right_hip1_joint",
+        "right_knee_joint",
+        "right_ankle_joint"
+      ],
+      "ramp_s": 1.0,
+      "control_hz": 50,
+      "neural_weights_unchanged": true
+    },
+    "category": "censored_stop",
+    "gui_seen": true,
+    "release_offset_s": 10.79124874199988,
+    "exposure_wall_s": 9.993164101999355,
+    "displacement_world_m": [
+      0.021303571964498898,
+      0.0040684605573619945,
+      -0.0010543006512740982
+    ],
+    "min_base_z_m": 0.708974923490409,
+    "final_policy": {
+      "t": 20.159146498001064,
+      "value": {
+        "state": "fault",
+        "fault": "estop",
+        "requested_hz": 50.0,
+        "expiry_diagnostic": {
+          "causes": [
+            "imu_stale",
+            "joints_stale"
+          ],
+          "elapsed_ms": 1.2553149990708334,
+          "prepare_ms": 0.9753249996720115,
+          "inference_ms": 0.27133199910167605,
+          "result_lock_wait_ms": 0.00402000114263501,
+          "budget_ms": 20.0,
+          "input_timeout_ms": 100.0,
+          "imu_source_age_ms": 101.05323791503906,
+          "imu_receipt_age_ms": 96.84336200007237,
+          "joint_source_age_ms": 101.05323791503906,
+          "joint_receipt_age_ms": 95.1182089993381,
+          "reference_frame": 22,
+          "hold_first_frame": false
+        },
+        "max_input_skew_s": 0.02,
+        "max_inference_s": 0.02,
+        "iterations": 197,
+        "reference_frame": 21,
+        "reference_finished": false,
+        "reference_cycles": 0,
+        "waiting_for_sim_release": false,
+        "hold_first_frame": false,
+        "reference_end_behavior": "loop",
+        "joint_feedback": "joint_states",
+        "hardware_output": false,
+        "imu_age_since_receipt_ms": 9016.481475000546,
+        "gyro_bias_rad_s": [
+          3.5204238056939156e-07,
+          9.259006695311837e-09,
+          1.7923669239276818e-08
+        ],
+        "model_sha256": "335d8fca202bf68e1817c9bd394291c3c44c10ff40aee98a93e6a2373589019a",
+        "rejected_imu_timestamps": 18,
+        "inference_ms": {
+          "mean": 0.5668542878699343,
+          "p99": 3.1567800113953126,
+          "max": 4.253123001035419
+        },
+        "control_callback_ms": {
+          "mean": 1.5612463451957248,
+          "p99": 6.202478801133103,
+          "max": 8.341782000570674
+        },
+        "tick_interval_ms": {
+          "mean": 20.49523754081116,
+          "p99": 38.193026000408295,
+          "max": 45.47706300036225
+        },
+        "callback_overruns_20ms": 0
+      }
+    },
+    "final_safety": {
+      "t": 20.784783332999723,
+      "value": [
+        {
+          "name": "humanoid_safety/supervisor",
+          "level": 2,
+          "message": "imu_freshness: IMU age=0.257s limit=0.250s",
+          "values": {
+            "imu_received": "264",
+            "imu_rejected_source": "11",
+            "imu_rejected_orientation": "0",
+            "latched": "True",
+            "reason": "imu_freshness: IMU age=0.257s limit=0.250s"
+          }
+        },
+        {
+          "name": "humanoid_safety/fall_detection",
+          "level": 0,
+          "message": "roll=+4.5deg pitch=-0.1deg count=0/3",
+          "values": {
+            "active": "False",
+            "healthy": "True",
+            "clearable": "True"
+          }
+        },
+        {
+          "name": "humanoid_safety/imu_freshness",
+          "level": 2,
+          "message": "IMU age=9.645s limit=0.250s",
+          "values": {
+            "active": "True",
+            "healthy": "False",
+            "clearable": "False"
+          }
+        },
+        {
+          "name": "humanoid_safety/imu_stuck",
+          "level": 0,
+          "message": "identical samples=1/50",
+          "values": {
+            "active": "False",
+            "healthy": "True",
+            "clearable": "True"
+          }
+        }
+      ]
+    },
+    "log": "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/results/20261031-184251/rep2_scale1.050.log",
+    "command": [
+      "ros2",
+      "launch",
+      "wbc_control_node",
+      "rl_wbc_sim.launch.py",
+      "auto_start:=true",
+      "use_viewer:=true",
+      "ros_domain_id:=181",
+      "web_port:=8181",
+      "model_path:=/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/scale_1.050/20260914_170827.onnx",
+      "motor_config_file:=/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/scale_1.050/motors.yaml"
+    ]
+  }
+]

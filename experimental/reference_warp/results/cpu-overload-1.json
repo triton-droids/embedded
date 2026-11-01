@@ -1,0 +1,70 @@
+{
+  "case": "overload",
+  "elapsed_s": 8.148421026000506,
+  "mujoco_version": "3.3.7",
+  "physics_hz": 163.22180650167076,
+  "realtime_factor": 0.8161090325083538,
+  "overruns": 1330,
+  "max_step_gap_ms": 17.626654998821323,
+  "step_wall_p99_ms": 6.319035360502312,
+  "step_cpu_mean_ms": 6.087716542077312,
+  "camera_hz": 0.0,
+  "processes": [
+    {
+      "pid": 149124,
+      "name": "python",
+      "role": "main",
+      "cpu_pct": 100.01937766831703
+    }
+  ],
+  "threads": [
+    {
+      "tid": 149124,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 149125,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 149126,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 149127,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 149128,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 149129,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 149130,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 149131,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 149132,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 149133,
+      "cpu_pct": 0.0
+    },
+    {
+      "tid": 149134,
+      "cpu_pct": 99.7739313427506
+    }
+  ],
+  "system_busy_pct": 19.282648681791436,
+  "physics_thread_tid": 149134,
+  "control_fault": null,
+  "scope": "Held full camera/CAD/football model, no policy/WBC/safety/YOLO; camera RGB-D publishers have no image subscribers"
+}

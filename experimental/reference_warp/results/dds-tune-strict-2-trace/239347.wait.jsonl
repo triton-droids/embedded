@@ -1,0 +1,2 @@
+{"layer":"rmw","pid":239347,"tid":239347,"topic":"/motor_commands","begin_ns":26704051514717,"end_ns":26704155759174,"cpu_ns":50843,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}
+{"layer":"rcl","pid":239347,"tid":239347,"topic":"/motor_commands","begin_ns":26704051513482,"end_ns":26704155825721,"cpu_ns":117856,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}

@@ -14,6 +14,7 @@ setup(
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml', 'requirements.txt']),
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
+        (os.path.join('share', package_name, 'config'), glob('config/*.xml')),
         (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
     ],
     # mujoco is a pip dependency (requirements.txt); there is no rosdep key for it.
@@ -28,6 +29,8 @@ setup(
         'console_scripts': [
             'mujoco_sim = humanoid_sim.main:main',
             'sim_autostart = humanoid_sim.autostart_node:main',
+            'sim_imu_publisher = humanoid_sim.imu_split_node:main',
+            'remote_viewer = humanoid_sim.remote_viewer:main',
         ],
     },
 )

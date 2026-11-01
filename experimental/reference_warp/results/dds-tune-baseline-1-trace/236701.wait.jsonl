@@ -1,0 +1,2 @@
+{"layer":"rmw","pid":236701,"tid":236864,"topic":"/joint_states","begin_ns":26569484438083,"end_ns":26569762346923,"cpu_ns":78672,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}
+{"layer":"rcl","pid":236701,"tid":236864,"topic":"/joint_states","begin_ns":26569484432151,"end_ns":26569762433379,"cpu_ns":167425,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}

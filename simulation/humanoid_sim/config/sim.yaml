@@ -27,11 +27,13 @@ mujoco_sim:
     ground_truth_rate_hz: 50.0
     enable_camera: false
     use_viewer: false
+    dedicated_imu_executor: true # dedicated body-IMU thread; diagnostics use the other executor
 
 sim_motor_backend:
   ros__parameters:
     publish_rate_hz: 50.0
     telemetry_rate_hz: 5.0     # dashboard temperatures/status; separate from joint feedback
+    monitor_rate_hz: 10.0      # Web feedback only; retain high-rate /joint_states for control
     ambient_temperature_c: 28.0
     heating_c_per_nm2_s: 0.0005    # placeholder thermal model
     cooling_time_constant_s: 300.0 # placeholder thermal model

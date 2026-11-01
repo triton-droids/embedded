@@ -1,0 +1,4 @@
+{"layer":"rmw","pid":249858,"tid":249936,"topic":"/safety/status","begin_ns":27695196531345,"end_ns":27695296616733,"cpu_ns":59398,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}
+{"layer":"rcl","pid":249858,"tid":249936,"topic":"/safety/status","begin_ns":27695196529266,"end_ns":27695296667651,"cpu_ns":111215,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}
+{"layer":"rmw","pid":249858,"tid":249936,"topic":"/safety/status","begin_ns":27695696600688,"end_ns":27695771398658,"cpu_ns":42928,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}
+{"layer":"rcl","pid":249858,"tid":249936,"topic":"/safety/status","begin_ns":27695696598556,"end_ns":27695771433822,"cpu_ns":79085,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}

@@ -1,0 +1,11 @@
+{
+  "name": "cpp-none-1",
+  "language": "cpp",
+  "readers": [],
+  "duration_s": 8,
+  "domain": 225,
+  "native_timing": true,
+  "exit_codes": [
+    0
+  ]
+}

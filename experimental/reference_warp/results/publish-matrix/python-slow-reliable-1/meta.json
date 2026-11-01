@@ -1,0 +1,17 @@
+{
+  "name": "python-slow-reliable-1",
+  "language": "python",
+  "readers": [
+    [
+      "reliable",
+      100
+    ]
+  ],
+  "duration_s": 8,
+  "domain": 225,
+  "native_timing": true,
+  "exit_codes": [
+    0,
+    0
+  ]
+}

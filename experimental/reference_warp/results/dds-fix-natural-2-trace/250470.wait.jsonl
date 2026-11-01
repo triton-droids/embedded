@@ -1,0 +1,2 @@
+{"layer":"rmw","pid":250470,"tid":250555,"topic":"/safety/status","begin_ns":27731804654370,"end_ns":27731863320092,"cpu_ns":69544,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}
+{"layer":"rcl","pid":250470,"tid":250555,"topic":"/safety/status","begin_ns":27731804650557,"end_ns":27731863390159,"cpu_ns":142075,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}

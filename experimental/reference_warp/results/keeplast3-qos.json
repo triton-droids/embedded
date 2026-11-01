@@ -1,0 +1,26 @@
+[
+  {
+    "endpoint": "sim_body_imu publisher",
+    "history": 1,
+    "depth": 3,
+    "reliability": 1
+  },
+  {
+    "endpoint": "sim_motor_backend publisher",
+    "history": 1,
+    "depth": 3,
+    "reliability": 1
+  },
+  {
+    "endpoint": "tracking_policy_node subscription /imu/data_raw",
+    "history": 1,
+    "depth": 3,
+    "reliability": 2
+  },
+  {
+    "endpoint": "tracking_policy_node subscription /joint_states",
+    "history": 1,
+    "depth": 1,
+    "reliability": 1
+  }
+]

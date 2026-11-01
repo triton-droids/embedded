@@ -1,0 +1,2 @@
+{"layer":"rmw","pid":254188,"tid":254358,"topic":"/imu/data_raw","begin_ns":27998631242403,"end_ns":27998862091666,"cpu_ns":41809,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}
+{"layer":"rcl","pid":254188,"tid":254358,"topic":"/imu/data_raw","begin_ns":27998631239815,"end_ns":27998862155028,"cpu_ns":106597,"voluntary_switches":1,"involuntary_switches":0,"minor_faults":0,"major_faults":0}

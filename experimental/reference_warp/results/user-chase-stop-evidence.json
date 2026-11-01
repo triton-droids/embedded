@@ -1,0 +1,22 @@
+{
+  "policy": {
+    "path": "/home/rcli/.ros/log/python3_260259_1793515431989.log",
+    "text": "[INFO] [1793515432.133977710] [tracking_policy_node]: ONNX tracking: 50 Hz, feedback=joint_states, orientation=message, reference=play, outputs=/policy/*; no SDK, CAN or motor enable commands. Keep the IMU stationary during calibration.\n[ERROR] [1793515436.909489392] [tracking_policy_node]: Experimental chase stopped: turn_required_not_implemented; restart the node to reset\n"
+  },
+  "wbc": {
+    "path": "/home/rcli/.ros/log/python3_260260_1793515431791.log",
+    "text": "[INFO] [1793515431.917466491] [wbc_control_node]: Policy \u2192 WBC \u2192 /desired_motor_subset; awaiting state and released safety\n[ERROR] [1793515436.992628811] [wbc_control_node]: Input source/receipt timeout\n"
+  },
+  "sim": {
+    "path": "/home/rcli/.ros/log/python3_260258_1793515431840.log",
+    "text": "[WARN] [1793515432.318841066] [mujoco_sim]: MuJoCo 3.3.7 simulation: 12 actuators, timestep 5.0 ms, registry /home/rcli/Github/Humanoid_ros2_simulation/install/motor_control_hybrid/share/motor_control_hybrid/config/motors.yaml\n[WARN] [1793515432.430972902] [sim_motor_backend]: SIMULATED motor backend for 10 joints; no CAN hardware is used\n[ERROR] [1793515436.993447038] [sim_motor_backend]: Physics paused: Motor control lost: disabled joint left_hip1_joint; inspect diagnostics and /sim/reset to recover\n[FATAL] [1793515437.242252442] [sim_motor_backend]: Safety estop asserted; rejecting commands and disabling motors\n"
+  },
+  "safety": {
+    "path": "/home/rcli/.ros/log/python3_260386_1793515432902.log",
+    "text": "[ERROR] [1793515433.416640620] [safety_node]: Safety diagnostics publication failed: Failed to publish: cannot publish data, at /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/rmw_fastrtps-8.4.3/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp:66, at ./src/rcl/publisher.c:284\n[FATAL] [1793515437.241107985] [safety_node]: SAFETY ESTOP LATCHED: imu_freshness: IMU age=0.256s limit=0.250s\n"
+  },
+  "autostart": {
+    "path": "/home/rcli/.ros/log/python3_260263_1793515431745.log",
+    "text": "[INFO] [1793515431.924582690] [sim_autostart]: Waiting for the first policy command to enable motors and release the gantry\n[WARN] [1793515435.857009396] [sim_autostart]: C++ accepted ENABLE; waiting for verified enabled feedback\n[WARN] [1793515435.887018534] [sim_autostart]: C++ verified all motors enabled; waiting for fresh WBC motion\n[WARN] [1793515435.990127557] [sim_autostart]: Gantry released\n"
+  }
+}

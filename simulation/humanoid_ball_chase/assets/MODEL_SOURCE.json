@@ -1,0 +1,11 @@
+{
+  "source": "/home/rcli/Github/td_perception_camera/humanoid_vision/models/td-perception.onnx",
+  "repository": "git@github.com:triton-droids/td_perception.git",
+  "commit": "d75a50b8adb356a025fea7d9511fa55630d16477",
+  "sha256": "8fda858438ed0b3fce8b32fba199f5710b5906d3550bcaf5780575fca07edd71",
+  "class_0": "ball",
+  "classes": 7,
+  "architecture": "YOLO11n",
+  "license_from_model_metadata": "AGPL-3.0 License (https://ultralytics.com/license)",
+  "runtime": "ONNX Runtime CPU; letterbox RGB 640x640; class-0 score >= 0.30; NMS IoU 0.45"
+}

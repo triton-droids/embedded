@@ -1,0 +1,6 @@
+rmw=rmw_fastrtps_cpp
+imu depth=2 publisher_can_loan=0
+image depth=2 publisher_can_loan=0
+joint_state depth=2 publisher_can_loan=0
+motor_command depth=2 publisher_can_loan=0
+float32 depth=2 publisher_can_loan=1 native_loan_valid=1

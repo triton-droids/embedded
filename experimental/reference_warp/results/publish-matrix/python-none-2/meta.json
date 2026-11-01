@@ -1,0 +1,11 @@
+{
+  "name": "python-none-2",
+  "language": "python",
+  "readers": [],
+  "duration_s": 8,
+  "domain": 225,
+  "native_timing": true,
+  "exit_codes": [
+    0
+  ]
+}

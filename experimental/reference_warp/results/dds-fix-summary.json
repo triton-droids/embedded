@@ -1,0 +1,3239 @@
+[
+  {
+    "name": "dds-fix-final-default",
+    "observer": {
+      "samples": 2862,
+      "max_receipt_gap_s": 0.33976424600041355,
+      "max_source_age_s": 0.2761971950531006
+    },
+    "last_imu_t": 31.999955086997943,
+    "imu": {
+      "simulated": true,
+      "sensor": "mujoco",
+      "frame_id": "imu_link",
+      "published": 2780,
+      "subscribers": 3,
+      "last_publish_age_s": 0.0019638529993244447,
+      "max_publish_gap_s": 0.24120736099939677,
+      "max_sample_wait_s": 0.005787231999420328,
+      "max_callback_gap_s": 0.2353123909997521,
+      "max_publish_call_s": 0.2316305280000961,
+      "max_status_publish_s": 0.0002937760000349954,
+      "max_gc_pause_s": 0.0006203819975780789,
+      "publish_failures": {},
+      "control_fault": null,
+      "clock_synced": true
+    },
+    "can_timing": {
+      "rx_frames": 54620,
+      "commands_received": 5123,
+      "commands_rejected": 0,
+      "max_feedback_callback_s": 0.005654430002323352,
+      "simulated": true,
+      "transport_fault": false,
+      "pending_commands": 0,
+      "physics_overruns": 139,
+      "publish_failures": {},
+      "interfaces": {
+        "can1": {
+          "tx_submitted": 0,
+          "tx_errors": 0
+        }
+      }
+    },
+    "safety": [
+      {
+        "name": "humanoid_safety/supervisor",
+        "message": "imu_freshness: IMU age=0.250s limit=0.250s",
+        "values": {
+          "imu_received": "2772",
+          "imu_rejected_source": "7",
+          "imu_rejected_orientation": "0",
+          "latched": "True",
+          "reason": "imu_freshness: IMU age=0.250s limit=0.250s",
+          "estop_publish_failures": "0"
+        }
+      },
+      {
+        "name": "humanoid_safety/fall_detection",
+        "message": "roll=+0.1deg pitch=-0.0deg count=0/3",
+        "values": {
+          "active": "False",
+          "healthy": "True",
+          "clearable": "True"
+        }
+      },
+      {
+        "name": "humanoid_safety/imu_freshness",
+        "message": "IMU age=0.007s limit=0.250s",
+        "values": {
+          "active": "False",
+          "healthy": "True",
+          "clearable": "True"
+        }
+      },
+      {
+        "name": "humanoid_safety/imu_stuck",
+        "message": "identical samples=1/50",
+        "values": {
+          "active": "False",
+          "healthy": "True",
+          "clearable": "True"
+        }
+      }
+    ],
+    "policy": {
+      "state": "calibrating",
+      "fault": "estop",
+      "requested_hz": 50.0,
+      "expiry_diagnostic": null,
+      "max_input_skew_s": 0.02,
+      "max_inference_s": 0.02,
+      "iterations": 0,
+      "reference_frame": 0,
+      "reference_finished": false,
+      "reference_cycles": 0,
+      "waiting_for_sim_release": true,
+      "hold_first_frame": false,
+      "reference_end_behavior": "loop",
+      "joint_feedback": "joint_states",
+      "hardware_output": false,
+      "imu_age_since_receipt_ms": null,
+      "gyro_bias_rad_s": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "model_sha256": "90fc691abbf43b89a55956493da6ab19c59105f9167f29f8f93fc317b68c9309",
+      "rejected_imu_timestamps": 0,
+      "inference_ms": null,
+      "control_callback_ms": null,
+      "tick_interval_ms": null,
+      "callback_overruns_20ms": 0
+    },
+    "wbc": {
+      "state": "waiting_for_inputs",
+      "fault": "",
+      "solved_count": 0,
+      "compute_ms": 0.0,
+      "solve_ms": 0.0,
+      "contacts": [],
+      "joint_names": [
+        "left_hip1_joint",
+        "left_hip2_joint",
+        "left_thigh_joint",
+        "left_knee_joint",
+        "left_ankle_joint",
+        "right_hip1_joint",
+        "right_hip2_joint",
+        "right_thigh_joint",
+        "right_knee_joint",
+        "right_ankle_joint"
+      ],
+      "torques": [],
+      "nominal_torques": [],
+      "tracking_mode": "policy_impedance",
+      "base_held": true
+    },
+    "sim": {
+      "sim_time_s": 29.954999999998325,
+      "real_time_factor": 0.946,
+      "physics_overruns": 148,
+      "base_held": true,
+      "control_fault": null,
+      "physics_paused": false,
+      "max_odom_callback_s": 0.020104189999983646,
+      "max_status_callback_s": 0.0004462750002858229,
+      "publish_failures": {},
+      "estop_active": true
+    },
+    "cpp": {
+      "stage": 0,
+      "message": ""
+    },
+    "motor_commands": {
+      "samples": 5668,
+      "mode_counts": {
+        "4": 5668
+      },
+      "transitions": [
+        {
+          "t": 3.6523861229979957,
+          "modes": [
+            4
+          ]
+        }
+      ],
+      "last_non_disable_t": null
+    },
+    "injections": [],
+    "process_deaths": [],
+    "faults": [
+      "[python3-7] [FATAL] [1793514725.705302180] [safety_node]: SAFETY ESTOP LATCHED: imu_freshness: IMU age=0.250s limit=0.250s"
+    ],
+    "library_maps": {
+      "254188": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_sim/lib/humanoid_sim/mujoco_sim",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "--params-file",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/chase_scene.yaml",
+          "--params-file",
+          "/tmp/launch_params__798hxdb",
+          "--params-file",
+          "/tmp/launch_params_cbgcknba"
+        ],
+        "maps": [
+          "723da9b79000-723daa172000 r-xp 00179000 103:02 4858896                   /opt/ros/jazzy/lib/libfastrtps.so.2.14.5",
+          "723dbce91000-723dbcede000 r-xp 00017000 103:02 4859144                   /opt/ros/jazzy/lib/librmw_fastrtps_shared_cpp.so",
+          "723dd9d79000-723dd9da0000 r-xp 0000e000 103:02 4859218                   /opt/ros/jazzy/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "254189": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/rosenv/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/chase_policy.py",
+          "--ros-args",
+          "-p",
+          "motor_config_file:=/home/rcli/Github/Humanoid_ros2_simulation/install/motor_control_hybrid/share/motor_control_hybrid/config/motors.yaml",
+          "-p",
+          "model_path:=/home/rcli/Github/Humanoid_ros2_simulation/install/motor_control_hybrid/share/motor_control_hybrid/models/20260914_170827/20260914_170827.onnx",
+          "-p",
+          "joint_feedback_mode:=joint_states",
+          "-p",
+          "wait_for_sim_release:=true",
+          "-p",
+          "reference_end_behavior:=loop",
+          "-p",
+          "experiment_max_walk_s:=8.0"
+        ],
+        "maps": [
+          "73c73d979000-73c73df72000 r-xp 00179000 103:02 4858896                   /opt/ros/jazzy/lib/libfastrtps.so.2.14.5",
+          "73c73fb48000-73c73fb95000 r-xp 00017000 103:02 4859144                   /opt/ros/jazzy/lib/librmw_fastrtps_shared_cpp.so",
+          "73c73fbc5000-73c73fbec000 r-xp 0000e000 103:02 4859218                   /opt/ros/jazzy/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "254190": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/rosenv/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/wbc_control_node/lib/wbc_control_node/wbc_control_node",
+          "--ros-args",
+          "--params-file",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/wbc_control_node/share/wbc_control_node/config/wbc.yaml",
+          "--params-file",
+          "/tmp/launch_params_muwksn2g"
+        ],
+        "maps": [
+          "7a78c5f79000-7a78c6572000 r-xp 00179000 103:02 4858896                   /opt/ros/jazzy/lib/libfastrtps.so.2.14.5",
+          "7a78c6948000-7a78c6995000 r-xp 00017000 103:02 4859144                   /opt/ros/jazzy/lib/librmw_fastrtps_shared_cpp.so",
+          "7a78c69c5000-7a78c69ec000 r-xp 0000e000 103:02 4859218                   /opt/ros/jazzy/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "254191": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_ball_chase/lib/humanoid_ball_chase/ball_chase_vision",
+          "--ros-args",
+          "--params-file",
+          "/tmp/launch_params_lovhgxy5"
+        ],
+        "maps": [
+          "7477bc179000-7477bc772000 r-xp 00179000 103:02 4858896                   /opt/ros/jazzy/lib/libfastrtps.so.2.14.5",
+          "7477c0491000-7477c04de000 r-xp 00017000 103:02 4859144                   /opt/ros/jazzy/lib/librmw_fastrtps_shared_cpp.so",
+          "7477c7978000-7477c799f000 r-xp 0000e000 103:02 4859218                   /opt/ros/jazzy/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "254192": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_vision/lib/humanoid_vision/track_node",
+          "--ros-args",
+          "-r",
+          "__node:=pitch_tracker",
+          "--params-file",
+          "/tmp/launch_params_1qyyhf76"
+        ],
+        "maps": [
+          "7dccd8f79000-7dccd9572000 r-xp 00179000 103:02 4858896                   /opt/ros/jazzy/lib/libfastrtps.so.2.14.5",
+          "7dccd98c7000-7dccd9914000 r-xp 00017000 103:02 4859144                   /opt/ros/jazzy/lib/librmw_fastrtps_shared_cpp.so",
+          "7dccd9944000-7dccd996b000 r-xp 0000e000 103:02 4859218                   /opt/ros/jazzy/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "254360": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/motor_control_hybrid/lib/motor_control_hybrid/cpp_control_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "-r",
+          "__node:=cpp_control_node",
+          "--params-file",
+          "/tmp/launch_params_s4c5qngp"
+        ],
+        "maps": [
+          "79ad56179000-79ad56772000 r-xp 00179000 103:02 4858896                   /opt/ros/jazzy/lib/libfastrtps.so.2.14.5",
+          "79ad569c1000-79ad56a0e000 r-xp 00017000 103:02 4859144                   /opt/ros/jazzy/lib/librmw_fastrtps_shared_cpp.so",
+          "79ad56a3e000-79ad56a65000 r-xp 0000e000 103:02 4859218                   /opt/ros/jazzy/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "254361": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_safety/lib/humanoid_safety/safety_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "-r",
+          "__node:=safety_node",
+          "--params-file",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_safety/share/humanoid_safety/config/safety.yaml",
+          "--params-file",
+          "/tmp/launch_params_aeca6qqj"
+        ],
+        "maps": [
+          "75f180779000-75f180d72000 r-xp 00179000 103:02 4858896                   /opt/ros/jazzy/lib/libfastrtps.so.2.14.5",
+          "75f181748000-75f181795000 r-xp 00017000 103:02 4859144                   /opt/ros/jazzy/lib/librmw_fastrtps_shared_cpp.so",
+          "75f1817c5000-75f1817ec000 r-xp 0000e000 103:02 4859218                   /opt/ros/jazzy/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "254362": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_safety/lib/humanoid_safety/motor_web_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "--params-file",
+          "/tmp/launch_params_c9ygyep0"
+        ],
+        "maps": [
+          "754a87f79000-754a88572000 r-xp 00179000 103:02 4858896                   /opt/ros/jazzy/lib/libfastrtps.so.2.14.5",
+          "754a8ea8e000-754a8eadb000 r-xp 00017000 103:02 4859144                   /opt/ros/jazzy/lib/librmw_fastrtps_shared_cpp.so",
+          "754a90ca9000-754a90cd0000 r-xp 0000e000 103:02 4859218                   /opt/ros/jazzy/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "254364": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_vision/lib/humanoid_vision/track_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "--params-file",
+          "/tmp/launch_params_8ihhfx4n"
+        ],
+        "maps": [
+          "74be38f79000-74be39572000 r-xp 00179000 103:02 4858896                   /opt/ros/jazzy/lib/libfastrtps.so.2.14.5",
+          "74be39951000-74be3999e000 r-xp 00017000 103:02 4859144                   /opt/ros/jazzy/lib/librmw_fastrtps_shared_cpp.so",
+          "74be399ce000-74be399f5000 r-xp 0000e000 103:02 4859218                   /opt/ros/jazzy/lib/librmw_fastrtps_cpp.so"
+        ]
+      }
+    }
+  },
+  {
+    "name": "dds-fix-final-inject",
+    "observer": {
+      "samples": 2848,
+      "max_receipt_gap_s": 0.34037724399968283,
+      "max_source_age_s": 0.2332601547241211
+    },
+    "last_imu_t": 31.9974915970015,
+    "imu": {
+      "simulated": true,
+      "sensor": "mujoco",
+      "frame_id": "imu_link",
+      "published": 2786,
+      "subscribers": 3,
+      "last_publish_age_s": 0.008404946001974167,
+      "max_publish_gap_s": 0.02936459000193281,
+      "max_sample_wait_s": 0.013500887002010131,
+      "max_callback_gap_s": 0.02799781800058554,
+      "max_publish_call_s": 0.003973636998125585,
+      "max_status_publish_s": 0.00015955300114001147,
+      "max_gc_pause_s": 0.0006419249984901398,
+      "publish_failures": {
+        "/imu/data_raw": {
+          "count": 1,
+          "error": "Failed to publish: held-simulation injected DDS publication failure, at /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/publish_probe/publish_failure.cpp:38"
+        }
+      },
+      "control_fault": null,
+      "clock_synced": true
+    },
+    "can_timing": {
+      "rx_frames": 53680,
+      "commands_received": 5182,
+      "commands_rejected": 0,
+      "max_feedback_callback_s": 0.010832235999259865,
+      "simulated": true,
+      "transport_fault": false,
+      "pending_commands": 0,
+      "physics_overruns": 276,
+      "publish_failures": {
+        "/joint_states": {
+          "count": 1,
+          "error": "Failed to publish: held-simulation injected DDS publication failure, at /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/publish_probe/publish_failure.cpp:38"
+        }
+      },
+      "interfaces": {
+        "can1": {
+          "tx_submitted": 0,
+          "tx_errors": 0
+        }
+      }
+    },
+    "safety": [
+      {
+        "name": "humanoid_safety/supervisor",
+        "message": "imu_freshness: IMU age=0.253s limit=0.250s",
+        "values": {
+          "imu_received": "2734",
+          "imu_rejected_source": "16",
+          "imu_rejected_orientation": "0",
+          "latched": "True",
+          "reason": "imu_freshness: IMU age=0.253s limit=0.250s",
+          "estop_publish_failures": "1"
+        }
+      },
+      {
+        "name": "humanoid_safety/fall_detection",
+        "message": "roll=+0.1deg pitch=-0.0deg count=0/3",
+        "values": {
+          "active": "False",
+          "healthy": "True",
+          "clearable": "True"
+        }
+      },
+      {
+        "name": "humanoid_safety/imu_freshness",
+        "message": "IMU age=0.013s limit=0.250s",
+        "values": {
+          "active": "False",
+          "healthy": "True",
+          "clearable": "True"
+        }
+      },
+      {
+        "name": "humanoid_safety/imu_stuck",
+        "message": "identical samples=1/50",
+        "values": {
+          "active": "False",
+          "healthy": "True",
+          "clearable": "True"
+        }
+      }
+    ],
+    "policy": {
+      "state": "calibrating",
+      "fault": "estop",
+      "requested_hz": 50.0,
+      "expiry_diagnostic": null,
+      "max_input_skew_s": 0.02,
+      "max_inference_s": 0.02,
+      "iterations": 0,
+      "reference_frame": 0,
+      "reference_finished": false,
+      "reference_cycles": 0,
+      "waiting_for_sim_release": true,
+      "hold_first_frame": false,
+      "reference_end_behavior": "loop",
+      "joint_feedback": "joint_states",
+      "hardware_output": false,
+      "imu_age_since_receipt_ms": null,
+      "gyro_bias_rad_s": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "model_sha256": "90fc691abbf43b89a55956493da6ab19c59105f9167f29f8f93fc317b68c9309",
+      "rejected_imu_timestamps": 0,
+      "inference_ms": null,
+      "control_callback_ms": null,
+      "tick_interval_ms": null,
+      "callback_overruns_20ms": 0
+    },
+    "wbc": {
+      "state": "waiting_for_inputs",
+      "fault": "",
+      "solved_count": 0,
+      "compute_ms": 0.0,
+      "solve_ms": 0.0,
+      "contacts": [],
+      "joint_names": [
+        "left_hip1_joint",
+        "left_hip2_joint",
+        "left_thigh_joint",
+        "left_knee_joint",
+        "left_ankle_joint",
+        "right_hip1_joint",
+        "right_hip2_joint",
+        "right_thigh_joint",
+        "right_knee_joint",
+        "right_ankle_joint"
+      ],
+      "torques": [],
+      "nominal_torques": [],
+      "tracking_mode": "policy_impedance",
+      "base_held": true
+    },
+    "sim": {
+      "sim_time_s": 29.42999999999843,
+      "real_time_factor": 0.995,
+      "physics_overruns": 277,
+      "base_held": true,
+      "control_fault": null,
+      "physics_paused": false,
+      "max_odom_callback_s": 0.02811723400009214,
+      "max_status_callback_s": 0.0015951089990267064,
+      "publish_failures": {},
+      "estop_active": true
+    },
+    "cpp": {
+      "stage": 7,
+      "message": "Command publication fault latched; restart required; physical state unverified: failed to publish message: held-simulation injected DDS publication failure, at /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/publish_probe/publish_failure.cpp:38; failures=1; latest_disable_delivered_to_dds=true"
+    },
+    "motor_commands": {
+      "samples": 5598,
+      "mode_counts": {
+        "4": 5598
+      },
+      "transitions": [
+        {
+          "t": 3.6504137219999393,
+          "modes": [
+            4
+          ]
+        }
+      ],
+      "last_non_disable_t": null
+    },
+    "injections": [
+      "[python3-5] [dds-fault-injection] ERROR topic=/head/tilt_target_rad count=10 pid=253278",
+      "[python3-1] [dds-fault-injection] ERROR topic=/joint_states count=100 pid=253274",
+      "[python3-6] [dds-fault-injection] ERROR topic=/motor_commands count=100 pid=253442",
+      "[python3-7] [dds-fault-injection] ERROR topic=/safety/estop count=1 pid=253443",
+      "[python3-1] [dds-fault-injection] ERROR topic=/imu/data_raw count=100 pid=253274",
+      "[python3-9] [dds-fault-injection] ERROR topic=/head/servo_target_rad count=10 pid=253445",
+      "[python3-4] [dds-fault-injection] ERROR topic=/ball_chase/cmd_vel count=100 pid=253277"
+    ],
+    "process_deaths": [],
+    "faults": [
+      "[python3-5] [ERROR] [1793514642.532178107] [pitch_tracker]: Head command publication fault LATCHED; stopping output so MCU watchdog releases servo; restart required; physical state unverified: failed to publish message: held-simulation injected DDS publication failure, at /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/publish_probe/publish_failure.cpp:38",
+      "[python3-6] [ERROR] [1793514643.529794611] [cpp_control_node]: Command publication fault LATCHED; rejecting motion, retrying DISABLE; physical state unverified; backend watchdog still required: failed to publish message: held-simulation injected DDS publication failure, at /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/publish_probe/publish_failure.cpp:38",
+      "[python3-7] [FATAL] [1793514644.431238989] [safety_node]: SAFETY ESTOP LATCHED: imu_freshness: IMU age=0.253s limit=0.250s",
+      "[python3-9] [ERROR] [1793514645.060119343] [track_node]: Head command publication fault LATCHED; stopping output so MCU watchdog releases servo; restart required; physical state unverified: failed to publish message: held-simulation injected DDS publication failure, at /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/publish_probe/publish_failure.cpp:38"
+    ],
+    "library_maps": {
+      "253229": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/opt/ros/jazzy/bin/ros2",
+          "launch",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/chase.launch.py",
+          "start_chase:=false",
+          "use_viewer:=true",
+          "ros_domain_id:=221",
+          "web_port:=8221",
+          "localhost_only:=0"
+        ],
+        "maps": [
+          "79e811df2000-79e8125e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "79e8129e0000-79e812a39000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "79e812a6e000-79e812aa3000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "253254": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/rosenv/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/wbc_payload.py"
+        ],
+        "maps": [
+          "784a8d1f2000-784a8d9e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "784a8de5b000-784a8deb4000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "784a8dee9000-784a8df1e000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "253274": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_sim/lib/humanoid_sim/mujoco_sim",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "--params-file",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/chase_scene.yaml",
+          "--params-file",
+          "/tmp/launch_params_uo1gl_50",
+          "--params-file",
+          "/tmp/launch_params_l22x8dhl"
+        ],
+        "maps": [
+          "7579fb5f2000-7579fbde6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "757a00400000-757a00459000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "757a0048e000-757a004c3000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "253275": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/rosenv/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/chase_policy.py",
+          "--ros-args",
+          "-p",
+          "motor_config_file:=/home/rcli/Github/Humanoid_ros2_simulation/install/motor_control_hybrid/share/motor_control_hybrid/config/motors.yaml",
+          "-p",
+          "model_path:=/home/rcli/Github/Humanoid_ros2_simulation/install/motor_control_hybrid/share/motor_control_hybrid/models/20260914_170827/20260914_170827.onnx",
+          "-p",
+          "joint_feedback_mode:=joint_states",
+          "-p",
+          "wait_for_sim_release:=true",
+          "-p",
+          "reference_end_behavior:=loop",
+          "-p",
+          "experiment_max_walk_s:=8.0"
+        ],
+        "maps": [
+          "7312153f2000-731215be6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "731215ed1000-731215f2a000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "731215f5f000-731215f94000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "253276": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/rosenv/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/wbc_control_node/lib/wbc_control_node/wbc_control_node",
+          "--ros-args",
+          "--params-file",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/wbc_control_node/share/wbc_control_node/config/wbc.yaml",
+          "--params-file",
+          "/tmp/launch_params_7l41rdr9"
+        ],
+        "maps": [
+          "7bc749bf2000-7bc74a3e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7bc74a6a6000-7bc74a6ff000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7bc74a734000-7bc74a769000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "253277": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_ball_chase/lib/humanoid_ball_chase/ball_chase_vision",
+          "--ros-args",
+          "--params-file",
+          "/tmp/launch_params_e1cozslp"
+        ],
+        "maps": [
+          "79babedf2000-79babf5e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "79babf9f2000-79babfa4b000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "79babfa80000-79babfab5000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "253278": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_vision/lib/humanoid_vision/track_node",
+          "--ros-args",
+          "-r",
+          "__node:=pitch_tracker",
+          "--params-file",
+          "/tmp/launch_params_isrys1vs"
+        ],
+        "maps": [
+          "7971bf5f2000-7971bfde6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7971c4805000-7971c485e000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7971c4893000-7971c48c8000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "253386": {
+        "cmd": [
+          "/usr/bin/python3",
+          "-c",
+          "from multiprocessing.resource_tracker import main;main(43)"
+        ],
+        "maps": [
+          "7260935f2000-726093de6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7260982c7000-726098320000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "726098355000-72609838a000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "253401": {
+        "cmd": [
+          "/usr/bin/python3",
+          "-c",
+          "from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=44, pipe_handle=49)",
+          "--multiprocessing-fork"
+        ],
+        "maps": [
+          "7173df5f2000-7173dfde6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7173e47b2000-7173e480b000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7173e4840000-7173e4875000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "253442": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/motor_control_hybrid/lib/motor_control_hybrid/cpp_control_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "-r",
+          "__node:=cpp_control_node",
+          "--params-file",
+          "/tmp/launch_params_0fwbyb4h"
+        ],
+        "maps": [
+          "7e62a35f2000-7e62a3de6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7e62a8665000-7e62a86be000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7e62a86f3000-7e62a8728000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "253443": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_safety/lib/humanoid_safety/safety_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "-r",
+          "__node:=safety_node",
+          "--params-file",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_safety/share/humanoid_safety/config/safety.yaml",
+          "--params-file",
+          "/tmp/launch_params_c1mqki6q"
+        ],
+        "maps": [
+          "7f72bddf2000-7f72be5e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7f72be87f000-7f72be8d8000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7f72be90d000-7f72be942000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "253444": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_safety/lib/humanoid_safety/motor_web_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "--params-file",
+          "/tmp/launch_params_blvd8u2f"
+        ],
+        "maps": [
+          "769e7dff2000-769e7e7e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "769e7eb9a000-769e7ebf3000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "769e7ec28000-769e7ec5d000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "253445": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_vision/lib/humanoid_vision/track_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "--params-file",
+          "/tmp/launch_params_3le07ms3"
+        ],
+        "maps": [
+          "7d97a6bf2000-7d97a73e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7d97a77ba000-7d97a7813000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7d97a7848000-7d97a787d000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      }
+    }
+  },
+  {
+    "name": "dds-fix-final-natural",
+    "observer": {
+      "samples": 2848,
+      "max_receipt_gap_s": 0.340726247002749,
+      "max_source_age_s": 0.2846412658691406
+    },
+    "last_imu_t": 32.00454731100035,
+    "imu": {
+      "simulated": true,
+      "sensor": "mujoco",
+      "frame_id": "imu_link",
+      "published": 2779,
+      "subscribers": 3,
+      "last_publish_age_s": 0.0017197510023834184,
+      "max_publish_gap_s": 0.23094054100147332,
+      "max_sample_wait_s": 0.00757483699999284,
+      "max_callback_gap_s": 0.10730946200055769,
+      "max_publish_call_s": 0.011214510999707272,
+      "max_status_publish_s": 0.00021854499937035143,
+      "max_gc_pause_s": 0.000633872998150764,
+      "publish_failures": {
+        "/imu/data_raw": {
+          "count": 5,
+          "error": "Failed to publish: cannot publish data, at /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/rmw_fastrtps-8.4.3/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp:66, at ./src/rcl/publisher.c:284"
+        }
+      },
+      "control_fault": null,
+      "clock_synced": true
+    },
+    "can_timing": {
+      "rx_frames": 54750,
+      "commands_received": 5194,
+      "commands_rejected": 0,
+      "max_feedback_callback_s": 0.011985930999799166,
+      "simulated": true,
+      "transport_fault": false,
+      "pending_commands": 0,
+      "physics_overruns": 202,
+      "publish_failures": {
+        "/joint_states": {
+          "count": 10,
+          "error": "Failed to publish: cannot publish data, at /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/rmw_fastrtps-8.4.3/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp:66, at ./src/rcl/publisher.c:284"
+        }
+      },
+      "interfaces": {
+        "can1": {
+          "tx_submitted": 0,
+          "tx_errors": 0
+        }
+      }
+    },
+    "safety": [
+      {
+        "name": "humanoid_safety/supervisor",
+        "message": "imu_freshness: IMU age=0.255s limit=0.250s",
+        "values": {
+          "imu_received": "2702",
+          "imu_rejected_source": "7",
+          "imu_rejected_orientation": "0",
+          "latched": "True",
+          "reason": "imu_freshness: IMU age=0.255s limit=0.250s",
+          "estop_publish_failures": "0"
+        }
+      },
+      {
+        "name": "humanoid_safety/fall_detection",
+        "message": "roll=+0.1deg pitch=-0.0deg count=0/3",
+        "values": {
+          "active": "False",
+          "healthy": "True",
+          "clearable": "True"
+        }
+      },
+      {
+        "name": "humanoid_safety/imu_freshness",
+        "message": "IMU age=0.006s limit=0.250s",
+        "values": {
+          "active": "False",
+          "healthy": "True",
+          "clearable": "True"
+        }
+      },
+      {
+        "name": "humanoid_safety/imu_stuck",
+        "message": "identical samples=1/50",
+        "values": {
+          "active": "False",
+          "healthy": "True",
+          "clearable": "True"
+        }
+      }
+    ],
+    "policy": {
+      "state": "calibrating",
+      "fault": "estop",
+      "requested_hz": 50.0,
+      "expiry_diagnostic": null,
+      "max_input_skew_s": 0.02,
+      "max_inference_s": 0.02,
+      "iterations": 0,
+      "reference_frame": 0,
+      "reference_finished": false,
+      "reference_cycles": 0,
+      "waiting_for_sim_release": true,
+      "hold_first_frame": false,
+      "reference_end_behavior": "loop",
+      "joint_feedback": "joint_states",
+      "hardware_output": false,
+      "imu_age_since_receipt_ms": null,
+      "gyro_bias_rad_s": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "model_sha256": "90fc691abbf43b89a55956493da6ab19c59105f9167f29f8f93fc317b68c9309",
+      "rejected_imu_timestamps": 0,
+      "inference_ms": null,
+      "control_callback_ms": null,
+      "tick_interval_ms": null,
+      "callback_overruns_20ms": 0
+    },
+    "wbc": {
+      "state": "waiting_for_inputs",
+      "fault": "",
+      "solved_count": 0,
+      "compute_ms": 0.0,
+      "solve_ms": 0.0,
+      "contacts": [],
+      "joint_names": [
+        "left_hip1_joint",
+        "left_hip2_joint",
+        "left_thigh_joint",
+        "left_knee_joint",
+        "left_ankle_joint",
+        "right_hip1_joint",
+        "right_hip2_joint",
+        "right_thigh_joint",
+        "right_knee_joint",
+        "right_ankle_joint"
+      ],
+      "torques": [],
+      "nominal_torques": [],
+      "tracking_mode": "policy_impedance",
+      "base_held": true
+    },
+    "sim": {
+      "sim_time_s": 28.759999999998563,
+      "real_time_factor": 0.935,
+      "physics_overruns": 201,
+      "base_held": true,
+      "control_fault": null,
+      "physics_paused": false,
+      "max_odom_callback_s": 0.10635171100148,
+      "max_status_callback_s": 0.0010921770008280873,
+      "publish_failures": {
+        "/sim/ground_truth/feet": {
+          "count": 1,
+          "error": "Failed to publish: cannot publish data, at /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/rmw_fastrtps-8.4.3/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp:66, at ./src/rcl/publisher.c:284"
+        }
+      },
+      "estop_active": true
+    },
+    "cpp": {
+      "stage": 0,
+      "message": ""
+    },
+    "motor_commands": {
+      "samples": 5607,
+      "mode_counts": {
+        "4": 5607
+      },
+      "transitions": [
+        {
+          "t": 3.6475871479997295,
+          "modes": [
+            4
+          ]
+        }
+      ],
+      "last_non_disable_t": null
+    },
+    "injections": [],
+    "process_deaths": [],
+    "faults": [
+      "[python3-7] [FATAL] [1793514610.517388013] [safety_node]: SAFETY ESTOP LATCHED: imu_freshness: IMU age=0.255s limit=0.250s"
+    ],
+    "library_maps": {
+      "252496": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/opt/ros/jazzy/bin/ros2",
+          "launch",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/chase.launch.py",
+          "start_chase:=false",
+          "use_viewer:=true",
+          "ros_domain_id:=221",
+          "web_port:=8221",
+          "localhost_only:=0"
+        ],
+        "maps": [
+          "7d50af3f2000-7d50afbe6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7d50b0031000-7d50b008a000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7d50b00bf000-7d50b00f4000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "252521": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/rosenv/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/wbc_payload.py"
+        ],
+        "maps": [
+          "75c8a1df2000-75c8a25e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "75c8a2a15000-75c8a2a6e000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "75c8a2aa3000-75c8a2ad8000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "252570": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_sim/lib/humanoid_sim/mujoco_sim",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "--params-file",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/chase_scene.yaml",
+          "--params-file",
+          "/tmp/launch_params_wcdmo13d",
+          "--params-file",
+          "/tmp/launch_params_qnlcst1a"
+        ],
+        "maps": [
+          "734f1b5f2000-734f1bde6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "734f206ec000-734f20745000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "734f2077a000-734f207af000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "252571": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/rosenv/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/chase_policy.py",
+          "--ros-args",
+          "-p",
+          "motor_config_file:=/home/rcli/Github/Humanoid_ros2_simulation/install/motor_control_hybrid/share/motor_control_hybrid/config/motors.yaml",
+          "-p",
+          "model_path:=/home/rcli/Github/Humanoid_ros2_simulation/install/motor_control_hybrid/share/motor_control_hybrid/models/20260914_170827/20260914_170827.onnx",
+          "-p",
+          "joint_feedback_mode:=joint_states",
+          "-p",
+          "wait_for_sim_release:=true",
+          "-p",
+          "reference_end_behavior:=loop",
+          "-p",
+          "experiment_max_walk_s:=8.0"
+        ],
+        "maps": [
+          "74751f5f2000-74751fde6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "747524be6000-747524c3f000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "747524c74000-747524ca9000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "252572": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/rosenv/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/wbc_control_node/lib/wbc_control_node/wbc_control_node",
+          "--ros-args",
+          "--params-file",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/wbc_control_node/share/wbc_control_node/config/wbc.yaml",
+          "--params-file",
+          "/tmp/launch_params_jmxm55_4"
+        ],
+        "maps": [
+          "773b551f2000-773b559e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "773b55e65000-773b55ebe000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "773b55ef3000-773b55f28000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "252573": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_ball_chase/lib/humanoid_ball_chase/ball_chase_vision",
+          "--ros-args",
+          "--params-file",
+          "/tmp/launch_params_9g2zpa__"
+        ],
+        "maps": [
+          "7a02d5bf2000-7a02d63e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7a02d6867000-7a02d68c0000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7a02d68f5000-7a02d692a000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "252574": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_vision/lib/humanoid_vision/track_node",
+          "--ros-args",
+          "-r",
+          "__node:=pitch_tracker",
+          "--params-file",
+          "/tmp/launch_params_aialvt88"
+        ],
+        "maps": [
+          "76c90a7f2000-76c90afe6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "76c90b3a9000-76c90b402000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "76c90b437000-76c90b46c000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "252791": {
+        "cmd": [
+          "/usr/bin/python3",
+          "-c",
+          "from multiprocessing.resource_tracker import main;main(45)"
+        ],
+        "maps": [
+          "762999df2000-76299a5e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "76299aa08000-76299aa61000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "76299aa96000-76299aacb000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "252798": {
+        "cmd": [
+          "/usr/bin/python3",
+          "-c",
+          "from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=46, pipe_handle=51)",
+          "--multiprocessing-fork"
+        ],
+        "maps": [
+          "70fcf17f2000-70fcf1fe6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "70fcf2294000-70fcf22ed000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "70fcf2322000-70fcf2357000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "252834": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/motor_control_hybrid/lib/motor_control_hybrid/cpp_control_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "-r",
+          "__node:=cpp_control_node",
+          "--params-file",
+          "/tmp/launch_params_fql8ol2h"
+        ],
+        "maps": [
+          "7a9f669f2000-7a9f671e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7a9f67548000-7a9f675a1000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7a9f675d6000-7a9f6760b000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "252835": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_safety/lib/humanoid_safety/safety_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "-r",
+          "__node:=safety_node",
+          "--params-file",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_safety/share/humanoid_safety/config/safety.yaml",
+          "--params-file",
+          "/tmp/launch_params_x1ospk2h"
+        ],
+        "maps": [
+          "781f15ff2000-781f167e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "781f16b57000-781f16bb0000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "781f16be5000-781f16c1a000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "252836": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_safety/lib/humanoid_safety/motor_web_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "--params-file",
+          "/tmp/launch_params__3e1_9i8"
+        ],
+        "maps": [
+          "7b51ec3f2000-7b51ecbe6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7b51ed004000-7b51ed05d000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7b51ed092000-7b51ed0c7000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "252837": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_vision/lib/humanoid_vision/track_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "--params-file",
+          "/tmp/launch_params_351pa5mh"
+        ],
+        "maps": [
+          "73833edf2000-73833f5e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "73833fa6a000-73833fac3000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "73833faf8000-73833fb2d000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      }
+    }
+  },
+  {
+    "name": "dds-fix-final-strict-clean",
+    "observer": {
+      "samples": 2903,
+      "max_receipt_gap_s": 0.024402160997851752,
+      "max_source_age_s": 0.016721248626708984
+    },
+    "last_imu_t": 31.998453347998293,
+    "imu": {
+      "simulated": true,
+      "sensor": "mujoco",
+      "frame_id": "imu_link",
+      "published": 2804,
+      "subscribers": 3,
+      "last_publish_age_s": 0.007927192000352079,
+      "max_publish_gap_s": 0.024583696998888627,
+      "max_sample_wait_s": 0.011756111998693086,
+      "max_callback_gap_s": 0.018637354998645606,
+      "max_publish_call_s": 0.003913306998583721,
+      "max_status_publish_s": 0.0002737770009844098,
+      "max_gc_pause_s": 0.0006378629987011664,
+      "publish_failures": {},
+      "control_fault": null,
+      "clock_synced": true
+    },
+    "can_timing": {
+      "rx_frames": 57700,
+      "commands_received": 69,
+      "commands_rejected": 0,
+      "max_feedback_callback_s": 0.004416371997649549,
+      "simulated": true,
+      "transport_fault": false,
+      "pending_commands": 0,
+      "physics_overruns": 66,
+      "publish_failures": {},
+      "interfaces": {
+        "can1": {
+          "tx_submitted": 0,
+          "tx_errors": 0
+        }
+      }
+    },
+    "safety": [
+      {
+        "name": "humanoid_safety/supervisor",
+        "message": "all safety checks clear",
+        "values": {
+          "imu_received": "2813",
+          "imu_rejected_source": "1",
+          "imu_rejected_orientation": "0",
+          "latched": "False",
+          "reason": "",
+          "estop_publish_failures": "0"
+        }
+      },
+      {
+        "name": "humanoid_safety/fall_detection",
+        "message": "roll=+0.1deg pitch=-0.0deg count=0/3",
+        "values": {
+          "active": "False",
+          "healthy": "True",
+          "clearable": "True"
+        }
+      },
+      {
+        "name": "humanoid_safety/imu_freshness",
+        "message": "IMU age=0.009s limit=0.250s",
+        "values": {
+          "active": "False",
+          "healthy": "True",
+          "clearable": "True"
+        }
+      },
+      {
+        "name": "humanoid_safety/imu_stuck",
+        "message": "identical samples=1/50",
+        "values": {
+          "active": "False",
+          "healthy": "True",
+          "clearable": "True"
+        }
+      }
+    ],
+    "policy": {
+      "state": "running",
+      "fault": "Experimental chase stopped: stale_chase_command",
+      "requested_hz": 50.0,
+      "expiry_diagnostic": null,
+      "max_input_skew_s": 0.02,
+      "max_inference_s": 0.02,
+      "iterations": 17,
+      "reference_frame": 0,
+      "reference_finished": false,
+      "reference_cycles": 0,
+      "waiting_for_sim_release": true,
+      "hold_first_frame": false,
+      "reference_end_behavior": "loop",
+      "joint_feedback": "joint_states",
+      "hardware_output": false,
+      "imu_age_since_receipt_ms": 26204.394933000003,
+      "gyro_bias_rad_s": [
+        -8.03644956733016e-07,
+        1.9438614619135052e-08,
+        5.1490002916132865e-09
+      ],
+      "model_sha256": "90fc691abbf43b89a55956493da6ab19c59105f9167f29f8f93fc317b68c9309",
+      "rejected_imu_timestamps": 0,
+      "inference_ms": {
+        "mean": 0.36115800021969546,
+        "p99": 1.1327137607440818,
+        "max": 1.149116000306094
+      },
+      "control_callback_ms": {
+        "mean": 0.7270794710219728,
+        "p99": 1.5525282018643338,
+        "max": 1.5785890027473215
+      },
+      "tick_interval_ms": {
+        "mean": 19.974478562517106,
+        "p99": 21.591036700556288,
+        "max": 21.666583001206163
+      },
+      "callback_overruns_20ms": 0
+    },
+    "wbc": {
+      "state": "waiting_for_aligned_inputs",
+      "fault": "",
+      "solved_count": 36,
+      "compute_ms": 1.6548970015719533,
+      "solve_ms": 0.27949499781243503,
+      "contacts": [
+        "left_foot_contact",
+        "right_foot_contact"
+      ],
+      "joint_names": [
+        "left_hip1_joint",
+        "left_hip2_joint",
+        "left_thigh_joint",
+        "left_knee_joint",
+        "left_ankle_joint",
+        "right_hip1_joint",
+        "right_hip2_joint",
+        "right_thigh_joint",
+        "right_knee_joint",
+        "right_ankle_joint"
+      ],
+      "torques": [
+        1.705501943366729,
+        -2.881544994207963,
+        7.784001204865021,
+        0.7538881724290667,
+        -4.896033011663396,
+        -14.113200618233138,
+        14.260303546980671,
+        -7.4094498318642685,
+        2.378689935643326,
+        0.1761026704132929
+      ],
+      "nominal_torques": [
+        1.6855019433667515,
+        -2.87289946406446,
+        7.804001204865018,
+        0.7603782022036654,
+        -4.8951539450520505,
+        -14.133200618233117,
+        14.266237196314483,
+        -7.429449831864268,
+        2.3664509824481637,
+        0.18316009873595193
+      ],
+      "tracking_mode": "policy_impedance",
+      "base_held": true
+    },
+    "sim": {
+      "sim_time_s": 30.619999999998193,
+      "real_time_factor": 0.979,
+      "physics_overruns": 66,
+      "base_held": true,
+      "control_fault": null,
+      "physics_paused": false,
+      "max_odom_callback_s": 0.01192905399875599,
+      "max_status_callback_s": 0.00013605799904325977,
+      "publish_failures": {},
+      "estop_active": false
+    },
+    "cpp": {
+      "stage": 0,
+      "message": ""
+    },
+    "motor_commands": {
+      "samples": 355,
+      "mode_counts": {
+        "4": 290,
+        "2": 65
+      },
+      "transitions": [
+        {
+          "t": 3.651521176998358,
+          "modes": [
+            4
+          ]
+        },
+        {
+          "t": 5.09992611800044,
+          "modes": [
+            2
+          ]
+        },
+        {
+          "t": 5.424582513998757,
+          "modes": [
+            4
+          ]
+        }
+      ],
+      "last_non_disable_t": 5.419429595000111
+    },
+    "injections": [],
+    "process_deaths": [],
+    "faults": [],
+    "library_maps": {
+      "254729": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/opt/ros/jazzy/bin/ros2",
+          "launch",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/chase.launch.py",
+          "start_chase:=false",
+          "use_viewer:=true",
+          "ros_domain_id:=221",
+          "web_port:=8221",
+          "localhost_only:=0"
+        ],
+        "maps": [
+          "7825ef5f2000-7825efde6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7825f4cfc000-7825f4d55000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7825f4d8a000-7825f4dbf000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "254754": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/rosenv/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/wbc_payload.py"
+        ],
+        "maps": [
+          "7d604a3f2000-7d604abe6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7d604af26000-7d604af7f000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7d604afb4000-7d604afe9000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "254773": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_sim/lib/humanoid_sim/mujoco_sim",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "--params-file",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/chase_scene.yaml",
+          "--params-file",
+          "/tmp/launch_params_mauduana",
+          "--params-file",
+          "/tmp/launch_params_eat_w5vg"
+        ],
+        "maps": [
+          "701ef0bf2000-701ef13e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "701ef1726000-701ef177f000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "701ef17b4000-701ef17e9000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "254774": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/rosenv/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/chase_policy.py",
+          "--ros-args",
+          "-p",
+          "motor_config_file:=/home/rcli/Github/Humanoid_ros2_simulation/install/motor_control_hybrid/share/motor_control_hybrid/config/motors.yaml",
+          "-p",
+          "model_path:=/home/rcli/Github/Humanoid_ros2_simulation/install/motor_control_hybrid/share/motor_control_hybrid/models/20260914_170827/20260914_170827.onnx",
+          "-p",
+          "joint_feedback_mode:=joint_states",
+          "-p",
+          "wait_for_sim_release:=true",
+          "-p",
+          "reference_end_behavior:=loop",
+          "-p",
+          "experiment_max_walk_s:=8.0"
+        ],
+        "maps": [
+          "7994203f2000-799420be6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "799420f24000-799420f7d000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "799420fb2000-799420fe7000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "254775": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/rosenv/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/wbc_control_node/lib/wbc_control_node/wbc_control_node",
+          "--ros-args",
+          "--params-file",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/wbc_control_node/share/wbc_control_node/config/wbc.yaml",
+          "--params-file",
+          "/tmp/launch_params_y21v8vii"
+        ],
+        "maps": [
+          "734adb3f2000-734adbbe6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "734adbf26000-734adbf7f000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "734adbfb4000-734adbfe9000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "254776": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_ball_chase/lib/humanoid_ball_chase/ball_chase_vision",
+          "--ros-args",
+          "--params-file",
+          "/tmp/launch_params_3t1m3yqo"
+        ],
+        "maps": [
+          "7302443f2000-730244be6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "730244eb1000-730244f0a000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "730244f3f000-730244f74000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "254777": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_vision/lib/humanoid_vision/track_node",
+          "--ros-args",
+          "-r",
+          "__node:=pitch_tracker",
+          "--params-file",
+          "/tmp/launch_params_zyph4yep"
+        ],
+        "maps": [
+          "7a732dff2000-7a732e7e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7a732eb89000-7a732ebe2000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7a732ec17000-7a732ec4c000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "254905": {
+        "cmd": [
+          "/usr/bin/python3",
+          "-c",
+          "from multiprocessing.resource_tracker import main;main(45)"
+        ],
+        "maps": [
+          "7b44261f2000-7b44269e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7b4426d6f000-7b4426dc8000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7b4426dfd000-7b4426e32000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "254910": {
+        "cmd": [
+          "/usr/bin/python3",
+          "-c",
+          "from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=46, pipe_handle=51)",
+          "--multiprocessing-fork"
+        ],
+        "maps": [
+          "7bef5e7f2000-7bef5efe6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7bef5f3db000-7bef5f434000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7bef5f469000-7bef5f49e000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "254948": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/motor_control_hybrid/lib/motor_control_hybrid/cpp_control_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "-r",
+          "__node:=cpp_control_node",
+          "--params-file",
+          "/tmp/launch_params_j01w6lfa"
+        ],
+        "maps": [
+          "7eb5a91f2000-7eb5a99e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7eb5a9de4000-7eb5a9e3d000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7eb5a9e72000-7eb5a9ea7000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "254949": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_safety/lib/humanoid_safety/safety_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "-r",
+          "__node:=safety_node",
+          "--params-file",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_safety/share/humanoid_safety/config/safety.yaml",
+          "--params-file",
+          "/tmp/launch_params_hzqmxyn7"
+        ],
+        "maps": [
+          "7415f9bf2000-7415fa3e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7415fa6ae000-7415fa707000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7415fa73c000-7415fa771000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "254950": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_safety/lib/humanoid_safety/motor_web_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "--params-file",
+          "/tmp/launch_params_zlkz8qua"
+        ],
+        "maps": [
+          "74853e5f2000-74853ede6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "74853f1fc000-74853f255000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "74853f28a000-74853f2bf000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "254951": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_vision/lib/humanoid_vision/track_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "--params-file",
+          "/tmp/launch_params_2fhmjpne"
+        ],
+        "maps": [
+          "7592817f2000-759281fe6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "75928239f000-7592823f8000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "75928242d000-759282462000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      }
+    }
+  },
+  {
+    "name": "dds-fix-inject-commands",
+    "observer": {
+      "samples": 2816,
+      "max_receipt_gap_s": 0.03489531299783266,
+      "max_source_age_s": 0.03450441360473633
+    },
+    "last_imu_t": 32.00028658000156,
+    "imu": {
+      "simulated": true,
+      "sensor": "mujoco",
+      "frame_id": "imu_link",
+      "published": 2765,
+      "subscribers": 3,
+      "last_publish_age_s": 0.008644613000797108,
+      "max_publish_gap_s": 0.03453722300037043,
+      "max_sample_wait_s": 0.02838097300264053,
+      "max_callback_gap_s": 0.03595794499779004,
+      "max_publish_call_s": 0.0039496160025009885,
+      "max_status_publish_s": 0.0002560460015956778,
+      "max_gc_pause_s": 0.0006826310018368531,
+      "publish_failures": {},
+      "control_fault": null,
+      "clock_synced": true
+    },
+    "can_timing": {
+      "rx_frames": 53500,
+      "commands_received": 5421,
+      "commands_rejected": 0,
+      "max_feedback_callback_s": 0.01745761200072593,
+      "simulated": true,
+      "transport_fault": false,
+      "pending_commands": 0,
+      "physics_overruns": 303,
+      "publish_failures": {},
+      "interfaces": {
+        "can1": {
+          "tx_submitted": 0,
+          "tx_errors": 0
+        }
+      }
+    },
+    "safety": [
+      {
+        "name": "humanoid_safety/supervisor",
+        "message": "all safety checks clear",
+        "values": {
+          "imu_received": "2661",
+          "imu_rejected_source": "12",
+          "imu_rejected_orientation": "0",
+          "latched": "False",
+          "reason": "",
+          "estop_publish_failures": "0"
+        }
+      },
+      {
+        "name": "humanoid_safety/fall_detection",
+        "message": "roll=+0.1deg pitch=-0.0deg count=0/3",
+        "values": {
+          "active": "False",
+          "healthy": "True",
+          "clearable": "True"
+        }
+      },
+      {
+        "name": "humanoid_safety/imu_freshness",
+        "message": "IMU age=0.012s limit=0.250s",
+        "values": {
+          "active": "False",
+          "healthy": "True",
+          "clearable": "True"
+        }
+      },
+      {
+        "name": "humanoid_safety/imu_stuck",
+        "message": "identical samples=1/50",
+        "values": {
+          "active": "False",
+          "healthy": "True",
+          "clearable": "True"
+        }
+      }
+    ],
+    "policy": {
+      "state": "calibrating",
+      "fault": null,
+      "requested_hz": 50.0,
+      "expiry_diagnostic": null,
+      "max_input_skew_s": 0.02,
+      "max_inference_s": 0.02,
+      "iterations": 0,
+      "reference_frame": 0,
+      "reference_finished": false,
+      "reference_cycles": 0,
+      "waiting_for_sim_release": true,
+      "hold_first_frame": false,
+      "reference_end_behavior": "loop",
+      "joint_feedback": "joint_states",
+      "hardware_output": false,
+      "imu_age_since_receipt_ms": 1.8404229995212518,
+      "gyro_bias_rad_s": [
+        -5.677475576223508e-06,
+        3.2850670945276256e-07,
+        9.77645329570175e-07
+      ],
+      "model_sha256": "90fc691abbf43b89a55956493da6ab19c59105f9167f29f8f93fc317b68c9309",
+      "rejected_imu_timestamps": 9,
+      "inference_ms": null,
+      "control_callback_ms": null,
+      "tick_interval_ms": null,
+      "callback_overruns_20ms": 0
+    },
+    "wbc": {
+      "state": "waiting_for_inputs",
+      "fault": "",
+      "solved_count": 0,
+      "compute_ms": 0.0,
+      "solve_ms": 0.0,
+      "contacts": [],
+      "joint_names": [
+        "left_hip1_joint",
+        "left_hip2_joint",
+        "left_thigh_joint",
+        "left_knee_joint",
+        "left_ankle_joint",
+        "right_hip1_joint",
+        "right_hip2_joint",
+        "right_thigh_joint",
+        "right_knee_joint",
+        "right_ankle_joint"
+      ],
+      "torques": [],
+      "nominal_torques": [],
+      "tracking_mode": "policy_impedance",
+      "base_held": true
+    },
+    "sim": {
+      "sim_time_s": 28.109999999998692,
+      "real_time_factor": 0.99,
+      "physics_overruns": 303,
+      "base_held": true,
+      "control_fault": null,
+      "physics_paused": false,
+      "max_odom_callback_s": 0.030734420000953833,
+      "max_status_callback_s": 0.0027137549986946397,
+      "publish_failures": {},
+      "estop_active": false
+    },
+    "cpp": {
+      "stage": 7,
+      "message": "Command publication fault latched; restart required; physical state unverified: failed to publish message: held-simulation injected DDS publication failure, at /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/publish_probe/publish_failure.cpp:37; failures=3; latest_disable_delivered_to_dds=true"
+    },
+    "motor_commands": {
+      "samples": 5515,
+      "mode_counts": {
+        "4": 5515
+      },
+      "transitions": [
+        {
+          "t": 4.3986139990011,
+          "modes": [
+            4
+          ]
+        }
+      ],
+      "last_non_disable_t": null
+    },
+    "injections": [
+      "[python3-6] [dds-fault-injection] ERROR topic=/motor_commands count=100 pid=251605",
+      "[python3-4] [dds-fault-injection] ERROR topic=/ball_chase/cmd_vel count=100 pid=251438"
+    ],
+    "process_deaths": [],
+    "faults": [
+      "[python3-6] [ERROR] [1793514522.252697953] [cpp_control_node]: Command publication fault LATCHED; rejecting motion, retrying DISABLE; physical state unverified; backend watchdog still required: failed to publish message: cannot publish data, at /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/rmw_fastrtps-8.4.3/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp:66, at ./src/rcl/publisher.c:284"
+    ],
+    "library_maps": {
+      "251374": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/opt/ros/jazzy/bin/ros2",
+          "launch",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/chase.launch.py",
+          "start_chase:=false",
+          "use_viewer:=true",
+          "ros_domain_id:=221",
+          "web_port:=8221",
+          "localhost_only:=0"
+        ],
+        "maps": [
+          "7c4d0c7f2000-7c4d0cfe6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7c4d0d309000-7c4d0d362000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7c4d0d397000-7c4d0d3cc000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "251409": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/rosenv/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/wbc_payload.py"
+        ],
+        "maps": [
+          "7d427f5f2000-7d427fde6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7d4280107000-7d4280160000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7d4280195000-7d42801ca000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "251435": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_sim/lib/humanoid_sim/mujoco_sim",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "--params-file",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/chase_scene.yaml",
+          "--params-file",
+          "/tmp/launch_params_7anpt25u",
+          "--params-file",
+          "/tmp/launch_params_y_h1tkwj"
+        ],
+        "maps": [
+          "74e1435f2000-74e143de6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "74e148196000-74e1481ef000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "74e148224000-74e148259000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "251436": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/rosenv/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/chase_policy.py",
+          "--ros-args",
+          "-p",
+          "motor_config_file:=/home/rcli/Github/Humanoid_ros2_simulation/install/motor_control_hybrid/share/motor_control_hybrid/config/motors.yaml",
+          "-p",
+          "model_path:=/home/rcli/Github/Humanoid_ros2_simulation/install/motor_control_hybrid/share/motor_control_hybrid/models/20260914_170827/20260914_170827.onnx",
+          "-p",
+          "joint_feedback_mode:=joint_states",
+          "-p",
+          "wait_for_sim_release:=true",
+          "-p",
+          "reference_end_behavior:=loop",
+          "-p",
+          "experiment_max_walk_s:=8.0"
+        ],
+        "maps": [
+          "714e4f5f2000-714e4fde6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "714e54db2000-714e54e0b000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "714e54e40000-714e54e75000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "251437": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/rosenv/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/wbc_control_node/lib/wbc_control_node/wbc_control_node",
+          "--ros-args",
+          "--params-file",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/wbc_control_node/share/wbc_control_node/config/wbc.yaml",
+          "--params-file",
+          "/tmp/launch_params_ri0xn45m"
+        ],
+        "maps": [
+          "7c504a7f2000-7c504afe6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7c504b3cd000-7c504b426000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7c504b45b000-7c504b490000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "251438": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_ball_chase/lib/humanoid_ball_chase/ball_chase_vision",
+          "--ros-args",
+          "--params-file",
+          "/tmp/launch_params_a28g_4k_"
+        ],
+        "maps": [
+          "72b3145f2000-72b314de6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "72b3150e0000-72b315139000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "72b31516e000-72b3151a3000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "251439": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_vision/lib/humanoid_vision/track_node",
+          "--ros-args",
+          "-r",
+          "__node:=pitch_tracker",
+          "--params-file",
+          "/tmp/launch_params_rj_99y1e"
+        ],
+        "maps": [
+          "7e3cf59f2000-7e3cf61e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7e3cf653e000-7e3cf6597000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7e3cf65cc000-7e3cf6601000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "251557": {
+        "cmd": [
+          "/usr/bin/python3",
+          "-c",
+          "from multiprocessing.resource_tracker import main;main(42)"
+        ],
+        "maps": [
+          "7864f75f2000-7864f7de6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7864f8079000-7864f80d2000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7864f8107000-7864f813c000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "251562": {
+        "cmd": [
+          "/usr/bin/python3",
+          "-c",
+          "from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=43, pipe_handle=49)",
+          "--multiprocessing-fork"
+        ],
+        "maps": [
+          "76ab20ff2000-76ab217e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "76ab21b9a000-76ab21bf3000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "76ab21c28000-76ab21c5d000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "251605": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/motor_control_hybrid/lib/motor_control_hybrid/cpp_control_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "-r",
+          "__node:=cpp_control_node",
+          "--params-file",
+          "/tmp/launch_params_e2vwpo9m"
+        ],
+        "maps": [
+          "713288df2000-7132895e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "713289891000-7132898ea000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "71328991f000-713289954000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "251606": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_safety/lib/humanoid_safety/safety_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "-r",
+          "__node:=safety_node",
+          "--params-file",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_safety/share/humanoid_safety/config/safety.yaml",
+          "--params-file",
+          "/tmp/launch_params_uy50ruue"
+        ],
+        "maps": [
+          "7b4fcb5f2000-7b4fcbde6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7b4fd02b9000-7b4fd0312000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7b4fd0347000-7b4fd037c000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "251607": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_safety/lib/humanoid_safety/motor_web_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "--params-file",
+          "/tmp/launch_params_7ao7zymk"
+        ],
+        "maps": [
+          "72b98a3f2000-72b98abe6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "72b98aed0000-72b98af29000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "72b98af5e000-72b98af93000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "251608": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_vision/lib/humanoid_vision/track_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "--params-file",
+          "/tmp/launch_params_oqspfunp"
+        ],
+        "maps": [
+          "7b206a5f2000-7b206ade6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7b206b0c6000-7b206b11f000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7b206b154000-7b206b189000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      }
+    }
+  },
+  {
+    "name": "dds-fix-inject-sensors",
+    "observer": {
+      "samples": 2782,
+      "max_receipt_gap_s": 0.24432122099824483,
+      "max_source_age_s": 0.18901491165161133
+    },
+    "last_imu_t": 31.9997435410005,
+    "imu": {
+      "simulated": true,
+      "sensor": "mujoco",
+      "frame_id": "imu_link",
+      "published": 2779,
+      "subscribers": 3,
+      "last_publish_age_s": 0.006631847001699498,
+      "max_publish_gap_s": 0.14486640600080136,
+      "max_sample_wait_s": 0.0143059229994833,
+      "max_callback_gap_s": 0.06583981000221684,
+      "max_publish_call_s": 0.062197052997362334,
+      "max_status_publish_s": 0.00015528299991274253,
+      "max_gc_pause_s": 0.0006302920010057278,
+      "publish_failures": {
+        "/imu/data_raw": {
+          "count": 7,
+          "error": "Failed to publish: cannot publish data, at /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/rmw_fastrtps-8.4.3/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp:66, at ./src/rcl/publisher.c:284"
+        }
+      },
+      "control_fault": null,
+      "clock_synced": true
+    },
+    "can_timing": {
+      "rx_frames": 53980,
+      "commands_received": 5161,
+      "commands_rejected": 0,
+      "max_feedback_callback_s": 0.045294611001736484,
+      "simulated": true,
+      "transport_fault": false,
+      "pending_commands": 0,
+      "physics_overruns": 366,
+      "publish_failures": {
+        "/joint_states": {
+          "count": 10,
+          "error": "Failed to publish: cannot publish data, at /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/rmw_fastrtps-8.4.3/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp:66, at ./src/rcl/publisher.c:284"
+        }
+      },
+      "interfaces": {
+        "can1": {
+          "tx_submitted": 0,
+          "tx_errors": 0
+        }
+      }
+    },
+    "safety": [
+      {
+        "name": "humanoid_safety/supervisor",
+        "message": "imu_freshness: IMU age=0.251s limit=0.250s",
+        "values": {
+          "imu_received": "2756",
+          "imu_rejected_source": "22",
+          "imu_rejected_orientation": "0",
+          "latched": "True",
+          "reason": "imu_freshness: IMU age=0.251s limit=0.250s",
+          "estop_publish_failures": "1"
+        }
+      },
+      {
+        "name": "humanoid_safety/fall_detection",
+        "message": "roll=+0.1deg pitch=-0.0deg count=0/3",
+        "values": {
+          "active": "False",
+          "healthy": "True",
+          "clearable": "True"
+        }
+      },
+      {
+        "name": "humanoid_safety/imu_freshness",
+        "message": "IMU age=0.004s limit=0.250s",
+        "values": {
+          "active": "False",
+          "healthy": "True",
+          "clearable": "True"
+        }
+      },
+      {
+        "name": "humanoid_safety/imu_stuck",
+        "message": "identical samples=1/50",
+        "values": {
+          "active": "False",
+          "healthy": "True",
+          "clearable": "True"
+        }
+      }
+    ],
+    "policy": {
+      "state": "calibrating",
+      "fault": "estop",
+      "requested_hz": 50.0,
+      "expiry_diagnostic": null,
+      "max_input_skew_s": 0.02,
+      "max_inference_s": 0.02,
+      "iterations": 0,
+      "reference_frame": 0,
+      "reference_finished": false,
+      "reference_cycles": 0,
+      "waiting_for_sim_release": true,
+      "hold_first_frame": false,
+      "reference_end_behavior": "loop",
+      "joint_feedback": "joint_states",
+      "hardware_output": false,
+      "imu_age_since_receipt_ms": null,
+      "gyro_bias_rad_s": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "model_sha256": "90fc691abbf43b89a55956493da6ab19c59105f9167f29f8f93fc317b68c9309",
+      "rejected_imu_timestamps": 1,
+      "inference_ms": null,
+      "control_callback_ms": null,
+      "tick_interval_ms": null,
+      "callback_overruns_20ms": 0
+    },
+    "wbc": {
+      "state": "waiting_for_inputs",
+      "fault": "",
+      "solved_count": 0,
+      "compute_ms": 0.0,
+      "solve_ms": 0.0,
+      "contacts": [],
+      "joint_names": [
+        "left_hip1_joint",
+        "left_hip2_joint",
+        "left_thigh_joint",
+        "left_knee_joint",
+        "left_ankle_joint",
+        "right_hip1_joint",
+        "right_hip2_joint",
+        "right_thigh_joint",
+        "right_knee_joint",
+        "right_ankle_joint"
+      ],
+      "torques": [],
+      "nominal_torques": [],
+      "tracking_mode": "policy_impedance",
+      "base_held": true
+    },
+    "sim": {
+      "sim_time_s": 27.97499999999872,
+      "real_time_factor": 0.96,
+      "physics_overruns": 365,
+      "base_held": true,
+      "control_fault": null,
+      "physics_paused": false,
+      "max_odom_callback_s": 0.06530672299777507,
+      "max_status_callback_s": 0.001445494002837222,
+      "publish_failures": {},
+      "estop_active": true
+    },
+    "cpp": {
+      "stage": 0,
+      "message": ""
+    },
+    "motor_commands": {
+      "samples": 5611,
+      "mode_counts": {
+        "4": 5611
+      },
+      "transitions": [
+        {
+          "t": 3.912516589000006,
+          "modes": [
+            4
+          ]
+        }
+      ],
+      "last_non_disable_t": null
+    },
+    "injections": [
+      "[python3-1] [dds-fault-injection] ERROR topic=/joint_states count=100 pid=250885",
+      "[python3-7] [dds-fault-injection] ERROR topic=/safety/estop count=1 pid=251054",
+      "[python3-1] [dds-fault-injection] ERROR topic=/imu/data_raw count=100 pid=250885"
+    ],
+    "process_deaths": [],
+    "faults": [
+      "[python3-7] [FATAL] [1793514489.439942426] [safety_node]: SAFETY ESTOP LATCHED: imu_freshness: IMU age=0.251s limit=0.250s"
+    ],
+    "library_maps": {
+      "250837": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/opt/ros/jazzy/bin/ros2",
+          "launch",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/chase.launch.py",
+          "start_chase:=false",
+          "use_viewer:=true",
+          "ros_domain_id:=221",
+          "web_port:=8221",
+          "localhost_only:=0"
+        ],
+        "maps": [
+          "71dfb43f2000-71dfb4be6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "71dfb500a000-71dfb5063000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "71dfb5098000-71dfb50cd000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "250865": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/rosenv/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/wbc_payload.py"
+        ],
+        "maps": [
+          "78cc875f2000-78cc87de6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "78cc8c2c7000-78cc8c320000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "78cc8c355000-78cc8c38a000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "250885": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_sim/lib/humanoid_sim/mujoco_sim",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "--params-file",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/chase_scene.yaml",
+          "--params-file",
+          "/tmp/launch_params_3slx61lk",
+          "--params-file",
+          "/tmp/launch_params_j7m_8mpx"
+        ],
+        "maps": [
+          "70dcf6df2000-70dcf75e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "70dcf79bd000-70dcf7a16000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "70dcf7a4b000-70dcf7a80000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "250886": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/rosenv/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/chase_policy.py",
+          "--ros-args",
+          "-p",
+          "motor_config_file:=/home/rcli/Github/Humanoid_ros2_simulation/install/motor_control_hybrid/share/motor_control_hybrid/config/motors.yaml",
+          "-p",
+          "model_path:=/home/rcli/Github/Humanoid_ros2_simulation/install/motor_control_hybrid/share/motor_control_hybrid/models/20260914_170827/20260914_170827.onnx",
+          "-p",
+          "joint_feedback_mode:=joint_states",
+          "-p",
+          "wait_for_sim_release:=true",
+          "-p",
+          "reference_end_behavior:=loop",
+          "-p",
+          "experiment_max_walk_s:=8.0"
+        ],
+        "maps": [
+          "70599cdf2000-70599d5e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "70599d926000-70599d97f000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "70599d9b4000-70599d9e9000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "250887": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/rosenv/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/wbc_control_node/lib/wbc_control_node/wbc_control_node",
+          "--ros-args",
+          "--params-file",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/wbc_control_node/share/wbc_control_node/config/wbc.yaml",
+          "--params-file",
+          "/tmp/launch_params_i6r0yywq"
+        ],
+        "maps": [
+          "7194511f2000-7194519e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "719451c98000-719451cf1000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "719451d26000-719451d5b000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "250888": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_ball_chase/lib/humanoid_ball_chase/ball_chase_vision",
+          "--ros-args",
+          "--params-file",
+          "/tmp/launch_params_l_pnc9od"
+        ],
+        "maps": [
+          "77e2aaff2000-77e2ab7e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "77e2abae0000-77e2abb39000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "77e2abb6e000-77e2abba3000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "250889": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_vision/lib/humanoid_vision/track_node",
+          "--ros-args",
+          "-r",
+          "__node:=pitch_tracker",
+          "--params-file",
+          "/tmp/launch_params_8dy44964"
+        ],
+        "maps": [
+          "7f61cadf2000-7f61cb5e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7f61cba0e000-7f61cba67000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7f61cba9c000-7f61cbad1000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "251006": {
+        "cmd": [
+          "/usr/bin/python3",
+          "-c",
+          "from multiprocessing.resource_tracker import main;main(43)"
+        ],
+        "maps": [
+          "71d48f5f2000-71d48fde6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "71d494c1b000-71d494c74000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "71d494ca9000-71d494cde000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "251011": {
+        "cmd": [
+          "/usr/bin/python3",
+          "-c",
+          "from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=44, pipe_handle=50)",
+          "--multiprocessing-fork"
+        ],
+        "maps": [
+          "78a9a63f2000-78a9a6be6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "78a9a6e8d000-78a9a6ee6000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "78a9a6f1b000-78a9a6f50000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "251053": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/motor_control_hybrid/lib/motor_control_hybrid/cpp_control_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "-r",
+          "__node:=cpp_control_node",
+          "--params-file",
+          "/tmp/launch_params_yl7rfkjb"
+        ],
+        "maps": [
+          "7db3ae3f2000-7db3aebe6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7db3aef96000-7db3aefef000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7db3af024000-7db3af059000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "251054": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_safety/lib/humanoid_safety/safety_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "-r",
+          "__node:=safety_node",
+          "--params-file",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_safety/share/humanoid_safety/config/safety.yaml",
+          "--params-file",
+          "/tmp/launch_params_rms4vf60"
+        ],
+        "maps": [
+          "7cbe635f2000-7cbe63de6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7cbe688be000-7cbe68917000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7cbe6894c000-7cbe68981000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "251055": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_safety/lib/humanoid_safety/motor_web_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "--params-file",
+          "/tmp/launch_params__2fxrvtu"
+        ],
+        "maps": [
+          "7f86675f2000-7f8667de6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7f866c39e000-7f866c3f7000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7f866c42c000-7f866c461000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "251056": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_vision/lib/humanoid_vision/track_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "--params-file",
+          "/tmp/launch_params_buzz8l2b"
+        ],
+        "maps": [
+          "77ddce7f2000-77ddcefe6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "77ddcf27d000-77ddcf2d6000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "77ddcf30b000-77ddcf340000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      }
+    }
+  },
+  {
+    "name": "dds-fix-natural-1",
+    "observer": {
+      "samples": 2713,
+      "max_receipt_gap_s": 2.0034567389993754,
+      "max_source_age_s": 1.998896598815918
+    },
+    "last_imu_t": 31.995679638999718,
+    "imu": {
+      "simulated": true,
+      "sensor": "mujoco",
+      "frame_id": "imu_link",
+      "published": 2713,
+      "subscribers": 3,
+      "last_publish_age_s": 0.010251732001052005,
+      "max_publish_gap_s": 1.894424196001637,
+      "max_sample_wait_s": 0.007292187998245936,
+      "max_callback_gap_s": 0.21204276400021627,
+      "max_publish_call_s": 0.11688485400009085,
+      "max_status_publish_s": 0.00014569599807146005,
+      "max_gc_pause_s": 0.0009539290003885981,
+      "publish_failures": {
+        "/imu/data_raw": {
+          "count": 22,
+          "error": "Failed to publish: cannot publish data, at /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/rmw_fastrtps-8.4.3/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp:66, at ./src/rcl/publisher.c:284"
+        }
+      },
+      "control_fault": null,
+      "clock_synced": true
+    },
+    "can_timing": {
+      "rx_frames": 53760,
+      "commands_received": 5113,
+      "commands_rejected": 0,
+      "max_feedback_callback_s": 0.018237644999317126,
+      "simulated": true,
+      "transport_fault": false,
+      "pending_commands": 0,
+      "physics_overruns": 123,
+      "publish_failures": {
+        "/joint_states": {
+          "count": 18,
+          "error": "Failed to publish: cannot publish data, at /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/rmw_fastrtps-8.4.3/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp:66, at ./src/rcl/publisher.c:284"
+        }
+      },
+      "interfaces": {
+        "can1": {
+          "tx_submitted": 0,
+          "tx_errors": 0
+        }
+      }
+    },
+    "safety": [
+      {
+        "name": "humanoid_safety/supervisor",
+        "message": "imu_freshness: IMU age=0.340s limit=0.250s",
+        "values": {
+          "imu_received": "2543",
+          "imu_rejected_source": "5",
+          "imu_rejected_orientation": "0",
+          "latched": "True",
+          "reason": "imu_freshness: IMU age=0.340s limit=0.250s",
+          "estop_publish_failures": "0"
+        }
+      },
+      {
+        "name": "humanoid_safety/fall_detection",
+        "message": "roll=+0.1deg pitch=-0.0deg count=0/3",
+        "values": {
+          "active": "False",
+          "healthy": "True",
+          "clearable": "True"
+        }
+      },
+      {
+        "name": "humanoid_safety/imu_freshness",
+        "message": "IMU age=0.009s limit=0.250s",
+        "values": {
+          "active": "False",
+          "healthy": "True",
+          "clearable": "True"
+        }
+      },
+      {
+        "name": "humanoid_safety/imu_stuck",
+        "message": "identical samples=1/50",
+        "values": {
+          "active": "False",
+          "healthy": "True",
+          "clearable": "True"
+        }
+      }
+    ],
+    "policy": {
+      "state": "calibrating",
+      "fault": "estop",
+      "requested_hz": 50.0,
+      "expiry_diagnostic": null,
+      "max_input_skew_s": 0.02,
+      "max_inference_s": 0.02,
+      "iterations": 0,
+      "reference_frame": 0,
+      "reference_finished": false,
+      "reference_cycles": 0,
+      "waiting_for_sim_release": true,
+      "hold_first_frame": false,
+      "reference_end_behavior": "loop",
+      "joint_feedback": "joint_states",
+      "hardware_output": false,
+      "imu_age_since_receipt_ms": null,
+      "gyro_bias_rad_s": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "model_sha256": "90fc691abbf43b89a55956493da6ab19c59105f9167f29f8f93fc317b68c9309",
+      "rejected_imu_timestamps": 0,
+      "inference_ms": null,
+      "control_callback_ms": null,
+      "tick_interval_ms": null,
+      "callback_overruns_20ms": 0
+    },
+    "wbc": {
+      "state": "waiting_for_inputs",
+      "fault": "",
+      "solved_count": 0,
+      "compute_ms": 0.0,
+      "solve_ms": 0.0,
+      "contacts": [],
+      "joint_names": [
+        "left_hip1_joint",
+        "left_hip2_joint",
+        "left_thigh_joint",
+        "left_knee_joint",
+        "left_ankle_joint",
+        "right_hip1_joint",
+        "right_hip2_joint",
+        "right_thigh_joint",
+        "right_knee_joint",
+        "right_ankle_joint"
+      ],
+      "torques": [],
+      "nominal_torques": [],
+      "tracking_mode": "policy_impedance",
+      "base_held": true
+    },
+    "sim": {
+      "sim_time_s": 28.82999999999855,
+      "real_time_factor": 1.0,
+      "physics_overruns": 123,
+      "base_held": true,
+      "control_fault": null,
+      "physics_paused": false,
+      "max_odom_callback_s": 0.3208894950003014,
+      "max_status_callback_s": 0.0013696839996555354,
+      "publish_failures": {
+        "/sim/ground_truth/odom": {
+          "count": 8,
+          "error": "Failed to publish: cannot publish data, at /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/rmw_fastrtps-8.4.3/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp:66, at ./src/rcl/publisher.c:284"
+        },
+        "/sim/ground_truth/feet": {
+          "count": 7,
+          "error": "Failed to publish: cannot publish data, at /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/rmw_fastrtps-8.4.3/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp:66, at ./src/rcl/publisher.c:284"
+        }
+      },
+      "estop_active": true
+    },
+    "cpp": {
+      "stage": 0,
+      "message": ""
+    },
+    "motor_commands": {
+      "samples": 5518,
+      "mode_counts": {
+        "4": 5518
+      },
+      "transitions": [
+        {
+          "t": 3.1516124429981573,
+          "modes": [
+            4
+          ]
+        }
+      ],
+      "last_non_disable_t": null
+    },
+    "injections": [],
+    "process_deaths": [
+      "[ERROR] [python3-5]: process has died [pid 249689, exit code -6, cmd '/home/rcli/Github/Humanoid_ros2_simulation/rosenv/bin/python3 /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/priority_profile.py -- /home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_vision/lib/humanoid_vision/track_node --ros-args -r __node:=pitch_tracker --params-file /tmp/launch_params_y6pgbql_']."
+    ],
+    "faults": [
+      "[python3-7] [FATAL] [1793514422.247756365] [safety_node]: SAFETY ESTOP LATCHED: imu_freshness: IMU age=0.340s limit=0.250s"
+    ],
+    "library_maps": {
+      "249629": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/opt/ros/jazzy/bin/ros2",
+          "launch",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/chase.launch.py",
+          "start_chase:=false",
+          "use_viewer:=true",
+          "ros_domain_id:=221",
+          "web_port:=8221",
+          "localhost_only:=0"
+        ],
+        "maps": [
+          "72a689ff2000-72a68a7e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "72a68aaae000-72a68ab07000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "72a68ab3c000-72a68ab71000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "249654": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/rosenv/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/wbc_payload.py"
+        ],
+        "maps": [
+          "7db2491f2000-7db2499e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7db249dbb000-7db249e14000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7db249e49000-7db249e7e000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "249685": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_sim/lib/humanoid_sim/mujoco_sim",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "--params-file",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/chase_scene.yaml",
+          "--params-file",
+          "/tmp/launch_params_o51it72e",
+          "--params-file",
+          "/tmp/launch_params_j7w7_2dh"
+        ],
+        "maps": [
+          "7404fd7f2000-7404fdfe6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7404fe29c000-7404fe2f5000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7404fe32a000-7404fe35f000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "249686": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/rosenv/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/chase_policy.py",
+          "--ros-args",
+          "-p",
+          "motor_config_file:=/home/rcli/Github/Humanoid_ros2_simulation/install/motor_control_hybrid/share/motor_control_hybrid/config/motors.yaml",
+          "-p",
+          "model_path:=/home/rcli/Github/Humanoid_ros2_simulation/install/motor_control_hybrid/share/motor_control_hybrid/models/20260914_170827/20260914_170827.onnx",
+          "-p",
+          "joint_feedback_mode:=joint_states",
+          "-p",
+          "wait_for_sim_release:=true",
+          "-p",
+          "reference_end_behavior:=loop",
+          "-p",
+          "experiment_max_walk_s:=8.0"
+        ],
+        "maps": [
+          "7bd5c9bf2000-7bd5ca3e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7bd5ca7ad000-7bd5ca806000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7bd5ca83b000-7bd5ca870000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "249687": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/rosenv/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/wbc_control_node/lib/wbc_control_node/wbc_control_node",
+          "--ros-args",
+          "--params-file",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/wbc_control_node/share/wbc_control_node/config/wbc.yaml",
+          "--params-file",
+          "/tmp/launch_params_1ujvihkk"
+        ],
+        "maps": [
+          "737e8e3f2000-737e8ebe6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "737e8ef09000-737e8ef62000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "737e8ef97000-737e8efcc000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "249688": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_ball_chase/lib/humanoid_ball_chase/ball_chase_vision",
+          "--ros-args",
+          "--params-file",
+          "/tmp/launch_params_x0hdycem"
+        ],
+        "maps": [
+          "75348b5f2000-75348bde6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "753490b90000-753490be9000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "753490c1e000-753490c53000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "249689": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_vision/lib/humanoid_vision/track_node",
+          "--ros-args",
+          "-r",
+          "__node:=pitch_tracker",
+          "--params-file",
+          "/tmp/launch_params_y6pgbql_"
+        ],
+        "maps": [
+          "7d1e61df2000-7d1e625e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7d1e628bd000-7d1e62916000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7d1e6294b000-7d1e62980000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "249809": {
+        "cmd": [
+          "/usr/bin/python3",
+          "-c",
+          "from multiprocessing.resource_tracker import main;main(45)"
+        ],
+        "maps": [
+          "7b95ea9f2000-7b95eb1e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7b95eb667000-7b95eb6c0000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7b95eb6f5000-7b95eb72a000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "249814": {
+        "cmd": [
+          "/usr/bin/python3",
+          "-c",
+          "from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=46, pipe_handle=51)",
+          "--multiprocessing-fork"
+        ],
+        "maps": [
+          "74ba9b5f2000-74ba9bde6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "74baa08c9000-74baa0922000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "74baa0957000-74baa098c000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "249857": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/motor_control_hybrid/lib/motor_control_hybrid/cpp_control_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "-r",
+          "__node:=cpp_control_node",
+          "--params-file",
+          "/tmp/launch_params_ivke8zqw"
+        ],
+        "maps": [
+          "7b005b5f2000-7b005bde6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7b006071d000-7b0060776000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7b00607ab000-7b00607e0000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "249858": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_safety/lib/humanoid_safety/safety_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "-r",
+          "__node:=safety_node",
+          "--params-file",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_safety/share/humanoid_safety/config/safety.yaml",
+          "--params-file",
+          "/tmp/launch_params_2bedz1ky"
+        ],
+        "maps": [
+          "7516de1f2000-7516de9e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7516ded26000-7516ded7f000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7516dedb4000-7516dede9000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "249859": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_safety/lib/humanoid_safety/motor_web_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "--params-file",
+          "/tmp/launch_params_px0x_2i7"
+        ],
+        "maps": [
+          "7cf404df2000-7cf4055e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7cf405a5d000-7cf405ab6000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7cf405aeb000-7cf405b20000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "249860": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_vision/lib/humanoid_vision/track_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "--params-file",
+          "/tmp/launch_params_c0gb1wh7"
+        ],
+        "maps": [
+          "77815e1f2000-77815e9e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "77815ed82000-77815eddb000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "77815ee10000-77815ee45000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      }
+    }
+  },
+  {
+    "name": "dds-fix-natural-2",
+    "observer": {
+      "samples": 2587,
+      "max_receipt_gap_s": 1.9991150130008464,
+      "max_source_age_s": 2.0083467960357666
+    },
+    "last_imu_t": 31.999687035000534,
+    "imu": {
+      "simulated": true,
+      "sensor": "mujoco",
+      "frame_id": "imu_link",
+      "published": 2581,
+      "subscribers": 3,
+      "last_publish_age_s": 0.008221284002502216,
+      "max_publish_gap_s": 1.8142682329998934,
+      "max_sample_wait_s": 0.009627309002098627,
+      "max_callback_gap_s": 0.22199488800106337,
+      "max_publish_call_s": 0.22099100700143026,
+      "max_status_publish_s": 0.00024319700241903774,
+      "max_gc_pause_s": 0.0006347929993353318,
+      "publish_failures": {
+        "/imu/data_raw": {
+          "count": 20,
+          "error": "Failed to publish: cannot publish data, at /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/rmw_fastrtps-8.4.3/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp:66, at ./src/rcl/publisher.c:284"
+        }
+      },
+      "control_fault": null,
+      "clock_synced": true
+    },
+    "can_timing": {
+      "rx_frames": 50670,
+      "commands_received": 4747,
+      "commands_rejected": 0,
+      "max_feedback_callback_s": 0.011224773003050359,
+      "simulated": true,
+      "transport_fault": false,
+      "pending_commands": 0,
+      "physics_overruns": 270,
+      "publish_failures": {
+        "/joint_states": {
+          "count": 13,
+          "error": "Failed to publish: cannot publish data, at /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/rmw_fastrtps-8.4.3/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp:66, at ./src/rcl/publisher.c:284"
+        },
+        "/joint_states_monitor": {
+          "count": 7,
+          "error": "Failed to publish: cannot publish data, at /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/rmw_fastrtps-8.4.3/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp:66, at ./src/rcl/publisher.c:284"
+        },
+        "/can_timing": {
+          "count": 1,
+          "error": "Failed to publish: cannot publish data, at /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/rmw_fastrtps-8.4.3/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp:66, at ./src/rcl/publisher.c:284"
+        }
+      },
+      "interfaces": {
+        "can1": {
+          "tx_submitted": 0,
+          "tx_errors": 0
+        }
+      }
+    },
+    "safety": [
+      {
+        "name": "humanoid_safety/supervisor",
+        "message": "imu_freshness: no IMU received within 3.000s",
+        "values": {
+          "imu_received": "2414",
+          "imu_rejected_source": "7",
+          "imu_rejected_orientation": "0",
+          "latched": "True",
+          "reason": "imu_freshness: no IMU received within 3.000s",
+          "estop_publish_failures": "0"
+        }
+      },
+      {
+        "name": "humanoid_safety/fall_detection",
+        "message": "roll=+0.1deg pitch=-0.0deg count=0/3",
+        "values": {
+          "active": "False",
+          "healthy": "True",
+          "clearable": "True"
+        }
+      },
+      {
+        "name": "humanoid_safety/imu_freshness",
+        "message": "IMU age=0.012s limit=0.250s",
+        "values": {
+          "active": "False",
+          "healthy": "True",
+          "clearable": "True"
+        }
+      },
+      {
+        "name": "humanoid_safety/imu_stuck",
+        "message": "identical samples=1/50",
+        "values": {
+          "active": "False",
+          "healthy": "True",
+          "clearable": "True"
+        }
+      }
+    ],
+    "policy": {
+      "state": "calibrating",
+      "fault": "estop",
+      "requested_hz": 50.0,
+      "expiry_diagnostic": null,
+      "max_input_skew_s": 0.02,
+      "max_inference_s": 0.02,
+      "iterations": 0,
+      "reference_frame": 0,
+      "reference_finished": false,
+      "reference_cycles": 0,
+      "waiting_for_sim_release": true,
+      "hold_first_frame": false,
+      "reference_end_behavior": "loop",
+      "joint_feedback": "joint_states",
+      "hardware_output": false,
+      "imu_age_since_receipt_ms": 24279.248644998006,
+      "gyro_bias_rad_s": [
+        1.074504340114636e-06,
+        1.72165490424461e-09,
+        2.7596244909572933e-08
+      ],
+      "model_sha256": "90fc691abbf43b89a55956493da6ab19c59105f9167f29f8f93fc317b68c9309",
+      "rejected_imu_timestamps": 4,
+      "inference_ms": null,
+      "control_callback_ms": null,
+      "tick_interval_ms": null,
+      "callback_overruns_20ms": 0
+    },
+    "wbc": {
+      "state": "waiting_for_inputs",
+      "fault": "",
+      "solved_count": 0,
+      "compute_ms": 0.0,
+      "solve_ms": 0.0,
+      "contacts": [],
+      "joint_names": [
+        "left_hip1_joint",
+        "left_hip2_joint",
+        "left_thigh_joint",
+        "left_knee_joint",
+        "left_ankle_joint",
+        "right_hip1_joint",
+        "right_hip2_joint",
+        "right_thigh_joint",
+        "right_knee_joint",
+        "right_ankle_joint"
+      ],
+      "torques": [],
+      "nominal_torques": [],
+      "tracking_mode": "policy_impedance",
+      "base_held": true
+    },
+    "sim": {
+      "sim_time_s": 27.729999999998768,
+      "real_time_factor": 0.968,
+      "physics_overruns": 277,
+      "base_held": true,
+      "control_fault": null,
+      "physics_paused": false,
+      "max_odom_callback_s": 0.2194438349979464,
+      "max_status_callback_s": 0.0006721019999531563,
+      "publish_failures": {
+        "/sim/ground_truth/feet": {
+          "count": 6,
+          "error": "Failed to publish: cannot publish data, at /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/rmw_fastrtps-8.4.3/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp:66, at ./src/rcl/publisher.c:284"
+        },
+        "/sim/ground_truth/odom": {
+          "count": 3,
+          "error": "Failed to publish: cannot publish data, at /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/rmw_fastrtps-8.4.3/rmw_fastrtps_shared_cpp/src/rmw_publish.cpp:66, at ./src/rcl/publisher.c:284"
+        }
+      },
+      "estop_active": true
+    },
+    "cpp": {
+      "stage": 0,
+      "message": ""
+    },
+    "motor_commands": {
+      "samples": 5309,
+      "mode_counts": {
+        "4": 5309
+      },
+      "transitions": [
+        {
+          "t": 3.2824576550010534,
+          "modes": [
+            4
+          ]
+        }
+      ],
+      "last_non_disable_t": null
+    },
+    "injections": [],
+    "process_deaths": [
+      "[ERROR] [python3-5]: process has died [pid 250299, exit code -6, cmd '/home/rcli/Github/Humanoid_ros2_simulation/rosenv/bin/python3 /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/priority_profile.py -- /home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_vision/lib/humanoid_vision/track_node --ros-args -r __node:=pitch_tracker --params-file /tmp/launch_params_fuy4yedc']."
+    ],
+    "faults": [
+      "[python3-7] [FATAL] [1793514457.992841702] [safety_node]: SAFETY ESTOP LATCHED: imu_freshness: no IMU received within 3.000s"
+    ],
+    "library_maps": {
+      "250236": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/opt/ros/jazzy/bin/ros2",
+          "launch",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/chase.launch.py",
+          "start_chase:=false",
+          "use_viewer:=true",
+          "ros_domain_id:=221",
+          "web_port:=8221",
+          "localhost_only:=0"
+        ],
+        "maps": [
+          "745e969f2000-745e971e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "745e9759c000-745e975f5000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "745e9762a000-745e9765f000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "250274": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/rosenv/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/wbc_payload.py"
+        ],
+        "maps": [
+          "7e8d321f2000-7e8d329e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7e8d32d26000-7e8d32d7f000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7e8d32db4000-7e8d32de9000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "250295": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_sim/lib/humanoid_sim/mujoco_sim",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "--params-file",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/chase_scene.yaml",
+          "--params-file",
+          "/tmp/launch_params_84swdfbn",
+          "--params-file",
+          "/tmp/launch_params_yph2hku_"
+        ],
+        "maps": [
+          "74cb5ebf2000-74cb5f3e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "74cb5f815000-74cb5f86e000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "74cb5f8a3000-74cb5f8d8000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "250296": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/rosenv/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/chase_policy.py",
+          "--ros-args",
+          "-p",
+          "motor_config_file:=/home/rcli/Github/Humanoid_ros2_simulation/install/motor_control_hybrid/share/motor_control_hybrid/config/motors.yaml",
+          "-p",
+          "model_path:=/home/rcli/Github/Humanoid_ros2_simulation/install/motor_control_hybrid/share/motor_control_hybrid/models/20260914_170827/20260914_170827.onnx",
+          "-p",
+          "joint_feedback_mode:=joint_states",
+          "-p",
+          "wait_for_sim_release:=true",
+          "-p",
+          "reference_end_behavior:=loop",
+          "-p",
+          "experiment_max_walk_s:=8.0"
+        ],
+        "maps": [
+          "713cb55f2000-713cb5de6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "713cb60d7000-713cb6130000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "713cb6165000-713cb619a000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "250297": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/rosenv/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/wbc_control_node/lib/wbc_control_node/wbc_control_node",
+          "--ros-args",
+          "--params-file",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/wbc_control_node/share/wbc_control_node/config/wbc.yaml",
+          "--params-file",
+          "/tmp/launch_params_xi4utptk"
+        ],
+        "maps": [
+          "7c65635f2000-7c6563de6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7c6568ccd000-7c6568d26000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7c6568d5b000-7c6568d90000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "250298": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_ball_chase/lib/humanoid_ball_chase/ball_chase_vision",
+          "--ros-args",
+          "--params-file",
+          "/tmp/launch_params_owd2gd1u"
+        ],
+        "maps": [
+          "7c942f5f2000-7c942fde6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7c9434aee000-7c9434b47000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7c9434b7c000-7c9434bb1000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "250299": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_vision/lib/humanoid_vision/track_node",
+          "--ros-args",
+          "-r",
+          "__node:=pitch_tracker",
+          "--params-file",
+          "/tmp/launch_params_fuy4yedc"
+        ],
+        "maps": [
+          "760ea29f2000-760ea31e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "760ea34bd000-760ea3516000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "760ea354b000-760ea3580000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "250427": {
+        "cmd": [
+          "/usr/bin/python3",
+          "-c",
+          "from multiprocessing.resource_tracker import main;main(45)"
+        ],
+        "maps": [
+          "7bb2b8ff2000-7bb2b97e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7bb2b9c63000-7bb2b9cbc000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7bb2b9cf1000-7bb2b9d26000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "250432": {
+        "cmd": [
+          "/usr/bin/python3",
+          "-c",
+          "from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=46, pipe_handle=51)",
+          "--multiprocessing-fork"
+        ],
+        "maps": [
+          "7878ab5f2000-7878abde6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7878b0bd4000-7878b0c2d000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7878b0c62000-7878b0c97000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "250450": {
+        "cmd": [
+          "/usr/bin/python3",
+          "-c",
+          "\nimport sys\nimport ctypes\n\ndef get_version(library_handle):\n    \"\"\"\n    Queries and returns the library version tuple or None.\n    \"\"\"\n    major_value = ctypes.c_int(0)\n    major = ctypes.pointer(major_value)\n    minor_value = ctypes.c_int(0)\n    minor = ctypes.pointer(minor_value)\n    rev_value = ctypes.c_int(0)\n    rev = ctypes.pointer(rev_value)\n    if hasattr(library_handle, 'glfwGetVersion'):\n        library_handle.glfwGetVersion(major, minor, rev)\n        version = (major_value.value,\n                   minor_value.value,\n                   rev_value.value)\n        return version\n    else:\n        return None\n\nif sys.version_info[0] == 2:\n    input_func = raw_input\nelse:\n    input_func = input\nfilename = input_func().strip()\n\ntry:\n    library_handle = ctypes.CDLL(filename)\nexcept OSError:\n    pass\nelse:\n    version = get_version(library_handle)\n    print(version)\n"
+        ],
+        "maps": [
+          "7b5710bf2000-7b57113e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7b5711726000-7b571177f000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7b57117b4000-7b57117e9000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "250469": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/motor_control_hybrid/lib/motor_control_hybrid/cpp_control_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "-r",
+          "__node:=cpp_control_node",
+          "--params-file",
+          "/tmp/launch_params_m7w8u00w"
+        ],
+        "maps": [
+          "7c9e693f2000-7c9e69be6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "7c9e69f1f000-7c9e69f78000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "7c9e69fad000-7c9e69fe2000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "250470": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_safety/lib/humanoid_safety/safety_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "-r",
+          "__node:=safety_node",
+          "--params-file",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_safety/share/humanoid_safety/config/safety.yaml",
+          "--params-file",
+          "/tmp/launch_params_4fjr0z7f"
+        ],
+        "maps": [
+          "79c46b5f2000-79c46bde6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "79c470726000-79c47077f000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "79c4707b4000-79c4707e9000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "250471": {
+        "cmd": [
+          "/usr/bin/python3",
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_safety/lib/humanoid_safety/motor_web_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "--params-file",
+          "/tmp/launch_params_ann8ac2v"
+        ],
+        "maps": [
+          "71683b5f2000-71683bde6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "716840c74000-716840ccd000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "716840d02000-716840d37000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      },
+      "250472": {
+        "cmd": [
+          "/home/rcli/Github/Humanoid_ros2_simulation/install/humanoid_vision/lib/humanoid_vision/track_node",
+          "--ros-args",
+          "--log-level",
+          "warn",
+          "--ros-args",
+          "--params-file",
+          "/tmp/launch_params_vo2kb8vn"
+        ],
+        "maps": [
+          "75d8057f2000-75d805fe6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5",
+          "75d806331000-75d80638a000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so",
+          "75d8063bf000-75d8063f4000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so"
+        ]
+      }
+    }
+  }
+]
