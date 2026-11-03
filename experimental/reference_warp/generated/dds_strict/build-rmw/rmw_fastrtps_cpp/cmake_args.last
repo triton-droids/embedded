@@ -1,0 +1,1 @@
+['-DCMAKE_BUILD_TYPE=Release', '-DBUILD_TESTING=OFF', '-Dfastrtps_DIR=/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/share/fastrtps/cmake']

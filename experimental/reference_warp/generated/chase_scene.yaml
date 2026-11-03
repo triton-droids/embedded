@@ -1,0 +1,29 @@
+mujoco_sim:
+  ros__parameters:
+    scene_nodes: chase_scene:create_nodes
+    foot_clearance_m: 0.0
+    settle_s: 2.0
+    pause_on_control_fault: true
+    camera_width: 424
+    camera_height: 240
+    camera_fovy_deg: 58.0
+    enable_target: false
+    publish_feet_ground_truth: true
+    ground_truth_rate_hz: 100.0
+    allow_torque_only_motion: true
+    dedicated_command_executor: true
+    dedicated_imu_executor: true
+sim_camera:
+  ros__parameters:
+    rate_hz: 6.0
+    enable_depth: true
+    publish_tf: true
+    base_forward_axis: positive_y
+sim_motor_backend:
+  ros__parameters:
+    telemetry_rate_hz: 5.0
+    monitor_rate_hz: 10.0
+    publish_rate_hz: 200.0
+sim_body_imu:
+  ros__parameters:
+    gc_diagnostics: true

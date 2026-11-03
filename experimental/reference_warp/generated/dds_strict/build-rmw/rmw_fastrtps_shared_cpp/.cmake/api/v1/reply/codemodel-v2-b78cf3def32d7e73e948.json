@@ -1,0 +1,79 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-Release-f328c3f12109f02062c9.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.15"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"name" : "Release",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "rmw_fastrtps_shared_cpp",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "rmw_fastrtps_shared_cpp::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-rmw_fastrtps_shared_cpp-Release-77e98e4825e14100be5f.json",
+					"name" : "rmw_fastrtps_shared_cpp",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "rmw_fastrtps_shared_cpp_uninstall::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-rmw_fastrtps_shared_cpp_uninstall-Release-d294aa917913ede8bf20.json",
+					"name" : "rmw_fastrtps_shared_cpp_uninstall",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "uninstall::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-uninstall-Release-ba0aa8011097592931f6.json",
+					"name" : "uninstall",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/build-rmw/rmw_fastrtps_shared_cpp",
+		"source" : "/home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/rmw_fastrtps-8.4.3/rmw_fastrtps_shared_cpp"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 6
+	}
+}
