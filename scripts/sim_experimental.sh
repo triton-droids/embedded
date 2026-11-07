@@ -35,6 +35,11 @@ if [[ "$rmw" == rmw_cyclonedds_cpp ]] && ! ros2 pkg prefix rmw_cyclonedds_cpp >/
   exit 1
 fi
 export RMW_IMPLEMENTATION="$rmw"
+# The launch process itself is a DDS participant too; give it the same
+# loopback-only CycloneDDS config as the nodes (unless the caller set one).
+if [[ "$rmw" == rmw_cyclonedds_cpp && -z "${CYCLONEDDS_URI:-}" ]]; then
+  export CYCLONEDDS_URI="file://$(ros2 pkg prefix humanoid_sim)/share/humanoid_sim/config/cyclonedds_sim.xml"
+fi
 
 # The camera images need a large socket receive buffer (see config/cyclonedds_sim.xml).
 want=33554432

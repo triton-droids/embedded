@@ -9,6 +9,16 @@
      that limit on the host (see the README) to get the full buffer. -->
 <CycloneDDS xmlns="https://cdds.io/config">
   <Domain Id="any">
+    <!-- The simulation is host-local (ROS_LOCALHOST_ONLY=1). Without this,
+         CycloneDDS picks an arbitrary external interface and advertises its
+         address; when that address is unreachable from the host itself (seen
+         with a 100.64.0.0/10 Wi-Fi address routed into tailscale0), nodes
+         never discover each other. -->
+    <General>
+      <Interfaces>
+        <NetworkInterface name="lo"/>
+      </Interfaces>
+    </General>
     <Internal>
       <SocketReceiveBufferSize max="16MB"/>
     </Internal>

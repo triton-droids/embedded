@@ -194,39 +194,121 @@ ros2 launch humanoid_sim sim_experimental.launch.py  # same, without the checks
 | Argument | Default | What it changes |
 |---|---|---|
 | `rmw_implementation` | `rmw_cyclonedds_cpp` | DDS of every node of the launch |
-| `cyclonedds_config` | installed `config/cyclonedds_sim.xml` | Up to 16 MB socket receive buffer; skipped if `CYCLONEDDS_URI` is set |
-| `gil_switch_interval_s` | `0.0005` | GIL switch interval of `mujoco_sim` |
+| `cyclonedds_config` | installed `config/cyclonedds_sim.xml` | Loopback interface only, up to 16 MB socket receive buffer; skipped if `CYCLONEDDS_URI` is already set |
+| `gil_switch_interval_s` | `0.0005` | Python GIL switch interval of `mujoco_sim` |
 
-Why, measured on native Ubuntu 24.04 with an i7-1165G7 (robot held on the gantry):
+#### What the `sim-experimental-cyclonedds` branch changes
+
+The branch starts from `909d0f9` (`fix(sim): remove catch-up bursts`) plus the
+local revert commit; it does **not** contain PR #62 or #64, which were merged
+into `origin/humanoid_ros2_simulation` afterwards.
+
+| File | Change | Effect on `sim.launch.py` |
+|---|---|---|
+| `launch/sim_experimental.launch.py` | New: sets the three arguments above, then includes `sim.launch.py` | none |
+| `config/cyclonedds_sim.xml` | New: CycloneDDS on `lo` only, receive buffer up to 16 MB | none |
+| `scripts/sim_experimental.sh` | New: one-click start with environment checks | none |
+| `tools/timing/` | New: measurement tools, see [tools/timing/README.md](tools/timing/README.md) | none |
+| `humanoid_sim/main.py` | GIL switch interval is a `mujoco_sim` parameter (`gil_switch_interval_s`) | default `0` keeps the old behaviour |
+| `launch/sim.launch.py` | New `gil_switch_interval_s` argument forwarded to `mujoco_sim` | default `0.0`, unchanged |
+| `package.xml`, `setup.py` | `rmw_cyclonedds_cpp` dependency; install `config/*.xml` | none |
+
+`sim.launch.py` still runs on Fast DDS with the default switch interval, so the
+two launches can be compared on the same build.
+
+#### Why
+
+Measured on native Ubuntu 24.04 with an i7-1165G7 (robot held on the gantry):
 
 - **Fast DDS stalls.** About 2 s after another node joins the graph (most often
   one with service clients of the simulator: `cpp_control_node`,
   `sim_autostart`, `ros2 service call`), a Fast DDS 2.14 `publish()` can block
-  for ~330 ms. rclpy holds the GIL there, so the whole simulator stops and the
-  safety IMU freshness check (250 ms) or the policy input timeout (100 ms)
-  latches. Startup estops: about 30 % with Fast DDS, 0 of 16 with CycloneDDS.
-  Shared memory off, asynchronous publishing and staggered node start did not
-  remove it.
+  for ~330 ms. rclpy holds the GIL there, so the whole process stops, the
+  simulator or any other Python node, and the safety IMU freshness check
+  (250 ms) or the policy input timeout (100 ms) latches. Startup estops: about
+  30 % with Fast DDS, 0 of 25 with CycloneDDS. Shared memory off, asynchronous
+  publishing and staggered node start did not remove it. The root cause inside
+  Fast DDS is not known.
+- **Loopback only.** With `ROS_LOCALHOST_ONLY=1` CycloneDDS still advertises an
+  arbitrarily chosen external interface. On a Wi-Fi address in 100.64.0.0/10
+  with Tailscale running, that address is routed into `tailscale0` and no node
+  discovered any other. The config pins CycloneDDS to `lo`.
 - **Camera frames.** CycloneDDS fragments the 0.6–0.9 MB images over UDP. With
   the default 208 KB `net.core.rmem_max`, 7–14 % of color and 2–9 % of depth
-  frames were lost; with 16 MB, none. The buffer request is capped by
-  `net.core.rmem_max`, so raise it on the host (the script warns when it is low):
-
-  ```bash
-  echo 'net.core.rmem_max=33554432' | sudo tee /etc/sysctl.d/60-cyclonedds.conf
-  sudo sysctl --system
-  ```
-
+  frames were lost in transport; with 16 MB, none. The request is capped by
+  `net.core.rmem_max`, so raise that on the host (the script warns when it is low).
 - **GIL switch interval.** With CPython's 5 ms default the 5 ms physics step can
   wait a full period for the executor or camera thread. 0.5 ms cut physics
   overruns from 82–339 to 8–13 per 30 s.
 
-Shells that interact with this simulation should use the same DDS
-(`export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`); mixed vendors usually
-interoperate on one host, but this is not guaranteed.
+#### Testing it step by step
 
-Not addressed: with `auto_start:=true` the robot falls 2–9 s after the gantry
-release in about half the runs, with either DDS and no IMU timeout.
+1. Get the branch:
+
+   ```bash
+   git fetch origin sim-experimental-cyclonedds
+   git switch -c sim-experimental-cyclonedds origin/sim-experimental-cyclonedds
+   ```
+
+2. Install CycloneDDS and raise the socket receive buffer limit (once per host;
+   in the dev container rosdep installs the package):
+
+   ```bash
+   sudo apt install ros-$ROS_DISTRO-rmw-cyclonedds-cpp
+   echo 'net.core.rmem_max=33554432' | sudo tee /etc/sysctl.d/60-cyclonedds.conf
+   sudo sysctl --system
+   ```
+
+3. Build. On hosts without the OpenCV 4.5 SDK add `-DTRACK_ONLY=ON` (tracker
+   only); if the rosenv lacks `setuptools`, build the interface packages with
+   the system Python:
+
+   ```bash
+   source scripts/activate_rosenv.sh
+   colcon build --symlink-install --packages-up-to humanoid_sim humanoid_vision \
+     --cmake-args -DTRACK_ONLY=ON -DPython3_EXECUTABLE=/usr/bin/python3
+   ```
+
+4. Start it once by hand and check the first lines: `Experimental simulation:
+   RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`, and no `SAFETY ESTOP LATCHED`:
+
+   ```bash
+   scripts/sim_experimental.sh enable_vision:=true start_detector:=false enable_depth:=true
+   ```
+
+5. Measure both launches with the tools. Each writes `summary.md` and
+   `environment.txt` under `local_test/sim_timing/<tool>_<launch>_<host>_<time>/`:
+
+   ```bash
+   T=simulation/humanoid_sim/tools/timing
+   LAUNCH=sim $T/startup_trials.sh 10      # original: startup estops
+   $T/startup_trials.sh 10                 # experimental
+   LAUNCH=sim $T/dds_join_repro.sh 6       # minimal Fast DDS stall reproduction
+   $T/dds_join_repro.sh 6
+   $T/image_loss.sh 3                      # camera frame loss (experimental)
+   $T/camera_matrix.sh                     # feedback timing with/without camera
+   ```
+
+   About 25 minutes in total. Close CPU-heavy applications first; they change
+   the CPU and overrun numbers, not the stall counts.
+
+6. Report the `summary.md` and `environment.txt` files, the CPU model, and
+   whether the host is native Linux or WSL.
+
+Shells that interact with this simulation should use the same DDS and config:
+
+```bash
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export CYCLONEDDS_URI=file://$(ros2 pkg prefix humanoid_sim)/share/humanoid_sim/config/cyclonedds_sim.xml
+```
+
+Known issues, not addressed by this launch:
+
+- With `auto_start:=true` the robot falls 2–9 s after the gantry release in
+  about half the runs, with either DDS and no IMU timeout.
+- `scripts/setup_rosenv.sh` fails on a fresh host: `requirements-wbc.txt` pins
+  `cmeel-eigen==3.4.0`, which is no longer on PyPI.
+- Only measured on one native Ubuntu host so far (not WSL, not the i9-12900HX).
 
 ### Keep simulated traffic off the robot
 
