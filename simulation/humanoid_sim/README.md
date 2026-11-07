@@ -172,12 +172,61 @@ prints the same list):
 | `fall_detection_enabled` | empty | Override `safety.yaml` fall detection (`true`/`false`) |
 | `trip_on_imu_timeout` | empty | Override `safety.yaml` IMU-timeout trip |
 | `localhost_only` | `1` | Confine DDS discovery to this host |
+| `gil_switch_interval_s` | `0.0` | `mujoco_sim` Python GIL switch interval; `0` keeps the 5 ms default |
 | `ros_domain_id` | `$ROS_DOMAIN_ID` or `0` | ROS domain for every node in the launch |
 | `web_port` | `8080` | Web monitor port with `minimal:=false` |
 | `motor_config_file` | installed `motors.yaml` | Motor registry for the backend, controller and policy |
 | `safety_config_file` | installed `safety.yaml` | Safety supervisor configuration |
 | `sim_config_file` | installed `config/sim.yaml` | Parameters of the nodes inside `mujoco_sim` |
 | `model_path` | installed `20260914_170827.onnx` | Policy model |
+
+### Experimental launch
+
+`sim_experimental.launch.py` is `sim.launch.py` with timing fixes that are
+still being evaluated. It accepts every argument above and passes it through:
+
+```bash
+scripts/sim_experimental.sh                          # sources rosenv, checks, launches
+scripts/sim_experimental.sh enable_vision:=true start_detector:=false
+ros2 launch humanoid_sim sim_experimental.launch.py  # same, without the checks
+```
+
+| Argument | Default | What it changes |
+|---|---|---|
+| `rmw_implementation` | `rmw_cyclonedds_cpp` | DDS of every node of the launch |
+| `cyclonedds_config` | installed `config/cyclonedds_sim.xml` | Up to 16 MB socket receive buffer; skipped if `CYCLONEDDS_URI` is set |
+| `gil_switch_interval_s` | `0.0005` | GIL switch interval of `mujoco_sim` |
+
+Why, measured on native Ubuntu 24.04 with an i7-1165G7 (robot held on the gantry):
+
+- **Fast DDS stalls.** About 2 s after another node joins the graph (most often
+  one with service clients of the simulator: `cpp_control_node`,
+  `sim_autostart`, `ros2 service call`), a Fast DDS 2.14 `publish()` can block
+  for ~330 ms. rclpy holds the GIL there, so the whole simulator stops and the
+  safety IMU freshness check (250 ms) or the policy input timeout (100 ms)
+  latches. Startup estops: about 30 % with Fast DDS, 0 of 16 with CycloneDDS.
+  Shared memory off, asynchronous publishing and staggered node start did not
+  remove it.
+- **Camera frames.** CycloneDDS fragments the 0.6–0.9 MB images over UDP. With
+  the default 208 KB `net.core.rmem_max`, 7–14 % of color and 2–9 % of depth
+  frames were lost; with 16 MB, none. The buffer request is capped by
+  `net.core.rmem_max`, so raise it on the host (the script warns when it is low):
+
+  ```bash
+  echo 'net.core.rmem_max=33554432' | sudo tee /etc/sysctl.d/60-cyclonedds.conf
+  sudo sysctl --system
+  ```
+
+- **GIL switch interval.** With CPython's 5 ms default the 5 ms physics step can
+  wait a full period for the executor or camera thread. 0.5 ms cut physics
+  overruns from 82–339 to 8–13 per 30 s.
+
+Shells that interact with this simulation should use the same DDS
+(`export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`); mixed vendors usually
+interoperate on one host, but this is not guaranteed.
+
+Not addressed: with `auto_start:=true` the robot falls 2–9 s after the gantry
+release in about half the runs, with either DDS and no IMU timeout.
 
 ### Keep simulated traffic off the robot
 

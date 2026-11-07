@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- CycloneDDS settings for sim_experimental.launch.py.
+
+     Camera images are 0.6-0.9 MB and travel as many UDP fragments; with
+     best-effort QoS one lost fragment drops the whole frame. The kernel default
+     receive buffer (net.core.rmem_max = 208 KB on Ubuntu) dropped 7-14 % of
+     color frames at 15 Hz; 16 MB dropped none. Only max is set: the request is
+     capped by net.core.rmem_max instead of failing when it is lower, so raise
+     that limit on the host (see the README) to get the full buffer. -->
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain Id="any">
+    <Internal>
+      <SocketReceiveBufferSize max="16MB"/>
+    </Internal>
+  </Domain>
+</CycloneDDS>

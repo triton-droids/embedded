@@ -84,6 +84,7 @@ def simulation_and_stack(context):
                 'target_image': arg('target_image').perform(context),
                 'command_timeout_s': float(arg('can_command_timeout_s').perform(context)),
                 'policy_commands_topic': '',
+                'gil_switch_interval_s': float(arg('gil_switch_interval_s').perform(context)),
                 **({'enable_head': False, 'enable_target': False,
                     'foot_clearance_m': 0.0, 'allow_torque_only_motion': True,
                     'publish_feet_ground_truth': True,
@@ -238,6 +239,7 @@ def generate_launch_description():
         ('fall_detection_enabled', '', 'Override safety.yaml fall detection'),
         ('trip_on_imu_timeout', '', 'Override safety.yaml IMU timeout trip'),
         ('localhost_only', '1', 'Confine DDS discovery to this host (1) or not (0)'),
+        ('gil_switch_interval_s', '0.0', 'mujoco_sim Python GIL switch interval; 0 keeps the default 5 ms'),
         ('ros_domain_id', EnvironmentVariable('ROS_DOMAIN_ID', default_value='0'), 'ROS domain'),
         ('web_port', '8080', 'Read-only motor Web monitor port'),
     ]

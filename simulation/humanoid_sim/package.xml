@@ -23,6 +23,8 @@
   <exec_depend>std_srvs</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
+  <!-- DDS used by sim_experimental.launch.py. -->
+  <exec_depend>rmw_cyclonedds_cpp</exec_depend>
   <!-- mujoco is installed with pip from requirements.txt. -->
   <test_depend>python3-pytest</test_depend>
 

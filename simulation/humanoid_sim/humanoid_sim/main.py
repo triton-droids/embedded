@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import os
 import signal
+import sys
 import threading
 import time
 
@@ -211,6 +212,13 @@ def main(args=None) -> None:
     signal.signal(signal.SIGTERM, signal.default_int_handler)
     control = SimControlNode()
     world = control.world
+    # The physics thread steps every 5 ms. With CPython's default 5 ms GIL
+    # switch interval it can wait a whole period for the executor or camera
+    # thread to yield; e.g. 0.0005 bounds that wait. 0 keeps the default.
+    control.declare_parameter('gil_switch_interval_s', 0.0)
+    switch_interval = float(control.get_parameter('gil_switch_interval_s').value)
+    if switch_interval > 0.0:
+        sys.setswitchinterval(switch_interval)
 
     # Imported here so a missing optional dependency only affects its own node.
     from .camera_node import SimCameraNode
