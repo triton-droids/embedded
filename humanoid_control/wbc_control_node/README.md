@@ -1,5 +1,9 @@
 # wbc_control_node
 
+> **Deprecated (2026-11-08).** In simulation, RL + tuned joint PD is more stable
+> than RL + WBC; see `docs/reports/2026-11-08-wbc-deprecation.md`. The node is
+> kept for reference and diagnostics only.
+
 Simulation-only TSID bridge:
 
 ```
@@ -104,6 +108,10 @@ preserved and deadlines may only shorten. Stale, misframed, invalid, expired,
 failed or late results are not forwarded; active faults send DISABLE and latch
 until node restart. There is no stale-result PD fallback or automatic rearm.
 `/wbc/status` reports progress, contacts, solver timing and faults.
+DDS output publication errors also latch a fault. The node remains alive and
+retries fresh DISABLE messages; successful DDS submission does not confirm
+physical motor disable. Diagnostic publication failures are reported without
+terminating the control executor.
 
 The WBC simulation disables the unmodelled head/target and initializes the soles
 on the floor. Contact selection is a debounced heuristic: planned foot lift is

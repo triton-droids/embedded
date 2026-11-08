@@ -19,7 +19,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import rclpy
 from ament_index_python.packages import get_package_share_directory, PackageNotFoundError
 from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from diagnostic_msgs.msg import DiagnosticArray
 from sensor_msgs.msg import JointState
 from motor_control_interfaces.srv import SubmitAbstractCommand
@@ -451,16 +451,16 @@ class MotorWebNode(Node):
         self.live_config = LiveMotorConfig(str(param('motor_config_file')), self.cache)
         self.live_config.refresh(time.monotonic())
         self.source_topic = str(param('source_topic'))
-        self.create_subscription(JointState, self.source_topic, self.on_state, qos_profile_sensor_data)
+        self.create_subscription(JointState, self.source_topic, self.on_state, QoSProfile(depth=2, reliability=ReliabilityPolicy.BEST_EFFORT))
         self.create_subscription(String, str(param('motor_status_topic')),
             lambda msg: self.cache.observe_temperatures(msg.data, time.monotonic(),
-                self.get_clock().now().nanoseconds * 1e-9), qos_profile_sensor_data)
-        qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                self.get_clock().now().nanoseconds * 1e-9), QoSProfile(depth=2, reliability=ReliabilityPolicy.BEST_EFFORT))
+        qos = QoSProfile(depth=2, durability=DurabilityPolicy.TRANSIENT_LOCAL,
                          reliability=ReliabilityPolicy.RELIABLE)
         self.create_subscription(Bool, '/safety/estop', self.on_estop, qos)
         self.create_subscription(DiagnosticArray, str(param('supervisor_status_topic')),
             lambda msg: self.cache.observe_supervisor(msg, time.monotonic(),
-                self.get_clock().now().nanoseconds * 1e-9), qos_profile_sensor_data)
+                self.get_clock().now().nanoseconds * 1e-9), QoSProfile(depth=2, reliability=ReliabilityPolicy.BEST_EFFORT))
         self.action_client = self.create_client(SubmitAbstractCommand, '/control_core/submit_abstract_command')
         self.actions = WebActionBridge(self.action_client, self.get_clock())
         self.create_timer(0.05, self.actions.tick)

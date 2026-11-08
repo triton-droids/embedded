@@ -28,6 +28,8 @@ setup(
         'console_scripts': [
             'mujoco_sim = humanoid_sim.main:main',
             'sim_autostart = humanoid_sim.autostart_node:main',
+            'sim_imu_publisher = humanoid_sim.imu_split_node:main',
+            'remote_viewer = humanoid_sim.remote_viewer:main',
         ],
     },
 )

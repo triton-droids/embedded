@@ -3,4 +3,5 @@
 -r humanoid_control/motor_control_hybrid/requirements-runtime.txt
 -r requirements-policy-onnx.txt
 -r simulation/humanoid_sim/requirements.txt
+-r simulation/humanoid_ball_chase/requirements.txt
 pytest>=7,<9

@@ -1,0 +1,14 @@
+{
+  "source": "/home/rcli/Github/td_perception_camera/ds3225_d435_pantilt_rev_k_slotted_horn.zip",
+  "archive_member": "ds3225_d435_pantilt_rev_k_slotted_horn/meshes.json",
+  "source_sha256": "93efce6322492a0386aed57295504793eb2e8daa0340c437df0a444eff74fe6b",
+  "archive_sha256": "be6cb51a430eb7509bbd4070926a6d852cf9091cef908e18816ff6deb46846d2",
+  "repository": "git@github.com:triton-droids/td_perception.git",
+  "revision_commit": "d75a50b8adb356a025fea7d9511fa55630d16477",
+  "revision_branch": "p-33-ball-tracker",
+  "revision": "K USB_LEFT",
+  "units": "mm",
+  "status": "Imported from user-provided td_perception_camera checkout. Reference CAD, not vendor D435 production geometry. Mass/inertia are simulation assumptions.",
+  "pitch_axis_z_mm": 88,
+  "yaw_axis_x_mm": 20
+}

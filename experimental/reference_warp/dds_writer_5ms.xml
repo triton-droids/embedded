@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+  <publisher profile_name="/imu/data_raw">
+    <qos><reliability><kind>RELIABLE</kind><max_blocking_time><sec>0</sec><nanosec>5000000</nanosec></max_blocking_time></reliability></qos>
+  </publisher>
+  <publisher profile_name="/joint_states">
+    <qos><reliability><kind>RELIABLE</kind><max_blocking_time><sec>0</sec><nanosec>5000000</nanosec></max_blocking_time></reliability></qos>
+  </publisher>
+</profiles>

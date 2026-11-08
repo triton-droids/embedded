@@ -1,0 +1,4290 @@
+{
+  "status": "complete",
+  "model": "tasksource/tasksource-decider-nano",
+  "revision": "2c7c01ffe5aba74dd15968cf38b0fdc83d1f3810",
+  "benchmark": "synthetic agreement with existing IMU checks, not real-world safety accuracy",
+  "device": "cpu",
+  "torch_version": "2.6.0+cpu",
+  "transformers_version": "5.17.0",
+  "instructions": "Decide the emergency-stop output of a robot safety supervisor after the history below.\nRules: latch emergency stop if absolute roll or pitch is strictly greater than 40 degrees for 3 accepted consecutive samples, or orientation is invalid. A jump >=20 degrees from the last accepted sample with gyro magnitude <0.5 rad/s is ignored for fall counting, for at most 10 consecutive ignored samples. Invalid samples do not refresh IMU freshness. IMU data age includes source age at receipt plus elapsed time; trip if age strictly exceeds 0.30 seconds. Before the first valid sample, trip only after startup grace of 3 seconds. Trip on 50 bit-identical consecutive IMU samples (orientation, gyro and acceleration). Once latched, emergency stop remains latched even if the robot recovers; no reset is requested. Hardware checks are disabled. All angles in the history are degrees. What emergency-stop output is required now?",
+  "weights_sha256": "ef09f0a1f2490512e69e56af9870fecfbfe321bccf18fb46427e511193ec1c1b",
+  "files_sha256": {
+    "tokenizer_config.json": "a137ba535c8e4b1666cc6208745d354a39282568eab113ce9c653686f616c898",
+    "tokenizer.json": "28c5e078e4c52aa37cf0e6de1a212878f3dbd58dd1c70466298efe0b6b86db35",
+    "decider.py": "64cf43f0ff1d8c9c3f3a55a0837125daf63579a0cb117e26905cb0c685e1631c",
+    "decider_config.json": "90197af5fe26fa786c1c8de17af79db8b3d73ba321b0bb34a292897a48e2d531",
+    "config.json": "ad4aea7de52c29bd84ebc764d89e3c9df22f96faeff0fb166b19952d680d17a1"
+  },
+  "summary": {
+    "n_scenarios": 48,
+    "n_requests": 96,
+    "correct": 58,
+    "accuracy": 0.6041666666666666,
+    "unsafe_misses": 0,
+    "stop_recall": 1.0,
+    "false_stops": 38,
+    "order_flips": 0,
+    "latency_median_ms": 1023.4540180535987,
+    "latency_p95_ms": 1440.0438759475946,
+    "by_category": {
+      "boundary": {
+        "n": 8,
+        "correct": 2
+      },
+      "fall": {
+        "n": 8,
+        "correct": 8
+      },
+      "glitch": {
+        "n": 8,
+        "correct": 0
+      },
+      "invalid": {
+        "n": 8,
+        "correct": 8
+      },
+      "latched_recovered": {
+        "n": 8,
+        "correct": 8
+      },
+      "normal": {
+        "n": 8,
+        "correct": 0
+      },
+      "pending_fall": {
+        "n": 8,
+        "correct": 0
+      },
+      "source_stale": {
+        "n": 8,
+        "correct": 8
+      },
+      "stale": {
+        "n": 8,
+        "correct": 8
+      },
+      "startup_expired": {
+        "n": 8,
+        "correct": 8
+      },
+      "startup_grace": {
+        "n": 8,
+        "correct": 0
+      },
+      "stuck": {
+        "n": 8,
+        "correct": 8
+      }
+    }
+  },
+  "rows": [
+    {
+      "id": "normal_0",
+      "category": "normal",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7672737878948296,
+        "continue": 0.23272621210517036
+      },
+      "latency_ms": 1101.1117920279503
+    },
+    {
+      "id": "normal_0",
+      "category": "normal",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.23272700037453223,
+        "stop": 0.7672729996254679
+      },
+      "latency_ms": 970.2062630094588
+    },
+    {
+      "id": "normal_1",
+      "category": "normal",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 12.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7551306908220089,
+        "continue": 0.24486930917799102
+      },
+      "latency_ms": 1153.7178689613938
+    },
+    {
+      "id": "normal_1",
+      "category": "normal",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 12.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.24486957920227798,
+        "stop": 0.7551304207977221
+      },
+      "latency_ms": 1023.2187869260088
+    },
+    {
+      "id": "normal_2",
+      "category": "normal",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": -25.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7567721780730415,
+        "continue": 0.24322782192695844
+      },
+      "latency_ms": 1125.3568369429559
+    },
+    {
+      "id": "normal_2",
+      "category": "normal",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": -25.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.24322829095079557,
+        "stop": 0.7567717090492043
+      },
+      "latency_ms": 1023.4035269822925
+    },
+    {
+      "id": "normal_3",
+      "category": "normal",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 39.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7516624549709262,
+        "continue": 0.24833754502907385
+      },
+      "latency_ms": 1180.0792120629922
+    },
+    {
+      "id": "normal_3",
+      "category": "normal",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 39.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.24833788090021544,
+        "stop": 0.7516621190997846
+      },
+      "latency_ms": 979.8040590249002
+    },
+    {
+      "id": "fall_0",
+      "category": "fall",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 41.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7503382145007176,
+        "continue": 0.24966178549928245
+      },
+      "latency_ms": 1157.0936710340902
+    },
+    {
+      "id": "fall_0",
+      "category": "fall",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 41.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.2496601231968077,
+        "stop": 0.7503398768031923
+      },
+      "latency_ms": 995.0070970226079
+    },
+    {
+      "id": "fall_1",
+      "category": "fall",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": -45.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7572729176687866,
+        "continue": 0.24272708233121346
+      },
+      "latency_ms": 1118.5057789552957
+    },
+    {
+      "id": "fall_1",
+      "category": "fall",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": -45.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.2427263222617246,
+        "stop": 0.7572736777382754
+      },
+      "latency_ms": 986.979954992421
+    },
+    {
+      "id": "fall_2",
+      "category": "fall",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 60.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7701591287343952,
+        "continue": 0.22984087126560485
+      },
+      "latency_ms": 1082.3789150454104
+    },
+    {
+      "id": "fall_2",
+      "category": "fall",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 60.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.22984125241561812,
+        "stop": 0.7701587475843819
+      },
+      "latency_ms": 1012.2191050322726
+    },
+    {
+      "id": "fall_3",
+      "category": "fall",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": -80.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7601881704907553,
+        "continue": 0.23981182950924476
+      },
+      "latency_ms": 1023.6242579994723
+    },
+    {
+      "id": "fall_3",
+      "category": "fall",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": -80.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.2398119931792042,
+        "stop": 0.7601880068207958
+      },
+      "latency_ms": 1048.8569070585072
+    },
+    {
+      "id": "pending_fall_0",
+      "category": "pending_fall",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.01,
+            "count": 1,
+            "sample": {
+              "roll_deg": 45.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.01
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7636175063626643,
+        "continue": 0.2363824936373356
+      },
+      "latency_ms": 981.9426330504939
+    },
+    {
+      "id": "pending_fall_0",
+      "category": "pending_fall",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.01,
+            "count": 1,
+            "sample": {
+              "roll_deg": 45.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.01
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.23638260795156718,
+        "stop": 0.7636173920484328
+      },
+      "latency_ms": 1087.049949914217
+    },
+    {
+      "id": "pending_fall_1",
+      "category": "pending_fall",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.02,
+            "count": 2,
+            "sample": {
+              "roll_deg": 46.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.02
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7401442434555862,
+        "continue": 0.2598557565444138
+      },
+      "latency_ms": 1029.7888130880892
+    },
+    {
+      "id": "pending_fall_1",
+      "category": "pending_fall",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.02,
+            "count": 2,
+            "sample": {
+              "roll_deg": 46.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.02
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.2598557293178764,
+        "stop": 0.7401442706821235
+      },
+      "latency_ms": 1127.6015769690275
+    },
+    {
+      "id": "pending_fall_2",
+      "category": "pending_fall",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.01,
+            "count": 1,
+            "sample": {
+              "roll_deg": 47.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.01
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7591190779824187,
+        "continue": 0.2408809220175813
+      },
+      "latency_ms": 1017.3397379694507
+    },
+    {
+      "id": "pending_fall_2",
+      "category": "pending_fall",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.01,
+            "count": 1,
+            "sample": {
+              "roll_deg": 47.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.01
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.24088050989391618,
+        "stop": 0.7591194901060838
+      },
+      "latency_ms": 1140.8739830367267
+    },
+    {
+      "id": "pending_fall_3",
+      "category": "pending_fall",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.02,
+            "count": 2,
+            "sample": {
+              "roll_deg": 48.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.02
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7426009576318164,
+        "continue": 0.2573990423681836
+      },
+      "latency_ms": 1000.8282440248877
+    },
+    {
+      "id": "pending_fall_3",
+      "category": "pending_fall",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.02,
+            "count": 2,
+            "sample": {
+              "roll_deg": 48.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.02
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.25739917694939446,
+        "stop": 0.7426008230506055
+      },
+      "latency_ms": 1123.5796889523044
+    },
+    {
+      "id": "glitch_0",
+      "category": "glitch",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.01,
+            "count": 1,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          },
+          {
+            "first_time_s": 0.02,
+            "last_time_s": 0.03,
+            "count": 2,
+            "sample": {
+              "roll_deg": 60.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.8168115517256979,
+        "continue": 0.18318844827430208
+      },
+      "latency_ms": 1312.662629992701
+    },
+    {
+      "id": "glitch_0",
+      "category": "glitch",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.01,
+            "count": 1,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          },
+          {
+            "first_time_s": 0.02,
+            "last_time_s": 0.03,
+            "count": 2,
+            "sample": {
+              "roll_deg": 60.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.18318859989172828,
+        "stop": 0.8168114001082718
+      },
+      "latency_ms": 1440.0438759475946
+    },
+    {
+      "id": "glitch_1",
+      "category": "glitch",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.01,
+            "count": 1,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          },
+          {
+            "first_time_s": 0.02,
+            "last_time_s": 0.04,
+            "count": 3,
+            "sample": {
+              "roll_deg": 61.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.04
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.8182455585804961,
+        "continue": 0.18175444141950392
+      },
+      "latency_ms": 1361.9085169630125
+    },
+    {
+      "id": "glitch_1",
+      "category": "glitch",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.01,
+            "count": 1,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          },
+          {
+            "first_time_s": 0.02,
+            "last_time_s": 0.04,
+            "count": 3,
+            "sample": {
+              "roll_deg": 61.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.04
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.18175400706485983,
+        "stop": 0.8182459929351402
+      },
+      "latency_ms": 1423.194612027146
+    },
+    {
+      "id": "glitch_2",
+      "category": "glitch",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.01,
+            "count": 1,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          },
+          {
+            "first_time_s": 0.02,
+            "last_time_s": 0.05,
+            "count": 4,
+            "sample": {
+              "roll_deg": 62.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.05
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.8160096367899045,
+        "continue": 0.18399036321009546
+      },
+      "latency_ms": 1466.0689779557288
+    },
+    {
+      "id": "glitch_2",
+      "category": "glitch",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.01,
+            "count": 1,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          },
+          {
+            "first_time_s": 0.02,
+            "last_time_s": 0.05,
+            "count": 4,
+            "sample": {
+              "roll_deg": 62.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.05
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.18398955780895238,
+        "stop": 0.8160104421910477
+      },
+      "latency_ms": 1300.6555649917573
+    },
+    {
+      "id": "glitch_3",
+      "category": "glitch",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.01,
+            "count": 1,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          },
+          {
+            "first_time_s": 0.02,
+            "last_time_s": 0.06,
+            "count": 5,
+            "sample": {
+              "roll_deg": 63.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.06
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.8153969978060823,
+        "continue": 0.18460300219391756
+      },
+      "latency_ms": 1504.1408769320697
+    },
+    {
+      "id": "glitch_3",
+      "category": "glitch",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.01,
+            "count": 1,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          },
+          {
+            "first_time_s": 0.02,
+            "last_time_s": 0.06,
+            "count": 5,
+            "sample": {
+              "roll_deg": 63.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.06
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.18460295733405538,
+        "stop": 0.8153970426659447
+      },
+      "latency_ms": 1403.6591240437701
+    },
+    {
+      "id": "stale_0",
+      "category": "stale",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.331
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7421687594001871,
+        "continue": 0.2578312405998129
+      },
+      "latency_ms": 1002.5385619373992
+    },
+    {
+      "id": "stale_0",
+      "category": "stale",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.331
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.2578321958203528,
+        "stop": 0.7421678041796472
+      },
+      "latency_ms": 972.8108580457047
+    },
+    {
+      "id": "stale_1",
+      "category": "stale",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.38
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7489480346888667,
+        "continue": 0.25105196531113333
+      },
+      "latency_ms": 1079.621604993008
+    },
+    {
+      "id": "stale_1",
+      "category": "stale",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.38
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.2510516655198308,
+        "stop": 0.7489483344801692
+      },
+      "latency_ms": 986.7926060687751
+    },
+    {
+      "id": "stale_2",
+      "category": "stale",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.63
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7474576880800075,
+        "continue": 0.25254231191999255
+      },
+      "latency_ms": 1121.0365169681609
+    },
+    {
+      "id": "stale_2",
+      "category": "stale",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.63
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.25254137244157016,
+        "stop": 0.7474586275584298
+      },
+      "latency_ms": 980.9646719368175
+    },
+    {
+      "id": "stale_3",
+      "category": "stale",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 1.03
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7612592676956199,
+        "continue": 0.23874073230438012
+      },
+      "latency_ms": 1147.5947770522907
+    },
+    {
+      "id": "stale_3",
+      "category": "stale",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 1.03
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.23874072553390363,
+        "stop": 0.7612592744660964
+      },
+      "latency_ms": 1020.7226800266653
+    },
+    {
+      "id": "source_stale_0",
+      "category": "source_stale",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.2
+            }
+          }
+        ],
+        "evaluation_time_s": 0.18
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7613557633866095,
+        "continue": 0.23864423661339054
+      },
+      "latency_ms": 1113.364315009676
+    },
+    {
+      "id": "source_stale_0",
+      "category": "source_stale",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.2
+            }
+          }
+        ],
+        "evaluation_time_s": 0.18
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.23864365722189773,
+        "stop": 0.7613563427781023
+      },
+      "latency_ms": 975.5994650768116
+    },
+    {
+      "id": "source_stale_1",
+      "category": "source_stale",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.21000000000000002
+            }
+          }
+        ],
+        "evaluation_time_s": 0.18
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7462791137109975,
+        "continue": 0.2537208862890024
+      },
+      "latency_ms": 1108.227468910627
+    },
+    {
+      "id": "source_stale_1",
+      "category": "source_stale",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.21000000000000002
+            }
+          }
+        ],
+        "evaluation_time_s": 0.18
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.2537207254644378,
+        "stop": 0.7462792745355623
+      },
+      "latency_ms": 982.4544120347127
+    },
+    {
+      "id": "source_stale_2",
+      "category": "source_stale",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.22
+            }
+          }
+        ],
+        "evaluation_time_s": 0.18
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7580262283232893,
+        "continue": 0.24197377167671072
+      },
+      "latency_ms": 1075.038652983494
+    },
+    {
+      "id": "source_stale_2",
+      "category": "source_stale",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.22
+            }
+          }
+        ],
+        "evaluation_time_s": 0.18
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.24197425272159584,
+        "stop": 0.7580257472784041
+      },
+      "latency_ms": 981.6630150889978
+    },
+    {
+      "id": "source_stale_3",
+      "category": "source_stale",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.23
+            }
+          }
+        ],
+        "evaluation_time_s": 0.18
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7569907360135696,
+        "continue": 0.24300926398643036
+      },
+      "latency_ms": 977.8455829946324
+    },
+    {
+      "id": "source_stale_3",
+      "category": "source_stale",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.23
+            }
+          }
+        ],
+        "evaluation_time_s": 0.18
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.24300843067644576,
+        "stop": 0.7569915693235542
+      },
+      "latency_ms": 1108.6649240460247
+    },
+    {
+      "id": "stuck_0",
+      "category": "stuck",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.5,
+            "count": 50,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.5
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7561921947710193,
+        "continue": 0.24380780522898066
+      },
+      "latency_ms": 1015.8198559656739
+    },
+    {
+      "id": "stuck_0",
+      "category": "stuck",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.5,
+            "count": 50,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.5
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.24380686566697332,
+        "stop": 0.7561931343330266
+      },
+      "latency_ms": 1087.2993749799207
+    },
+    {
+      "id": "stuck_1",
+      "category": "stuck",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.51,
+            "count": 51,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.51
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.775146068099379,
+        "continue": 0.22485393190062106
+      },
+      "latency_ms": 1002.3661400191486
+    },
+    {
+      "id": "stuck_1",
+      "category": "stuck",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.51,
+            "count": 51,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.51
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.22485410721116625,
+        "stop": 0.7751458927888336
+      },
+      "latency_ms": 1106.5765640232712
+    },
+    {
+      "id": "stuck_2",
+      "category": "stuck",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.52,
+            "count": 52,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.52
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7568089869871113,
+        "continue": 0.2431910130128887
+      },
+      "latency_ms": 972.289073979482
+    },
+    {
+      "id": "stuck_2",
+      "category": "stuck",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.52,
+            "count": 52,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.52
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.24319034108975712,
+        "stop": 0.7568096589102429
+      },
+      "latency_ms": 1109.9537180271
+    },
+    {
+      "id": "stuck_3",
+      "category": "stuck",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.53,
+            "count": 53,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.53
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7620349127480998,
+        "continue": 0.23796508725190035
+      },
+      "latency_ms": 963.4296559961513
+    },
+    {
+      "id": "stuck_3",
+      "category": "stuck",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.53,
+            "count": 53,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.53
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.2379654439348764,
+        "stop": 0.7620345560651236
+      },
+      "latency_ms": 1149.638438015245
+    },
+    {
+      "id": "invalid_0",
+      "category": "invalid",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": false,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7811216978232447,
+        "continue": 0.21887830217675527
+      },
+      "latency_ms": 1023.4540180535987
+    },
+    {
+      "id": "invalid_0",
+      "category": "invalid",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": false,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.21887828434313344,
+        "stop": 0.7811217156568666
+      },
+      "latency_ms": 1053.5999870626256
+    },
+    {
+      "id": "invalid_1",
+      "category": "invalid",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": false,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7811216978232447,
+        "continue": 0.21887830217675527
+      },
+      "latency_ms": 1007.2422100929543
+    },
+    {
+      "id": "invalid_1",
+      "category": "invalid",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": false,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.21887828434313344,
+        "stop": 0.7811217156568666
+      },
+      "latency_ms": 974.9824450118467
+    },
+    {
+      "id": "invalid_2",
+      "category": "invalid",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": false,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7811216978232447,
+        "continue": 0.21887830217675527
+      },
+      "latency_ms": 1099.4030650472268
+    },
+    {
+      "id": "invalid_2",
+      "category": "invalid",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": false,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.21887828434313344,
+        "stop": 0.7811217156568666
+      },
+      "latency_ms": 988.9789799926803
+    },
+    {
+      "id": "invalid_3",
+      "category": "invalid",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": false,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7811216978232447,
+        "continue": 0.21887830217675527
+      },
+      "latency_ms": 1099.5327479904518
+    },
+    {
+      "id": "invalid_3",
+      "category": "invalid",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": false,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.21887828434313344,
+        "stop": 0.7811217156568666
+      },
+      "latency_ms": 988.2600150303915
+    },
+    {
+      "id": "latched_recovered_0",
+      "category": "latched_recovered",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 50.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          },
+          {
+            "first_time_s": 0.04,
+            "last_time_s": 0.04,
+            "count": 1,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.04
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.8253884637127087,
+        "continue": 0.17461153628729123
+      },
+      "latency_ms": 1450.182321947068
+    },
+    {
+      "id": "latched_recovered_0",
+      "category": "latched_recovered",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 50.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          },
+          {
+            "first_time_s": 0.04,
+            "last_time_s": 0.04,
+            "count": 1,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.04
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.1746116307812861,
+        "stop": 0.825388369218714
+      },
+      "latency_ms": 1340.3023950522766
+    },
+    {
+      "id": "latched_recovered_1",
+      "category": "latched_recovered",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 51.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          },
+          {
+            "first_time_s": 0.04,
+            "last_time_s": 0.04,
+            "count": 1,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.04
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.8246641805365846,
+        "continue": 0.17533581946341542
+      },
+      "latency_ms": 1414.6734799724072
+    },
+    {
+      "id": "latched_recovered_1",
+      "category": "latched_recovered",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 51.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          },
+          {
+            "first_time_s": 0.04,
+            "last_time_s": 0.04,
+            "count": 1,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.04
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.17533651324767066,
+        "stop": 0.8246634867523294
+      },
+      "latency_ms": 1576.8091990612447
+    },
+    {
+      "id": "latched_recovered_2",
+      "category": "latched_recovered",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 52.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          },
+          {
+            "first_time_s": 0.04,
+            "last_time_s": 0.04,
+            "count": 1,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.04
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.8253911524794852,
+        "continue": 0.1746088475205148
+      },
+      "latency_ms": 1304.6328290365636
+    },
+    {
+      "id": "latched_recovered_2",
+      "category": "latched_recovered",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 52.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          },
+          {
+            "first_time_s": 0.04,
+            "last_time_s": 0.04,
+            "count": 1,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.04
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.17460905368677979,
+        "stop": 0.8253909463132203
+      },
+      "latency_ms": 1413.0816629622132
+    },
+    {
+      "id": "latched_recovered_3",
+      "category": "latched_recovered",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 53.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          },
+          {
+            "first_time_s": 0.04,
+            "last_time_s": 0.04,
+            "count": 1,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.04
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.8248237667022679,
+        "continue": 0.17517623329773221
+      },
+      "latency_ms": 1404.435195028782
+    },
+    {
+      "id": "latched_recovered_3",
+      "category": "latched_recovered",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 53.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          },
+          {
+            "first_time_s": 0.04,
+            "last_time_s": 0.04,
+            "count": 1,
+            "sample": {
+              "roll_deg": 0.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.04
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.1751763065018399,
+        "stop": 0.82482369349816
+      },
+      "latency_ms": 1305.384072009474
+    },
+    {
+      "id": "startup_grace_0",
+      "category": "startup_grace",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [],
+        "evaluation_time_s": 0.5
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.753960872993112,
+        "continue": 0.2460391270068881
+      },
+      "latency_ms": 856.1303740134463
+    },
+    {
+      "id": "startup_grace_0",
+      "category": "startup_grace",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [],
+        "evaluation_time_s": 0.5
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.2460384981466644,
+        "stop": 0.7539615018533355
+      },
+      "latency_ms": 746.7759090941399
+    },
+    {
+      "id": "startup_grace_1",
+      "category": "startup_grace",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [],
+        "evaluation_time_s": 1.0
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7492886624985814,
+        "continue": 0.25071133750141866
+      },
+      "latency_ms": 723.6951639642939
+    },
+    {
+      "id": "startup_grace_1",
+      "category": "startup_grace",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [],
+        "evaluation_time_s": 1.0
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.25071181617519317,
+        "stop": 0.7492881838248069
+      },
+      "latency_ms": 831.8088360829279
+    },
+    {
+      "id": "startup_grace_2",
+      "category": "startup_grace",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [],
+        "evaluation_time_s": 1.5
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7524641961634672,
+        "continue": 0.2475358038365328
+      },
+      "latency_ms": 844.8204610031098
+    },
+    {
+      "id": "startup_grace_2",
+      "category": "startup_grace",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [],
+        "evaluation_time_s": 1.5
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.24753585657136998,
+        "stop": 0.7524641434286301
+      },
+      "latency_ms": 719.3203709321097
+    },
+    {
+      "id": "startup_grace_3",
+      "category": "startup_grace",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [],
+        "evaluation_time_s": 2.0
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7444742090552064,
+        "continue": 0.2555257909447936
+      },
+      "latency_ms": 837.5042330008
+    },
+    {
+      "id": "startup_grace_3",
+      "category": "startup_grace",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [],
+        "evaluation_time_s": 2.0
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.2555258589771934,
+        "stop": 0.7444741410228066
+      },
+      "latency_ms": 720.5057749524713
+    },
+    {
+      "id": "startup_expired_0",
+      "category": "startup_expired",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [],
+        "evaluation_time_s": 3.1
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7413252437044191,
+        "continue": 0.258674756295581
+      },
+      "latency_ms": 720.9034060360864
+    },
+    {
+      "id": "startup_expired_0",
+      "category": "startup_expired",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [],
+        "evaluation_time_s": 3.1
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.258675256354609,
+        "stop": 0.741324743645391
+      },
+      "latency_ms": 833.2812759326771
+    },
+    {
+      "id": "startup_expired_1",
+      "category": "startup_expired",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [],
+        "evaluation_time_s": 4.1
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7315185634456055,
+        "continue": 0.2684814365543944
+      },
+      "latency_ms": 711.4113440038636
+    },
+    {
+      "id": "startup_expired_1",
+      "category": "startup_expired",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [],
+        "evaluation_time_s": 4.1
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.2684812199878654,
+        "stop": 0.7315187800121347
+      },
+      "latency_ms": 759.3592460034415
+    },
+    {
+      "id": "startup_expired_2",
+      "category": "startup_expired",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [],
+        "evaluation_time_s": 5.1
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7424349648480103,
+        "continue": 0.25756503515198975
+      },
+      "latency_ms": 849.660576088354
+    },
+    {
+      "id": "startup_expired_2",
+      "category": "startup_expired",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [],
+        "evaluation_time_s": 5.1
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.25756433418081853,
+        "stop": 0.7424356658191815
+      },
+      "latency_ms": 734.4884800259024
+    },
+    {
+      "id": "startup_expired_3",
+      "category": "startup_expired",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [],
+        "evaluation_time_s": 6.1
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7418332552487089,
+        "continue": 0.25816674475129103
+      },
+      "latency_ms": 800.8292689919472
+    },
+    {
+      "id": "startup_expired_3",
+      "category": "startup_expired",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [],
+        "evaluation_time_s": 6.1
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.2581667076516215,
+        "stop": 0.7418332923483786
+      },
+      "latency_ms": 873.0532359331846
+    },
+    {
+      "id": "boundary_0",
+      "category": "boundary",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 40.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7638395777357105,
+        "continue": 0.23616042226428952
+      },
+      "latency_ms": 977.5493539636955
+    },
+    {
+      "id": "boundary_0",
+      "category": "boundary",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 40.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.2361601978163,
+        "stop": 0.7638398021837
+      },
+      "latency_ms": 1086.9060929398984
+    },
+    {
+      "id": "boundary_1",
+      "category": "boundary",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": -40.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7623055283979604,
+        "continue": 0.23769447160203952
+      },
+      "latency_ms": 985.3347459575161
+    },
+    {
+      "id": "boundary_1",
+      "category": "boundary",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": -40.0,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.23769452492759602,
+        "stop": 0.762305475072404
+      },
+      "latency_ms": 1115.8243960235268
+    },
+    {
+      "id": "boundary_2",
+      "category": "boundary",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 39.999,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7579375513225048,
+        "continue": 0.2420624486774951
+      },
+      "latency_ms": 1007.3666899697855
+    },
+    {
+      "id": "boundary_2",
+      "category": "boundary",
+      "expected": "continue",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 39.999,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.24206224910361654,
+        "stop": 0.7579377508963834
+      },
+      "latency_ms": 1067.38070899155
+    },
+    {
+      "id": "boundary_3",
+      "category": "boundary",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 40.001,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "stop",
+        "continue"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "stop": 0.7613127280083815,
+        "continue": 0.23868727199161868
+      },
+      "latency_ms": 1005.7815880281851
+    },
+    {
+      "id": "boundary_3",
+      "category": "boundary",
+      "expected": "stop",
+      "state": {
+        "started_at_s": 0.0,
+        "initially_latched": false,
+        "reset_requested": false,
+        "history_runs": [
+          {
+            "first_time_s": 0.01,
+            "last_time_s": 0.03,
+            "count": 3,
+            "sample": {
+              "roll_deg": 40.001,
+              "pitch_deg": 0.0,
+              "gyro_rad_s": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "acceleration_m_s2": [
+                0.0,
+                0.0,
+                9.81
+              ],
+              "orientation_valid": true,
+              "source_age_s": 0.0
+            }
+          }
+        ],
+        "evaluation_time_s": 0.03
+      },
+      "order": [
+        "continue",
+        "stop"
+      ],
+      "predicted": "stop",
+      "probabilities": {
+        "continue": 0.23868734103987052,
+        "stop": 0.7613126589601296
+      },
+      "latency_ms": 985.5384669499472
+    }
+  ]
+}

@@ -77,31 +77,31 @@ public:
     // Use the face model to test the ball-position pipeline for now.
     detector_ = std::make_unique<YoloDetector>(model_path, config);
 
-    // Depth-one sensor QoS favors the freshest frame over an inference backlog.
+    // Depth-two sensor QoS favors the freshest frame over an inference backlog.
     color_subscription_ = create_subscription<sensor_msgs::msg::Image>(
-        color_topic, rclcpp::SensorDataQoS().keep_last(1),
+        color_topic, rclcpp::SensorDataQoS().keep_last(2),
         std::bind(&BallDetectionNode::image_callback, this,
                   std::placeholders::_1));
 
     // Keep the latest aligned depth frame and camera intrinsics.
     depth_subscription_ = create_subscription<sensor_msgs::msg::Image>(
-        depth_topic, rclcpp::SensorDataQoS().keep_last(1),
+        depth_topic, rclcpp::SensorDataQoS().keep_last(2),
         [this](const sensor_msgs::msg::Image::ConstSharedPtr message) {
           latest_depth_ = message;
         });
 
     camera_info_subscription_ =
         create_subscription<sensor_msgs::msg::CameraInfo>(
-            camera_info_topic, rclcpp::SensorDataQoS().keep_last(1),
+            camera_info_topic, rclcpp::SensorDataQoS().keep_last(2),
             [this](const sensor_msgs::msg::CameraInfo::ConstSharedPtr message) {
               latest_camera_info_ = message;
             });
 
     // The 3D point is in the camera optical frame (meters), never body coordinates.
     position_publisher_ = create_publisher<geometry_msgs::msg::PointStamped>(
-        "/vision/ball_3d_position", 10);
+        "/vision/ball_3d_position", 2);
     center_publisher_ = create_publisher<geometry_msgs::msg::PointStamped>(
-        "/vision/target_center", rclcpp::SensorDataQoS().keep_last(1));
+        "/vision/target_center", rclcpp::SensorDataQoS().keep_last(2));
 
     // Report throughput independently of target visibility; no detection is not
     // the same failure as no incoming camera frames.

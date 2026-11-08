@@ -1,0 +1,22 @@
+{
+  "encoding": "16UC1",
+  "units": "millimetres",
+  "resolution": [
+    424,
+    240
+  ],
+  "frame_id": "camera_color_optical_frame",
+  "matching_rgb_depth_info_point_stamp": [
+    1793491462,
+    812651793
+  ],
+  "nonzero_depth_pixels": 86496,
+  "football_pixel": [
+    214,
+    126
+  ],
+  "football_depth_image_m": 1.881,
+  "football_point_z_m": 1.883000135421753,
+  "scene_forward_axis": "positive_y",
+  "vision_target_timeout_s": 1.0
+}

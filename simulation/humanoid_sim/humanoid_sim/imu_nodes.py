@@ -14,7 +14,10 @@ Head MCU (replaces humanoid_vision_microros firmware + micro_ros_agent):
   /head/servo_target_rad  std_msgs/Float32 subscription; the servo releases after
                           command_timeout_s without a new finite command.
 
-The IMU site is identity-aligned with the floating base, matching the policy's
+The optional two-axis scene also accepts /head/tilt_target_rad, with an
+independent timeout after its first finite pitch command.
+
+The body IMU site is identity-aligned with the floating base, matching the policy's
 identity ``imu_to_body_rotation``. Noise and bias are optional Gaussian
 placeholders, not identified sensor characteristics.
 """
@@ -22,6 +25,8 @@ from __future__ import annotations
 
 import json
 import math
+import contextlib
+import gc
 import time
 import threading
 
@@ -32,6 +37,7 @@ from sensor_msgs.msg import Imu
 from std_msgs.msg import Float32, Int32, String
 
 from .world import ImuSnapshot, SimWorld
+from .publish_sample import publish_sample
 
 # Placeholder covariances documented by the body firmware (roll/pitch 1e-3, yaw 1e6 rad^2).
 BODY_ORIENTATION_COVARIANCE = [0.001, 0.0, 0.0, 0.0, 0.001, 0.0, 0.0, 0.0, 1e6]
@@ -68,7 +74,7 @@ def _fill_imu(msg: Imu, gyro: np.ndarray, accel: np.ndarray) -> None:
 
 class SimBodyImuNode(Node):
 
-    def __init__(self, world: SimWorld) -> None:
+    def __init__(self, world: SimWorld, diagnostics_node=None) -> None:
         super().__init__('sim_body_imu')
         self.declare_parameter('rate_hz', 100.0)
         self.declare_parameter('frame_id', 'imu_link')
@@ -77,44 +83,107 @@ class SimBodyImuNode(Node):
         self._frame_id = str(self.get_parameter('frame_id').value)
         self._noise = _ImuNoise(self, int(self.get_parameter('seed').value))
         self._published = 0
+        self._last_publish_mono = None
+        self._max_publish_gap_s = 0.0
+        self._max_sample_wait_s = 0.0
+        self._last_callback_mono = None
+        self._publish_thread = None
+        self._publish_native_tid = None
+        self._max_callback_gap_s = 0.0
+        self._max_publish_call_s = 0.0
+        self._max_status_publish_s = 0.0
+        self.declare_parameter('gc_diagnostics', False)
+        self._max_gc_pause_s = 0.0
+        self._gc_callback = None
+        if self.get_parameter('gc_diagnostics').value:
+            gc_begin = [0.0]
+            def measure_gc(phase, info):
+                if phase == 'start':
+                    gc_begin[0] = time.monotonic()
+                elif phase == 'stop':
+                    self._max_gc_pause_s = max(self._max_gc_pause_s, time.monotonic()-gc_begin[0])
+            self._gc_callback = measure_gc
+            gc.callbacks.append(measure_gc)
         self.first_sample = threading.Event()
         self._invalid_reported_at = -math.inf
         # The firmware publishes Reliable/Volatile.
-        qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
+        qos = QoSProfile(depth=2, reliability=ReliabilityPolicy.RELIABLE)
         self.imu_pub = self.create_publisher(Imu, '/imu/data_raw', qos)
-        self.status_pub = self.create_publisher(String, '/imu/status', 10)
+        self.status_pub = self.create_publisher(String, '/imu/status', 2)
         self.create_timer(1.0 / float(self.get_parameter('rate_hz').value), self._publish)
-        self.create_timer(1.0, self._publish_status)
+        (diagnostics_node if diagnostics_node is not None else self).create_timer(1.0, self._publish_status)
+
+    def destroy_node(self):
+        if self._gc_callback is not None and self._gc_callback in gc.callbacks:
+            gc.callbacks.remove(self._gc_callback)
+        return super().destroy_node()
 
     def _publish(self) -> None:
-        if self.world.control_fault is not None:
-            return  # Do not re-stamp a frozen physical sample as fresh.
-        stamp = self.get_clock().now().to_msg()
-        sample = self.world.body_imu()
-        gyro, accel = self._noise.apply(sample)
-        if (not np.isfinite(gyro).all() or not np.isfinite(accel).all()
-                or not np.isfinite(sample.quat_wxyz).all()
-                or not np.isclose(np.linalg.norm(sample.quat_wxyz), 1.0, atol=0.01)):
-            if time.monotonic() - self._invalid_reported_at > 1.0:
-                self._invalid_reported_at = time.monotonic()
-                self.get_logger().error('Invalid simulated IMU sample; startup not ready')
-            return
-        msg = Imu()
-        msg.header.stamp = stamp
-        msg.header.frame_id = self._frame_id
-        w, x, y, z = (float(v) for v in sample.quat_wxyz)
-        msg.orientation.w, msg.orientation.x, msg.orientation.y, msg.orientation.z = w, x, y, z
-        msg.orientation_covariance = BODY_ORIENTATION_COVARIANCE
-        _fill_imu(msg, gyro, accel)
-        self.imu_pub.publish(msg)
-        self._published += 1
-        self.first_sample.set()
+        self._publish_thread = threading.current_thread().name
+        self._publish_native_tid = threading.get_native_id()
+        entered = time.monotonic()
+        if self._last_callback_mono is not None:
+            self._max_callback_gap_s = max(self._max_callback_gap_s, entered-self._last_callback_mono)
+        self._last_callback_mono = entered
+        recorder = getattr(self.world, 'recorder', None)
+        # Collection: keep recorded truth and the published noisy IMU at the same step.
+        with self.world.lock if recorder is not None else contextlib.nullcontext():
+            if self.world.control_fault is not None:
+                return  # Do not re-stamp a frozen physical sample as fresh.
+            sample_begin = time.monotonic()
+            sample = self.world.body_imu()
+            self._max_sample_wait_s = max(self._max_sample_wait_s, time.monotonic() - sample_begin)
+            gyro, accel = self._noise.apply(sample)
+            if (not np.isfinite(gyro).all() or not np.isfinite(accel).all()
+                    or not np.isfinite(sample.quat_wxyz).all()
+                    or not np.isclose(np.linalg.norm(sample.quat_wxyz), 1.0, atol=0.01)):
+                if time.monotonic() - self._invalid_reported_at > 1.0:
+                    self._invalid_reported_at = time.monotonic()
+                    self.get_logger().error('Invalid simulated IMU sample; startup not ready')
+                return
+            msg = Imu()
+            msg.header.stamp.sec, msg.header.stamp.nanosec = divmod(sample.stamp_ns, 10**9)
+            msg.header.frame_id = self._frame_id
+            w, x, y, z = (float(v) for v in sample.quat_wxyz)
+            msg.orientation.w, msg.orientation.x, msg.orientation.y, msg.orientation.z = w, x, y, z
+            msg.orientation_covariance = BODY_ORIENTATION_COVARIANCE
+            _fill_imu(msg, gyro, accel)
+            publish_begin = time.monotonic()
+            try:
+                sent = publish_sample(self, self.imu_pub, msg, '/imu/data_raw')
+            finally:
+                self._max_publish_call_s = max(self._max_publish_call_s, time.monotonic()-publish_begin)
+            if not sent:
+                return
+            if recorder is not None:
+                recorder.record_imu(sample, gyro, accel, msg.header.stamp)
+            published_at = time.monotonic()
+            if self._last_publish_mono is not None:
+                self._max_publish_gap_s = max(self._max_publish_gap_s,
+                                              published_at - self._last_publish_mono)
+            self._last_publish_mono = published_at
+            self._published += 1
+            self.first_sample.set()
 
     def _publish_status(self) -> None:
-        self.status_pub.publish(String(data=json.dumps(dict(
+        begin = time.monotonic()
+        publish_sample(self, self.status_pub, String(data=json.dumps(dict(
             simulated=True, sensor='mujoco', frame_id=self._frame_id,
             published=self._published, subscribers=self.imu_pub.get_subscription_count(),
-            clock_synced=True))))
+            publish_thread=self._publish_thread, publish_native_tid=self._publish_native_tid,
+            qos_depth=self.imu_pub.qos_profile.depth,
+            last_publish_age_s=(None if self._last_publish_mono is None else
+                                time.monotonic() - self._last_publish_mono),
+            max_publish_gap_s=self._max_publish_gap_s,
+            max_sample_wait_s=self._max_sample_wait_s,
+            max_callback_gap_s=self._max_callback_gap_s,
+            max_publish_call_s=self._max_publish_call_s,
+            max_status_publish_s=self._max_status_publish_s,
+            max_gc_pause_s=self._max_gc_pause_s,
+            publish_failures=dict(getattr(self, '_publish_failures', {})),
+            control_fault=self.world.control_fault,
+            clock_synced=True))), '/imu/status')
+        self._max_status_publish_s = max(self._max_status_publish_s, time.monotonic()-begin)
 
 
 class SimHeadMcuNode(Node):
@@ -135,9 +204,12 @@ class SimHeadMcuNode(Node):
         self._timeout = float(self.get_parameter('command_timeout_s').value)
         self._noise = _ImuNoise(self, int(self.get_parameter('seed').value))
         self._last_command = -math.inf
-        self.imu_pub = self.create_publisher(Imu, '/head/imu', 10)
-        self.status_pub = self.create_publisher(Int32, '/head/mcu_status', 10)
-        self.create_subscription(Float32, '/head/servo_target_rad', self._command, 10)
+        self._last_pitch_command = None
+        self.imu_pub = self.create_publisher(Imu, '/head/imu', 2)
+        self.status_pub = self.create_publisher(Int32, '/head/mcu_status', 2)
+        self.create_subscription(Float32, '/head/servo_target_rad', self._command, 2)
+        if world._pitch_joint >= 0:
+            self.create_subscription(Float32, '/head/tilt_target_rad', self._pitch_command, 2)
         self.create_timer(1.0 / float(self.get_parameter('imu_rate_hz').value), self._publish_imu)
         # Fast enough to release the servo within the timeout plus one period.
         self.create_timer(0.05, self._watchdog)
@@ -153,9 +225,19 @@ class SimHeadMcuNode(Node):
     def _servo_enabled(self) -> bool:
         return time.monotonic() - self._last_command <= self._timeout
 
+    def _pitch_command(self, msg: Float32) -> None:
+        if not math.isfinite(msg.data):
+            self.world.set_pitch_target(None)
+            return
+        self._last_pitch_command = time.monotonic()
+        self.world.set_pitch_target(float(msg.data))
+
     def _watchdog(self) -> None:
         if not self._servo_enabled():
             self.world.set_head_target(None)
+        if (self._last_pitch_command is not None and
+                time.monotonic() - self._last_pitch_command > self._timeout):
+            self.world.set_pitch_target(None)
 
     def _publish_imu(self) -> None:
         if self.world.control_fault is not None:
@@ -166,10 +248,10 @@ class SimHeadMcuNode(Node):
         msg.header.frame_id = self._frame_id
         msg.orientation_covariance[0] = -1.0  # No fused orientation on the head IMU.
         _fill_imu(msg, gyro, accel)
-        self.imu_pub.publish(msg)
+        publish_sample(self, self.imu_pub, msg, '/head/imu')
 
     def _publish_status(self) -> None:
         bits = self.STATUS_IMU | self.STATUS_PCA9685 | self.STATUS_CLOCK_SYNC
         if self._servo_enabled():
             bits |= self.STATUS_SERVO_ENABLED
-        self.status_pub.publish(Int32(data=bits))
+        publish_sample(self, self.status_pub, Int32(data=bits), '/head/mcu_status')

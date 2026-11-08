@@ -13,10 +13,11 @@ from builtin_interfaces.msg import Time
 import numpy as np
 import yaml
 import rclpy
+from rclpy._rclpy_pybind11 import RCLError
 from ament_index_python.packages import get_package_share_directory
 from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Imu, JointState
 from std_msgs.msg import Bool, Float64MultiArray, String
 from motor_control_interfaces.msg import MotorCommand
@@ -51,6 +52,10 @@ class TrackingPolicyNode(Node):
             'reference_end_behavior': 'hold_last_frame', 'wait_for_sim_release': False,
             'reference_loop_start_frame': 50, 'reference_loop_end_frame': 251,
             'imu_to_body_rotation': [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+            # latch: one out-of-range |acceleration| sample latches a fault (original).
+            # skip: isolated outliers (e.g. simulated contact impulses) are counted;
+            # outliers persisting for input_timeout_s still latch.
+            'imu_accel_outlier': 'latch',
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -118,12 +123,17 @@ class TrackingPolicyNode(Node):
         self.state = 'waiting_for_imu'
         self.count = self.overruns = 0
         self.rejected_imu_timestamps = 0
+        self.imu_accel_outlier = str(param('imu_accel_outlier'))
+        if self.imu_accel_outlier not in ('latch', 'skip'):
+            raise ValueError('imu_accel_outlier must be latch or skip')
+        self.imu_accel_outliers = 0
+        self.accel_outlier_since = None
         self.last_tick = None
         self.intervals = deque(maxlen=3000)
         self.inference_ms = deque(maxlen=3000)
         self.work_ms = deque(maxlen=3000)
         self.frame = 0
-        stream_qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
+        stream_qos = QoSProfile(depth=2, reliability=ReliabilityPolicy.BEST_EFFORT)
         self.angles_pub = self.create_publisher(JointState, '/policy/target_angles', stream_qos)
         self.actions_pub = self.create_publisher(Float64MultiArray, '/policy/actions', stream_qos)
         # A monitor topic with the existing C++ scheduler's message contract.
@@ -131,14 +141,14 @@ class TrackingPolicyNode(Node):
         self.command_pub = self.create_publisher(MotorCommand, '/policy/desired_motor_subset', stream_qos)
         self.status_pub = self.create_publisher(String, '/policy/status', stream_qos)
         self.create_subscription(Imu, str(param('imu_topic')), self.on_imu,
-                                 qos_profile_sensor_data)
+                                 QoSProfile(depth=2, reliability=ReliabilityPolicy.BEST_EFFORT))
         self.create_subscription(JointState, str(param('joint_states_topic')),
-                                 self.on_joints, 1)
-        estop_qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                                 self.on_joints, 2)
+        estop_qos = QoSProfile(depth=2, durability=DurabilityPolicy.TRANSIENT_LOCAL,
                               reliability=ReliabilityPolicy.RELIABLE)
         self.create_subscription(Bool, '/safety/estop', self.on_estop, estop_qos)
         if self.wait_for_sim_release:
-            self.create_subscription(String, '/sim/status', self.on_sim_status, 1)
+            self.create_subscription(String, '/sim/status', self.on_sim_status, 2)
         self.steady_clock = Clock(clock_type=ClockType.STEADY_TIME)
         # Single inference worker, no pending FIFO: every iteration snapshots latest inputs.
         self.worker = threading.Thread(target=self.run_worker, name='tracking-inference', daemon=True)
@@ -224,7 +234,17 @@ class TrackingPolicyNode(Node):
             if not np.isfinite(acc).all() or not np.isfinite(gyro).all():
                 raise ValueError('Non-finite IMU sample')
             if not 0.1 < np.linalg.norm(acc) < 100:
-                raise ValueError('Invalid IMU acceleration')
+                if self.imu_accel_outlier == 'latch':
+                    raise ValueError('Invalid IMU acceleration')
+                self.imu_accel_outliers += 1
+                if self.accel_outlier_since is None:
+                    self.accel_outlier_since = now
+                if now - self.accel_outlier_since > self.timeout:
+                    raise ValueError('Invalid IMU acceleration persisted')
+                if not self.calibrated or self.orientation_source != 'message':
+                    return  # acceleration would be used directly: drop this sample
+            else:
+                self.accel_outlier_since = None
             if not self.calibrated:
                 if self.calibration_start is None:
                     self.calibration_start = now
@@ -431,6 +451,7 @@ class TrackingPolicyNode(Node):
                 'imu_age_since_receipt_ms': None if self.imu is None else (now - self.imu[0]) * 1000,
                 'gyro_bias_rad_s': self.bias.tolist(), 'model_sha256': self.model_sha256,
                 'rejected_imu_timestamps': self.rejected_imu_timestamps,
+                'imu_accel_outliers': self.imu_accel_outliers,
                 'inference_ms': None,
                 'control_callback_ms': None,
                 'tick_interval_ms': None,
@@ -442,7 +463,10 @@ class TrackingPolicyNode(Node):
                 'tick_interval_ms': tuple(self.intervals),
             }
         status.update({name: self.statistics(samples) for name, samples in timing_samples.items()})
-        self.status_pub.publish(String(data=json.dumps(status, allow_nan=False)))
+        try:
+            self.status_pub.publish(String(data=json.dumps(status, allow_nan=False)))
+        except RCLError as error:
+            self.get_logger().error(f'Policy diagnostics publication failed: {error}', throttle_duration_sec=5.0)
 
 
 def main(args=None):

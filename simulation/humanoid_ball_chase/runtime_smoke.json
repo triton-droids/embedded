@@ -1,0 +1,14 @@
+{
+  "tracking_frames_left": 46,
+  "tracking_frames_right": 47,
+  "lost_zero_status_frames": 17,
+  "head_target_range_rad": [
+    -0.17882899940013885,
+    0.1319650411605835
+  ],
+  "all_samples": 204,
+  "verified": "rendered RGB-D -> detection -> image-time moving TF -> bounded pursuit; head response; loss stop",
+  "locomotion_verified": false,
+  "scene_forward_axis": "positive_y",
+  "vision_target_timeout_s": 1.0
+}

@@ -48,6 +48,8 @@ class JointSnapshot:
     position: np.ndarray
     velocity: np.ndarray
     effort: np.ndarray
+    stamp_ns: int
+    sampled_mono: float
 
 
 @dataclass
@@ -55,6 +57,7 @@ class ImuSnapshot:
     gyro: np.ndarray  # rad/s, sensor frame
     accel: np.ndarray  # m/s^2 specific force, sensor frame (+Z up at rest)
     quat_wxyz: np.ndarray | None  # sensor-to-world, None when unavailable
+    stamp_ns: int
 
 
 class SimWorld:
@@ -64,7 +67,8 @@ class SimWorld:
                  head: HeadServoConfig | None = None,
                  target_motion: TargetMotion | None = None,
                  base_held: bool = True, settle_s: float = 2.0,
-                 pause_on_control_fault: bool = False) -> None:
+                 pause_on_control_fault: bool = False,
+                 imu_writer=None) -> None:
         self.model = model
         self.data = mujoco.MjData(model)
         self.motors = motors
@@ -74,6 +78,8 @@ class SimWorld:
         self.settle_s = float(settle_s)
         self.pause_on_control_fault = pause_on_control_fault
         self.control_fault: str | None = None
+        # Optional shared-segment writer for the out-of-process IMU publisher.
+        self.imu_writer = imu_writer
 
         self.joint_names = list(motors.joint_names)
         self._qpos = np.array([model.joint(n).qposadr[0] for n in self.joint_names])
@@ -83,6 +89,12 @@ class SimWorld:
         self._base_joint = model.body(mb.BASE_BODY).jntadr[0]
 
         self.head = head
+        self._pitch_joint = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, 'head_pitch_joint')
+        self._pitch_target = 0.0  # Optional camera starts holding its calibrated neutral.
+        self._pitch_ref = 0.0
+        if self._pitch_joint >= 0:
+            self._pitch_qpos = model.jnt_qposadr[self._pitch_joint]
+            self._pitch_act = model.actuator('head_pitch_servo').id
         self._head_target: float | None = None
         self._head_ref = 0.0
         if head is not None:
@@ -97,6 +109,7 @@ class SimWorld:
 
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        self.recorder = None  # Opt-in overnight collection; normal runs unchanged.
         self.reset(base_held=base_held)
 
     # ------------------------------------------------------------ lifecycle
@@ -110,6 +123,8 @@ class SimWorld:
             self._thread.join(timeout=1.0)
 
     def _run(self) -> None:
+        from .thread_setup import configure_thread
+        configure_thread('imu_source')
         dt = self.model.opt.timestep
         next_step = time.monotonic()
         while not self._stop.is_set():
@@ -119,12 +134,16 @@ class SimWorld:
                 continue
             self.step(now)
             next_step += dt
-            now = time.monotonic()
-            if next_step < now:
-                # Missed periods are skipped, never replayed in a catch-up burst:
-                # back-to-back steps starve the executor of the lock and GIL.
+            finished = time.monotonic()
+            if next_step < finished:
                 self.overruns += 1
-                next_step = now + dt
+                # Discard historical deadlines without adding a full period
+                # after a slow step, which already consumed its time budget.
+                next_step = max(now + dt, finished)
+                if next_step <= finished:
+                    # Give executor threads an opportunity without replaying
+                    # missed steps or imposing another full-period sleep.
+                    time.sleep(0)
 
     # -------------------------------------------------------------- physics
     def step(self, now_mono: float) -> None:
@@ -142,7 +161,10 @@ class SimWorld:
                     self.motors.disable(joint)
                 data.ctrl[:] = 0.0
                 model.actuator_biasprm[:, 1:3] = 0.0
+                self._write_imu_snapshot()
                 return
+            if self.recorder is not None:
+                self.recorder.before_step()
             for i, joint in enumerate(self.joint_names):
                 q = float(data.qpos[self._qpos[i]])
                 self.motors.seed_reference(joint, q)
@@ -154,10 +176,33 @@ class SimWorld:
                 model.actuator_biasprm[act, 2] = -sp.kd
             if self.head is not None:
                 self._apply_head(dt)
+            if self._pitch_joint >= 0:
+                self._apply_pitch(dt)
             if self._target_mocap is not None and self.target_motion is not None:
                 self._move_target()
             mujoco.mj_step(model, data)
+            self.sample_stamp_ns = time.time_ns()
+            self.sampled_mono = time.monotonic()
+            self._write_imu_snapshot()
             self.steps += 1
+            if self.recorder is not None:
+                self.recorder.after_step()
+
+    def _write_imu_snapshot(self) -> None:
+        """Publish this step's IMU state to the shared segment, if configured."""
+        if self.imu_writer is None:
+            return
+        data = self.data
+        try:
+            self.imu_writer.write(
+                self.sample_stamp_ns,
+                data.sensor(mb.IMU_GYRO).data,
+                data.sensor(mb.IMU_ACCEL).data,
+                data.sensor(mb.IMU_QUAT).data,
+                self.control_fault is not None)
+        except (ValueError, BufferError):
+            # Segment closed during shutdown; the publisher stops on its own.
+            pass
 
     def _apply_head(self, dt: float) -> None:
         cfg, act = self.head, self._head_act
@@ -173,6 +218,23 @@ class SimWorld:
         self.data.ctrl[act] = cfg.kp * self._head_ref
         self.model.actuator_biasprm[act, 1] = -cfg.kp
         self.model.actuator_biasprm[act, 2] = -cfg.kd
+
+    def _apply_pitch(self, dt: float) -> None:
+        act = self._pitch_act
+        if self._pitch_target is None:
+            self._pitch_ref = float(self.data.qpos[self._pitch_qpos])
+            self.data.ctrl[act] = 0.0
+            self.model.actuator_biasprm[act, 1:3] = 0.0
+            return
+        error = self._pitch_target - self._pitch_ref
+        self._pitch_ref += math.copysign(min(abs(error), 0.8*dt), error)
+        self.data.ctrl[act] = 20.0*self._pitch_ref
+        self.model.actuator_biasprm[act, 1:3] = [-20.0,-0.3]
+
+    def set_pitch_target(self, angle: float | None) -> None:
+        with self.lock:
+            if self._pitch_joint >= 0:
+                self._pitch_target = None if angle is None else float(np.clip(angle,-0.6,0.6))
 
     def _move_target(self) -> None:
         motion = self.target_motion
@@ -195,8 +257,12 @@ class SimWorld:
             for joint in self.joint_names:
                 self.motors.disable(joint)
             self._head_target = None
+            self._pitch_target = 0.0
+            self._pitch_ref = 0.0
             self.data.eq_active[self._weld] = 1 if base_held else 0
             mujoco.mj_forward(self.model, self.data)
+            self.sample_stamp_ns = time.time_ns()
+            self.sampled_mono = time.monotonic()
             start = time.monotonic()
             for _ in range(int(self.settle_s / self.model.opt.timestep)):
                 self.step(start)
@@ -235,19 +301,21 @@ class SimWorld:
                 position=self.data.qpos[self._qpos].copy(),
                 velocity=self.data.qvel[self._qvel].copy(),
                 effort=self.data.actuator_force[self._act].copy(),
+                stamp_ns=self.sample_stamp_ns, sampled_mono=self.sampled_mono,
             )
 
     def body_imu(self) -> ImuSnapshot:
         with self.lock:
             return ImuSnapshot(gyro=self.data.sensor(mb.IMU_GYRO).data.copy(),
                                accel=self.data.sensor(mb.IMU_ACCEL).data.copy(),
-                               quat_wxyz=self.data.sensor(mb.IMU_QUAT).data.copy())
+                               quat_wxyz=self.data.sensor(mb.IMU_QUAT).data.copy(),
+                               stamp_ns=self.sample_stamp_ns)
 
     def head_imu(self) -> ImuSnapshot:
         with self.lock:
             return ImuSnapshot(gyro=self.data.sensor(mb.HEAD_GYRO).data.copy(),
                                accel=self.data.sensor(mb.HEAD_ACCEL).data.copy(),
-                               quat_wxyz=None)
+                               quat_wxyz=None, stamp_ns=self.sample_stamp_ns)
 
     def head_angle(self) -> float:
         with self.lock:

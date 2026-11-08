@@ -1,5 +1,46 @@
 # humanoid_sim — MuJoCo humanoid simulation
 
+Application publishers and subscribers in the simulation/chase/control chain
+use KeepLast=2, including camera, policy, WBC, C++, Web and Safety. Reliable and
+best-effort choices are preserved; estop remains reliable/transient-local, now
+with depth 2. ROS-internal discovery, parameter events and service queues are
+not topic history settings changed by this tuning. Source timestamps, measured joint
+velocity, IMU angular velocity and controller gains are unchanged. Damping uses
+`kd * (dq_ref - dq)` from measured velocity, not differences between DDS history
+entries. Safety freshness limits are unchanged.
+
+Body IMU publication uses a dedicated single-thread executor by default
+(`dedicated_imu_executor:=true`), with diagnostics on the other executor.
+`/imu/status` exposes `publish_thread`, `publish_native_tid` and `qos_depth` for
+runtime readback. This isolates callbacks but still shares the Python GIL and
+physics lock; it is not a process-isolation or realtime guarantee.
+
+### Timing isolation and transport tuning
+
+Three opt-out switches exist because the measured failure was a publish call, not
+compute: one `rclpy` publish waited 331.9 ms on an Imu message while a physics
+step costs 0.05 ms and the sample lock microseconds.
+
+- `imu_split:=true` (default) publishes `/imu/data_raw` from `sim_imu_publisher`,
+  a separate process. The physics thread writes one fixed-size record per step to
+  a memory-mapped segment (`humanoid_imu_snapshot.bin`, seqlock-protected) and
+  only that process publishes, so a slow `/joint_states` write cannot delay the
+  IMU. Acquisition still happens in the simulator, so a stall there still freezes
+  the sample stamp. `imu_split:=false` restores the in-process publisher.
+  `/imu/status` reports `separate_process` so the active mode is visible at
+  runtime.
+- `dds_tuning:=on` sets `FASTRTPS_DEFAULT_PROFILES_FILE` to
+  `config/fastdds_profile.xml`: larger history resource limits, a
+  `PREALLOCATED_WITH_REALLOC` memory policy and a capped `max_blocking_time`, so
+  one slow write degrades to a dropped state sample instead of a ~300 ms stall.
+  Reliability and history depth are untouched, so the QoS contract is unchanged.
+  Off by default; compare `max_publish_call_s` in `/imu/status` between runs.
+- `gc_freeze` (default `true`, a `mujoco_sim` parameter) runs `gc.freeze()` once
+  after startup so the long-lived model, registry and nodes are not rescanned by
+  every cyclic collection. New objects are still collected normally. Set
+  `-p gc_freeze:=false` to compare `max_gc_pause_s` with `gc_diagnostics:=true`.
+
+
 This is the active runtime of this simulation-only repository. Physical device
 implementations are retained in [hardware/](../../hardware/README.md), outside the
 default build and install. The names in the table below identify the original
@@ -12,7 +53,7 @@ the deployed implementation, started unmodified.
 | Hardware process | Replaced by | Interface kept |
 |---|---|---|
 | `python_can_node` (RobStride CAN) | `sim_motor_backend` | `joint_states`, `motor_status`, `motor_telemetry`, `can_timing`, `motor_commands`, `/safety/estop`, `motor_backend/get_feedback`, `motor_backend/execute_operation` |
-| Body IMU MCU + micro-ROS Agent | `sim_body_imu` | `/imu/data_raw` (frame `imu_link`, 100 Hz), `/imu/status` |
+| Body IMU MCU + micro-ROS Agent | `sim_body_imu` (or `sim_imu_publisher` with `imu_split:=true`) | `/imu/data_raw` (frame `imu_link`, 100 Hz), `/imu/status` |
 | Head MCU + micro-ROS Agent | `sim_head_mcu` | `/head/imu`, `/head/mcu_status`, `/head/servo_target_rad` (250 ms watchdog) |
 | `realsense2_camera_node` | `sim_camera` | `/camera/camera/color/{image_raw,camera_info}`, optional aligned depth |
 
@@ -125,12 +166,15 @@ All motors start **disabled**; nothing in the launch enables them unless
 
 Autostart waits for both the gantry service and the motor command subscriber
 before enabling on a fresh policy command. Discovery has a 2 s timeout after
-the first fresh command (`sim_autostart.startup_timeout_s` node parameter).
+the first fresh command (`sim_autostart.startup_timeout_s` node parameter); the
+WBC launch uses 10 s to accommodate cold DDS discovery and native imports.
 After ENABLE, autostart keeps watching the fresh policy stream. The simulator
 allows release only when all motors have accepted motion commands with positive
 position gains and at least 40 ms remaining lifetime. A not-yet-ready backend
 can be checked again within the startup budget, without repeating ENABLE.
 An aborted start sends DISABLE and keeps the gantry engaged; it never re-arms.
+After success or failure, autostart drains its reliable command publisher and
+exits, releasing its high-rate command subscriptions.
 
 The robot stack starts only once the simulator emits its private `Simulation ready`
 stdout handshake after the first valid body IMU and joint feedback have actually
@@ -166,7 +210,10 @@ prints the same list):
 | `use_cuda` | `false` | Detector backend |
 | `enable_depth` | `false` | Also render aligned depth (needed for the detector's 3D output) |
 | `target_image` | empty | PNG image for the target board (MuJoCo only decodes PNG) |
-| `control_rate_hz` | `50.0` | `cpp_control_node` scheduler rate |
+| `pd_profile` | `tuned` | PD path (no WBC): `tuned` = 200 Hz C++ and `/joint_states`, policy clock starts at gantry release, looped reference, no head sim unless vision, skip isolated IMU acceleration spikes; `original` = previous defaults. Explicit arguments still override |
+| `control_rate_hz` | `auto` | `cpp_control_node` scheduler rate; `auto`: 200 (tuned) or 50 (original) |
+| `policy_imu_accel_outlier` | `auto` | `latch` a fault on an out-of-range IMU acceleration or `skip` isolated outliers; `auto`: skip with tuned PD |
+| `enable_wbc` | `false` | Deprecated, see `docs/reports/2026-11-08-wbc-deprecation.md` |
 | `cmd_timeout_s` | `0.5` | `cpp_control_node` timeout for its input commands |
 | `can_command_timeout_s` | `0.5` | Simulated backend command lifetime (`python_can_node`'s `command_timeout_s`) |
 | `fall_detection_enabled` | empty | Override `safety.yaml` fall detection (`true`/`false`) |
@@ -384,7 +431,34 @@ stream. A new trip is sent before logging or diagnostic work.
 In disconnected minimal mode, `/motor_commands` carries lifecycle commands, so its Hz is
 not the policy-control rate. Measure `/policy/desired_motor_subset` instead.
 Temperature/status JSON is disabled in the minimal loop; full mode publishes it
-at 5 Hz separately from the 50 Hz joint feedback.
+at 5 Hz separately from the 50 Hz joint feedback (200 Hz in WBC mode).
+The Web monitor consumes `/sim/monitor/joint_states` at 10 Hz, controlled by
+`sim_motor_backend.monitor_rate_hz`; it retains the original feedback stamp and
+stops when physics is fault-paused. Controllers continue using `/joint_states`.
+The simulation launch enables asynchronous Fast DDS publication for the entire
+stack, including Safety, Web and policy, to reduce blocking in diagnostic writes.
+Simulation-only `/safety/status` uses best-effort depth 1 (all built-in consumers
+request best-effort); `/safety/estop` remains reliable and transient-local. The
+standalone hardware safety launch retains reliable diagnostics by default.
+This does not guarantee nonblocking writes under overload or relax any deadline.
+
+In WBC mode, `dedicated_command_executor:=true` creates a lightweight
+`sim_motor_command_rx` node inside the same simulator process. Its single-thread
+executor receives reliable motor commands and latched estop independently of the
+sensor timer executor. Both use the existing world lock; command queue depth and
+ENABLE/DISABLE semantics are preserved. Set the argument to `false` for an A/B
+timing comparison. This uses no general-purpose Python worker pool.
+
+IMU, joint feedback, odometry and foot feedback use the wall-clock acquisition
+time recorded by the physics step, rather than each ROS callback's execution
+time. Republishing an unchanged physical sample does not refresh its source age.
+Odometry and foot contacts are copied under one lock from the same step.
+
+`/imu/status` includes `last_publish_age_s`, `max_publish_gap_s`,
+`max_sample_wait_s`, and `control_fault`. These distinguish a publishing gap,
+sample acquisition delay, and an intentional stop after a control fault. Viewer
+state transfer and synchronization run at 5 Hz; the passive native window can
+still redraw between state updates.
 
 ### Commands
 
@@ -534,3 +608,189 @@ python -m pytest test
 `test_world.py` checks spawn clearance, that the settled gantry passes the
 policy's calibration thresholds, target tracking, limp motors, gantry release
 and the head servo on the real robot model.
+
+## Overnight fall-prediction data collection
+
+Activate the workspace and run from `embedded/`:
+
+```bash
+export ROS_DISTRO=humble  # this host; use your installed distro elsewhere
+source scripts/activate_rosenv.sh
+python scripts/collect_fall_data.py --hours 6.5 \
+  --output data/fall_collection/my_run
+```
+
+The output directory must be new. Default domain 87 is locked against another
+collector and uses localhost-only DDS. Camera, depth, vision, viewer and RViz
+are off. The existing tracking policy, C++ forwarding, motor model, body/head
+IMUs and Safety supervisor remain active. Each bounded episode restarts the
+whole launch, which resets policy calibration, motor enable and safety latches;
+no hardware backend is launched. Standing-reference and walking-reference
+trials alternate. Holding frame 0 is not a validated standing controller.
+
+One third of trials receive no push. Others receive a world-horizontal force
+on the floating base: 5–100 N, 50–250 ms, starting 0.25–2 s after release, with
+seeded direction/magnitude/timing. Forces are applied at physics steps and
+cleared after the pulse. A fall before the planned push is retained and its
+actual applied step count recorded. The initial foot clearance is zero, so
+release does not deliberately drop the robot.
+
+**Collection-only change:** physics continues after Safety disables motors;
+the usual diagnostic freeze is suppressed only when `collection_output_dir`
+is set. Safety still trips, disables motors and rejects new motion. Outcomes
+therefore describe the existing controller **with Safety**, not an unprotected
+policy or the counterfactual effect of a new protective action. Normal launches
+retain their original freeze behavior. The robot geometry/mass and peripheral
+approximations documented above still apply; camera-off does not improve their
+physical fidelity.
+
+Episodes end at sustained non-foot ground contact (>1 N for 20 ms), followed by
+350 ms of observation, or after 15 simulated seconds following release. Physics
+is capped at real-time pace, not accelerated. Samples use the exact 100 Hz noisy
+IMU values published by `sim_body_imu`, acquired with the same-step truth under
+the world lock (collection therefore forces `imu_split:=false`). Roll/pitch are radians; gyro rad/s; acceleration specific force
+in m/s² (gravity included as measured by the existing sensor). Joint positions,
+velocities, height, timestamps, estop and hold/fault state are also recorded.
+Contact is checked every physics step, independently of the sensor timer.
+
+Files:
+
+- `status.json`: current PID, progress, valid label counts and final state.
+- `episodes.jsonl`: completion/failure, mode, command and metadata per trial.
+- `episode_*/samples.jsonl`: raw observations; `features` has the eight inputs.
+- `episode_*/metadata.json`: seed, push, fall time and label counts.
+- `episode_*.log`, `ros_logs/`: process diagnostics.
+- `run.json`, `source/`: arguments, Git state and source/config snapshots.
+
+For a row with label 0 or 1, use that row and its preceding 19 rows as the input.
+Label 1 means a confirmed fall occurs in the next 300 simulated milliseconds;
+label 0 means the full horizon was observed without a fall. Label `null` means
+unknown/excluded: gantry/warmup, invalid or discontinuous history, already fallen,
+or an incomplete future horizon. Do not convert null to zero. Sample spacing is
+checked against [5,20] ms; timestamps are preserved for stricter resampling.
+Only episodes with `valid: true` in the manifest should enter the initial
+training dataset. Split whole episodes before constructing train/test windows.
+
+The runner uses a 6.5-hour monotonic deadline including startup/reset overhead,
+with shutdown grace up to ~16 s. It stops early on five consecutive unusable
+or crashed episodes, or less than 2 GiB free disk. Each episode is buffered in
+memory and written atomically at shutdown; a hard crash can lose the current
+episode, while completed episodes remain. Stop gracefully using `kill -TERM`
+on the PID in `status.json`; do not kill individual ROS nodes. Readiness checks
+and data quality still determine the actual usable dataset size.
+
+Short smoke test (fresh output path):
+
+```bash
+python scripts/collect_fall_data.py --hours 0.1 --episode-seconds 8 \
+  --max-episodes 3 --output /tmp/fall_collection_smoke
+```
+
+## CycloneDDS repeated-start test
+
+The existing default ROS environment is left unchanged. `scripts/run_cyclonedds_test.sh`
+activates a local Cyclone overlay in `.deps/cyclonedds/root/opt/ros/humble` and sets
+`RMW_IMPLEMENTATION=rmw_cyclonedds_cpp` for its process tree. Official arm64 ROS
+Debian packages are downloaded and extracted locally when system installation
+is unavailable; versions/hashes for this run are in `.deps/cyclonedds/packages.json`.
+Required packages are rmw-cyclonedds-cpp, cyclonedds and the three iceoryx packages.
+No development build or system-wide middleware switch is required.
+
+```bash
+bash scripts/run_cyclonedds_test.sh --hours 2 --max-episodes 100 \
+  --max-consecutive-failures 100 --episode-seconds 20 \
+  --profile recovery --seed 48048 --domain 89 \
+  --output data/fall_collection/cyclonedds_100
+```
+
+The local XML disables multicast and lists 127.0.0.1 for peer discovery, with an
+automatic participant index. Humble's ROS_LOCALHOST_ONLY=1 already selects the
+loopback interface, so the XML does not add a duplicate interface entry.
+Configuration reference: [CycloneDDS 0.10.5](https://cyclonedds.io/docs/cyclonedds/0.10.5/config/cyclonedds_specifics.html).
+
+Every simulator episode records `get_rmw_implementation_identifier()` in metadata;
+the collector excludes episodes if this differs from the requested RMW. The
+policy, C++ forwarding, motor model, IMUs and Safety remain active. The process
+environment selects the same RMW for all ROS nodes. Camera/viewer are off.
+The above seeds and 20-second duration match the first 100 recovery-profile
+scenarios from the earlier run, but scheduling and run conditions differ, so
+physical outcome differences cannot be attributed solely to DDS.
+
+After the run, `dds_summary.json` and `DDS_REPORT.md` summarize attempts, valid
+trajectories, actual RMW checks, node crashes, observed IMU intervals and physics
+overruns. This tests complete-stack startup/communication, not a new trained-model
+accuracy result. The two-hour deadline may finish early at 100 attempts. A run
+that exhausts its time budget must be checked for actual completed attempt count.
+`status.json` and `episodes.jsonl` preserve all failures; no failure is silently
+replaced by an extra successful trial. Two preliminary smoke trials are separate
+from the formal 100 attempts.
+
+## Render on another computer
+
+The optional TCP viewer moves visualization to a separate computer. The simulation
+computer runs physics, policy, WBC, C++ control and Safety without a local GUI.
+The viewer receives the compiled model (including mesh/texture assets) once per
+connection, then latest-only integration states at 15 Hz by default. It does not
+run physics integration, requires no ROS installation, and sends no motor,
+mouse-force, reset or release commands back to the simulation. Local camera
+rotation/zoom remains available. One viewer connection is supported at a time;
+restart the client to reconnect after a disconnect or simulator restart.
+
+On the simulation computer, activate the workspace as usual, then run:
+
+```bash
+source scripts/activate_rosenv.sh
+ros2 launch wbc_control_node rl_wbc_sim.launch.py \
+  auto_start:=true use_viewer:=false remote_viewer:=true \
+  remote_viewer_host:=0.0.0.0 remote_viewer_port:=8765 \
+  remote_viewer_rate_hz:=15.0
+```
+
+This explicitly exposes TCP port 8765 to the network. Use a trusted LAN only:
+this read-only protocol has no authentication or encryption. It does not require
+changing `ROS_LOCALHOST_ONLY` or exposing ROS discovery. Use `remote_viewer:=true`
+with `humanoid_sim sim.launch.py` in the same way for the PD path. The stream is
+independent of the existing motor Web monitor.
+
+On the display computer (Windows, Linux or macOS), copy just
+`simulation/humanoid_sim/humanoid_sim/remote_viewer.py` from this checkout, then:
+
+```bash
+python -m pip install "mujoco==3.3.7" numpy
+python remote_viewer.py --host SIMULATION_COMPUTER_IP --port 8765
+```
+
+The installed MuJoCo version must exactly match the server. Check the server with
+`python -c "import mujoco; print(mujoco.__version__)"` in the activated workspace
+and replace the pinned version above if necessary. Compiled MJB compatibility
+also depends on MuJoCo's build/platform; cross-machine compatibility has only
+been tested on the local platform so far. A mismatched version is rejected before
+loading the binary model. On Windows, `py` can be used instead of `python`. On
+macOS, launch the GUI with `mjpython remote_viewer.py --host ... --port 8765`.
+If the display computer already has this package on its Python path, use
+`python -m humanoid_sim.remote_viewer` instead of copying the file.
+
+To keep the server bound to loopback, omit `remote_viewer_host:=0.0.0.0` above.
+On the display computer open a separate terminal and keep this tunnel running:
+
+```bash
+ssh -N -L 8765:127.0.0.1:8765 USER@SIMULATION_COMPUTER_IP
+```
+
+Then connect the viewer with `--host 127.0.0.1 --port 8765`. The SSH server must
+already be available on the simulation computer. Allow TCP 8765 through the
+simulation computer's firewall only when using the direct LAN option.
+
+To verify reception without a display:
+
+```bash
+python remote_viewer.py --host SIMULATION_COMPUTER_IP --headless --frames 30
+```
+
+Sampling skips a busy physics lock, and network IO runs in a separate process
+with a one-element snapshot queue and bounded socket timeouts. A missing, slow,
+or disconnected viewer does not hold up the control path. There is still a small
+state-copy and sampler scheduling cost on the simulation host; no hard real-time
+or IMU-timeout improvement is guaranteed. The state stream rate may be set in
+`(0, 60]` Hz. Keep `use_viewer:=false` to avoid also rendering locally. A busy port
+or sender startup failure is logged while the simulation continues headless.

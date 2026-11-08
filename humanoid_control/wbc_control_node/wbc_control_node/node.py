@@ -6,6 +6,7 @@ import time
 import numpy as np
 import pinocchio as pin
 import rclpy
+from rclpy._rclpy_pybind11 import RCLError
 from ament_index_python.packages import get_package_share_directory
 from nav_msgs.msg import Odometry
 from rclpy.executors import ExternalShutdownException
@@ -35,6 +36,14 @@ class WBCControlNode(Node):
             'output_lifetime_s': .08, 'posture_weight': 1.0,
             'contact_mode': 'policy', 'com_reference_mode': 'policy',
             'tracking_mode': 'policy_impedance', 'max_policy_torque_correction_nm': .02,
+            # 0 keeps the original behaviour: any stale input latches a fault.
+            'stale_input_grace_s': 0.0,
+            # Opt-in: also run tick() as soon as a new policy command arrives, instead
+            # of waiting up to one control period for the timer (lower latency).
+            'tick_on_policy': False,
+            # zero: zero-gain arming on the gantry (default); policy: forward the
+            # policy impedance command while held, as the PD path does.
+            'gantry_hold': 'zero',
         }
         for key, value in defaults.items():
             self.declare_parameter(key, value)
@@ -44,6 +53,10 @@ class WBCControlNode(Node):
                     'max_compute_s', 'output_lifetime_s', 'posture_weight', 'max_policy_torque_correction_nm'):
             if not np.isfinite(p[key]) or p[key] <= 0:
                 raise ValueError(f'{key} must be finite and positive')
+        if not np.isfinite(p['stale_input_grace_s']) or not 0 <= p['stale_input_grace_s'] <= .2:
+            raise ValueError('stale_input_grace_s must be in [0, 0.2]')
+        if p['gantry_hold'] not in ('zero', 'policy'):
+            raise ValueError('gantry_hold must be zero or policy')
         if p['policy_topic'] == p['output_topic']:
             raise ValueError('Input and output topics must differ')
         if p['contact_mode'] not in ('policy', 'double_support'):
@@ -83,14 +96,16 @@ class WBCControlNode(Node):
         self.started = False
         self.state = 'waiting_for_inputs'
         self.last_policy_stamp = 0
+        self.stale_since = None
+        self.stale_ticks = 0
         self.solved_count = 0
         self.last_compute_ms = 0.
         self.last_torque = []
-        stream = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
-        safety = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
+        stream = QoSProfile(depth=2, reliability=ReliabilityPolicy.BEST_EFFORT)
+        safety = QoSProfile(depth=2, reliability=ReliabilityPolicy.RELIABLE,
                             durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.output = self.create_publisher(MotorCommand, p['output_topic'], stream)
-        self.status = self.create_publisher(String, '/wbc/status', 10)
+        self.status = self.create_publisher(String, '/wbc/status', 2)
         self.create_subscription(MotorCommand, p['policy_topic'], self._policy, stream)
         self.create_subscription(JointState, p['joint_states_topic'],
                                  lambda msg: self._store('joints', msg), stream)
@@ -98,7 +113,7 @@ class WBCControlNode(Node):
                                  lambda msg: self._store('odom', msg), stream)
         self.create_subscription(JointState, p['feet_topic'],
                                  lambda msg: self._store('feet', msg), stream)
-        self.create_subscription(String, '/sim/status', self._sim_status, 1)
+        self.create_subscription(String, '/sim/status', self._sim_status, 2)
         self.create_subscription(Bool, '/safety/estop', self._estop, safety)
         self.create_timer(1. / p['control_rate_hz'], self.tick)
         self.create_timer(.5, self._status)
@@ -127,6 +142,8 @@ class WBCControlNode(Node):
             return
         self.last_policy_stamp = source
         self._store('policy', msg)
+        if self.params.get('tick_on_policy'):
+            self.tick()
 
     def _sim_status(self, msg):
         try:
@@ -148,25 +165,39 @@ class WBCControlNode(Node):
             return
         self.fault = reason
         self.state = 'fault'
+        self._send_disable()
+        self.get_logger().error(reason)
+
+    def _send_disable(self):
         disable = MotorCommand()
         disable.header.stamp = self.get_clock().now().to_msg()
         disable.joint_name = list(self.names)
         disable.mode = [MotorCommand.MODE_DISABLE]
-        self.output.publish(disable)
-        self.get_logger().error(reason)
+        try:
+            self.output.publish(disable)
+        except RCLError as error:
+            self.get_logger().error(f'WBC DISABLE publication failed; retrying, physical state unverified: {error}',
+                                    throttle_duration_sec=5.0)
 
     def _status(self):
-        self.status.publish(String(data=json.dumps({
+        message = String(data=json.dumps({
             'state': self.state, 'fault': self.fault, 'solved_count': self.solved_count,
             'compute_ms': self.last_compute_ms, 'solve_ms': self.controller.last_solve_ms,
             'contacts': list(self.controller.contacts),
             'joint_names': self.names, 'torques': self.last_torque,
             'nominal_torques': self.last_nominal_torque, 'tracking_mode': self.params['tracking_mode'],
-            'base_held': self.base_held,
-        })))
+            'base_held': self.base_held, 'stale_ticks': self.stale_ticks,
+        }))
+        try:
+            self.status.publish(message)
+        except RCLError as error:
+            self.get_logger().error(f'WBC diagnostics publication failed: {error}', throttle_duration_sec=5.0)
 
     def tick(self):
-        if self.fault or self.estop:
+        if self.fault:
+            self._send_disable()
+            return
+        if self.estop:
             return
         if not all(name in self.inputs for name in ('policy', 'joints', 'odom', 'feet')):
             return
@@ -176,9 +207,27 @@ class WBCControlNode(Node):
         snapshot = dict(self.inputs)
         if not all(fresh(stamp, received, now_ns, begin, p['input_timeout_s'])
                    for _, stamp, received in snapshot.values()):
+            grace = float(p.get('stale_input_grace_s', 0.0))
+            if self.started and grace > 0:
+                # Opt-in: a brief pause of this process (scheduler, GC, paging)
+                # skips output instead of latching DISABLE. Downstream deadlines
+                # and the C++/backend command timeouts still protect the motors.
+                if self.stale_since is None:
+                    self.stale_since = begin
+                if begin - self.stale_since < grace:
+                    self.state = 'waiting_for_fresh_inputs'
+                    self.stale_ticks += 1
+                    return
             if self.started:
-                self._fail('Input source/receipt timeout')
+                # Name the stale input(s): source age from the header stamp and
+                # time since receipt, so the failing hop can be identified.
+                detail = ', '.join(
+                    f'{name}: age_ms={(now_ns - stamp) * 1e-6:.1f} since_receipt_ms={(begin - received) * 1e3:.1f}'
+                    for name, (_, stamp, received) in snapshot.items()
+                    if not fresh(stamp, received, now_ns, begin, p['input_timeout_s']))
+                self._fail(f'Input source/receipt timeout ({detail})')
             return
+        self.stale_since = None
         stamps = [entry[1] for entry in snapshot.values()]
         if (max(stamps) - min(stamps)) * 1e-9 > p['max_input_skew_s']:
             self.state = 'waiting_for_aligned_inputs'
@@ -267,11 +316,16 @@ class WBCControlNode(Node):
             command.kp = kp.tolist()
             command.kd = kd.tolist()
             command.torque = correction.tolist()
-        if getattr(self, 'base_held', False):
+        if getattr(self, 'base_held', False) and not (
+                p.get('gantry_hold') == 'policy' and p.get('tracking_mode') == 'policy_impedance'):
             command.position = positions.tolist()
             command.velocity = [0.] * len(self.names)
             command.kp = command.kd = command.torque = [0.] * len(self.names)
-        self.output.publish(command)
+        try:
+            self.output.publish(command)
+        except RCLError as error:
+            self._fail(f'WBC command publication failed: {error}; restart required')
+            return
         self.started = self.started or not getattr(self, 'base_held', False)
         self.state = 'arming_on_gantry' if getattr(self, 'base_held', False) else 'running'
         self.solved_count += 1

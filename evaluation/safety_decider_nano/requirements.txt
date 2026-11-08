@@ -1,0 +1,6 @@
+# Use a clean environment; do not inherit Jetson's torchvision/torchaudio.
+# CPU wheel index used for this run: https://download.pytorch.org/whl/cpu
+torch==2.6.0
+transformers==5.17.0
+safetensors==0.8.0
+numpy==1.26.4

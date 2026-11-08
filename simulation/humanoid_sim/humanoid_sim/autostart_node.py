@@ -26,6 +26,7 @@ import time
 import uuid
 
 import rclpy
+from rclpy.duration import Duration
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
@@ -51,10 +52,10 @@ class SimAutostartNode(Node):
         if not 0.0 <= self._release_delay < 0.5:
             # A bare ENABLE expires after the backend's 0.5 s command timeout.
             raise ValueError('release_delay_s must be in [0, 0.5)')
-        self._command_pub = self.create_publisher(MotorCommand, '/motor_commands', 10)
+        self._command_pub = self.create_publisher(MotorCommand, '/motor_commands', 2)
         self._hold_client = self.create_client(SetBool, '/sim/hold_base')
         # Matches the policy's best-effort stream publisher.
-        qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
+        qos = QoSProfile(depth=2, reliability=ReliabilityPolicy.BEST_EFFORT)
         self._policy_sub = self.create_subscription(
             MotorCommand, str(self.get_parameter('policy_topic').value), self._on_policy, qos)
         self._release_timer = None
@@ -80,9 +81,9 @@ class SimAutostartNode(Node):
             self.create_subscription(
                 AbstractCommandStatus, '/control_core/abstract_command_status',
                 self._on_enable_status, QoSProfile(
-                    depth=1, reliability=ReliabilityPolicy.RELIABLE,
+                    depth=2, reliability=ReliabilityPolicy.RELIABLE,
                     durability=DurabilityPolicy.TRANSIENT_LOCAL))
-            self.create_subscription(MotorCommand, '/motor_commands', self._on_forwarded, 10)
+            self.create_subscription(MotorCommand, '/motor_commands', self._on_forwarded, 2)
         self.create_timer(0.05, self._check_timeout)
         self.get_logger().info('Waiting for the first policy command to enable motors and '
                                'release the gantry')
@@ -169,6 +170,10 @@ class SimAutostartNode(Node):
             self._last_release_denial = 'C++ enable not admitted: ' + response.message
 
     def _on_enable_status(self, msg):
+        if (not self._done and msg.request_id == 'cpp_control_transport_fault'
+                and msg.stage == AbstractCommandStatus.FAILED):
+            self._fail('C++ motor-command transport fault: ' + msg.message)
+            return
         if self._done or not self._enable_pending or msg.request_id != self._enable_id:
             return
         if msg.stage in (AbstractCommandStatus.FAILED, AbstractCommandStatus.CANCELLED,
@@ -264,7 +269,14 @@ def main(args=None) -> None:
     rclpy.init(args=args)
     node = SimAutostartNode()
     try:
-        rclpy.spin(node)
+        # Terminal startup results need no more command subscriptions. Keeping
+        # this process spinning would deserialize the full control stream.
+        while rclpy.ok() and not node._done:
+            rclpy.spin_once(node, timeout_sec=0.1)
+        if rclpy.ok():
+            # A failure may have just sent DISABLE. Drain reliable delivery
+            # before destroying the publisher instead of abandoning that frame.
+            node._command_pub.wait_for_all_acked(Duration(seconds=0.2))
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
