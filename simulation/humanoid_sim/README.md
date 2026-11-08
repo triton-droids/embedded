@@ -194,7 +194,7 @@ ros2 launch humanoid_sim sim_experimental.launch.py  # same, without the checks
 | Argument | Default | What it changes |
 |---|---|---|
 | `rmw_implementation` | `rmw_cyclonedds_cpp` | DDS of every node of the launch |
-| `cyclonedds_config` | installed `config/cyclonedds_sim.xml` | Loopback interface only, up to 16 MB socket receive buffer; skipped if `CYCLONEDDS_URI` is already set |
+| `cyclonedds_config` | installed `config/cyclonedds_sim.xml` (`cyclonedds_sim_humble.xml` when `ROS_DISTRO=humble`) | Loopback interface only, up to 16 MB socket receive buffer; skipped if `CYCLONEDDS_URI` is already set |
 | `gil_switch_interval_s` | `0.0005` | Python GIL switch interval of `mujoco_sim` |
 
 #### What the `sim-experimental-cyclonedds` branch changes
@@ -207,6 +207,7 @@ into `origin/humanoid_ros2_simulation` afterwards.
 |---|---|---|
 | `launch/sim_experimental.launch.py` | New: sets the three arguments above, then includes `sim.launch.py` | none |
 | `config/cyclonedds_sim.xml` | New: CycloneDDS on `lo` only, receive buffer up to 16 MB | none |
+| `config/cyclonedds_sim_humble.xml` | New: same receive buffer without the `lo` pinning, chosen on Humble | none |
 | `scripts/sim_experimental.sh` | New: one-click start with environment checks | none |
 | `tools/timing/` | New: measurement tools, see [tools/timing/README.md](tools/timing/README.md) | none |
 | `humanoid_sim/main.py` | GIL switch interval is a `mujoco_sim` parameter (`gil_switch_interval_s`) | default `0` keeps the old behaviour |
@@ -232,7 +233,12 @@ Measured on native Ubuntu 24.04 with an i7-1165G7 (robot held on the gantry):
 - **Loopback only.** With `ROS_LOCALHOST_ONLY=1` CycloneDDS still advertises an
   arbitrarily chosen external interface. On a Wi-Fi address in 100.64.0.0/10
   with Tailscale running, that address is routed into `tailscale0` and no node
-  discovered any other. The config pins CycloneDDS to `lo`.
+  discovered any other. The config pins CycloneDDS to `lo`. On Humble,
+  `rmw_cyclonedds_cpp` itself adds `127.0.0.1` for `ROS_LOCALHOST_ONLY=1` and
+  selects only `lo`; pinning `lo` again fails every node with "the same
+  interface may not be selected twice" / "failed to create domain". The launch
+  and scripts therefore use `cyclonedds_sim_humble.xml` (receive buffer only)
+  when `ROS_DISTRO=humble`.
 - **Camera frames.** CycloneDDS fragments the 0.6–0.9 MB images over UDP. With
   the default 208 KB `net.core.rmem_max`, 7–14 % of color and 2–9 % of depth
   frames were lost in transport; with 16 MB, none. The request is capped by
@@ -300,6 +306,7 @@ Shells that interact with this simulation should use the same DDS and config:
 ```bash
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 export CYCLONEDDS_URI=file://$(ros2 pkg prefix humanoid_sim)/share/humanoid_sim/config/cyclonedds_sim.xml
+# On Humble use cyclonedds_sim_humble.xml instead (see "Loopback only" above).
 ```
 
 Known issues, not addressed by this launch:

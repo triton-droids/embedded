@@ -27,7 +27,10 @@ timing_setup() {
       LAUNCH_FILE=sim_experimental.launch.py
       export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
       # Helpers must use the launch's CycloneDDS config too (loopback only).
-      export CYCLONEDDS_URI="${CYCLONEDDS_URI:-file://$(ros2 pkg prefix humanoid_sim)/share/humanoid_sim/config/cyclonedds_sim.xml}"
+      # Humble's rmw already pins lo for ROS_LOCALHOST_ONLY=1; see cyclonedds_sim_humble.xml.
+      local config=cyclonedds_sim.xml
+      [[ "${ROS_DISTRO:-}" == humble ]] && config=cyclonedds_sim_humble.xml
+      export CYCLONEDDS_URI="${CYCLONEDDS_URI:-file://$(ros2 pkg prefix humanoid_sim)/share/humanoid_sim/config/$config}"
       if ! ros2 pkg prefix rmw_cyclonedds_cpp >/dev/null 2>&1; then
         echo "CycloneDDS missing: sudo apt install ros-${ROS_DISTRO:-jazzy}-rmw-cyclonedds-cpp" >&2
         return 1

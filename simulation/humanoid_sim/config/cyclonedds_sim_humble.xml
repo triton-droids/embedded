@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ROS 2 Humble variant of cyclonedds_sim.xml, selected automatically when
+     ROS_DISTRO=humble (sim_experimental.launch.py, scripts/sim_experimental.sh,
+     tools/timing/common.sh).
+
+     Humble's rmw_cyclonedds_cpp itself adds NetworkInterface address=127.0.0.1
+     when ROS_LOCALHOST_ONLY=1. Pinning "lo" here as well selects the same
+     interface twice ("lo: the same interface may not be selected twice") and
+     every node fails with "rmw_create_node: failed to create domain". With
+     ROS_LOCALHOST_ONLY=1 Humble selects only lo without this file's help, so
+     only the receive buffer of cyclonedds_sim.xml is kept (see there). -->
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain Id="any">
+    <Internal>
+      <SocketReceiveBufferSize max="16MB"/>
+    </Internal>
+  </Domain>
+</CycloneDDS>

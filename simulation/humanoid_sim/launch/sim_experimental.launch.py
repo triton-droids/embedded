@@ -11,9 +11,11 @@ of it this launch sets:
       the GIL in that call, so the whole simulator stalls and the safety IMU
       freshness check (250 ms) or the policy input timeout (100 ms) latches.
       This did not reproduce with CycloneDDS.
-  cyclonedds_config (config/cyclonedds_sim.xml)
+  cyclonedds_config (config/cyclonedds_sim.xml; cyclonedds_sim_humble.xml on Humble)
       Socket receive buffer for camera images; used only with CycloneDDS and
-      only when CYCLONEDDS_URI is not already set in the environment.
+      only when CYCLONEDDS_URI is not already set in the environment. The
+      Humble file omits the lo pinning, which Humble's rmw already applies for
+      ROS_LOCALHOST_ONLY=1 (pinning it twice fails to create the domain).
   gil_switch_interval_s (0.0005)
       mujoco_sim's Python GIL switch interval. With the default 5 ms the
       physics thread can wait a full 5 ms step for the executor or camera
@@ -48,6 +50,12 @@ def dds_environment(context):
     return actions
 
 
+def cyclonedds_config_name() -> str:
+    """Installed CycloneDDS XML for this ROS distribution."""
+    return ('cyclonedds_sim_humble.xml' if os.environ.get('ROS_DISTRO') == 'humble'
+            else 'cyclonedds_sim.xml')
+
+
 def generate_launch_description():
     share = FindPackageShare('humanoid_sim')
     return LaunchDescription([
@@ -55,7 +63,7 @@ def generate_launch_description():
                               description='DDS for every node of the launch'),
         DeclareLaunchArgument('cyclonedds_config',
                               default_value=PathJoinSubstitution([share, 'config',
-                                                                  'cyclonedds_sim.xml']),
+                                                                  cyclonedds_config_name()]),
                               description='CycloneDDS XML; empty skips it'),
         DeclareLaunchArgument('gil_switch_interval_s', default_value='0.0005',
                               description='mujoco_sim Python GIL switch interval'),

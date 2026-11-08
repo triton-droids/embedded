@@ -38,7 +38,10 @@ export RMW_IMPLEMENTATION="$rmw"
 # The launch process itself is a DDS participant too; give it the same
 # loopback-only CycloneDDS config as the nodes (unless the caller set one).
 if [[ "$rmw" == rmw_cyclonedds_cpp && -z "${CYCLONEDDS_URI:-}" ]]; then
-  export CYCLONEDDS_URI="file://$(ros2 pkg prefix humanoid_sim)/share/humanoid_sim/config/cyclonedds_sim.xml"
+  # Humble's rmw already pins lo for ROS_LOCALHOST_ONLY=1; see cyclonedds_sim_humble.xml.
+  config=cyclonedds_sim.xml
+  [[ "${ROS_DISTRO:-}" == humble ]] && config=cyclonedds_sim_humble.xml
+  export CYCLONEDDS_URI="file://$(ros2 pkg prefix humanoid_sim)/share/humanoid_sim/config/$config"
 fi
 
 # The camera images need a large socket receive buffer (see config/cyclonedds_sim.xml).
