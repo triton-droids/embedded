@@ -4,7 +4,11 @@ safety_node:
     estop_topic: /safety/estop
     status_topic: /safety/status
     evaluation_rate_hz: 100.0
-    status_rate_hz: 10.0  # Diagnostics only; safety evaluation remains 100 Hz.
+    # Diagnostics only; safety evaluation remains 100 Hz. Each publication
+    # serialises a DiagnosticArray while holding the GIL, so one slow write
+    # delays every other Python callback in this process; 1 Hz keeps the
+    # supervisor's IMU path out of that queue.
+    status_rate_hz: 1.0
 
     fall_detection_enabled: true
     fall_roll_deg: 40.0

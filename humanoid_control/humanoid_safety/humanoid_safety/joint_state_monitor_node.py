@@ -4,7 +4,7 @@ import math
 
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import JointState
 
 
@@ -35,9 +35,9 @@ class JointStateMonitorNode(Node):
         output = self.get_parameter('output_topic').value
         if self.resolve_topic_name(source) == self.resolve_topic_name(output):
             raise ValueError('source_topic and output_topic must differ')
-        self.publisher = self.create_publisher(JointState, output, 5)
+        self.publisher = self.create_publisher(JointState, output, 2)
         self.subscription = self.create_subscription(
-            JointState, source, self.on_joint_state, qos_profile_sensor_data)
+            JointState, source, self.on_joint_state, QoSProfile(depth=2, reliability=ReliabilityPolicy.BEST_EFFORT))
         self.get_logger().info(f'Joint visualization: {source} -> {output}; preserving source timestamps')
         if source == '/policy/target_angles':
             self.get_logger().warn('Displaying commanded policy targets, not measured joint positions')

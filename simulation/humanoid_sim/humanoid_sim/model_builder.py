@@ -14,13 +14,15 @@ robot description is not duplicated:
 The head, camera mount and target are simulation fixtures. Their geometry and
 mass are placeholders, not measurements of the robot's head assembly.
 
-Robot frame convention (from the MJCF): +Z up, robot forward is -Y, robot left
-is +X. The ``imu`` site is identity-aligned with ``floating_base``, matching the
+The legacy head/face fixtures point toward -Y with +X to their left; +Z is up.
+The optional football scene instead follows the saved foot toe direction (+Y)
+and configures its camera TF accordingly. The ``imu`` site is identity-aligned with ``floating_base``, matching the
 policy's ``imu_to_body_rotation`` identity default.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
+import importlib
 import math
 
 import mujoco
@@ -64,6 +66,7 @@ class WorldOptions:
     add_target: bool = True
     target_distance_m: float = 1.5
     target_image: str = ''  # PNG only: MuJoCo decodes no other image format.
+    scene_builder: str = ''  # Optional installed module:function extending this spec.
 
 
 def build_model(options: WorldOptions) -> mujoco.MjModel:
@@ -82,6 +85,9 @@ def build_model(options: WorldOptions) -> mujoco.MjModel:
         _add_head(spec, options)
     if options.add_target:
         _add_target(spec, options)
+    if options.scene_builder:
+        module, function = options.scene_builder.split(':', 1)
+        getattr(importlib.import_module(module), function)(spec, options)
     _lift_base_to_clearance(spec, options.foot_clearance_m)
     return spec.compile()
 

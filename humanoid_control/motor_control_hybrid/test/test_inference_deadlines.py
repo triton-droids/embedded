@@ -36,6 +36,8 @@ def node(monkeypatch):
     n.joints = (10.0, 99.985, np.zeros(10), np.zeros(10))
     n.feedback_mode = 'joint_states'
     n.hold_first_frame = False
+    n.wait_for_sim_release, n.reference_started = False, None
+    n.reference_end_behavior = 'hold_last'
     n.estop, n.fault, n.started = False, None, None
     n.state = 'waiting_for_imu'
     n.frame = n.count = n.overruns = 0
@@ -43,6 +45,18 @@ def node(monkeypatch):
     n.intervals, n.inference_ms, n.work_ms = (deque() for _ in range(3))
     n.angles_pub, n.actions_pub, n.command_pub = Mock(), Mock(), Mock()
     return n
+
+
+def test_publish_error_latches_policy_without_advancing_or_replaying(node):
+    from rclpy._rclpy_pybind11 import RCLError
+    node.command_pub.publish.side_effect = RCLError('injected DDS error')
+    node.tick()
+    assert node.fault and 'injected DDS error' in node.fault
+    assert node.count == 0
+    np.testing.assert_array_equal(node.previous, np.zeros(10))
+    node.command_pub.publish.side_effect = None
+    node.tick()
+    assert node.command_pub.publish.call_count == 1
 
 
 def test_preserves_snapshot_stamp_and_absolute_expiry(node):

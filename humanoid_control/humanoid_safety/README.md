@@ -296,3 +296,32 @@ a released estop and may interrupt active actions. Completion requires fresh
 state confirmation, otherwise the UI reports unverified physical state. Home,
 zero, safety stops and explicit Disable end idle enable ownership.
 See [CAN audit](../../hardware/docs/can_protocol_audit.md) for protocol profiles and limits.
+
+### Diagnostic transport
+
+`status_reliability` defaults to `reliable`. The simulation launch selects
+`best_effort` with depth 2 for `/safety/status` to avoid retaining old diagnostic
+samples under load. Use `ros2 topic echo /safety/status --qos-reliability best_effort`
+when observing that mode. This parameter never changes the reliable,
+transient-local `/safety/estop` channel or any safety threshold.
+
+### Diagnostic process isolation
+
+Rendering and publishing the `DiagnosticArray` costs a Python publish call, and
+rclpy holds the GIL for the whole native write. When that work ran inside the
+supervisor process, one slow status publication delayed its IMU callback: a
+measured 317 ms status write produced a 339 ms callback gap against a 250 ms
+IMU timeout.
+
+`start_diagnostics:=true` (default) launches `safety_diagnostics_node` in its own
+process. The supervisor then publishes one compact JSON snapshot per status
+period on `/safety/supervisor_state`, and that process renders `/safety/status`
+exactly as the supervisor used to. `start_diagnostics:=false` restores the
+in-process publisher (`status_publisher:=inline`) for A/B runs and for hosts
+where a second process is unwanted. Either way the consumer view of
+`/safety/status` — topic, QoS and message content — is unchanged.
+
+If no snapshot arrives for `diagnostics_stale_after_s` (default 3 s), the
+diagnostics process publishes one latched diagnostic so a dead supervisor cannot
+leave a stale "all clear" on the Web monitor. The emergency-stop path never
+depends on this process.

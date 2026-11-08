@@ -13,10 +13,11 @@ from builtin_interfaces.msg import Time
 import numpy as np
 import yaml
 import rclpy
+from rclpy._rclpy_pybind11 import RCLError
 from ament_index_python.packages import get_package_share_directory
 from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Imu, JointState
 from std_msgs.msg import Bool, Float64MultiArray, String
 from motor_control_interfaces.msg import MotorCommand
@@ -132,7 +133,7 @@ class TrackingPolicyNode(Node):
         self.inference_ms = deque(maxlen=3000)
         self.work_ms = deque(maxlen=3000)
         self.frame = 0
-        stream_qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
+        stream_qos = QoSProfile(depth=2, reliability=ReliabilityPolicy.BEST_EFFORT)
         self.angles_pub = self.create_publisher(JointState, '/policy/target_angles', stream_qos)
         self.actions_pub = self.create_publisher(Float64MultiArray, '/policy/actions', stream_qos)
         # A monitor topic with the existing C++ scheduler's message contract.
@@ -140,14 +141,14 @@ class TrackingPolicyNode(Node):
         self.command_pub = self.create_publisher(MotorCommand, '/policy/desired_motor_subset', stream_qos)
         self.status_pub = self.create_publisher(String, '/policy/status', stream_qos)
         self.create_subscription(Imu, str(param('imu_topic')), self.on_imu,
-                                 qos_profile_sensor_data)
+                                 QoSProfile(depth=2, reliability=ReliabilityPolicy.BEST_EFFORT))
         self.create_subscription(JointState, str(param('joint_states_topic')),
-                                 self.on_joints, 1)
-        estop_qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                                 self.on_joints, 2)
+        estop_qos = QoSProfile(depth=2, durability=DurabilityPolicy.TRANSIENT_LOCAL,
                               reliability=ReliabilityPolicy.RELIABLE)
         self.create_subscription(Bool, '/safety/estop', self.on_estop, estop_qos)
         if self.wait_for_sim_release:
-            self.create_subscription(String, '/sim/status', self.on_sim_status, 1)
+            self.create_subscription(String, '/sim/status', self.on_sim_status, 2)
         self.steady_clock = Clock(clock_type=ClockType.STEADY_TIME)
         # Single inference worker, no pending FIFO: every iteration snapshots latest inputs.
         self.worker = threading.Thread(target=self.run_worker, name='tracking-inference', daemon=True)
@@ -462,7 +463,10 @@ class TrackingPolicyNode(Node):
                 'tick_interval_ms': tuple(self.intervals),
             }
         status.update({name: self.statistics(samples) for name, samples in timing_samples.items()})
-        self.status_pub.publish(String(data=json.dumps(status, allow_nan=False)))
+        try:
+            self.status_pub.publish(String(data=json.dumps(status, allow_nan=False)))
+        except RCLError as error:
+            self.get_logger().error(f'Policy diagnostics publication failed: {error}', throttle_duration_sec=5.0)
 
 
 def main(args=None):

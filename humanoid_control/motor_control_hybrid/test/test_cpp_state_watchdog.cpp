@@ -8,6 +8,29 @@
 // A narrow test peer keeps production callbacks private while testing their
 // state transition and watchdog behavior directly, without timing sleeps.
 struct CppControlNodeTestPeer {
+  static void publication_failure_checks(CppControlNode& node) {
+    observe(node, {"a", "b"});
+    command(node, "a", 0.0);
+    command(node, "b", 0.0);
+    EXPECT_NO_THROW(node.control_loop());
+    EXPECT_FALSE(node.has_cmd_);
+    EXPECT_TRUE(node.command_times_.empty());
+    EXPECT_EQ(node.action_status().stage, CppControlNode::ActionStatus::FAILED);
+    EXPECT_EQ(node.action_status().request_id, "cpp_control_transport_fault");
+    command(node, "a", 0.0);  // A fresh upstream target cannot clear the latch.
+    EXPECT_FALSE(node.has_cmd_);
+    auto estop = std::make_shared<std_msgs::msg::Bool>();
+    estop->data = false;
+    node.safety_estop_callback(estop);
+    EXPECT_NO_THROW(node.control_loop());
+    CppControlNode::Action action;
+    action.header.stamp = node.now();
+    action.valid_until = node.now() + rclcpp::Duration::from_seconds(0.1);
+    action.operation = CppControlNode::Action::ENABLE;
+    action.joint_name = "*";
+    std::string reason;
+    EXPECT_FALSE(node.submit_action(action, reason));
+  }
   static void observe(CppControlNode& node, const std::vector<std::string>& names) {
     auto msg = std::make_shared<sensor_msgs::msg::JointState>();
     msg->header.stamp = node.now();
@@ -236,6 +259,31 @@ protected:
   }
   static void TearDownTestSuite() {rclcpp::shutdown();}
 };
+
+class FailingPublisherNode : public CppControlNode {
+public:
+  int failures_remaining = 2;
+  std::vector<motor_control_interfaces::msg::MotorCommand> attempts;
+protected:
+  void write_motor_command(const motor_control_interfaces::msg::MotorCommand& msg) override {
+    attempts.push_back(msg);
+    if (failures_remaining-- > 0) {
+      RCL_SET_ERROR_MSG("injected DDS publication failure");
+      rclcpp::exceptions::throw_from_rcl_error(RCL_RET_ERROR, "publish failed");
+    }
+  }
+};
+
+TEST_F(CppStateWatchdogTest, PublishFailureLatchesAndRetriesDisableWithoutReplayingMotion) {
+  FailingPublisherNode node;
+  CppControlNodeTestPeer::publication_failure_checks(node);
+  ASSERT_GE(node.attempts.size(), 3u);
+  for (size_t i=1; i<node.attempts.size(); ++i) {
+    ASSERT_FALSE(node.attempts[i].mode.empty());
+    for (auto mode : node.attempts[i].mode)
+      EXPECT_EQ(mode, motor_control_interfaces::msg::MotorCommand::MODE_DISABLE);
+  }
+}
 
 TEST_F(CppStateWatchdogTest, PartialFirstFrameDoesNotShrinkExpectedRobot) {
   CppControlNode node;

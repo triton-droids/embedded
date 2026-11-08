@@ -1,5 +1,46 @@
 # humanoid_sim — MuJoCo humanoid simulation
 
+Application publishers and subscribers in the simulation/chase/control chain
+use KeepLast=2, including camera, policy, WBC, C++, Web and Safety. Reliable and
+best-effort choices are preserved; estop remains reliable/transient-local, now
+with depth 2. ROS-internal discovery, parameter events and service queues are
+not topic history settings changed by this tuning. Source timestamps, measured joint
+velocity, IMU angular velocity and controller gains are unchanged. Damping uses
+`kd * (dq_ref - dq)` from measured velocity, not differences between DDS history
+entries. Safety freshness limits are unchanged.
+
+Body IMU publication uses a dedicated single-thread executor by default
+(`dedicated_imu_executor:=true`), with diagnostics on the other executor.
+`/imu/status` exposes `publish_thread`, `publish_native_tid` and `qos_depth` for
+runtime readback. This isolates callbacks but still shares the Python GIL and
+physics lock; it is not a process-isolation or realtime guarantee.
+
+### Timing isolation and transport tuning
+
+Three opt-out switches exist because the measured failure was a publish call, not
+compute: one `rclpy` publish waited 331.9 ms on an Imu message while a physics
+step costs 0.05 ms and the sample lock microseconds.
+
+- `imu_split:=true` (default) publishes `/imu/data_raw` from `sim_imu_publisher`,
+  a separate process. The physics thread writes one fixed-size record per step to
+  a memory-mapped segment (`humanoid_imu_snapshot.bin`, seqlock-protected) and
+  only that process publishes, so a slow `/joint_states` write cannot delay the
+  IMU. Acquisition still happens in the simulator, so a stall there still freezes
+  the sample stamp. `imu_split:=false` restores the in-process publisher.
+  `/imu/status` reports `separate_process` so the active mode is visible at
+  runtime.
+- `dds_tuning:=on` sets `FASTRTPS_DEFAULT_PROFILES_FILE` to
+  `config/fastdds_profile.xml`: larger history resource limits, a
+  `PREALLOCATED_WITH_REALLOC` memory policy and a capped `max_blocking_time`, so
+  one slow write degrades to a dropped state sample instead of a ~300 ms stall.
+  Reliability and history depth are untouched, so the QoS contract is unchanged.
+  Off by default; compare `max_publish_call_s` in `/imu/status` between runs.
+- `gc_freeze` (default `true`, a `mujoco_sim` parameter) runs `gc.freeze()` once
+  after startup so the long-lived model, registry and nodes are not rescanned by
+  every cyclic collection. New objects are still collected normally. Set
+  `-p gc_freeze:=false` to compare `max_gc_pause_s` with `gc_diagnostics:=true`.
+
+
 This is the active runtime of this simulation-only repository. Physical device
 implementations are retained in [hardware/](../../hardware/README.md), outside the
 default build and install. The names in the table below identify the original
@@ -12,7 +53,7 @@ the deployed implementation, started unmodified.
 | Hardware process | Replaced by | Interface kept |
 |---|---|---|
 | `python_can_node` (RobStride CAN) | `sim_motor_backend` | `joint_states`, `motor_status`, `motor_telemetry`, `can_timing`, `motor_commands`, `/safety/estop`, `motor_backend/get_feedback`, `motor_backend/execute_operation` |
-| Body IMU MCU + micro-ROS Agent | `sim_body_imu` | `/imu/data_raw` (frame `imu_link`, 100 Hz), `/imu/status` |
+| Body IMU MCU + micro-ROS Agent | `sim_body_imu` (or `sim_imu_publisher` with `imu_split:=true`) | `/imu/data_raw` (frame `imu_link`, 100 Hz), `/imu/status` |
 | Head MCU + micro-ROS Agent | `sim_head_mcu` | `/head/imu`, `/head/mcu_status`, `/head/servo_target_rad` (250 ms watchdog) |
 | `realsense2_camera_node` | `sim_camera` | `/camera/camera/color/{image_raw,camera_info}`, optional aligned depth |
 
@@ -125,12 +166,15 @@ All motors start **disabled**; nothing in the launch enables them unless
 
 Autostart waits for both the gantry service and the motor command subscriber
 before enabling on a fresh policy command. Discovery has a 2 s timeout after
-the first fresh command (`sim_autostart.startup_timeout_s` node parameter).
+the first fresh command (`sim_autostart.startup_timeout_s` node parameter); the
+WBC launch uses 10 s to accommodate cold DDS discovery and native imports.
 After ENABLE, autostart keeps watching the fresh policy stream. The simulator
 allows release only when all motors have accepted motion commands with positive
 position gains and at least 40 ms remaining lifetime. A not-yet-ready backend
 can be checked again within the startup budget, without repeating ENABLE.
 An aborted start sends DISABLE and keeps the gantry engaged; it never re-arms.
+After success or failure, autostart drains its reliable command publisher and
+exits, releasing its high-rate command subscriptions.
 
 The robot stack starts only once the simulator emits its private `Simulation ready`
 stdout handshake after the first valid body IMU and joint feedback have actually
@@ -249,7 +293,34 @@ stream. A new trip is sent before logging or diagnostic work.
 In disconnected minimal mode, `/motor_commands` carries lifecycle commands, so its Hz is
 not the policy-control rate. Measure `/policy/desired_motor_subset` instead.
 Temperature/status JSON is disabled in the minimal loop; full mode publishes it
-at 5 Hz separately from the 50 Hz joint feedback.
+at 5 Hz separately from the 50 Hz joint feedback (200 Hz in WBC mode).
+The Web monitor consumes `/sim/monitor/joint_states` at 10 Hz, controlled by
+`sim_motor_backend.monitor_rate_hz`; it retains the original feedback stamp and
+stops when physics is fault-paused. Controllers continue using `/joint_states`.
+The simulation launch enables asynchronous Fast DDS publication for the entire
+stack, including Safety, Web and policy, to reduce blocking in diagnostic writes.
+Simulation-only `/safety/status` uses best-effort depth 1 (all built-in consumers
+request best-effort); `/safety/estop` remains reliable and transient-local. The
+standalone hardware safety launch retains reliable diagnostics by default.
+This does not guarantee nonblocking writes under overload or relax any deadline.
+
+In WBC mode, `dedicated_command_executor:=true` creates a lightweight
+`sim_motor_command_rx` node inside the same simulator process. Its single-thread
+executor receives reliable motor commands and latched estop independently of the
+sensor timer executor. Both use the existing world lock; command queue depth and
+ENABLE/DISABLE semantics are preserved. Set the argument to `false` for an A/B
+timing comparison. This uses no general-purpose Python worker pool.
+
+IMU, joint feedback, odometry and foot feedback use the wall-clock acquisition
+time recorded by the physics step, rather than each ROS callback's execution
+time. Republishing an unchanged physical sample does not refresh its source age.
+Odometry and foot contacts are copied under one lock from the same step.
+
+`/imu/status` includes `last_publish_age_s`, `max_publish_gap_s`,
+`max_sample_wait_s`, and `control_fault`. These distinguish a publishing gap,
+sample acquisition delay, and an intentional stop after a control fault. Viewer
+state transfer and synchronization run at 5 Hz; the passive native window can
+still redraw between state updates.
 
 ### Commands
 
@@ -439,7 +510,7 @@ Episodes end at sustained non-foot ground contact (>1 N for 20 ms), followed by
 350 ms of observation, or after 15 simulated seconds following release. Physics
 is capped at real-time pace, not accelerated. Samples use the exact 100 Hz noisy
 IMU values published by `sim_body_imu`, acquired with the same-step truth under
-the world lock. Roll/pitch are radians; gyro rad/s; acceleration specific force
+the world lock (collection therefore forces `imu_split:=false`). Roll/pitch are radians; gyro rad/s; acceleration specific force
 in m/s² (gravity included as measured by the existing sensor). Joint positions,
 velocities, height, timestamps, estop and hold/fault state are also recorded.
 Contact is checked every physics step, independently of the sensor timer.
@@ -515,3 +586,73 @@ that exhausts its time budget must be checked for actual completed attempt count
 `status.json` and `episodes.jsonl` preserve all failures; no failure is silently
 replaced by an extra successful trial. Two preliminary smoke trials are separate
 from the formal 100 attempts.
+
+## Render on another computer
+
+The optional TCP viewer moves visualization to a separate computer. The simulation
+computer runs physics, policy, WBC, C++ control and Safety without a local GUI.
+The viewer receives the compiled model (including mesh/texture assets) once per
+connection, then latest-only integration states at 15 Hz by default. It does not
+run physics integration, requires no ROS installation, and sends no motor,
+mouse-force, reset or release commands back to the simulation. Local camera
+rotation/zoom remains available. One viewer connection is supported at a time;
+restart the client to reconnect after a disconnect or simulator restart.
+
+On the simulation computer, activate the workspace as usual, then run:
+
+```bash
+source scripts/activate_rosenv.sh
+ros2 launch wbc_control_node rl_wbc_sim.launch.py \
+  auto_start:=true use_viewer:=false remote_viewer:=true \
+  remote_viewer_host:=0.0.0.0 remote_viewer_port:=8765 \
+  remote_viewer_rate_hz:=15.0
+```
+
+This explicitly exposes TCP port 8765 to the network. Use a trusted LAN only:
+this read-only protocol has no authentication or encryption. It does not require
+changing `ROS_LOCALHOST_ONLY` or exposing ROS discovery. Use `remote_viewer:=true`
+with `humanoid_sim sim.launch.py` in the same way for the PD path. The stream is
+independent of the existing motor Web monitor.
+
+On the display computer (Windows, Linux or macOS), copy just
+`simulation/humanoid_sim/humanoid_sim/remote_viewer.py` from this checkout, then:
+
+```bash
+python -m pip install "mujoco==3.3.7" numpy
+python remote_viewer.py --host SIMULATION_COMPUTER_IP --port 8765
+```
+
+The installed MuJoCo version must exactly match the server. Check the server with
+`python -c "import mujoco; print(mujoco.__version__)"` in the activated workspace
+and replace the pinned version above if necessary. Compiled MJB compatibility
+also depends on MuJoCo's build/platform; cross-machine compatibility has only
+been tested on the local platform so far. A mismatched version is rejected before
+loading the binary model. On Windows, `py` can be used instead of `python`. On
+macOS, launch the GUI with `mjpython remote_viewer.py --host ... --port 8765`.
+If the display computer already has this package on its Python path, use
+`python -m humanoid_sim.remote_viewer` instead of copying the file.
+
+To keep the server bound to loopback, omit `remote_viewer_host:=0.0.0.0` above.
+On the display computer open a separate terminal and keep this tunnel running:
+
+```bash
+ssh -N -L 8765:127.0.0.1:8765 USER@SIMULATION_COMPUTER_IP
+```
+
+Then connect the viewer with `--host 127.0.0.1 --port 8765`. The SSH server must
+already be available on the simulation computer. Allow TCP 8765 through the
+simulation computer's firewall only when using the direct LAN option.
+
+To verify reception without a display:
+
+```bash
+python remote_viewer.py --host SIMULATION_COMPUTER_IP --headless --frames 30
+```
+
+Sampling skips a busy physics lock, and network IO runs in a separate process
+with a one-element snapshot queue and bounded socket timeouts. A missing, slow,
+or disconnected viewer does not hold up the control path. There is still a small
+state-copy and sampler scheduling cost on the simulation host; no hard real-time
+or IMU-timeout improvement is guaranteed. The state stream rate may be set in
+`(0, 60]` Hz. Keep `use_viewer:=false` to avoid also rendering locally. A busy port
+or sender startup failure is logged while the simulation continues headless.

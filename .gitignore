@@ -46,3 +46,5 @@ compile_commands.json
 # Overnight simulated fall trajectories and per-episode logs
 data/fall_collection/
 data/fall_training/
+# Local raw simulation experiment output
+experimental/reference_warp/results/

@@ -27,6 +27,7 @@ from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool, String
 
 from .world import SimWorld
+from .publish_sample import publish_sample
 
 try:
     from motor_control_hybrid.motor_configuration import MotorSettings
@@ -36,10 +37,11 @@ except ImportError:  # Raw feedback falls back to joint coordinates.
 
 class SimMotorBackendNode(Node):
 
-    def __init__(self, world: SimWorld, registry: dict) -> None:
+    def __init__(self, world: SimWorld, registry: dict, *, command_node: Node | None = None) -> None:
         super().__init__('sim_motor_backend')
         self.declare_parameter('publish_rate_hz', 50.0)
         self.declare_parameter('telemetry_rate_hz', 5.0)
+        self.declare_parameter('monitor_rate_hz', 10.0)
         self.declare_parameter('policy_commands_topic', '')
         self.declare_parameter('ambient_temperature_c', 28.0)
         # Placeholder thermal model: dT/dt = heating * tau^2 - (T - ambient) / time_constant.
@@ -62,6 +64,10 @@ class SimMotorBackendNode(Node):
                               for name, cfg in motors.items()}
         self._temperature = {name: self._ambient for name in motors}
         self._last_sample = None
+        self._last_feedback_msg = None
+        # Reused across publications: the executor is single-threaded, and the
+        # monitor republishes this object as "latest sample" by design.
+        self._feedback_msg = None
         self._last_sample_mono = time.monotonic()
         self._last_thermal_tick = time.monotonic()
         self._rejected_warn = 0.0
@@ -69,29 +75,38 @@ class SimMotorBackendNode(Node):
         self._reported_control_fault = False
         self._timing = dict(rx_frames=0, commands_received=0, commands_rejected=0)
 
-        self.joint_state_pub = self.create_publisher(JointState, 'joint_states', 10)
-        self.motor_status_pub = self.create_publisher(String, 'motor_status', 10)
-        self.telemetry_pub = self.create_publisher(String, 'motor_telemetry', 10)
-        self.timing_pub = self.create_publisher(String, 'can_timing', 1)
+        self.joint_state_pub = self.create_publisher(
+            JointState, 'joint_states', QoSProfile(depth=2, reliability=ReliabilityPolicy.RELIABLE))
+        self.monitor_state_pub = self.create_publisher(
+            JointState, '/sim/monitor/joint_states',
+            QoSProfile(depth=2, reliability=ReliabilityPolicy.BEST_EFFORT))
+        self.motor_status_pub = self.create_publisher(String, 'motor_status', 2)
+        self.telemetry_pub = self.create_publisher(String, 'motor_telemetry', 2)
+        self.timing_pub = self.create_publisher(String, 'can_timing', 2)
         self._command_group = MutuallyExclusiveCallbackGroup()
-        self.create_subscription(MotorCommand, 'motor_commands', self._command_callback, 10,
-                                 callback_group=self._command_group)
+        receiver = command_node if command_node is not None else self
+        receiver.create_subscription(MotorCommand, 'motor_commands', self._command_callback, 2,
+                                     callback_group=self._command_group)
         policy_topic = str(self.get_parameter('policy_commands_topic').value)
         if policy_topic:
             # Simulation-only direct stream: latest motion sample, separate from
             # reliable lifecycle ENABLE/DISABLE on /motor_commands.
-            self.create_subscription(
+            receiver.create_subscription(
                 MotorCommand, policy_topic, self._command_callback,
-                QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
+                QoSProfile(depth=2, reliability=ReliabilityPolicy.BEST_EFFORT),
                 callback_group=self._command_group)
-        estop_qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
+        estop_qos = QoSProfile(depth=2, durability=DurabilityPolicy.TRANSIENT_LOCAL,
                                reliability=ReliabilityPolicy.RELIABLE)
-        self.create_subscription(Bool, '/safety/estop', self._estop_callback, estop_qos)
+        receiver.create_subscription(Bool, '/safety/estop', self._estop_callback, estop_qos,
+                                     callback_group=self._command_group)
         self.create_service(GetMotorFeedback, 'motor_backend/get_feedback', self._get_feedback)
         self.create_service(ExecuteMotorOperation, 'motor_backend/execute_operation',
                             self._execute_operation)
         self.create_timer(1.0 / rate if rate > 0.0 else 0.02, self._publish_states)
         self.create_timer(1.0, self._publish_timing)
+        monitor_rate = float(self.get_parameter('monitor_rate_hz').value)
+        if monitor_rate > 0.0:
+            self.create_timer(1.0 / monitor_rate, self._publish_monitor_state)
         telemetry_rate = float(self.get_parameter('telemetry_rate_hz').value)
         if telemetry_rate > 0.0:
             self.create_timer(1.0 / telemetry_rate, self._publish_telemetry)
@@ -131,7 +146,7 @@ class SimMotorBackendNode(Node):
 
     # -------------------------------------------------------------- outputs
     def _publish_states(self) -> None:
-        now = time.monotonic()
+        begin = time.monotonic()
         if self.world.control_fault is not None:
             if not self._reported_control_fault:
                 self.get_logger().error('Physics paused: ' + self.world.control_fault +
@@ -139,27 +154,38 @@ class SimMotorBackendNode(Node):
                 self._reported_control_fault = True
             return
         self._reported_control_fault = False
-        # Stamp before sampling/logging so contention cannot disguise old data.
-        stamp = self.get_clock().now().to_msg()
+        # The world records acquisition time when physics completes. Neither
+        # waiting for its lock nor republishing may renew the sample's age.
         sample = self.world.joint_snapshot()
         with self.world.lock:
             events = self.world.motors.pop_events()
-        msg = JointState()
-        msg.header.stamp = stamp
+        if self._feedback_msg is None:
+            self._feedback_msg = JointState()
+        msg = self._feedback_msg
+        msg.header.stamp.sec, msg.header.stamp.nanosec = divmod(sample.stamp_ns, 10**9)
         msg.name = sample.names
         msg.position = [float(x) for x in sample.position]
         msg.velocity = [float(x) for x in sample.velocity]
         msg.effort = [float(x) for x in sample.effort]
-        self.joint_state_pub.publish(msg)
+        if not publish_sample(self, self.joint_state_pub, msg, '/joint_states'):
+            return
+        self._last_feedback_msg = msg
         self.first_feedback.set()
         self._last_sample = (msg.header.stamp, sample)
-        self._last_sample_mono = now
+        self._last_sample_mono = sample.sampled_mono
         self._timing['rx_frames'] += len(sample.names)
         # Routine enable/disable events are intentionally silent. Keep timeout
         # warnings in one batch and outside the critical feedback publication.
         timeouts = [event for event in events if event.startswith('Command timeout')]
         if timeouts:
             self.get_logger().warn('; '.join(timeouts))
+        self._timing['max_feedback_callback_s'] = max(self._timing.get('max_feedback_callback_s', 0.0), time.monotonic()-begin)
+
+    def _publish_monitor_state(self) -> None:
+        # Decimate only the dashboard stream. Preserve the acquisition stamp:
+        # repeating a cached sample must never make stopped physics look fresh.
+        if self._last_feedback_msg is not None and self.world.control_fault is None:
+            publish_sample(self, self.monitor_state_pub, self._last_feedback_msg, '/joint_states_monitor')
 
     def _publish_telemetry(self) -> None:
         # Dashboard/thermal JSON is not part of the 50 Hz feedback critical path.
@@ -178,17 +204,18 @@ class SimMotorBackendNode(Node):
             status[str(index)] = {'temperature': float(temp), 'torque': float(torque)}
             telemetry.append(dict(self._identity[name], source_stamp=source_stamp,
                                   temperature_c=float(temp)))
-        self.motor_status_pub.publish(String(data=json.dumps(status)))
-        self.telemetry_pub.publish(String(data=json.dumps(
-            dict(schema_version=1, motors=telemetry), allow_nan=False)))
+        publish_sample(self, self.motor_status_pub, String(data=json.dumps(status)), '/motor_status')
+        publish_sample(self, self.telemetry_pub, String(data=json.dumps(
+            dict(schema_version=1, motors=telemetry), allow_nan=False)), '/motor_telemetry')
 
     def _publish_timing(self) -> None:
         payload = dict(self._timing, simulated=True, transport_fault=False, pending_commands=0,
                        physics_overruns=self.world.overruns)
+        payload['publish_failures'] = dict(getattr(self, '_publish_failures', {}))
         payload['interfaces'] = {
             iface: {'tx_submitted': 0, 'tx_errors': 0}
             for iface in sorted({ident['can_interface'] for ident in self._identity.values()})}
-        self.timing_pub.publish(String(data=json.dumps(payload)))
+        publish_sample(self, self.timing_pub, String(data=json.dumps(payload)), '/can_timing')
 
     # ------------------------------------------------------------- services
     def _get_feedback(self, request, response):

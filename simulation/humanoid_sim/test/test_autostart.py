@@ -290,3 +290,35 @@ def test_preflight_requires_sustained_forwarding_not_one_good_frame(verified_nod
     node._forwarded_ready_since -= .31
     node._on_policy(sample)
     node._enable_client.call_async.assert_called_once()
+
+
+def test_process_finishes_after_terminal_startup_result(monkeypatch):
+    from humanoid_sim import autostart_node as module
+    simulated = SimpleNamespace(_done=False, destroy_node=Mock(), _command_pub=Mock())
+    monkeypatch.setattr(module, 'SimAutostartNode', lambda: simulated)
+    monkeypatch.setattr(module.rclpy, 'init', Mock())
+    monkeypatch.setattr(module.rclpy, 'ok', lambda: True)
+    monkeypatch.setattr(module.rclpy, 'shutdown', Mock())
+    def complete(*args, **kwargs):
+        simulated._done = True
+    spin_once = Mock(side_effect=complete)
+    monkeypatch.setattr(module.rclpy, 'spin_once', spin_once)
+    # A long-running spin after completion would keep decoding command traffic.
+    monkeypatch.setattr(module.rclpy, 'spin', Mock(side_effect=AssertionError('terminal node kept spinning')))
+    module.main()
+    assert spin_once.call_count == 1
+    simulated._command_pub.wait_for_all_acked.assert_called_once()
+    simulated.destroy_node.assert_called_once()
+    module.rclpy.shutdown.assert_called_once()
+def test_global_cpp_transport_fault_aborts_before_enable_submission():
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from motor_control_interfaces.msg import AbstractCommandStatus
+    from humanoid_sim.autostart_node import SimAutostartNode
+    node = SimpleNamespace(_done=False, _enable_pending=False, _enable_id='not_submitted', _fail=Mock())
+    status = AbstractCommandStatus()
+    status.request_id = 'cpp_control_transport_fault'
+    status.stage = AbstractCommandStatus.FAILED
+    status.message = 'Command publication fault latched; restart required'
+    SimAutostartNode._on_enable_status(node, status)
+    node._fail.assert_called_once()

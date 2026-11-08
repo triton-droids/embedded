@@ -8,10 +8,13 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     defaults = {
         'use_viewer': 'true', 'auto_start': 'false', 'hold_first_frame': 'false',
-        'log_level': 'warn', 'ros_domain_id': '0', 'web_port': '8080',
-        'wbc_python_executable': 'python3', 'wbc_tracking_mode': 'policy_impedance',
-        'wbc_reference_end_behavior': 'loop', 'wbc_command_rate_hz': '200.0',
-        'wbc_reference_loop_start_frame': '50', 'wbc_reference_loop_end_frame': '251',
+        'dedicated_command_executor': 'true',
+        'remote_viewer': 'false', 'remote_viewer_host': '127.0.0.1',
+        'remote_viewer_port': '8765', 'remote_viewer_rate_hz': '15.0',
+        'log_level': 'warn', 'web_port': '8080', 'wbc_python_executable': 'python3',
+        'wbc_tracking_mode': 'policy_impedance', 'wbc_reference_end_behavior': 'loop',
+        'wbc_command_rate_hz': '200.0', 'wbc_reference_loop_start_frame': '50',
+        'wbc_reference_loop_end_frame': '251',
     }
     return LaunchDescription([
         *(DeclareLaunchArgument(name, default_value=value) for name, value in defaults.items()),
