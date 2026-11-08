@@ -87,6 +87,11 @@ class SimBodyImuNode(Node):
         self.create_timer(1.0, self._publish_status)
 
     def _publish(self) -> None:
+        # Keep collection truth and the published noisy IMU at the same step.
+        with self.world.lock:
+            self._publish_locked()
+
+    def _publish_locked(self) -> None:
         if self.world.control_fault is not None:
             return  # Do not re-stamp a frozen physical sample as fresh.
         stamp = self.get_clock().now().to_msg()
@@ -107,6 +112,8 @@ class SimBodyImuNode(Node):
         msg.orientation_covariance = BODY_ORIENTATION_COVARIANCE
         _fill_imu(msg, gyro, accel)
         self.imu_pub.publish(msg)
+        if self.world.recorder is not None:
+            self.world.recorder.record_imu(sample, gyro, accel, stamp)
         self._published += 1
         self.first_sample.set()
 

@@ -166,7 +166,10 @@ prints the same list):
 | `use_cuda` | `false` | Detector backend |
 | `enable_depth` | `false` | Also render aligned depth (needed for the detector's 3D output) |
 | `target_image` | empty | PNG image for the target board (MuJoCo only decodes PNG) |
-| `control_rate_hz` | `50.0` | `cpp_control_node` scheduler rate |
+| `pd_profile` | `tuned` | PD path (no WBC): `tuned` = 200 Hz C++ and `/joint_states`, policy clock starts at gantry release, looped reference, no head sim unless vision, skip isolated IMU acceleration spikes; `original` = previous defaults. Explicit arguments still override |
+| `control_rate_hz` | `auto` | `cpp_control_node` scheduler rate; `auto`: 200 (tuned) or 50 (original) |
+| `policy_imu_accel_outlier` | `auto` | `latch` a fault on an out-of-range IMU acceleration or `skip` isolated outliers; `auto`: skip with tuned PD |
+| `enable_wbc` | `false` | Deprecated, see `docs/reports/2026-11-08-wbc-deprecation.md` |
 | `cmd_timeout_s` | `0.5` | `cpp_control_node` timeout for its input commands |
 | `can_command_timeout_s` | `0.5` | Simulated backend command lifetime (`python_can_node`'s `command_timeout_s`) |
 | `fall_detection_enabled` | empty | Override `safety.yaml` fall detection (`true`/`false`) |
@@ -396,3 +399,119 @@ python -m pytest test
 `test_world.py` checks spawn clearance, that the settled gantry passes the
 policy's calibration thresholds, target tracking, limp motors, gantry release
 and the head servo on the real robot model.
+
+## Overnight fall-prediction data collection
+
+Activate the workspace and run from `embedded/`:
+
+```bash
+export ROS_DISTRO=humble  # this host; use your installed distro elsewhere
+source scripts/activate_rosenv.sh
+python scripts/collect_fall_data.py --hours 6.5 \
+  --output data/fall_collection/my_run
+```
+
+The output directory must be new. Default domain 87 is locked against another
+collector and uses localhost-only DDS. Camera, depth, vision, viewer and RViz
+are off. The existing tracking policy, C++ forwarding, motor model, body/head
+IMUs and Safety supervisor remain active. Each bounded episode restarts the
+whole launch, which resets policy calibration, motor enable and safety latches;
+no hardware backend is launched. Standing-reference and walking-reference
+trials alternate. Holding frame 0 is not a validated standing controller.
+
+One third of trials receive no push. Others receive a world-horizontal force
+on the floating base: 5–100 N, 50–250 ms, starting 0.25–2 s after release, with
+seeded direction/magnitude/timing. Forces are applied at physics steps and
+cleared after the pulse. A fall before the planned push is retained and its
+actual applied step count recorded. The initial foot clearance is zero, so
+release does not deliberately drop the robot.
+
+**Collection-only change:** physics continues after Safety disables motors;
+the usual diagnostic freeze is suppressed only when `collection_output_dir`
+is set. Safety still trips, disables motors and rejects new motion. Outcomes
+therefore describe the existing controller **with Safety**, not an unprotected
+policy or the counterfactual effect of a new protective action. Normal launches
+retain their original freeze behavior. The robot geometry/mass and peripheral
+approximations documented above still apply; camera-off does not improve their
+physical fidelity.
+
+Episodes end at sustained non-foot ground contact (>1 N for 20 ms), followed by
+350 ms of observation, or after 15 simulated seconds following release. Physics
+is capped at real-time pace, not accelerated. Samples use the exact 100 Hz noisy
+IMU values published by `sim_body_imu`, acquired with the same-step truth under
+the world lock. Roll/pitch are radians; gyro rad/s; acceleration specific force
+in m/s² (gravity included as measured by the existing sensor). Joint positions,
+velocities, height, timestamps, estop and hold/fault state are also recorded.
+Contact is checked every physics step, independently of the sensor timer.
+
+Files:
+
+- `status.json`: current PID, progress, valid label counts and final state.
+- `episodes.jsonl`: completion/failure, mode, command and metadata per trial.
+- `episode_*/samples.jsonl`: raw observations; `features` has the eight inputs.
+- `episode_*/metadata.json`: seed, push, fall time and label counts.
+- `episode_*.log`, `ros_logs/`: process diagnostics.
+- `run.json`, `source/`: arguments, Git state and source/config snapshots.
+
+For a row with label 0 or 1, use that row and its preceding 19 rows as the input.
+Label 1 means a confirmed fall occurs in the next 300 simulated milliseconds;
+label 0 means the full horizon was observed without a fall. Label `null` means
+unknown/excluded: gantry/warmup, invalid or discontinuous history, already fallen,
+or an incomplete future horizon. Do not convert null to zero. Sample spacing is
+checked against [5,20] ms; timestamps are preserved for stricter resampling.
+Only episodes with `valid: true` in the manifest should enter the initial
+training dataset. Split whole episodes before constructing train/test windows.
+
+The runner uses a 6.5-hour monotonic deadline including startup/reset overhead,
+with shutdown grace up to ~16 s. It stops early on five consecutive unusable
+or crashed episodes, or less than 2 GiB free disk. Each episode is buffered in
+memory and written atomically at shutdown; a hard crash can lose the current
+episode, while completed episodes remain. Stop gracefully using `kill -TERM`
+on the PID in `status.json`; do not kill individual ROS nodes. Readiness checks
+and data quality still determine the actual usable dataset size.
+
+Short smoke test (fresh output path):
+
+```bash
+python scripts/collect_fall_data.py --hours 0.1 --episode-seconds 8 \
+  --max-episodes 3 --output /tmp/fall_collection_smoke
+```
+
+## CycloneDDS repeated-start test
+
+The existing default ROS environment is left unchanged. `scripts/run_cyclonedds_test.sh`
+activates a local Cyclone overlay in `.deps/cyclonedds/root/opt/ros/humble` and sets
+`RMW_IMPLEMENTATION=rmw_cyclonedds_cpp` for its process tree. Official arm64 ROS
+Debian packages are downloaded and extracted locally when system installation
+is unavailable; versions/hashes for this run are in `.deps/cyclonedds/packages.json`.
+Required packages are rmw-cyclonedds-cpp, cyclonedds and the three iceoryx packages.
+No development build or system-wide middleware switch is required.
+
+```bash
+bash scripts/run_cyclonedds_test.sh --hours 2 --max-episodes 100 \
+  --max-consecutive-failures 100 --episode-seconds 20 \
+  --profile recovery --seed 48048 --domain 89 \
+  --output data/fall_collection/cyclonedds_100
+```
+
+The local XML disables multicast and lists 127.0.0.1 for peer discovery, with an
+automatic participant index. Humble's ROS_LOCALHOST_ONLY=1 already selects the
+loopback interface, so the XML does not add a duplicate interface entry.
+Configuration reference: [CycloneDDS 0.10.5](https://cyclonedds.io/docs/cyclonedds/0.10.5/config/cyclonedds_specifics.html).
+
+Every simulator episode records `get_rmw_implementation_identifier()` in metadata;
+the collector excludes episodes if this differs from the requested RMW. The
+policy, C++ forwarding, motor model, IMUs and Safety remain active. The process
+environment selects the same RMW for all ROS nodes. Camera/viewer are off.
+The above seeds and 20-second duration match the first 100 recovery-profile
+scenarios from the earlier run, but scheduling and run conditions differ, so
+physical outcome differences cannot be attributed solely to DDS.
+
+After the run, `dds_summary.json` and `DDS_REPORT.md` summarize attempts, valid
+trajectories, actual RMW checks, node crashes, observed IMU intervals and physics
+overruns. This tests complete-stack startup/communication, not a new trained-model
+accuracy result. The two-hour deadline may finish early at 100 attempts. A run
+that exhausts its time budget must be checked for actual completed attempt count.
+`status.json` and `episodes.jsonl` preserve all failures; no failure is silently
+replaced by an extra successful trial. Two preliminary smoke trials are separate
+from the formal 100 attempts.

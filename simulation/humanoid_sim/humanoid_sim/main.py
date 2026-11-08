@@ -211,6 +211,8 @@ def main(args=None) -> None:
     signal.signal(signal.SIGTERM, signal.default_int_handler)
     control = SimControlNode()
     world = control.world
+    from rclpy.utilities import get_rmw_implementation_identifier
+    world.rmw_implementation = get_rmw_implementation_identifier()
 
     # Imported here so a missing optional dependency only affects its own node.
     from .camera_node import SimCameraNode
@@ -219,6 +221,23 @@ def main(args=None) -> None:
 
     control.declare_parameter('enable_camera', False)
     control.declare_parameter('use_viewer', False)
+    control.declare_parameter('collection_output_dir', '')
+    control.declare_parameter('collection_seed', 1)
+    control.declare_parameter('collection_duration_s', 15.0)
+    control.declare_parameter('collection_profile', 'standard')
+    recorder = None
+    if control.get_parameter('collection_output_dir').value:
+        if control.get_parameter('enable_camera').value or control.get_parameter('use_viewer').value:
+            raise ValueError('Collection requires camera and viewer disabled')
+        from .collection import EpisodeRecorder
+        recorder = EpisodeRecorder(world, control.get_parameter('collection_output_dir').value,
+            seed=control.get_parameter('collection_seed').value,
+            duration_s=control.get_parameter('collection_duration_s').value,
+            profile=control.get_parameter('collection_profile').value)
+        world.recorder = recorder
+        # Preserve estop/motor disable, but let gravity/contact evolve afterwards.
+        # Otherwise the diagnostic freeze censors almost every fall outcome.
+        world.pause_on_control_fault = False
     nodes = [control, SimMotorBackendNode(world, control.registry), SimBodyImuNode(world)]
     if world.head is not None:
         nodes.append(SimHeadMcuNode(world))
@@ -267,6 +286,8 @@ def main(args=None) -> None:
             except Exception as exc:
                 control.get_logger().error(f'MuJoCo viewer unavailable, running headless: {exc}')
         while rclpy.ok() and spin.is_alive():
+            if recorder is not None and recorder.poll():
+                break
             spin.join(timeout=0.5)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
@@ -274,6 +295,11 @@ def main(args=None) -> None:
         executor.shutdown()
         spin.join(timeout=2.0)
         world.stop()
+        if recorder is not None:
+            with world.lock:
+                recorder.finish('interrupted')
+                metadata = recorder.save()
+            print('Collection saved: ' + json.dumps(metadata), flush=True)
         if viewer is not None:
             viewer.close()
         for node in nodes:

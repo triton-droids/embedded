@@ -80,7 +80,7 @@ def bridge_node():
                 [('policy', policy), ('joints', joints), ('odom', odom), ('feet', feet)]},
         estop=False, fault='', started=False, state='waiting_for_inputs', solved_count=0,
         last_compute_ms=0., output=Mock(), get_clock=lambda: SimpleNamespace(now=lambda: Time(nanoseconds=now)),
-        get_logger=lambda: Mock(), last_policy_stamp=0,
+        get_logger=lambda: Mock(), last_policy_stamp=0, stale_since=None, stale_ticks=0,
     )
     node._fail = MethodType(WBCControlNode._fail, node)
     node._store = MethodType(WBCControlNode._store, node)
@@ -219,4 +219,21 @@ def test_arming_waits_for_fresh_inputs_but_release_activates_timeout_latch(bridg
     assert not node.fault
     WBCControlNode._sim_status(node, String(data='{"base_held": false}'))
     WBCControlNode.tick(node)
-    assert node.fault == 'Input source/receipt timeout'
+    # The message names each stale input with its source age and receipt time.
+    assert node.fault.startswith('Input source/receipt timeout (policy: age_ms=')
+
+
+def test_stale_input_grace_skips_output_then_latches(bridge_node):
+    import time
+    from std_msgs.msg import String
+    from wbc_control_node.node import WBCControlNode
+    node = bridge_node
+    node.params['stale_input_grace_s'] = 0.1
+    WBCControlNode._sim_status(node, String(data='{"base_held": false}'))
+    node.inputs = {k: (msg, stamp - 200_000_000, received)
+                   for k, (msg, stamp, received) in node.inputs.items()}
+    WBCControlNode.tick(node)
+    assert not node.fault and node.state == 'waiting_for_fresh_inputs' and node.stale_ticks == 1
+    node.stale_since = time.monotonic() - 0.2  # stale for longer than the grace period
+    WBCControlNode.tick(node)
+    assert node.fault.startswith('Input source/receipt timeout')

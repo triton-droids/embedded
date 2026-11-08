@@ -51,6 +51,10 @@ class TrackingPolicyNode(Node):
             'reference_end_behavior': 'hold_last_frame', 'wait_for_sim_release': False,
             'reference_loop_start_frame': 50, 'reference_loop_end_frame': 251,
             'imu_to_body_rotation': [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+            # latch: one out-of-range |acceleration| sample latches a fault (original).
+            # skip: isolated outliers (e.g. simulated contact impulses) are counted;
+            # outliers persisting for input_timeout_s still latch.
+            'imu_accel_outlier': 'latch',
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -118,6 +122,11 @@ class TrackingPolicyNode(Node):
         self.state = 'waiting_for_imu'
         self.count = self.overruns = 0
         self.rejected_imu_timestamps = 0
+        self.imu_accel_outlier = str(param('imu_accel_outlier'))
+        if self.imu_accel_outlier not in ('latch', 'skip'):
+            raise ValueError('imu_accel_outlier must be latch or skip')
+        self.imu_accel_outliers = 0
+        self.accel_outlier_since = None
         self.last_tick = None
         self.intervals = deque(maxlen=3000)
         self.inference_ms = deque(maxlen=3000)
@@ -224,7 +233,17 @@ class TrackingPolicyNode(Node):
             if not np.isfinite(acc).all() or not np.isfinite(gyro).all():
                 raise ValueError('Non-finite IMU sample')
             if not 0.1 < np.linalg.norm(acc) < 100:
-                raise ValueError('Invalid IMU acceleration')
+                if self.imu_accel_outlier == 'latch':
+                    raise ValueError('Invalid IMU acceleration')
+                self.imu_accel_outliers += 1
+                if self.accel_outlier_since is None:
+                    self.accel_outlier_since = now
+                if now - self.accel_outlier_since > self.timeout:
+                    raise ValueError('Invalid IMU acceleration persisted')
+                if not self.calibrated or self.orientation_source != 'message':
+                    return  # acceleration would be used directly: drop this sample
+            else:
+                self.accel_outlier_since = None
             if not self.calibrated:
                 if self.calibration_start is None:
                     self.calibration_start = now
@@ -431,6 +450,7 @@ class TrackingPolicyNode(Node):
                 'imu_age_since_receipt_ms': None if self.imu is None else (now - self.imu[0]) * 1000,
                 'gyro_bias_rad_s': self.bias.tolist(), 'model_sha256': self.model_sha256,
                 'rejected_imu_timestamps': self.rejected_imu_timestamps,
+                'imu_accel_outliers': self.imu_accel_outliers,
                 'inference_ms': None,
                 'control_callback_ms': None,
                 'tick_interval_ms': None,

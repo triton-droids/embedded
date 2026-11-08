@@ -236,3 +236,34 @@ def test_sim_reference_clock_waits_for_release_without_stopping_policy(node):
     node.on_imu(imu_sample(node))
     node.tick()
     assert 25 <= node.frame <= 26
+
+
+def spike(node, accel=110.0):
+    msg = imu_sample(node)
+    msg.linear_acceleration.z = accel
+    return msg
+
+
+def test_acceleration_outlier_latches_by_default(node):
+    assert node.imu_accel_outlier == 'latch'
+    node.on_imu(spike(node))
+    assert node.fault == 'Invalid IMU acceleration'
+
+
+def test_skip_mode_tolerates_an_isolated_acceleration_spike(node):
+    node.imu_accel_outlier = 'skip'
+    node.on_imu(imu_sample(node))
+    node.on_imu(spike(node))
+    assert node.fault is None and node.imu_accel_outliers == 1
+    node.tick()  # attitude from the quaternion is still valid for this sample
+    assert len(node.angles_pub.messages) == 1
+    node.on_imu(imu_sample(node))
+    assert node.accel_outlier_since is None
+
+
+def test_skip_mode_latches_persistent_acceleration_outliers(node):
+    node.imu_accel_outlier = 'skip'
+    node.on_imu(spike(node))
+    node.accel_outlier_since = time.monotonic() - 0.2  # outliers for longer than input_timeout_s
+    node.on_imu(spike(node))
+    assert node.fault == 'Invalid IMU acceleration persisted'

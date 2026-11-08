@@ -1,5 +1,9 @@
 # wbc_control_node
 
+> **Deprecated (2026-11-08).** In simulation, RL + tuned joint PD is more stable
+> than RL + WBC; see `docs/reports/2026-11-08-wbc-deprecation.md`. The node is
+> kept for reference and diagnostics only.
+
 Simulation-only TSID bridge:
 
 ```

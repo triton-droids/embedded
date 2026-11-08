@@ -42,3 +42,7 @@ local_test/
 compile_commands.json
 .pio/
 .pytest_cache/
+
+# Overnight simulated fall trajectories and per-episode logs
+data/fall_collection/
+data/fall_training/

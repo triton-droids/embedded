@@ -97,6 +97,7 @@ class SimWorld:
 
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        self.recorder = None  # Opt-in overnight collection; normal runs unchanged.
         self.reset(base_held=base_held)
 
     # ------------------------------------------------------------ lifecycle
@@ -141,6 +142,8 @@ class SimWorld:
                 data.ctrl[:] = 0.0
                 model.actuator_biasprm[:, 1:3] = 0.0
                 return
+            if self.recorder is not None:
+                self.recorder.before_step()
             for i, joint in enumerate(self.joint_names):
                 q = float(data.qpos[self._qpos[i]])
                 self.motors.seed_reference(joint, q)
@@ -156,6 +159,8 @@ class SimWorld:
                 self._move_target()
             mujoco.mj_step(model, data)
             self.steps += 1
+            if self.recorder is not None:
+                self.recorder.after_step()
 
     def _apply_head(self, dt: float) -> None:
         cfg, act = self.head, self._head_act
