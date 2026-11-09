@@ -635,3 +635,41 @@ extra load on the host:
   The offline delay is constant; the chain's 30–40 ms command gaps under
   load are what is missing from it.
 
+## 17. Chain timing offline and the stance-force bounce (2026-11-09)
+
+`offline.run(..., timing=ChainTiming(...))` replaces the fixed `delay_steps`
+with measured, randomised chain timing: controller cycle gaps, state age
+(passed as `age_s`) and command-to-simulator delay, in 5 ms steps, plus the
+simulator's real-time factor (`rtf`, ~0.82 with the camera: the node runs on
+wall time). Default tables are from Jetson runs that walked (102 Hz commands;
+publish → simulator p50 7 ms, p90 15 ms, p99 30 ms); `DEGRADED_TIMING` is the
+recorded fall (88 Hz, p90 19 ms, p99 33 ms, 2.4 gaps > 30 ms per second).
+
+Replaying the fall's recorded `/ball_chase/cmd_vel` with `rtf` 0.82:
+normal timing 0/20 falls, degraded 2/60 and 1/20 (6.8–9.3 s after release,
+`Torso tilt`, the same course as on the chain: pitch 11–20°, then the stance
+foot unloads). More delay (stress: +5 ms) 0/40. Constant 15–25 ms delay, the
+pursuit law on ground truth and a velocity slew limit never fell. On the
+chain under load it was 2 of 7 runs, so the model still misses something
+(correlated load bursts are a candidate: the samples are independent).
+
+Every run, falls or not, bounces: single-support force 41–252 N (weight
+~157 N), CoM 0.348–0.400 m around a 0.384 m reference. The WBC asks for it
+(desired and measured forces agree): at lift-off the new stance contact is
+switched to FLAT with a level reference and `contact_kp` 100 pulls the foot
+flat, ~260 N; late in single support it asks for ~45 N. A fall is this low
+point meeting a late command. `contact_kp` 30: force 87–173 N, CoM range 1.7
+instead of 2.7 cm. Swing weight, angular-momentum and torso weights, a
+zero-velocity lift profile and `com_kp_z` 200/400 do not change it.
+
+Chase replay, 30 seeds each, degraded / stress timing, falls and mean of the
+walking runs (single-support force p5, pitch p99):
+
+| contact_kp | degraded | stress | force p5 | pitch p99 |
+|---|---|---|---|---|
+| 100 (current) | 1/30 | 0/30 | 40–42 N | 6.7–8.0° |
+| 50 | 1/30 | 0/30 | 67–68 N | 5.0–5.5° |
+| 30 | 1/30 | 3/30 | 77–79 N | 5.2° |
+
+The margins improve but the fall count does not, so `contact_kp` stays 100.
+

@@ -143,26 +143,94 @@ class OfflineSim:
         mujoco.mj_step(m, d)
 
 
+@dataclass
+class ChainTiming:
+    """Randomised ROS-chain timing, instead of a fixed delay_steps.
+
+    Each entry is (milliseconds, probability), rounded to the 5 ms physics
+    step. gaps_ms: time from one controller cycle to the next (the chain runs
+    one cycle per complete physics sample when the controller is free, ~100 Hz
+    with occasional 30-40 ms gaps). age_ms: how old the state is when a cycle
+    starts (passed as age_s, as the node does). act_ms: cycle start to the
+    command reaching the simulator (compute + cpp_control_node + DDS). The
+    tables are measured: odom stamp -> command stamp (minus ~4 ms compute)
+    and command stamp -> /motor_commands receipt (plus ~4 ms).
+    A command older than expire_s at the simulator stops the episode, like
+    the simulator's 80 ms validity. rtf: simulator real-time factor; the
+    node runs on wall time, so its clock and the sampled (wall) delays are
+    scaled against physics time. Defaults: the Jetson chain with the camera
+    ball chase and a recorder running (2026-11-09, 102 Hz commands).
+    """
+    gaps_ms: tuple = ((5, .405), (10, .388), (15, .133), (20, .045), (25, .016), (30, .007), (35, .002), (45, .002))
+    age_ms: tuple = ((0, .744), (5, .225), (10, .030), (15, .001))
+    act_ms: tuple = ((5, .139), (10, .470), (15, .246), (20, .087), (25, .034), (30, .013), (35, .005), (40, .0025),
+                     (45, .002), (50, .001))
+    expire_s: float = 0.08
+    rtf: float = 1.0
+    seed: int = 0
+
+    def sampler(self, dt):
+        rng = np.random.default_rng(self.seed)
+
+        def draw(table):
+            ms, p = np.array(table, dtype=float).T
+            return max(0, int(round(rng.choice(ms, p=p / p.sum()) * 1e-3 * self.rtf / dt)))
+        return draw
+
+
+# Degraded timing: the recorded fall (viewer stream + recorder, 88 Hz commands).
+DEGRADED_TIMING = dict(
+    gaps_ms=((5, .292), (10, .409), (15, .175), (20, .068), (25, .019), (30, .015), (35, .015), (40, .006)),
+    age_ms=((0, .721), (5, .239), (10, .034), (15, .006)),
+    act_ms=((5, .126), (10, .380), (15, .261), (20, .119), (25, .057), (30, .032), (35, .015), (40, .007), (45, .004)))
+
+
 def run(controller, duration_s, release_s=1.0, delay_steps=2, paths=None, robot=None, limits=None,
-        push=None, on_step=None, friction=None, world=None):
+        push=None, on_step=None, friction=None, world=None, timing: ChainTiming | None = None):
     """Drive controller.step(t, q, v, forces, held) -> Command | None.
 
     push: optional callable t -> force (3,) on the pelvis. on_step: callable
     (t, sim, controller) called after each physics step; return True to stop.
+    timing: ChainTiming replaces the fixed delay_steps with sampled cycle gaps,
+    state age and actuation delay.
     """
     if robot is None:
         paths, robot, limits = load(paths)
-    sim = OfflineSim(robot, limits, paths, delay_steps, friction, world)
+    sim = OfflineSim(robot, limits, paths, 0 if timing else delay_steps, friction, world)
     result = {'fault': '', 'fallen': False, 't_end': 0.0}
+    if timing:
+        draw = timing.sampler(sim.dt)
+        history, pending, active, next_tick = [], [], None, 0
     for k in range(int(duration_s / sim.dt)):
         t = k * sim.dt
         if sim.base_held and t >= release_s:
             sim.release()
         q, v = sim.state()
-        command = controller.step(t, q, v, sim.foot_forces(), sim.base_held)
-        if command is None:
-            result['fault'] = getattr(controller, 'fault', 'no command')
-            break
+        if timing is None:
+            command = controller.step(t, q, v, sim.foot_forces(), sim.base_held)
+            if command is None:
+                result['fault'] = getattr(controller, 'fault', 'no command')
+                break
+        else:
+            history = (history + [(q, v, sim.foot_forces())])[-8:]
+            if k >= next_tick:
+                age = min(draw(timing.age_ms), len(history) - 1)
+                qa, va, fa = history[-1 - age]
+                new = controller.step(t / timing.rtf, qa, va, fa, sim.base_held, age_s=age * sim.dt / timing.rtf)
+                if new is None:
+                    result['fault'] = getattr(controller, 'fault', 'no command')
+                    break
+                # In order, as over one DDS topic.
+                apply = max(k + max(1, draw(timing.act_ms)), pending[-1][0] if pending else 0)
+                pending.append((apply, k, new))
+                next_tick = k + max(1, draw(timing.gaps_ms))
+            while pending and pending[0][0] <= k:
+                _, issued, command_now = pending.pop(0)
+                active = (issued, command_now)
+            command = None if active is None else active[1]
+            if active is not None and not sim.base_held and (k - active[0]) * sim.dt / timing.rtf > timing.expire_s:
+                result['fault'] = 'command expired'
+                break
         sim.step(command, push(t) if push else None)
         result['t_end'] = t
         if sim.fallen():
