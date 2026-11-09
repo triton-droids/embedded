@@ -1,9 +1,0 @@
-prefix=/opt/ros/jazzy
-includedir=${prefix}/include/CycloneDDS
-libdir=${prefix}/lib/x86_64-linux-gnu
-
-Name: CycloneDDS
-Description: Eclipse Cyclone DDS library
-Version: 0.10.5
-Libs: -L${libdir} -lddsc
-Cflags: -I${includedir}

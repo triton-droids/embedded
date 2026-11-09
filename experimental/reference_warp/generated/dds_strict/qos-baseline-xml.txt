@@ -1,9 +1,0 @@
-[WARN] [1793512921.602849292] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
-[WARN] [1793512921.602882286] [rcl]: 'localhost_only' is disabled, 'automatic_discovery_range' and 'static_peers' will be used.
-header_strict_realtime=0
-/imu/data_raw max_blocking_ns=5000000 publish_mode=1 memory_policy=1 history=0 depth=10 data_sharing=3
-/joint_states max_blocking_ns=5000000 publish_mode=1 memory_policy=1 history=0 depth=10 data_sharing=3
-/safety/estop max_blocking_ns=100000000 publish_mode=1 memory_policy=1 history=0 depth=10 data_sharing=3
-74b6ec746000-74b6ec793000 r-xp 00017000 103:02 4859144                   /opt/ros/jazzy/lib/librmw_fastrtps_shared_cpp.so
-74b6ec7c3000-74b6ec7ea000 r-xp 0000e000 103:02 4859218                   /opt/ros/jazzy/lib/librmw_fastrtps_cpp.so
-74b6ee779000-74b6eed72000 r-xp 00179000 103:02 4858896                   /opt/ros/jazzy/lib/libfastrtps.so.2.14.5

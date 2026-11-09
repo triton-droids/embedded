@@ -1,9 +1,0 @@
-[WARN] [1793513288.445896890] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
-[WARN] [1793513288.445924171] [rcl]: 'localhost_only' is disabled, 'automatic_discovery_range' and 'static_peers' will be used.
-header_strict_realtime=1
-/imu/data_raw max_blocking_ns=100000000 publish_mode=1 memory_policy=1 history=0 depth=10 data_sharing=3
-/joint_states max_blocking_ns=100000000 publish_mode=1 memory_policy=1 history=0 depth=10 data_sharing=3
-/safety/estop max_blocking_ns=100000000 publish_mode=1 memory_policy=1 history=0 depth=10 data_sharing=3
-713c3b035000-713c3b08e000 r-xp 00026000 103:04 14813926                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_shared_cpp.so
-713c3b0c3000-713c3b0f8000 r-xp 0000e000 103:04 14814298                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-rmw/lib/librmw_fastrtps_cpp.so
-713c3d1f2000-713c3d9e6000 r-xp 001f2000 103:04 14813611                  /home/rcli/Github/Humanoid_ros2_simulation/experimental/reference_warp/generated/dds_strict/install-fastdds/lib/libfastrtps.so.2.14.5
