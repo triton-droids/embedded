@@ -211,6 +211,12 @@ An anchor that only trails the measurement keeps the robot straight-legged
 - Footstep and DCM re-planning run only at touchdown, not every cycle.
 - If the 2 ms budget is not met, first move the planners out of the cycle; only
   then consider C++.
+- The cycle runs once per physics sample, triggered when odom, feet and
+  `/joint_states` with the same stamp have arrived (node parameter `trigger`,
+  default `state`), not on a free-running timer. The simulator receives the
+  commands on its own executor. What limits walking is the total loop latency
+  (sample → torque applied), not the cycle time: it must stay below
+  ~15–20 ms (§12).
 
 ### 4.9 State input (simulation only)
 
@@ -394,3 +400,55 @@ start-up manoeuvre that creates lateral momentum, touchdown/impact handling
 with a short force-ramped double support or edge (line) contacts that let a
 foot roll, and slip-aware contact switching. That is new research work with an
 uncertain outcome, not tuning. The RL policy already walks on this hardware.
+
+## 12. ROS-chain latency on the Jetson (2026-11-08)
+
+**Symptom.** On the Jetson host (aarch64, 6 cores, ROS 2 Humble) the full
+chain fell after 25–37 s of walking at 0.06 m (3/3, `Torso tilt`); the
+offline loop walked 60 s. Ruled out from recordings: collision with the
+target board (behind the robot, no collision geometry), twist frame (world in
+both), joint/odom misalignment, missing commands before the fall, foot-force
+computation, thermal derating, a different MJCF.
+
+**Mechanism.** Torque-level control is delay-sensitive. With more delay the
+yaw swings grow (−7° vs ±1.5° offline), one knee then straightens to 0 rad
+(offline it stays ≤ −0.92), the CoM rises and the robot falls. Steps also
+became too long (0.069 m/step against 0.042 m offline at the same command).
+Offline, 9 s in place then 0.06 m:
+
+| Command delay | 10 ms | 15 ms | 20 ms | 25 ms | 30 ms | 40 ms |
+|---|---|---|---|---|---|---|
+| Result | 60 s | 60 s | fall 35 s | fall 29 s | fall 25 s | fall 14 s |
+
+The `walk_eval.py sweep` (20 s episodes, up to 20 ms) ends before these falls.
+
+**Measured latency** (recorded at full rate; joint sample matched to the
+command's `q_ref`, applied torque by cross-correlating `tau_ff` with
+`/joint_states` effort):
+
+| Segment | Before | After |
+|---|---|---|
+| Joint sample → controller publish (median) | 14.7 ms | 7.3 ms |
+| Controller publish → torque applied | 10 ms | 7 ms |
+| Controller cycle mean / p99 | 4.6 / 6.1 ms | 2.8 / 4.3 ms |
+| Command rate | 151 Hz | 187 Hz |
+
+Only 4.3 ms of the 14.7 ms was computation; the rest was the 200 Hz timer's
+phase and executor queueing, and the joints used were usually one physics
+step older than odom (they arrive ~1.3 ms after odom of the same sample).
+
+**Changes.** Same-sample trigger instead of the timer (sensor queues depth 1);
+the MPC's `lsq_linear` (1.09 ms per axis) replaced by a warm-started
+active-set box QP (0.43 ms, same optimum to 4e-12 on 7104 recorded problems,
+`lsq_linear` fallback); the simulator's dedicated command executor enabled for
+`model_walk`. Offline results are unchanged (identical step counts and
+distances).
+
+**Result.** 3/3 chain runs without a fall, 2 × 53 s and 141 s (359 steps,
+14.8 m, 0.041 m/step). Remaining latency is mostly outside the controller:
+odom published up to one physics step after sampling (input age 4.4 ms mean),
+C++ forwarding on its own 200 Hz timer (2.8 ms median) and application on the
+next physics step. The margin to ~20 ms is small: a regression should
+include ≥ 20 ms delay over ≥ 40 s, and latency compensation in the
+controller is the next step if the margin is not enough.
+

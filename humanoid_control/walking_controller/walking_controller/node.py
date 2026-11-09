@@ -8,6 +8,7 @@ by cpp_control_node. Any fault sends DISABLE and latches; restart the node.
 """
 from __future__ import annotations
 
+from collections import deque
 import json
 from pathlib import Path
 import time
@@ -56,6 +57,10 @@ class WalkingControllerNode(Node):
             # A single slow cycle is harmless while the last command is valid.
             'max_cycle_s': 0.03,
             'step_length_m': 0.0,
+            # 'state': one cycle per physics sample, as soon as its odom, feet and
+            # joint states have all arrived (lowest latency); 'timer': fixed-rate
+            # timer as before.
+            'trigger': 'state',
         }
         for key, value in defaults.items():
             self.declare_parameter(key, value)
@@ -71,19 +76,30 @@ class WalkingControllerNode(Node):
             dt=1.0 / p['control_rate_hz'], step_length_m=self._clamp(p['step_length_m']),
             gains=WBCGains(com_kp_z=100.0, com_weight=10.0)))
         self.inputs, self.base_held, self.estop = {}, None, True
-        self.started, self.fault, self.cycles, self.cycle_ms = False, '', 0, []
+        self.started, self.fault, self.cycles = False, '', 0
+        # Last 400 cycles (2 s) for /walk/status.
+        self.cycle_ms, self.input_age_ms, self.joint_age_ms = (deque(maxlen=400) for _ in range(3))
+        self._last_sample = None   # stamp of the last physics sample computed ('state')
+        if p['trigger'] not in ('state', 'timer'):
+            raise ValueError("trigger must be 'state' or 'timer'")
+        # Depth 1: a cycle always uses the newest sample, never a queued older one.
+        sensors = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
         stream = QoSProfile(depth=2, reliability=ReliabilityPolicy.BEST_EFFORT)
         safety = QoSProfile(depth=2, reliability=ReliabilityPolicy.RELIABLE,
                             durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.output = self.create_publisher(MotorCommand, p['output_topic'], stream)
         self.status_pub = self.create_publisher(String, '/walk/status', 2)
-        self.create_subscription(JointState, '/joint_states', lambda m: self._store('joints', m), stream)
-        self.create_subscription(Odometry, '/sim/ground_truth/odom', lambda m: self._store('odom', m), stream)
-        self.create_subscription(JointState, '/sim/ground_truth/feet', lambda m: self._store('feet', m), stream)
+        self.create_subscription(JointState, '/joint_states', self._on_joints, sensors)
+        self.create_subscription(Odometry, '/sim/ground_truth/odom', lambda m: self._store('odom', m), sensors)
+        self.create_subscription(JointState, '/sim/ground_truth/feet', self._on_feet, sensors)
         self.create_subscription(String, '/sim/status', self._sim_status, 2)
         self.create_subscription(Bool, '/safety/estop', self._on_estop, safety)
         self.create_subscription(Float64, '/walk/step_length', self._on_step_length, 2)
-        self.create_timer(1.0 / p['control_rate_hz'], self.tick)
+        if p['trigger'] == 'timer':
+            self.create_timer(1.0 / p['control_rate_hz'], self.tick)
+        else:
+            # Cycles run from _try_tick; this only catches inputs that stop arriving.
+            self.create_timer(0.05, self._watchdog)
         self.create_timer(0.5, self._publish_status)
         self.get_logger().info(f'Model-based walking (MPC + WBC) → {p["output_topic"]}; '
                                'step length on /walk/step_length')
@@ -100,6 +116,44 @@ class WalkingControllerNode(Node):
 
     def _store(self, name, msg):
         self.inputs[name] = (msg, stamp_ns(msg.header.stamp), time.monotonic())
+
+    def _on_feet(self, msg):
+        self._store('feet', msg)
+        self._try_tick()
+
+    def _on_joints(self, msg):
+        self._store('joints', msg)
+        self._try_tick()
+
+    def _try_tick(self):
+        """'state' trigger: one cycle per physics sample, once its odom, feet and
+        joints (same header stamp) have all arrived, whichever arrives last.
+
+        Samples whose messages never all match are skipped; the previous command
+        stays valid for output_lifetime_s and the watchdog catches a real stall.
+        """
+        if self.params['trigger'] != 'state':
+            return
+        stamps = [self.inputs[k][1] for k in ('odom', 'feet', 'joints') if k in self.inputs]
+        if len(stamps) == 3 and stamps[0] == stamps[1] == stamps[2] != self._last_sample:
+            self._last_sample = stamps[0]
+            self.tick()
+
+    def _stale(self, now_ns, now_mono):
+        timeout = self.params['input_timeout_s']
+        return [k for k, (_, stamp, received) in self.inputs.items()
+                if (now_ns - stamp) * 1e-9 > timeout or now_mono - received > timeout]
+
+    def _watchdog(self):
+        if self.fault:
+            self._send_disable()
+            return
+        if not self.started or self.estop:
+            return
+        missing = [k for k in ('joints', 'odom', 'feet') if k not in self.inputs]
+        stale = missing or self._stale(self.get_clock().now().nanoseconds, time.monotonic())
+        if stale:
+            self._fail(f'Stale inputs: {stale}')
 
     def _sim_status(self, msg):
         try:
@@ -140,10 +194,8 @@ class WalkingControllerNode(Node):
             return
         begin = time.monotonic()
         now_ns = self.get_clock().now().nanoseconds
-        timeout = self.params['input_timeout_s']
         snapshot = dict(self.inputs)
-        stale = [k for k, (_, stamp, received) in snapshot.items()
-                 if (now_ns - stamp) * 1e-9 > timeout or begin - received > timeout]
+        stale = self._stale(now_ns, begin)
         if stale:
             if self.started:
                 self._fail(f'Stale inputs: {stale}')
@@ -159,6 +211,8 @@ class WalkingControllerNode(Node):
                 ordered(joints.name, joints.position, self.names),
                 ordered(joints.name, joints.velocity, self.names))
             forces = ordered(feet.name, feet.effort, list(FEET))
+            self.input_age_ms.append((now_ns - snapshot['odom'][1]) * 1e-6)
+            self.joint_age_ms.append((now_ns - snapshot['joints'][1]) * 1e-6)
         except ValueError as exc:
             self._fail(str(exc))
             return
@@ -189,12 +243,15 @@ class WalkingControllerNode(Node):
 
     def _publish_status(self):
         c = self.controller
-        cycles = np.array(self.cycle_ms[-400:]) if self.cycle_ms else np.zeros(1)
+        def stats(values):
+            a = np.array(values) if values else np.zeros(1)
+            return {'mean': float(a.mean()), 'p99': float(np.percentile(a, 99)), 'max': float(a.max())}
         status = {'state': 'fault' if self.fault else c.phase, 'fault': self.fault,
                   'base_held': self.base_held, 'estop': self.estop, 'cycles': self.cycles,
                   'step_length_m': c.p.step_length_m, 'steps': getattr(c, 'steps', 0),
-                  'cycle_ms': {'mean': float(cycles.mean()), 'p99': float(np.percentile(cycles, 99)),
-                               'max': float(cycles.max())},
+                  'trigger': self.params['trigger'], 'cycle_ms': stats(self.cycle_ms),
+                  # Age of the odom / joint sample at cycle start (sample stamp -> now).
+                  'input_age_ms': stats(self.input_age_ms), 'joint_age_ms': stats(self.joint_age_ms),
                   **{k: v for k, v in c.status.items() if k not in ('forces',)}}
         try:
             self.status_pub.publish(String(data=json.dumps(status, default=str)))

@@ -175,9 +175,12 @@ def simulation_and_stack(context):
                     'foot_clearance_m': 0.0, 'allow_torque_only_motion': True,
                     'publish_feet_ground_truth': True,
                     'ground_truth_rate_hz': 100.0, 'publish_rate_hz': 200.0} if enable_wbc else {}),
-                # The model-based controller runs at 200 Hz on ground-truth base and feet.
+                # The model-based controller runs at 200 Hz on ground-truth base and feet;
+                # its torque commands are received on their own executor (less latency).
                 **({'publish_feet_ground_truth': True, 'ground_truth_rate_hz': 200.0,
-                    'publish_rate_hz': 200.0} if model_walk else {}),
+                    'publish_rate_hz': 200.0,
+                    'dedicated_command_executor': flag(context, 'dedicated_command_executor')}
+                   if model_walk else {}),
                 **({} if sim_head else {'enable_head': False, 'enable_target': False}),
                 **({'publish_rate_hz': float(joint_state_rate)} if joint_state_rate else {}),
                 **({'telemetry_rate_hz': 0.0, 'enable_head': False,
@@ -337,7 +340,7 @@ def generate_launch_description():
         ('minimal', 'false', 'Disconnected diagnostics only; connected policy requires false and C++ forwarding'),
         ('log_level', 'warn', 'ROS log severity: warn retains warnings, errors and fatal diagnostics'),
         ('use_viewer', 'true', 'Open the interactive MuJoCo viewer'),
-        ('dedicated_command_executor', 'true', 'Isolate WBC command reception from sensor timers'),
+        ('dedicated_command_executor', 'true', 'Isolate WBC / model_walk command reception from sensor timers'),
         ('remote_viewer', 'false', 'Stream read-only state to a separate viewer computer'),
         ('remote_viewer_host', '127.0.0.1', 'Stream bind address; use SSH tunnel or trusted LAN'),
         ('remote_viewer_port', '8765', 'Remote viewer TCP port'),
