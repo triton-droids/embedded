@@ -286,6 +286,9 @@ def simulation_and_stack(context):
             'start_tracker': 'true',
             'use_cuda': arg('use_cuda'),
             'target_timeout_s': arg('vision_target_timeout_s'),
+            # Included launches inherit this launch's configurations; the PD
+            # path's control_rate_hz ('auto') is not the tracker's rate.
+            'control_rate_hz': '50.0',
         }, condition=IfCondition(arg('enable_vision'))),
     ]
 
