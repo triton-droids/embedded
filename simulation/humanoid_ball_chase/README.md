@@ -7,8 +7,12 @@ scheduler, Web monitor, safety supervisor, and policy node.
 **Current boundary:** visual detection, moving camera TF, depth projection, head
 yaw/pitch tracking and bounded pursuit velocity commands are implemented. The bundled
 56-input tracking ONNX follows embedded reference joint positions/velocities;
-it does not accept a base velocity command. Consequently this launch does not
-make the robot walk toward the ball. `/ball_chase/cmd_vel` needs a trained
+it does not accept a base velocity command. Consequently the default launch
+(`controller:=policy`) does not make the robot walk toward the ball.
+`controller:=model_walk` runs the model-based walking controller instead and
+feeds it `/ball_chase/cmd_vel` (see `humanoid_control/walking_controller/README.md`):
+the robot then walks to the ball and stops in front of it. There is no search
+behaviour: a ball outside the camera view stops the pursuit. `/ball_chase/cmd_vel` needs a trained
 velocity-conditioned locomotion policy with its exact observation/export
 contract. No base teleport, applied chase forces, motor bypass or reinterpretation
 of tracking observations is used. `auto_start:=true` releases the existing

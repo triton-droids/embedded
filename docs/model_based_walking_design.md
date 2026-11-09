@@ -579,3 +579,41 @@ After a turn the frame follows the feet, so there is no fixed heading: straight
 walking then drifted −7 to +14° in yaw. Heading hold belongs to the caller
 (ball chase, `/walk/goal`), which closes the loop with `/walk/turn`.
 
+## 16. Camera ball chase with model_walk (2026-11-09)
+
+`ball_chase.launch.py controller:=model_walk` (the restriction "model_walk
+requires enable_vision:=false" in sim.launch.py was untested, not a known
+failure, and is removed) feeds `/ball_chase/cmd_vel` (TwistStamped, ≤ 0.2 m/s,
+≤ 0.5 rad/s) to the walking node: per step × 0.5 s, capped, stale 0.5 s → stop.
+
+Findings, in the order they came up:
+
+1. **First command is the maximum** (vision locks on 1.7 m ahead: 0.2 m/s,
+   0.24 rad/s → 0.10 m and 0.12 rad from the first steps) and the robot fell
+   after 4 s. Offline at 15 ms a 0.10 m step falls even straight (15 s);
+   0.06 m with ±0.12 rad turns walks at 15 and 20 ms, 0.08 m with a turn
+   falls at 20 ms → `cmd_vel_max_step_m` 0.06.
+2. **Heading limit cycle.** The pursuit's yaw gain 1.5 rad/s per rad is 0.75
+   rad of turn per step per rad of heading error; with 0.5–1 s vision lag
+   (one detection every few hundred ms, sometimes a wrong one) the turn
+   flipped between ±0.15 each step and the yaw swung −13…+28°. Offline with
+   the same pursuit law on ground truth (2 Hz, 0.7 s lag): yaw std 19° at
+   0.15, 6° at 0.08, 3° at 0.05 (but 34 sign flips); a low-pass made it worse
+   → `cmd_vel_max_turn_rad` 0.08. Chain: yaw −1…+21°.
+3. Ruled out offline: the camera mount (0.3 kg, not in the controller's
+   model; the offline loop can now load the chase scene via `world=`), the
+   simulator running slower than real time (real-time factor 0.77–0.95 with
+   the camera; a controller clock 15 % faster than physics still walks) and
+   the vision lag itself.
+
+**Result.** The robot walks from 1.7 m to the ball and stops 0.5–0.6 m in front
+of it, facing it; 2 of the last 3 runs had no fault for 45–80 s. A ball moved
+90° to the side leaves the 58° view and the pursuit stops (no search).
+
+**Open.** One run stopped at 44 s: a command arrived 77 ms old (validity 80
+ms), the simulator paused physics, inputs went stale and the IMU-freshness
+estop latched — the same chain as the overload case in §14. With the camera
+the simulator renders and publishes images in the Python process that also
+receives commands; whether that or the controller stalls is the next thing to
+measure.
+

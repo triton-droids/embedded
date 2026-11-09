@@ -1,9 +1,14 @@
-"""Camera/ball pursuit integration. Bundled policy does not consume velocity commands."""
+"""Camera/ball pursuit integration.
+
+controller:=policy (default): the bundled tracking policy does not consume
+velocity commands. controller:=model_walk: the model-based walking controller
+follows /ball_chase/cmd_vel (forward speed and yaw rate, converted per step).
+"""
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from launch_ros.parameter_descriptions import ParameterValue
@@ -13,6 +18,8 @@ def generate_launch_description():
     arg = LaunchConfiguration
     return LaunchDescription([
         DeclareLaunchArgument('use_viewer', default_value='true'),
+        DeclareLaunchArgument('controller', default_value='policy',
+                              description='policy (no pursuit locomotion) or model_walk (follows /ball_chase/cmd_vel)'),
         DeclareLaunchArgument('auto_start', default_value='false',
                               description='Run bundled reference motion; does not enable velocity pursuit'),
         DeclareLaunchArgument('pd_profile', default_value='tuned',
@@ -36,7 +43,9 @@ def generate_launch_description():
                 'enable_vision': 'true', 'enable_depth': 'true', 'start_detector': 'false',
                 'vision_target_timeout_s': arg('vision_target_timeout_s'),
                 'use_viewer': arg('use_viewer'), 'auto_start': arg('auto_start'),
-                'pd_profile': arg('pd_profile'),
+                'pd_profile': arg('pd_profile'), 'controller': arg('controller'),
+                'walk_cmd_vel_topic': PythonExpression(["'/ball_chase/cmd_vel' if '", arg('controller'),
+                                                        "' == 'model_walk' else ''"]),
                 'ros_domain_id': arg('ros_domain_id'), 'web_port': arg('web_port'),
                 'dds_tuning': arg('dds_tuning'), 'imu_split': arg('imu_split'),
             }.items()),

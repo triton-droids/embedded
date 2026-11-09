@@ -3,7 +3,9 @@
 Inputs (simulation ground truth): /joint_states, /sim/ground_truth/odom,
 /sim/ground_truth/feet, /sim/status (gantry), /safety/estop.
 Commands: /walk/step_length (std_msgs/Float64, m per step; 0 = step in place),
-/walk/turn (std_msgs/Float64, rad per step, + = left; 0 = straight).
+/walk/turn (std_msgs/Float64, rad per step, + = left; 0 = straight), or with
+cmd_vel_topic set a geometry_msgs/TwistStamped velocity (linear.x m/s,
+angular.z rad/s) converted per step; a stale velocity stops (step 0, turn 0).
 Output: MotorCommand (MODE_MOTION) on /walk/desired_motor_subset, forwarded
 by cpp_control_node. Any fault sends DISABLE and latches; restart the node.
 """
@@ -17,6 +19,7 @@ import time
 import numpy as np
 import rclpy
 from ament_index_python.packages import get_package_share_directory
+from geometry_msgs.msg import TwistStamped
 from nav_msgs.msg import Odometry
 from rclpy._rclpy_pybind11 import RCLError
 from rclpy.executors import ExternalShutdownException
@@ -63,6 +66,17 @@ class WalkingControllerNode(Node):
             # joint states have all arrived (lowest latency); 'timer': fixed-rate
             # timer as before.
             'trigger': 'state',
+            # Optional velocity input (e.g. /ball_chase/cmd_vel); '' = off.
+            'cmd_vel_topic': '',
+            'cmd_vel_timeout_s': 0.5,
+            # Velocity input is capped below MAX_STEP_M: at the ROS chain's ~15 ms
+            # latency 0.10 m steps fall offline after ~15 s, 0.08 m with a turn
+            # falls at 20 ms; 0.06 m walks with +-0.12 rad turns at 15 and 20 ms.
+            'cmd_vel_max_step_m': 0.06,
+            # Turn cap for velocity input. Ball chase's heading loop (gain 1.5 rad/s
+            # per rad, 0.5-1 s vision delay) limit-cycles at 0.15 rad/step: yaw swings
+            # +-20 deg; at 0.08 rad/step ~6 deg (offline, same pursuit law).
+            'cmd_vel_max_turn_rad': 0.08,
         }
         for key, value in defaults.items():
             self.declare_parameter(key, value)
@@ -98,6 +112,10 @@ class WalkingControllerNode(Node):
         self.create_subscription(Bool, '/safety/estop', self._on_estop, safety)
         self.create_subscription(Float64, '/walk/step_length', self._on_step_length, 2)
         self.create_subscription(Float64, '/walk/turn', self._on_turn, 2)
+        self.cmd_vel = None            # (step_length, turn, receipt monotonic)
+        if p['cmd_vel_topic']:
+            self.create_subscription(TwistStamped, p['cmd_vel_topic'], self._on_cmd_vel, 2)
+            self.create_timer(0.1, self._check_cmd_vel)
         if p['trigger'] == 'timer':
             self.create_timer(1.0 / p['control_rate_hz'], self.tick)
         else:
@@ -116,6 +134,26 @@ class WalkingControllerNode(Node):
         if not np.isfinite(msg.data):
             return
         self.controller.p.step_length_m = self._clamp(msg.data)
+
+    def step_period_s(self):
+        return self.controller.p.t_ds + self.controller.p.t_ss
+
+    def _on_cmd_vel(self, msg):
+        v, w = msg.twist.linear.x, msg.twist.angular.z
+        if not (np.isfinite(v) and np.isfinite(w)):
+            return
+        T = self.step_period_s()
+        step = min(self._clamp(v * T), float(self.params['cmd_vel_max_step_m']))
+        turn_cap = min(MAX_TURN_RAD, float(self.params['cmd_vel_max_turn_rad']))
+        self.cmd_vel = (step, float(np.clip(w * T, -turn_cap, turn_cap)), time.monotonic())
+        self.controller.p.step_length_m, self.controller.p.turn_rad = self.cmd_vel[:2]
+
+    def _check_cmd_vel(self):
+        """A velocity source that stops publishing stops the robot."""
+        if self.cmd_vel is not None and time.monotonic() - self.cmd_vel[2] > self.params['cmd_vel_timeout_s']:
+            self.cmd_vel = None
+            self.controller.p.step_length_m = self.controller.p.turn_rad = 0.0
+            self.get_logger().warn('cmd_vel stale: stepping in place')
 
     def _on_turn(self, msg):
         if not np.isfinite(msg.data):
@@ -259,6 +297,7 @@ class WalkingControllerNode(Node):
         status = {'state': 'fault' if self.fault else c.phase, 'fault': self.fault,
                   'base_held': self.base_held, 'estop': self.estop, 'cycles': self.cycles,
                   'step_length_m': c.p.step_length_m, 'turn_rad': c.p.turn_rad,
+                  'cmd_vel_active': self.cmd_vel is not None,
                   'heading_deg': float(np.degrees(getattr(c, 'heading', 0.0))),
                   'steps': getattr(c, 'steps', 0),
                   'trigger': self.params['trigger'], 'cycle_ms': stats(self.cycle_ms),

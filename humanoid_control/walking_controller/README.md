@@ -24,7 +24,16 @@ ros2 topic pub --once /walk/turn std_msgs/msg/Float64 "{data: 0.10}"         # t
 ```
 
 `step_length_m` is clamped to 0–0.10 m, `/walk/turn` to ±0.15 rad per step
-(+ = left; both can be combined for an arc). `/walk/status` (JSON, 2 Hz) has the
+(+ = left; both can be combined for an arc). With `walk_cmd_vel_topic:=<topic>`
+(sim.launch.py) the node also follows a `geometry_msgs/TwistStamped` velocity:
+step = linear.x × 0.5 s, turn = angular.z × 0.5 s, capped at 0.06 m and
+0.08 rad per step (`cmd_vel_max_step_m`, `cmd_vel_max_turn_rad`); no message
+for 0.5 s → step 0, turn 0. Camera ball chase:
+
+```bash
+MUJOCO_GL=egl ros2 launch humanoid_ball_chase ball_chase.launch.py \
+  controller:=model_walk auto_start:=true use_viewer:=false ros_domain_id:=0
+``` `/walk/status` (JSON, 2 Hz) has the
 phase, step count, step length, turn, frame heading, cycle time, prediction
 horizon and input age (`input_age_ms`,
 `joint_age_ms`: sample stamp to cycle start, last 2 s).
@@ -160,11 +169,27 @@ per step 6.7–7.6° at 0.15 rad (8.6°) both ways, 5.0–5.6° on a 0.06 m arc 
 (590–780°), an arc and a chase pattern (turn ~90°, walk 3 s, turn back,
 × 4) all walk.
 
+Camera ball chase (`controller:=model_walk`, Jetson, headless, YOLO on CPU,
+6 Hz RGB-D): the robot walks from 1.7 m to the ball and stops 0.5–0.6 m in
+front of it, then keeps facing it; 2 of the last 3 runs ran 45–80 s without a
+fault. Velocity caps from measurements: 0.10 m steps fall at 15 ms latency
+offline (0.06 m with ±0.12 rad turns walks at 15 and 20 ms); with 0.15
+rad/step the chase heading loop limit-cycles (yaw ±20°, turn flipping
+between the caps each step, offline with the same pursuit law ±19°), at
+0.08 rad/step offline ±6°, chain −1…+21°. The camera mount (0.3 kg, not in
+the controller model), a controller clock up to 15 % faster than physics
+(the simulator's real-time factor drops to 0.77–0.95 with the camera) and
+the pursuit's 2 Hz / 0.5–0.7 s vision lag each walk offline.
+
 ROS chain (Jetson), via `/walk/turn`: 2/2 no fall over 62 s: +0.10 rad for
 11.5 s → +155° / +166° (5.2–5.5° per step), walk 0.06 m 7 s (0.65–0.71 m),
 −0.10 rad for 11 s → −131° (4.7° per step), walk 15.5 s (1.32–1.34 m).
 
-Known issues: after a turn there is no fixed heading any more (the frame
+Known issues: with the camera running, a command can arrive ~80 ms late
+(seen once in 3 chase runs, at 44 s): the simulator pauses physics (`command
+expired`), inputs go stale and the 0.3 s IMU-freshness estop latches. Whether
+the controller or the simulator's command reception (same Python process as
+the camera rendering) stalls is not yet known. After a turn there is no fixed heading any more (the frame
 follows the feet), so walking straight drifts in yaw (−7 to +14° over 7–15 s
 in the chain); a caller such as ball chase closes the heading loop with
 `/walk/turn`.  realised steps are 0.6–0.9 of the command; a full 0.10 m step

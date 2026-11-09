@@ -125,8 +125,6 @@ def simulation_and_stack(context):
     # healthy; 2 s after the first fresh command expires first on slower hosts.
     timeout_arg = arg('autostart_timeout_s').perform(context).strip()
     autostart_timeout = (10.0 if enable_wbc else 2.0) if timeout_arg == 'auto' else float(timeout_arg)
-    if model_walk and flag(context, 'enable_vision'):
-        raise ValueError('controller:=model_walk requires enable_vision:=false')
     if minimal and connected:
         raise ValueError('Connected policy requires minimal:=false; cpp_control_node must remain in the command path')
     if minimal and flag(context, 'enable_vision'):
@@ -274,7 +272,8 @@ def simulation_and_stack(context):
             additional_env={'OPENBLAS_NUM_THREADS': '1', 'OMP_NUM_THREADS': '1',
                             'MKL_NUM_THREADS': '1'},
             parameters=[{'motor_config_file': registry_path,
-                         'step_length_m': float(arg('step_length_m').perform(context))}]))
+                         'step_length_m': float(arg('step_length_m').perform(context)),
+                         'cmd_vel_topic': arg('walk_cmd_vel_topic').perform(context)}]))
     if connected and flag(context, 'auto_start'):
         stack.append(Node(
             package='humanoid_sim', executable='sim_autostart', output='screen',
@@ -349,6 +348,7 @@ def generate_launch_description():
         ('use_rviz', 'false', 'Start robot_state_publisher display and RViz'),
         ('controller', 'policy', 'policy (RL tracking policy) or model_walk (LIPM MPC + TSID, no RL)'),
         ('step_length_m', '0.0', 'controller:=model_walk: initial step length (0..0.10 m); change with /walk/step_length'),
+        ('walk_cmd_vel_topic', '', 'controller:=model_walk: optional TwistStamped velocity input, e.g. /ball_chase/cmd_vel'),
         ('enable_policy', 'true', 'Run tracking_policy_node on simulated IMU/joint feedback'),
         ('enable_wbc', 'false', 'Deprecated: insert TSID between RL and C++ (less stable than tuned PD; see docs/reports/2026-11-08-wbc-deprecation.md)'),
         ('pd_profile', 'tuned', 'PD path (no WBC) defaults: tuned (200 Hz, release clock, loop, no head sim, skip IMU spikes) or original'),

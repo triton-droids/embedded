@@ -43,7 +43,9 @@ def load(paths=None):
 
 
 class OfflineSim:
-    def __init__(self, robot: RobotModel, limits, paths, delay_steps=2, friction=None):
+    def __init__(self, robot: RobotModel, limits, paths, delay_steps=2, friction=None, world=None):
+        """world: optional WorldOptions overrides, e.g. {'add_head': True,
+        'scene_builder': 'humanoid_ball_chase.scene:build_scene'} (camera mount)."""
         from humanoid_sim import model_builder as mb
         options = mb.WorldOptions(
             robot_xml=str(paths['robot_xml']), mesh_dir=str(paths['mesh_dir']),
@@ -51,6 +53,9 @@ class OfflineSim:
             foot_clearance_m=0.02, add_head=False, head_mass_kg=0.3, head_range_rad=1.0,
             head_servo_torque_nm=1.0, camera_fovy_deg=42.5, camera_resolution=(64, 48),
             add_target=False, target_distance_m=2.0, target_image='', scene_builder='')
+        if world:
+            from dataclasses import replace
+            options = replace(options, **world)
         self.model = m = mb.build_model(options)
         self.data = mujoco.MjData(m)
         self.robot = robot
@@ -61,6 +66,9 @@ class OfflineSim:
         self.base_body = m.body('floating_base').id
         self.floor = m.geom('floor').id
         self.foot_geoms = [m.geom(f'{s}_foot_collision_box').id for s in ('left', 'right')]
+        # Robot geoms only: scene objects (e.g. the ball-chase football) may rest on the floor.
+        root = m.body_rootid[self.base_body]
+        self.robot_geoms = {g for g in range(m.ngeom) if m.body_rootid[m.geom_bodyid[g]] == root}
         self.foot_bodies = [m.body(f).id for f in FEET]
         if friction is not None:
             m.geom('floor').friction[0] = friction
@@ -110,11 +118,11 @@ class OfflineSim:
         return out
 
     def fallen(self):
-        """Any non-foot geom touching the floor."""
+        """Any non-foot robot geom touching the floor."""
         for i in range(self.data.ncon):
             c = self.data.contact[i]
             pair = {c.geom1, c.geom2}
-            if self.floor in pair and not (pair & set(self.foot_geoms)):
+            if self.floor in pair and not (pair & set(self.foot_geoms)) and pair & self.robot_geoms:
                 return True
         return False
 
@@ -136,7 +144,7 @@ class OfflineSim:
 
 
 def run(controller, duration_s, release_s=1.0, delay_steps=2, paths=None, robot=None, limits=None,
-        push=None, on_step=None, friction=None):
+        push=None, on_step=None, friction=None, world=None):
     """Drive controller.step(t, q, v, forces, held) -> Command | None.
 
     push: optional callable t -> force (3,) on the pelvis. on_step: callable
@@ -144,7 +152,7 @@ def run(controller, duration_s, release_s=1.0, delay_steps=2, paths=None, robot=
     """
     if robot is None:
         paths, robot, limits = load(paths)
-    sim = OfflineSim(robot, limits, paths, delay_steps, friction)
+    sim = OfflineSim(robot, limits, paths, delay_steps, friction, world)
     result = {'fault': '', 'fallen': False, 't_end': 0.0}
     for k in range(int(duration_s / sim.dt)):
         t = k * sim.dt
