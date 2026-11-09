@@ -123,8 +123,11 @@ def simulation_and_stack(context):
         accel_outlier = 'skip' if tuned else 'latch'
     # WBC: the supervisor starts 3 s late and C++ admits ENABLE only after it is
     # healthy; 2 s after the first fresh command expires first on slower hosts.
+    # model_walk builds its Pinocchio/TSID model before the first command; on a
+    # Jetson with the camera stack 2 s timed out ("Release denied", robot stays held).
     timeout_arg = arg('autostart_timeout_s').perform(context).strip()
-    autostart_timeout = (10.0 if enable_wbc else 2.0) if timeout_arg == 'auto' else float(timeout_arg)
+    autostart_timeout = ((10.0 if enable_wbc or model_walk else 2.0) if timeout_arg == 'auto'
+                         else float(timeout_arg))
     if minimal and connected:
         raise ValueError('Connected policy requires minimal:=false; cpp_control_node must remain in the command path')
     if minimal and flag(context, 'enable_vision'):
@@ -373,7 +376,7 @@ def generate_launch_description():
         ('reference_end_behavior', 'auto', 'Policy reference after its end: hold_last_frame or loop; auto: loop with WBC or tuned PD, else hold'),
         ('joint_state_rate_hz', '', 'Simulated /joint_states rate; empty: 200 Hz with WBC or tuned PD, else sim.yaml (50 Hz)'),
         ('sim_head', 'auto', 'Simulated head servo and target board; auto: original PD, or tuned PD with vision'),
-        ('autostart_timeout_s', 'auto', 'With auto_start: wait for enable admission after the first fresh command; auto: 10 s with WBC, else 2 s'),
+        ('autostart_timeout_s', 'auto', 'With auto_start: wait for enable admission after the first fresh command; auto: 10 s with WBC or model_walk, else 2 s'),
         ('enable_vision', 'false', 'Render the head camera and run detector + head tracker'),
         ('start_detector', 'true', 'With enable_vision: false for TRACK_ONLY builds'),
         ('vision_target_timeout_s', '0.15', 'Head tracker source/receipt freshness limit'),
