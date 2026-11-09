@@ -31,9 +31,21 @@ step = linear.x × 0.5 s, turn = angular.z × 0.5 s, capped at 0.06 m and
 for 0.5 s → step 0, turn 0. Camera ball chase:
 
 ```bash
-MUJOCO_GL=egl ros2 launch humanoid_ball_chase ball_chase.launch.py \
-  controller:=model_walk auto_start:=true use_viewer:=false ros_domain_id:=0
-``` `/walk/status` (JSON, 2 Hz) has the
+scripts/ball_chase_walk.sh                       # headless, domain 0, CycloneDDS
+scripts/ball_chase_walk.sh remote_viewer:=true   # + read-only 3D view on another computer
+```
+
+To watch from another computer, only the rendering runs there (MuJoCo
+version must match, 3.3.7; see `simulation/humanoid_sim/README.md`):
+
+```bash
+ssh -N -L 8765:127.0.0.1:8765 USER@SIMULATION_HOST       # keep running
+python remote_viewer.py --host 127.0.0.1 --port 8765     # simulation/humanoid_sim/humanoid_sim/remote_viewer.py
+```
+
+The camera image is `/camera/camera/color/image_raw` (e.g. `rqt_image_view` on
+the simulation host, same `ROS_DOMAIN_ID`, `ROS_LOCALHOST_ONLY=1` and
+`CYCLONEDDS_URI`); `/ball_chase/status` and `/walk/status` show the pursuit. `/walk/status` (JSON, 2 Hz) has the
 phase, step count, step length, turn, frame heading, cycle time, prediction
 horizon and input age (`input_age_ms`,
 `joint_age_ms`: sample stamp to cycle start, last 2 s).
