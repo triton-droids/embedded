@@ -77,6 +77,10 @@ class WalkingControllerNode(Node):
             # per rad, 0.5-1 s vision delay) limit-cycles at 0.15 rad/step: yaw swings
             # +-20 deg; at 0.08 rad/step ~6 deg (offline, same pursuit law).
             'cmd_vel_max_turn_rad': 0.08,
+            # WBC contact task gain (TSID contact kp). At lift-off the stance
+            # contact is pulled flat with it; 100 makes the single-support
+            # force swing ~40-250 N (design doc section 17).
+            'contact_kp': 100.0,
         }
         for key, value in defaults.items():
             self.declare_parameter(key, value)
@@ -90,7 +94,7 @@ class WalkingControllerNode(Node):
         limits = load_limits(registry, self.names)
         self.controller = SteppingController(self.robot, limits.torque, StepParams(
             dt=1.0 / p['control_rate_hz'], step_length_m=self._clamp(p['step_length_m']),
-            gains=WBCGains(com_kp_z=100.0, com_weight=10.0)))
+            gains=WBCGains(com_kp_z=100.0, com_weight=10.0, contact_kp=float(p['contact_kp']))))
         self.inputs, self.base_held, self.estop = {}, None, True
         self.started, self.fault, self.cycles = False, '', 0
         # Last 400 cycles (2 s) for /walk/status.
@@ -298,6 +302,7 @@ class WalkingControllerNode(Node):
                   'base_held': self.base_held, 'estop': self.estop, 'cycles': self.cycles,
                   'step_length_m': c.p.step_length_m, 'turn_rad': c.p.turn_rad,
                   'cmd_vel_active': self.cmd_vel is not None,
+                  'contact_kp': float(self.params['contact_kp']),
                   'heading_deg': float(np.degrees(getattr(c, 'heading', 0.0))),
                   'steps': getattr(c, 'steps', 0),
                   'trigger': self.params['trigger'], 'cycle_ms': stats(self.cycle_ms),

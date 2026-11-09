@@ -276,7 +276,8 @@ def simulation_and_stack(context):
                             'MKL_NUM_THREADS': '1'},
             parameters=[{'motor_config_file': registry_path,
                          'step_length_m': float(arg('step_length_m').perform(context)),
-                         'cmd_vel_topic': arg('walk_cmd_vel_topic').perform(context)}]))
+                         'cmd_vel_topic': arg('walk_cmd_vel_topic').perform(context),
+                         'contact_kp': float(arg('walk_contact_kp').perform(context))}]))
     if connected and flag(context, 'auto_start'):
         stack.append(Node(
             package='humanoid_sim', executable='sim_autostart', output='screen',
@@ -351,6 +352,7 @@ def generate_launch_description():
         ('use_rviz', 'false', 'Start robot_state_publisher display and RViz'),
         ('controller', 'policy', 'policy (RL tracking policy) or model_walk (LIPM MPC + TSID, no RL)'),
         ('step_length_m', '0.0', 'controller:=model_walk: initial step length (0..0.10 m); change with /walk/step_length'),
+        ('walk_contact_kp', '100.0', 'controller:=model_walk: WBC contact task gain'),
         ('walk_cmd_vel_topic', '', 'controller:=model_walk: optional TwistStamped velocity input, e.g. /ball_chase/cmd_vel'),
         ('enable_policy', 'true', 'Run tracking_policy_node on simulated IMU/joint feedback'),
         ('enable_wbc', 'false', 'Deprecated: insert TSID between RL and C++ (less stable than tuned PD; see docs/reports/2026-11-08-wbc-deprecation.md)'),

@@ -673,3 +673,20 @@ walking runs (single-support force p5, pitch p99):
 
 The margins improve but the fall count does not, so `contact_kp` stays 100.
 
+**On the chain** (`walk_contact_kp:=` on `ball_chase.launch.py` /
+`sim.launch.py`, node parameter `contact_kp`), Jetson, camera chase with the
+same load as the falls (recorder + viewer stream), 45 s each, alternating:
+
+| contact_kp | falls | stalls | single-support force p5–p95 | pitch p99 (walking runs) |
+|---|---|---|---|---|
+| 100 | 1/7 (8.5 s) | 1 (25 s) | 41–249 N | 5.3° |
+| 50 | 1/8 (8.3 s) | 2 (32, 41 s) | 66–185 N | 4.5° |
+
+(One more 100 run never released: autostart timed out with no motor enabled
+even at 10 s.) As offline: the bounce halves, the falls do not change. All
+four chain falls so far came 6–10 s after release, in the first approach to
+the ball, so the next suspect is that phase (full step and turn caps from the
+first step, heading overshoot and turn reversal), not the contact gain.
+Stalls (`command expired` → 0.3 s IMU-freshness estop, no fall) are the
+overload case of §14/§16.
+
