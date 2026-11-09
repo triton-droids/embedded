@@ -32,6 +32,7 @@ from motor_control_interfaces.msg import MotorCommand
 
 from .gait import FAULT
 from .robot import FEET, RobotModel, load_limits
+from .velocity import step_command
 from .stepping import StepParams, SteppingController
 from .wbc import WBCGains
 
@@ -66,6 +67,12 @@ class WalkingControllerNode(Node):
             # joint states have all arrived (lowest latency); 'timer': fixed-rate
             # timer as before.
             'trigger': 'state',
+            # 'state' fallback: if no complete sample (odom, feet and joints with
+            # one stamp) for this long, run once on the latest of each. Under
+            # load joints and odom/feet arrived from alternating samples for
+            # 50-85 ms, no cycle ran and the 80 ms commands expired (3 of 8
+            # chase runs; design doc section 20). 0 = wait for a match.
+            'trigger_fallback_s': 0.015,
             # Optional velocity input (e.g. /ball_chase/cmd_vel); '' = off.
             'cmd_vel_topic': '',
             'cmd_vel_timeout_s': 0.5,
@@ -81,6 +88,15 @@ class WalkingControllerNode(Node):
             # contact is pulled flat with it; 100 makes the single-support
             # force swing ~40-250 N (design doc section 17).
             'contact_kp': 100.0,
+            # Turn first (velocity input): the step is full while |turn| <=
+            # cmd_vel_turn_free_rad, 0 from cmd_vel_turn_stop_rad, linear in
+            # between, so a large heading error is turned out in place. All
+            # four chase falls came in the first approach with the full step
+            # and the full turn together. 0.04 / 0.10: at the 0.08 turn cap the
+            # step is a third (0.02 m); offline the worst sideways tilt fell from
+            # 22 to 8.5 deg (design doc section 20). 0, 0: off.
+            'cmd_vel_turn_free_rad': 0.04,
+            'cmd_vel_turn_stop_rad': 0.10,
         }
         for key, value in defaults.items():
             self.declare_parameter(key, value)
@@ -146,10 +162,11 @@ class WalkingControllerNode(Node):
         v, w = msg.twist.linear.x, msg.twist.angular.z
         if not (np.isfinite(v) and np.isfinite(w)):
             return
-        T = self.step_period_s()
-        step = min(self._clamp(v * T), float(self.params['cmd_vel_max_step_m']))
-        turn_cap = min(MAX_TURN_RAD, float(self.params['cmd_vel_max_turn_rad']))
-        self.cmd_vel = (step, float(np.clip(w * T, -turn_cap, turn_cap)), time.monotonic())
+        step, turn = step_command(
+            v, w, self.step_period_s(), min(MAX_STEP_M, float(self.params['cmd_vel_max_step_m'])),
+            min(MAX_TURN_RAD, float(self.params['cmd_vel_max_turn_rad'])),
+            float(self.params['cmd_vel_turn_free_rad']), float(self.params['cmd_vel_turn_stop_rad']))
+        self.cmd_vel = (step, turn, time.monotonic())
         self.controller.p.step_length_m, self.controller.p.turn_rad = self.cmd_vel[:2]
 
     def _check_cmd_vel(self):
@@ -179,15 +196,30 @@ class WalkingControllerNode(Node):
         """'state' trigger: one cycle per physics sample, once its odom, feet and
         joints (same header stamp) have all arrived, whichever arrives last.
 
-        Samples whose messages never all match are skipped; the previous command
-        stays valid for output_lifetime_s and the watchdog catches a real stall.
+        Samples whose messages never all match are skipped; after
+        trigger_fallback_s without a complete sample one cycle runs on the
+        latest message of each (mixed samples, at most one physics step apart
+        in practice), then again only on a newer one. The watchdog catches
+        inputs that stop arriving.
         """
         if self.params['trigger'] != 'state':
             return
         stamps = [self.inputs[k][1] for k in ('odom', 'feet', 'joints') if k in self.inputs]
-        if len(stamps) == 3 and stamps[0] == stamps[1] == stamps[2] != self._last_sample:
+        if len(stamps) != 3:
+            return
+        now = time.monotonic()
+        if stamps[0] == stamps[1] == stamps[2] != self._last_sample:
             self._last_sample = stamps[0]
-            self.tick()
+        else:
+            fallback = self.params.get('trigger_fallback_s', 0.0)
+            newest = max(stamps)
+            if not (fallback > 0 and now - getattr(self, '_last_tick_mono', now) > fallback
+                    and newest != self._last_sample):
+                return
+            self._last_sample = newest
+            self.mixed_ticks = getattr(self, 'mixed_ticks', 0) + 1
+        self._last_tick_mono = now
+        self.tick()
 
     def _stale(self, now_ns, now_mono):
         timeout = self.params['input_timeout_s']
@@ -303,6 +335,7 @@ class WalkingControllerNode(Node):
                   'step_length_m': c.p.step_length_m, 'turn_rad': c.p.turn_rad,
                   'cmd_vel_active': self.cmd_vel is not None,
                   'contact_kp': float(self.params['contact_kp']),
+                  'mixed_ticks': getattr(self, 'mixed_ticks', 0),
                   'heading_deg': float(np.degrees(getattr(c, 'heading', 0.0))),
                   'steps': getattr(c, 'steps', 0),
                   'trigger': self.params['trigger'], 'cycle_ms': stats(self.cycle_ms),

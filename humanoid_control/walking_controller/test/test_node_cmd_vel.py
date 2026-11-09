@@ -8,11 +8,12 @@ node = pytest.importorskip('walking_controller.node')
 N = node.WalkingControllerNode
 
 
-def fake(max_step=0.06, max_turn=0.08, timeout=0.5):
+def fake(max_step=0.06, max_turn=0.08, timeout=0.5, turn_free=0.0, turn_stop=0.0):
     p = SimpleNamespace(t_ds=0.2, t_ss=0.3, step_length_m=0.0, turn_rad=0.0)
     obj = SimpleNamespace(controller=SimpleNamespace(p=p), cmd_vel=None,
                           params={'cmd_vel_max_step_m': max_step, 'cmd_vel_max_turn_rad': max_turn,
-                                  'cmd_vel_timeout_s': timeout},
+                                  'cmd_vel_timeout_s': timeout, 'cmd_vel_turn_free_rad': turn_free,
+                                  'cmd_vel_turn_stop_rad': turn_stop},
                           get_logger=lambda: Mock())
     for name in ('step_period_s', '_on_cmd_vel', '_check_cmd_vel'):
         setattr(obj, name, MethodType(getattr(N, name), obj))
@@ -61,3 +62,19 @@ def test_stale_velocity_stops(monkeypatch):
     obj._check_cmd_vel()
     assert obj.controller.p.step_length_m == 0.0 and obj.controller.p.turn_rad == 0.0
     assert obj.cmd_vel is None
+
+
+def test_turn_first_shortens_the_step_while_turning():
+    obj = fake(turn_free=0.04, turn_stop=0.10)
+    obj._on_cmd_vel(twist(0.20, 0.05))                 # turn 0.025: full step
+    assert obj.controller.p.step_length_m == pytest.approx(0.06)
+    obj._on_cmd_vel(twist(0.20, 0.50))                 # turn at the 0.08 cap: a third
+    assert obj.controller.p.turn_rad == pytest.approx(0.08)
+    assert obj.controller.p.step_length_m == pytest.approx(0.02)
+    obj._on_cmd_vel(twist(0.20, -0.14))                # turn -0.07: half
+    assert obj.controller.p.step_length_m == pytest.approx(0.03)
+
+
+def test_default_parameters_turn_first():
+    src = open(node.__file__).read()
+    assert "'cmd_vel_turn_free_rad': 0.04" in src and "'cmd_vel_turn_stop_rad': 0.10" in src

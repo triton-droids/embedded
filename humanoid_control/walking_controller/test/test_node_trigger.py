@@ -12,8 +12,9 @@ sys.path.insert(0, str(ROOT))
 node = pytest.importorskip('walking_controller.node')
 
 
-def fake(trigger='state'):
-    obj = SimpleNamespace(params={'trigger': trigger}, inputs={}, _last_sample=None, tick=Mock())
+def fake(trigger='state', fallback=0.0):
+    obj = SimpleNamespace(params={'trigger': trigger, 'trigger_fallback_s': fallback}, inputs={},
+                          _last_sample=None, tick=Mock())
     obj._try_tick = MethodType(node.WalkingControllerNode._try_tick, obj)
     return obj
 
@@ -60,3 +61,33 @@ def test_timer_trigger_ignores_arrivals():
     for name in ('odom', 'feet', 'joints'):
         arrive(obj, name, 40)
     obj.tick.assert_not_called()
+
+
+def test_fallback_runs_on_latest_after_no_complete_sample(monkeypatch):
+    clock = [100.0]
+    monkeypatch.setattr(node.time, 'monotonic', lambda: clock[0])
+    obj = fake(fallback=0.015)
+    for name in ('odom', 'feet', 'joints'):
+        arrive(obj, name, 50)
+    assert obj.tick.call_count == 1
+    # Under load: joints and odom/feet from alternating samples, never matching.
+    clock[0] += 0.005; arrive(obj, 'joints', 55)
+    clock[0] += 0.005; arrive(obj, 'odom', 60); arrive(obj, 'feet', 60)
+    assert obj.tick.call_count == 1         # within the fallback time: wait
+    clock[0] += 0.010; arrive(obj, 'joints', 65)
+    assert obj.tick.call_count == 2         # 20 ms without a match: run on the latest
+    arrive(obj, 'joints', 65)
+    assert obj.tick.call_count == 2         # nothing newer: no second mixed cycle
+    clock[0] += 0.002; arrive(obj, 'odom', 70); arrive(obj, 'feet', 70); arrive(obj, 'joints', 70)
+    assert obj.tick.call_count == 3         # a complete sample runs at once
+
+
+def test_no_fallback_when_disabled(monkeypatch):
+    clock = [0.0]
+    monkeypatch.setattr(node.time, 'monotonic', lambda: clock[0])
+    obj = fake(fallback=0.0)
+    for name in ('odom', 'feet', 'joints'):
+        arrive(obj, name, 1)
+    for k in range(10):
+        clock[0] += 0.02; arrive(obj, 'joints', 10 + 2 * k); arrive(obj, 'odom', 11 + 2 * k); arrive(obj, 'feet', 11 + 2 * k)
+    assert obj.tick.call_count == 1

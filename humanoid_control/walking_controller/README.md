@@ -28,7 +28,11 @@ ros2 topic pub --once /walk/turn std_msgs/msg/Float64 "{data: 0.10}"         # t
 (sim.launch.py) the node also follows a `geometry_msgs/TwistStamped` velocity:
 step = linear.x × 0.5 s, turn = angular.z × 0.5 s, capped at 0.06 m and
 0.08 rad per step (`cmd_vel_max_step_m`, `cmd_vel_max_turn_rad`); no message
-for 0.5 s → step 0, turn 0. Camera ball chase:
+for 0.5 s → step 0, turn 0. Turn first: the step shrinks while turning hard (full at |turn| ≤ 0.04 rad,
+a third at the 0.08 cap; `cmd_vel_turn_free_rad`, `cmd_vel_turn_stop_rad`). With the
+'state' trigger, 15 ms without a complete odom/feet/joints sample runs one cycle on the
+latest of each (`trigger_fallback_s`). Loaded Jetson chase: 0/8 falls, 0/8 stalls (before:
+2 falls, 1 stall in 13), approach ~27 s instead of ~18 s (design doc §20). Camera ball chase:
 
 ```bash
 scripts/ball_chase_walk.sh                       # headless, domain 0, CycloneDDS

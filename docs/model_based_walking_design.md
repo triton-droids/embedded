@@ -745,3 +745,38 @@ single support (the edge contact modes and their switching, §4.8) or asking
 less of the gait in the first approach (heading overshoot, full step and turn
 together), not foot placement.
 
+## 20. Turn first, and a fallback for the same-sample trigger (2026-11-09)
+
+**Turn first** (`velocity.step_command`, node parameters
+`cmd_vel_turn_free_rad` 0.04 / `cmd_vel_turn_stop_rad` 0.10): the velocity
+input's step is full while |turn per step| ≤ 0.04 rad, shrinks linearly
+above it and would be 0 at 0.10; at the 0.08 cap it is a third (0.02 m). A
+large heading error is mostly turned out before walking at full step.
+
+Offline, pursuit law on ground truth, degraded `ChainTiming`, rtf 0.82, 20
+seeds × 30 s: none fell in any setting. Sideways tilt max, mean / worst:
+off 8.7 / 22.4°; (0.02, 0.06) 6.1 / 9.3° but the heading never settles
+enough to walk (0/20 reach the ball); (0.04, 0.08) 6.5 / 8.2°, 9/20 reach;
+(0.05, 0.09) 7.2 / 13.2°; **(0.04, 0.10) 6.4 / 8.5°, 20/20 reach in 20 s**
+(off: 13 s).
+
+**Trigger fallback** (`trigger_fallback_s` 0.015). Chain trials with turn
+first alone: 0/8 falls but 3/8 stalls. In each the simulator kept
+publishing, but joints and odom/feet came from alternating samples for 50–85
+ms, so no complete sample, no cycle, and the 80 ms commands expired. Now
+after 15 ms without a complete sample one cycle runs on the latest message
+of each; in the trials below that was ~10 % of the cycles (394–480 of
+4231–4716).
+
+Chain, Jetson, camera chase under the load that produced the falls
+(recorder + viewer stream), 45 s per run:
+
+| | runs | falls | stalls | runs with a step tilted > 10° | max tilt first 15 s, median / worst | reached 0.7 m, median time |
+|---|---|---|---|---|---|---|
+| Before (es, rv, kp100 runs) | 13 | 2 | 1 | 2 | 6.1 / 31.9° | 11/13, 17.8 s |
+| Turn first | 8 | 0 | 3 | 0 | 4.7 / 6.6° | 6/8, 24.4 s |
+| Turn first + fallback | 8 | **0** | **0** | 0 | 5.1 / 5.5° | **8/8**, 27.3 s |
+
+Plain run (no recorder or viewer): reached the ball, no fault. The cost is
+speed: the approach takes ~27 s instead of ~18 s.
+
