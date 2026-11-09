@@ -85,7 +85,7 @@ def main():
         for (d, fr, L), r in results:
             ok = not r['fault'] and not r['fallen']
             print(f'delay {d * 5:2d} ms friction {fr:.2f} step {L:.2f}: {"OK" if ok else "FAIL"} '
-                  f'steps={r["steps"]} t_end={r["t_end"]} {r["fault"]}')
+                  f'steps={r["steps"]} forward={r["forward_m"]:+.3f} m t_end={r["t_end"]} {r["fault"]}')
 
 
 if __name__ == '__main__':

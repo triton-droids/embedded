@@ -61,6 +61,39 @@ def test_walks_forward(model):
     assert fwd > 0.5 and abs(lat) < 0.1
 
 
+def test_realised_step_length_follows_the_command(model):
+    """Touchdown is accepted from s > 0.6 and in practice comes right there
+    (the swing foot clips the floor); with the horizontal swing finishing at
+    s = 1 the steps were 0.73 of 0.05 m. swing_fwd_end = 0.9 brings it to ~0.9."""
+    from walking_controller.offline import run
+    from walking_controller.stepping import SS, StepParams, SteppingController
+    from walking_controller.wbc import WBCGains
+    paths, robot, limits = model
+    length = 0.05
+    ctl = SteppingController(robot, limits.torque, StepParams(step_length_m=length, gains=WBCGains(**GAINS)))
+    marks, touchdown_s, phase = {}, [], {}
+
+    def on_step(t, sim, c):
+        steps = getattr(c, 'steps', 0)
+        if steps == 4 and 'a' not in marks:
+            marks['a'] = (sim.data.qpos[:2].copy(), steps)
+        marks['b'] = (sim.data.qpos[:2].copy(), steps)
+        if getattr(c, 'gphase', None) == SS:
+            if phase.get('t0') != c.t_gphase and 's' in phase and steps > 4:
+                touchdown_s.append(phase['s'])
+            phase.update(t0=c.t_gphase, s=(t - c.t_gphase) / c.t_dur)
+        return False
+
+    res = run(ctl, 14.0, paths=paths, robot=robot, limits=limits, on_step=on_step)
+    assert not res['fault'] and not res['fallen']
+    (pa, sa), (pb, sb) = marks['a'], marks['b']
+    per_step = float((pb - pa) @ ctl.fwd_axis[:2]) / (sb - sa)
+    assert per_step > 0.85 * length, per_step
+    assert per_step < 1.15 * length, per_step
+    # The cause is unchanged: touchdown still right after s = 0.6.
+    assert np.median(touchdown_s) < 0.7
+
+
 @pytest.mark.slow
 def test_walks_49_s_at_15_ms_delay(model):
     """In place for 9 s, then 0.06 m: the latency the ROS chain now has."""

@@ -452,3 +452,43 @@ next physics step. The margin to ~20 ms is small: a regression should
 include ≥ 20 ms delay over ≥ 40 s, and latency compensation in the
 controller is the next step if the margin is not enough.
 
+## 13. Step length shortfall (2026-11-08)
+
+**Symptom.** Offline, realised / commanded step length was 0.76 / 0.73 /
+0.65 / 0.61 for 0.02 / 0.05 / 0.08 / 0.10 m.
+
+**Hypothesis (early touchdown) confirmed.** Logged per step: every touchdown
+came from the force condition (> 20 N) at s = 0.58–0.63, i.e. at the earliest
+s the gate allows (> 0.6); none from the s ≥ 1 height condition. The swing
+foot had then covered min-jerk m(0.6) = 0.68 of its travel, which matches the
+achieved travel (0.10 m: planned 0.163, achieved 0.112 m, 0.68 × 0.163 =
+0.111). Why the floor is reached at s ≈ 0.6 with a 2.4 cm reference there:
+the foot frame peaks at only 1.6 cm (s = 0.4) and falls behind the reference,
+and the foot rolls up to 7.4° sideways (no ankle roll), which lowers one sole
+corner by another ~1.5 cm (corner spread 3 cm).
+
+**Fix.** The horizontal swing trajectory finishes at `swing_fwd_end` of SS
+(default 0.9); height still uses the whole phase. Evaluated on the delay ×
+friction sweep, fixed 0.02–0.10 m and the variable schedule (17 episodes per
+candidate) plus 15 ms delay over 49 s:
+
+| `swing_fwd_end` | Realised / commanded 0.02 / 0.05 / 0.08 / 0.10 | 17 episodes | 15 ms, 49 s |
+|---|---|---|---|
+| 1.0 (before) | 0.76 / 0.73 / 0.65 / 0.61 | 17/17 | walks |
+| 0.9 (default) | 0.98 / 0.90 / 0.79 / 0.75 | 17/17 | walks |
+| 0.85 | 1.03 / 0.99 / 0.81 / 0.75 | 17/17 | falls at 46 s |
+| 0.8 | 1.18 / 1.06 / 0.88 / 0.99 | 0.10 m falls at 12.7 s | — |
+
+Also tried: lift 4–5 cm (0.68–0.80 at 0.10 m, 5 cm falls), swing weight 10
+and kp 400 (0.90, but larger lateral drift), orientation weight 1 (0.63);
+combinations of a higher lift with front-loading fell in several episodes.
+
+**Result.** `walk_eval.py sweep`: 12/12 before and after; at 0.06 m 1.72–2.16
+m before, 2.08–2.67 m after in 20 s. ROS chain on the Jetson (~15 ms) at 0.06:
+0.041 → 0.049–0.052 m per step, 3/3 without a fall (2 × 53 s, 141 s / 361 steps
+/ 17.8 m). Commands of 0.15 / 0.20 m (outside the node's 0.10 m clamp) now fall
+on the first step instead of after 22 / 2: the old steps survived only because
+they came out much shorter. Above ~0.08 m the step is still short:
+s = 0.8 realises a full 0.10 m step and then falls, so what limits larger steps
+now is balance (the open 0.15 / 0.20 m large-step work), not touchdown timing.
+

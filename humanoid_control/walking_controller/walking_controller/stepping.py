@@ -39,6 +39,10 @@ class StepParams(GaitParams):
     t_first_ds: float = 0.4
     unload_s: float = 0.06
     lift_m: float = 0.025
+    # The swing foot's horizontal motion finishes at this fraction of single
+    # support (height still follows the full phase). Touchdown is accepted
+    # from s > 0.6, so with 1.0 an early touchdown leaves the step short.
+    swing_fwd_end: float = 0.9
     step_length_m: float = 0.0
     first_stance: str = 'left_foot'
     lat_margin_m: float = 0.01
@@ -285,11 +289,14 @@ class SteppingController(GaitController):
         swing = other(self.stance)
         T = self.t_dur
         s = min(max((t - self.t_gphase) / T, 0.0), 1.0)
-        m, dm, ddm = min_jerk(s)
         a, b = self.swing_start.translation, self.swing_target.translation
-        pos = a + m * (b - a)
-        vel = dm / T * (b - a)
-        acc = ddm / T**2 * (b - a)
+        # Horizontal: min-jerk over the first swing_fwd_end of the phase.
+        Th = T * p.swing_fwd_end
+        mh, dmh, ddmh = min_jerk(min(s / p.swing_fwd_end, 1.0))
+        pos = a + mh * (b - a)
+        vel = dmh / Th * (b - a)
+        acc = ddmh / Th**2 * (b - a)
+        m, dm, ddm = min_jerk(s)
         pos[2] = a[2] + m * (b[2] - a[2]) + p.lift_m * math.sin(math.pi * s)
         vel[2] = dm / T * (b[2] - a[2]) + p.lift_m * math.pi * math.cos(math.pi * s) / T
         acc[2] = ddm / T**2 * (b[2] - a[2]) - p.lift_m * math.pi**2 * math.sin(math.pi * s) / T**2
