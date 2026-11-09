@@ -457,7 +457,7 @@ Odometry and foot contacts are copied under one lock from the same step.
 `/imu/status` includes `last_publish_age_s`, `max_publish_gap_s`,
 `max_sample_wait_s`, and `control_fault`. These distinguish a publishing gap,
 sample acquisition delay, and an intentional stop after a control fault. Viewer
-state transfer and synchronization run at 5 Hz; the passive native window can
+state transfer and synchronization run at 30 Hz; the passive native window can
 still redraw between state updates.
 
 ### Commands
