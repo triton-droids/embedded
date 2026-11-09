@@ -11,7 +11,7 @@ import numpy as np
 
 from .world import SimWorld
 
-VIEWER_RATE_HZ = 5.0
+VIEWER_RATE_HZ = 30.0
 
 
 def _latest(queue, value):

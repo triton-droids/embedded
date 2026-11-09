@@ -21,6 +21,7 @@
 - [Leg model and mesh assets](../humanoid_leg_description/README.md)
 - [Vision build and algorithm reference](humanoid_vision_instructions.md)
 - [Vision-control roadmap](vision_control_plan.md) (planned work)
+- [Model-based walking controller](model_based_walking_design.md) (LIPM MPC + TSID, walks in simulation; see the package README)
 
 ## Archives
 

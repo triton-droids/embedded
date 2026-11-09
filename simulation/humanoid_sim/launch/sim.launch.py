@@ -72,12 +72,22 @@ def simulation_and_stack(context):
         registry = yaml.safe_load(stream)
     params = registry.get('motor_control_node', {}).get('ros__parameters', registry)
     motors = params['motors']
-    connect_policy = flag(context, 'enable_policy') and flag(context, 'connect_policy')
+    controller = arg('controller').perform(context).strip().lower()
+    if controller not in ('policy', 'model_walk'):
+        raise ValueError('controller must be policy or model_walk')
+    # model_walk: walking_controller (LIPM MPC + TSID, no RL) replaces the policy.
+    model_walk = controller == 'model_walk'
+    connect_policy = (flag(context, 'enable_policy') and flag(context, 'connect_policy')
+                      and not model_walk)
+    connected = connect_policy or model_walk
     enable_wbc = flag(context, 'enable_wbc')
+    if model_walk and enable_wbc:
+        raise ValueError('controller:=model_walk replaces the policy WBC; set enable_wbc:=false')
     # Diagnostic: keep the whole WBC configuration and node running, but feed C++
     # (and the autostart gate) the policy command directly instead of WBC output.
     wbc_bypass = enable_wbc and flag(context, 'wbc_bypass')
-    command_topic = ('/wbc/desired_motor_subset' if enable_wbc and not wbc_bypass
+    command_topic = ('/walk/desired_motor_subset' if model_walk
+                     else '/wbc/desired_motor_subset' if enable_wbc and not wbc_bypass
                      else '/policy/desired_motor_subset')
     minimal = flag(context, 'minimal')
 
@@ -113,9 +123,12 @@ def simulation_and_stack(context):
         accel_outlier = 'skip' if tuned else 'latch'
     # WBC: the supervisor starts 3 s late and C++ admits ENABLE only after it is
     # healthy; 2 s after the first fresh command expires first on slower hosts.
+    # model_walk builds its Pinocchio/TSID model before the first command; on a
+    # Jetson with the camera stack 2 s timed out ("Release denied", robot stays held).
     timeout_arg = arg('autostart_timeout_s').perform(context).strip()
-    autostart_timeout = (10.0 if enable_wbc else 2.0) if timeout_arg == 'auto' else float(timeout_arg)
-    if minimal and connect_policy:
+    autostart_timeout = ((10.0 if enable_wbc or model_walk else 2.0) if timeout_arg == 'auto'
+                         else float(timeout_arg))
+    if minimal and connected:
         raise ValueError('Connected policy requires minimal:=false; cpp_control_node must remain in the command path')
     if minimal and flag(context, 'enable_vision'):
         raise ValueError('enable_vision requires minimal:=false')
@@ -163,6 +176,12 @@ def simulation_and_stack(context):
                     'foot_clearance_m': 0.0, 'allow_torque_only_motion': True,
                     'publish_feet_ground_truth': True,
                     'ground_truth_rate_hz': 100.0, 'publish_rate_hz': 200.0} if enable_wbc else {}),
+                # The model-based controller runs at 200 Hz on ground-truth base and feet;
+                # its torque commands are received on their own executor (less latency).
+                **({'publish_feet_ground_truth': True, 'ground_truth_rate_hz': 200.0,
+                    'publish_rate_hz': 200.0,
+                    'dedicated_command_executor': flag(context, 'dedicated_command_executor')}
+                   if model_walk else {}),
                 **({} if sim_head else {'enable_head': False, 'enable_target': False}),
                 **({'publish_rate_hz': float(joint_state_rate)} if joint_state_rate else {}),
                 **({'telemetry_rate_hz': 0.0, 'enable_head': False,
@@ -206,10 +225,10 @@ def simulation_and_stack(context):
                     'control_rt_enabled': False,
                 }],
                 remappings=[('/desired_motor_subset', command_topic)]
-                if connect_policy else [],
+                if connected else [],
             ),
         ]
-    if flag(context, 'enable_policy'):
+    if flag(context, 'enable_policy') and not model_walk:
         contract = params['model_contract']
         stack.append(Node(
             package='motor_control_hybrid', executable='tracking_policy_node', output='screen',
@@ -248,7 +267,18 @@ def simulation_and_stack(context):
                    if arg('wbc_max_correction_nm').perform(context) else {}),
             }],
         ))
-    if connect_policy and flag(context, 'auto_start'):
+    if model_walk:
+        stack.append(Node(
+            package='walking_controller', executable='walking_controller',
+            prefix=arg('wbc_python_executable'), output='screen',
+            ros_arguments=['--log-level', arg('log_level')],
+            additional_env={'OPENBLAS_NUM_THREADS': '1', 'OMP_NUM_THREADS': '1',
+                            'MKL_NUM_THREADS': '1'},
+            parameters=[{'motor_config_file': registry_path,
+                         'step_length_m': float(arg('step_length_m').perform(context)),
+                         'cmd_vel_topic': arg('walk_cmd_vel_topic').perform(context),
+                         'contact_kp': float(arg('walk_contact_kp').perform(context))}]))
+    if connected and flag(context, 'auto_start'):
         stack.append(Node(
             package='humanoid_sim', executable='sim_autostart', output='screen',
             ros_arguments=['--log-level', arg('log_level')],
@@ -313,13 +343,17 @@ def generate_launch_description():
         ('minimal', 'false', 'Disconnected diagnostics only; connected policy requires false and C++ forwarding'),
         ('log_level', 'warn', 'ROS log severity: warn retains warnings, errors and fatal diagnostics'),
         ('use_viewer', 'true', 'Open the interactive MuJoCo viewer'),
-        ('dedicated_command_executor', 'true', 'Isolate WBC command reception from sensor timers'),
+        ('dedicated_command_executor', 'true', 'Isolate WBC / model_walk command reception from sensor timers'),
         ('remote_viewer', 'false', 'Stream read-only state to a separate viewer computer'),
         ('remote_viewer_host', '127.0.0.1', 'Stream bind address; use SSH tunnel or trusted LAN'),
         ('remote_viewer_port', '8765', 'Remote viewer TCP port'),
         ('remote_viewer_rate_hz', '15.0', 'Latest-state stream rate, maximum 60 Hz'),
         ('start_joint_state_monitor', 'false', 'Start joint-state relay in the full stack'),
         ('use_rviz', 'false', 'Start robot_state_publisher display and RViz'),
+        ('controller', 'policy', 'policy (RL tracking policy) or model_walk (LIPM MPC + TSID, no RL)'),
+        ('step_length_m', '0.0', 'controller:=model_walk: initial step length (0..0.10 m); change with /walk/step_length'),
+        ('walk_contact_kp', '100.0', 'controller:=model_walk: WBC contact task gain'),
+        ('walk_cmd_vel_topic', '', 'controller:=model_walk: optional TwistStamped velocity input, e.g. /ball_chase/cmd_vel'),
         ('enable_policy', 'true', 'Run tracking_policy_node on simulated IMU/joint feedback'),
         ('enable_wbc', 'false', 'Deprecated: insert TSID between RL and C++ (less stable than tuned PD; see docs/reports/2026-11-08-wbc-deprecation.md)'),
         ('pd_profile', 'tuned', 'PD path (no WBC) defaults: tuned (200 Hz, release clock, loop, no head sim, skip IMU spikes) or original'),
@@ -344,7 +378,7 @@ def generate_launch_description():
         ('reference_end_behavior', 'auto', 'Policy reference after its end: hold_last_frame or loop; auto: loop with WBC or tuned PD, else hold'),
         ('joint_state_rate_hz', '', 'Simulated /joint_states rate; empty: 200 Hz with WBC or tuned PD, else sim.yaml (50 Hz)'),
         ('sim_head', 'auto', 'Simulated head servo and target board; auto: original PD, or tuned PD with vision'),
-        ('autostart_timeout_s', 'auto', 'With auto_start: wait for enable admission after the first fresh command; auto: 10 s with WBC, else 2 s'),
+        ('autostart_timeout_s', 'auto', 'With auto_start: wait for enable admission after the first fresh command; auto: 10 s with WBC or model_walk, else 2 s'),
         ('enable_vision', 'false', 'Render the head camera and run detector + head tracker'),
         ('start_detector', 'true', 'With enable_vision: false for TRACK_ONLY builds'),
         ('vision_target_timeout_s', '0.15', 'Head tracker source/receipt freshness limit'),

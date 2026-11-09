@@ -7,12 +7,26 @@
      when ROS_LOCALHOST_ONLY=1. Pinning "lo" here as well selects the same
      interface twice ("lo: the same interface may not be selected twice") and
      every node fails with "rmw_create_node: failed to create domain". With
-     ROS_LOCALHOST_ONLY=1 Humble selects only lo without this file's help, so
-     only the receive buffer of cyclonedds_sim.xml is kept (see there). -->
+     ROS_LOCALHOST_ONLY=1 Humble selects only lo without this file's help.
+
+     lo has no multicast, so discovery is unicast to 127.0.0.1 over the
+     automatic participant indices, by default only 0..9: with the full stack
+     (about 12 processes with the camera ball chase) plus a few `ros2` CLI
+     tools, further participants failed with "Failed to find a free participant
+     index". 32 indices, as in cyclonedds_local.xml (tested on a Jetson, Humble,
+     2026-11-09). Every process of a graph must use the same file. -->
 <CycloneDDS xmlns="https://cdds.io/config">
   <Domain Id="any">
+    <General>
+      <AllowMulticast>false</AllowMulticast>
+    </General>
     <Internal>
       <SocketReceiveBufferSize max="16MB"/>
     </Internal>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>32</MaxAutoParticipantIndex>
+      <Peers><Peer Address="127.0.0.1"/></Peers>
+    </Discovery>
   </Domain>
 </CycloneDDS>
