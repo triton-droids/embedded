@@ -216,7 +216,9 @@ class WalkingControllerNode(Node):
         except ValueError as exc:
             self._fail(str(exc))
             return
-        command = self.controller.step(now_ns * 1e-9, q, v, forces, self.base_held)
+        # Latency compensation (GaitParams.predict_s): the state is this old now.
+        age_s = (now_ns - snapshot['odom'][1]) * 1e-9
+        command = self.controller.step(now_ns * 1e-9, q, v, forces, self.base_held, age_s=age_s)
         if command is None or self.controller.phase == FAULT:
             self._fail(f'Controller fault: {self.controller.fault}')
             return
@@ -252,6 +254,7 @@ class WalkingControllerNode(Node):
                   'trigger': self.params['trigger'], 'cycle_ms': stats(self.cycle_ms),
                   # Age of the odom / joint sample at cycle start (sample stamp -> now).
                   'input_age_ms': stats(self.input_age_ms), 'joint_age_ms': stats(self.joint_age_ms),
+                  'predict_ms': 1e3 * getattr(c, 'horizon_s', 0.0),
                   **{k: v for k, v in c.status.items() if k not in ('forces',)}}
         try:
             self.status_pub.publish(String(data=json.dumps(status, default=str)))

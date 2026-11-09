@@ -42,7 +42,7 @@ class StepParams(GaitParams):
     # The swing foot's horizontal motion finishes at this fraction of single
     # support (height still follows the full phase). Touchdown is accepted
     # from s > 0.6, so with 1.0 an early touchdown leaves the step short.
-    swing_fwd_end: float = 0.9
+    swing_fwd_end: float = 0.85
     step_length_m: float = 0.0
     first_stance: str = 'left_foot'
     lat_margin_m: float = 0.01

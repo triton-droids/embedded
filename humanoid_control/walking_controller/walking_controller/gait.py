@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 import math
 
 import numpy as np
+import pinocchio as pin
 
 from .offline import Command
 from .robot import FEET, RobotModel
@@ -45,6 +46,12 @@ class GaitParams:
     active_kp: float = 10.0
     active_kd: float = 0.5
     max_tilt_rad: float = 0.5
+    # Latency compensation: the state is predicted (first order, q + v*h) to
+    # when the command acts, h = input age + predict_s; predict_s is the fixed
+    # delay after the cycle starts (compute, transport, actuation; ~10 ms on
+    # the Jetson chain, and the offline loop's default 10 ms command delay).
+    # The controller clock is shifted by predict_s too. 0 turns it off.
+    predict_s: float = 0.010
     activity: str = 'stand'
     sway_amplitude_m: float = 0.03
     sway_period_s: float = 1.5
@@ -66,6 +73,7 @@ class GaitController:
         self.contact_since = None
         self.status: dict = {}
         self.log: list[dict] = []
+        self.horizon_s = 0.0      # last prediction horizon (status)
 
     # ----------------------------------------------------------- helpers
     def _fail(self, why):
@@ -91,8 +99,20 @@ class GaitController:
         return Command(q_ref, dq_ref, kp, kd, result.tau - kp * (q_ref - joints) - kd * (dq_ref - rates))
 
     # -------------------------------------------------------------- step
-    def step(self, t, q, v, forces, base_held):
+    def predict(self, q, v, horizon):
+        """State `horizon` seconds ahead at constant velocity. (Extrapolating
+        with the last WBC acceleration was worse: it falls at 30 ms delay.)"""
+        return pin.integrate(self.rm.model, q, v * horizon), v
+
+    def step(self, t, q, v, forces, base_held, age_s=0.0):
+        """age_s: how old (q, v) is at time t (sample stamp to now)."""
         q, v = np.asarray(q, float), np.asarray(v, float)
+        horizon = max(0.0, float(age_s)) + self.p.predict_s
+        self.horizon_s = 0.0
+        if horizon > 0.0 and not base_held and self.phase not in (HOLD, FAULT):
+            q, v = self.predict(q, v, horizon)
+            t = t + self.p.predict_s
+            self.horizon_s = horizon
         joints, rates = q[7:], v[6:]
         if self.phase == FAULT:
             return None

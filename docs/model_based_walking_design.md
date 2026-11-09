@@ -215,8 +215,9 @@ An anchor that only trails the measurement keeps the robot straight-legged
   `/joint_states` with the same stamp have arrived (node parameter `trigger`,
   default `state`), not on a free-running timer. The simulator receives the
   commands on its own executor. What limits walking is the total loop latency
-  (sample → torque applied), not the cycle time: it must stay below
-  ~15–20 ms (§12).
+  (sample → torque applied), not the cycle time: without compensation it must
+  stay below ~15–20 ms (§12); with the state prediction of §14 the limit is
+  ~30 ms when the prediction matches and 20 ms with 10 ms prediction error.
 
 ### 4.9 State input (simulation only)
 
@@ -449,8 +450,7 @@ distances).
 odom published up to one physics step after sampling (input age 4.4 ms mean),
 C++ forwarding on its own 200 Hz timer (2.8 ms median) and application on the
 next physics step. The margin to ~20 ms is small: a regression should
-include ≥ 20 ms delay over ≥ 40 s, and latency compensation in the
-controller is the next step if the margin is not enough.
+include ≥ 20 ms delay over ≥ 40 s. Latency compensation followed (§14).
 
 ## 13. Step length shortfall (2026-11-08)
 
@@ -468,7 +468,8 @@ and the foot rolls up to 7.4° sideways (no ankle roll), which lowers one sole
 corner by another ~1.5 cm (corner spread 3 cm).
 
 **Fix.** The horizontal swing trajectory finishes at `swing_fwd_end` of SS
-(default 0.9); height still uses the whole phase. Evaluated on the delay ×
+(0.9 here; 0.85 since the latency compensation, §14); height still uses the
+whole phase. Evaluated on the delay ×
 friction sweep, fixed 0.02–0.10 m and the variable schedule (17 episodes per
 candidate) plus 15 ms delay over 49 s:
 
@@ -491,4 +492,45 @@ on the first step instead of after 22 / 2: the old steps survived only because
 they came out much shorter. Above ~0.08 m the step is still short:
 s = 0.8 realises a full 0.10 m step and then falls, so what limits larger steps
 now is balance (the open 0.15 / 0.20 m large-step work), not touchdown timing.
+
+## 14. Latency compensation (2026-11-09)
+
+**Method.** `GaitController.step` predicts the measured state to when the
+command acts: horizon h = input age (sample stamp → cycle start, measured by
+the node; 0 offline) + `predict_s` (fixed delay after the cycle starts:
+compute, transport, actuation; 10 ms, which is both the Jetson chain's and
+the offline loop's default). q⁺ = integrate(q, v·h), v⁺ = v. The controller
+clock is shifted by `predict_s`, so references and phase timing refer to the
+same instant (no measurable effect on its own). Not applied while the gantry
+holds the robot.
+
+**Offline**, in place 9 s then 0.06 m, 49 s:
+
+| Command delay | none | prediction = delay, constant v | + last WBC acceleration | 10 ms prediction (default) |
+|---|---|---|---|---|
+| 10 ms | walks | walks | walks | walks |
+| 20 ms | falls 30 s | walks | walks | walks |
+| 25 ms | falls 32 s | walks | walks | — |
+| 30 ms | falls 18 s | walks | swing never touches down, 16 s | falls 20 s |
+| 40 ms | falls 10 s | swing never touches down, 6 s | falls 4 s | — |
+
+The QP acceleration is too noisy to extrapolate. Half the prediction (5 ms)
+falls at 20 ms after 42–46 s.
+
+**Step length.** Steps grow with uncompensated delay, so with prediction they
+are shorter (s = 0.9: 0.98 / 0.90 / 0.79 / 0.75 → 0.77 / 0.74 / 0.62 / 0.57
+at 0.02 / 0.05 / 0.08 / 0.10 m). `swing_fwd_end` 0.85 gives 0.88 / 0.78 /
+0.67 / 0.62 and passes all 17 evaluation episodes and 20 ms / 49 s; 0.8 falls
+at 0.10 m. Default: prediction on, 0.85.
+
+**ROS chain (Jetson).** 3/3 without a fall: 2 × 53 s and 140 s (364 steps,
+14.9 m, 0.041 m/step at 0.06, lateral ≤ 0.09 m). The node's prediction horizon
+was 14.4 ms median (12–17 ms), matching the ≈ 15 ms measured in §12.
+
+**Overload (not a latency case).** With two offline episodes, a recorder and
+the chain (more than nproc − 1 busy processes), the commands stalled for 80 ms
+while stepping in place: the simulator paused physics (`command expired for
+left_hip1_joint`), the IMU stopped publishing and the 0.3 s IMU-freshness
+estop latched 0.3 s later. This is the likely mechanism of the earlier
+IMU-freshness estop under load; the estop is the last link, not the cause.
 
