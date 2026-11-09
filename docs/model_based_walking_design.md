@@ -716,3 +716,32 @@ swing target is always the nominal offset from the stance foot
 the CoP inside the sole (±0.04 m). That is the next thing to build and test
 against the offline replay (`ChainTiming`, `DEGRADED_TIMING`) and on the chain.
 
+## 19. Lateral DCM foot placement: tried, no benefit (2026-11-09)
+
+Implemented as in §4 and tested offline, not kept. At lift-off: lateral DCM
+ξ = c + v/ω in the walking frame, offset from the stance sole centre mirrored
+so + is outward over the stance foot; the swing target moved along the
+lateral axis by gain × (offset − nominal), clamped to ±0.05 m. Nominal from
+4 normal-timing episodes (198 lift-offs): −0.077 m (p5 −0.105, p95 −0.072).
+Before the offline replay fall the offset went to −0.108, −0.126, −0.142 m on
+left-stance lift-offs (3–6 cm further inward), so the signal is there.
+
+| Test (offline, `ChainTiming`, rtf 0.82) | gain 0 | 1 | 1.5 | 2 | 3 |
+|---|---|---|---|---|---|
+| Chase replay, degraded, 30 seeds: falls | 1 | 2 | – | 1 | 1 |
+| … sideways tilt max, mean / worst (°) | 7.1 / 11.0 | 7.0 / 13.2 | – | 7.7 / 14.8 | 7.6 / 19.3 |
+| Push 0.1 s sideways while stepping (0.04 m), 10 seeds: falls at 15 / 25 / 40 / 60 / 90 N | 0 / 2 / 10 / 10 / 10 | – | 0 / 2 / 9 / 10 / 10 | – | – |
+
+Why it cannot help much here: a 40 N push tilts the robot 17° within 0.1 s
+and it faults 0.13 s after the push started, before the next lift-off. In
+single support the only lateral support is the 8 cm sole edge (no ankle
+roll): a 40 N push at the pelvis is ~24 N·m against ~6 N·m of gravity about
+the edge, so the stance leg and foot roll over as one body. The chase falls
+are the same kind of event (the sole rolls onto its edge in single support
+and the robot stays tilted in double support), and foot placement only acts
+at the next step, on the slow DCM drift. Lateral robustness is limited by the
+foot/edge mechanics; candidates are reducing what drives the sideways roll in
+single support (the edge contact modes and their switching, §4.8) or asking
+less of the gait in the first approach (heading overshoot, full step and turn
+together), not foot placement.
+
