@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>walking_controller</name>
+  <version>0.1.0</version>
+  <description>Model-based walking without RL: LIPM MPC with TSID whole-body control, simulation first.</description>
+  <maintainer email="rul039@ucsd.edu">Triton Droids</maintainer>
+  <license>MIT</license>
+  <buildtool_depend>ament_python</buildtool_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>motor_control_interfaces</exec_depend>
+  <exec_depend>motor_control_hybrid</exec_depend>
+  <exec_depend>humanoid_leg_description</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-scipy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <test_depend>python3-pytest</test_depend>
+  <test_depend>humanoid_sim</test_depend>
+  <export><build_type>ament_python</build_type></export>
+</package>

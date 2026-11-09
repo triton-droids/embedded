@@ -72,12 +72,22 @@ def simulation_and_stack(context):
         registry = yaml.safe_load(stream)
     params = registry.get('motor_control_node', {}).get('ros__parameters', registry)
     motors = params['motors']
-    connect_policy = flag(context, 'enable_policy') and flag(context, 'connect_policy')
+    controller = arg('controller').perform(context).strip().lower()
+    if controller not in ('policy', 'model_walk'):
+        raise ValueError('controller must be policy or model_walk')
+    # model_walk: walking_controller (LIPM MPC + TSID, no RL) replaces the policy.
+    model_walk = controller == 'model_walk'
+    connect_policy = (flag(context, 'enable_policy') and flag(context, 'connect_policy')
+                      and not model_walk)
+    connected = connect_policy or model_walk
     enable_wbc = flag(context, 'enable_wbc')
+    if model_walk and enable_wbc:
+        raise ValueError('controller:=model_walk replaces the policy WBC; set enable_wbc:=false')
     # Diagnostic: keep the whole WBC configuration and node running, but feed C++
     # (and the autostart gate) the policy command directly instead of WBC output.
     wbc_bypass = enable_wbc and flag(context, 'wbc_bypass')
-    command_topic = ('/wbc/desired_motor_subset' if enable_wbc and not wbc_bypass
+    command_topic = ('/walk/desired_motor_subset' if model_walk
+                     else '/wbc/desired_motor_subset' if enable_wbc and not wbc_bypass
                      else '/policy/desired_motor_subset')
     minimal = flag(context, 'minimal')
 
@@ -115,7 +125,9 @@ def simulation_and_stack(context):
     # healthy; 2 s after the first fresh command expires first on slower hosts.
     timeout_arg = arg('autostart_timeout_s').perform(context).strip()
     autostart_timeout = (10.0 if enable_wbc else 2.0) if timeout_arg == 'auto' else float(timeout_arg)
-    if minimal and connect_policy:
+    if model_walk and flag(context, 'enable_vision'):
+        raise ValueError('controller:=model_walk requires enable_vision:=false')
+    if minimal and connected:
         raise ValueError('Connected policy requires minimal:=false; cpp_control_node must remain in the command path')
     if minimal and flag(context, 'enable_vision'):
         raise ValueError('enable_vision requires minimal:=false')
@@ -163,6 +175,9 @@ def simulation_and_stack(context):
                     'foot_clearance_m': 0.0, 'allow_torque_only_motion': True,
                     'publish_feet_ground_truth': True,
                     'ground_truth_rate_hz': 100.0, 'publish_rate_hz': 200.0} if enable_wbc else {}),
+                # The model-based controller runs at 200 Hz on ground-truth base and feet.
+                **({'publish_feet_ground_truth': True, 'ground_truth_rate_hz': 200.0,
+                    'publish_rate_hz': 200.0} if model_walk else {}),
                 **({} if sim_head else {'enable_head': False, 'enable_target': False}),
                 **({'publish_rate_hz': float(joint_state_rate)} if joint_state_rate else {}),
                 **({'telemetry_rate_hz': 0.0, 'enable_head': False,
@@ -206,10 +221,10 @@ def simulation_and_stack(context):
                     'control_rt_enabled': False,
                 }],
                 remappings=[('/desired_motor_subset', command_topic)]
-                if connect_policy else [],
+                if connected else [],
             ),
         ]
-    if flag(context, 'enable_policy'):
+    if flag(context, 'enable_policy') and not model_walk:
         contract = params['model_contract']
         stack.append(Node(
             package='motor_control_hybrid', executable='tracking_policy_node', output='screen',
@@ -248,7 +263,16 @@ def simulation_and_stack(context):
                    if arg('wbc_max_correction_nm').perform(context) else {}),
             }],
         ))
-    if connect_policy and flag(context, 'auto_start'):
+    if model_walk:
+        stack.append(Node(
+            package='walking_controller', executable='walking_controller',
+            prefix=arg('wbc_python_executable'), output='screen',
+            ros_arguments=['--log-level', arg('log_level')],
+            additional_env={'OPENBLAS_NUM_THREADS': '1', 'OMP_NUM_THREADS': '1',
+                            'MKL_NUM_THREADS': '1'},
+            parameters=[{'motor_config_file': registry_path,
+                         'step_length_m': float(arg('step_length_m').perform(context))}]))
+    if connected and flag(context, 'auto_start'):
         stack.append(Node(
             package='humanoid_sim', executable='sim_autostart', output='screen',
             ros_arguments=['--log-level', arg('log_level')],
@@ -320,6 +344,8 @@ def generate_launch_description():
         ('remote_viewer_rate_hz', '15.0', 'Latest-state stream rate, maximum 60 Hz'),
         ('start_joint_state_monitor', 'false', 'Start joint-state relay in the full stack'),
         ('use_rviz', 'false', 'Start robot_state_publisher display and RViz'),
+        ('controller', 'policy', 'policy (RL tracking policy) or model_walk (LIPM MPC + TSID, no RL)'),
+        ('step_length_m', '0.0', 'controller:=model_walk: initial step length (0..0.10 m); change with /walk/step_length'),
         ('enable_policy', 'true', 'Run tracking_policy_node on simulated IMU/joint feedback'),
         ('enable_wbc', 'false', 'Deprecated: insert TSID between RL and C++ (less stable than tuned PD; see docs/reports/2026-11-08-wbc-deprecation.md)'),
         ('pd_profile', 'tuned', 'PD path (no WBC) defaults: tuned (200 Hz, release clock, loop, no head sim, skip IMU spikes) or original'),
