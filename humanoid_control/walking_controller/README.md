@@ -4,13 +4,13 @@ Model-based walking without RL: a linear inverted pendulum (LIPM) MPC plans
 the centre of pressure, a TSID whole-body controller turns it into joint
 torques. Simulation only (uses MuJoCo ground truth for base and feet).
 
-**Status (2026-11-08): stands, steps in place and walks forward with a
-variable step length in the offline loop and the full ROS chain.** Not yet
-done: turning, larger steps (> 0.10 m commanded), push recovery while
-walking, a state estimator for hardware.
+**Status (2026-11-09): stands, steps in place, walks forward with a
+variable step length and turns (in place or on an arc) in the offline loop
+and the full ROS chain.** Not yet done: larger steps (> 0.10 m commanded),
+push recovery while walking, side steps, a state estimator for hardware.
 
 ```
-/joint_states, /sim/ground_truth/{odom,feet}, /sim/status, /safety/estop, /walk/step_length
+/joint_states, /sim/ground_truth/{odom,feet}, /sim/status, /safety/estop, /walk/step_length, /walk/turn
   → walking_controller (200 Hz) → /walk/desired_motor_subset → cpp_control_node → MuJoCo
 ```
 
@@ -20,10 +20,13 @@ walking, a state estimator for hardware.
 source scripts/activate_rosenv.sh
 scripts/sim_experimental.sh controller:=model_walk auto_start:=true          # steps in place
 ros2 topic pub --once /walk/step_length std_msgs/msg/Float64 "{data: 0.06}"  # walk forward
+ros2 topic pub --once /walk/turn std_msgs/msg/Float64 "{data: 0.10}"         # turn left, rad/step
 ```
 
-`step_length_m` is clamped to 0–0.10 m. `/walk/status` (JSON, 2 Hz) has the
-phase, step count, step length, cycle time and input age (`input_age_ms`,
+`step_length_m` is clamped to 0–0.10 m, `/walk/turn` to ±0.15 rad per step
+(+ = left; both can be combined for an arc). `/walk/status` (JSON, 2 Hz) has the
+phase, step count, step length, turn, frame heading, cycle time, prediction
+horizon and input age (`input_age_ms`,
 `joint_age_ms`: sample stamp to cycle start, last 2 s).
 
 The node runs one cycle per physics sample (node parameter `trigger: state`,
@@ -46,7 +49,8 @@ Tests: MPC (exact LIPM prediction, CoP bounds, terminal DCM, closed-loop
 capture, active-set solver = `lsq_linear`), WBC edge contacts (corners, per-foot
 force cap, lateral CoM authority flat 0.006 vs both edges 0.97), node trigger,
 offline stand / step in place / walk, realised step length (≥ 0.85 of 0.05 m),
-state prediction, and the latency limit (15 and 20 ms walk 49 s; 30 ms is
+state prediction, turning (both ways, 90°+ in place, arc, walking after a
+160° turn; slow: chase pattern and 49 s continuous turns), and the latency limit (15 and 20 ms walk 49 s; 30 ms is
 a strict xfail, so an improvement shows up as a failure to update).
 
 ## How it works
@@ -77,6 +81,14 @@ support (median 220 ms), single support 100–250 ms, lateral CoM speed
   rolls up to 7° (no ankle roll) and peaks at ~1.5 of the planned 2.5 cm, so
   a sole corner reaches the floor right at s ≈ 0.6 on every step; its
   horizontal motion therefore finishes at s = 0.85 (`swing_fwd_end`), not 1.0.
+- **Turning** (`turn_rad`): at lift-off the swing target (stance foot +
+  nominal offset) is rotated by the turn about the stance foot. Once turning,
+  the walking frame (MPC axes) follows the measured stance foot yaw + turn/2,
+  the swing foot's yaw is interpolated from its start to the target by s = 0.5
+  (`swing_yaw_end`; each swing turns its foot by ~2× the turn), the torso yaw
+  reference follows the frame, and the sole-centre offsets are rotated with
+  each foot's yaw. With turn 0 and no earlier turn the straight gait is
+  unchanged bit for bit.
 - **Latency compensation** (`gait.py`, `predict_s` = 10 ms): every cycle the
   measured state is predicted at constant velocity to when the command acts
   (input age + `predict_s`) and the controller clock is shifted by `predict_s`.
@@ -142,7 +154,20 @@ trigger, MPC solver above and the simulator command executor. Cycle 2.8 ms
 mean, 4.4 ms p99; 182–193 Hz of commands. Physics overruns grew from 9 to
 106 in a 141 s run.
 
-Known issues: realised steps are 0.6–0.9 of the command; a full 0.10 m step
+Turning (offline, 20 s, delay 10/15/20 ms × friction 0.65/1.15): 18/18 OK;
+per step 6.7–7.6° at 0.15 rad (8.6°) both ways, 5.0–5.6° on a 0.06 m arc at
+0.10 rad (5.7°). 49 s at 15 ms: continuous 0.10 / 0.15 / −0.15 rad turns
+(590–780°), an arc and a chase pattern (turn ~90°, walk 3 s, turn back,
+× 4) all walk.
+
+ROS chain (Jetson), via `/walk/turn`: 2/2 no fall over 62 s: +0.10 rad for
+11.5 s → +155° / +166° (5.2–5.5° per step), walk 0.06 m 7 s (0.65–0.71 m),
+−0.10 rad for 11 s → −131° (4.7° per step), walk 15.5 s (1.32–1.34 m).
+
+Known issues: after a turn there is no fixed heading any more (the frame
+follows the feet), so walking straight drifts in yaw (−7 to +14° over 7–15 s
+in the chain); a caller such as ball chase closes the heading loop with
+`/walk/turn`.  realised steps are 0.6–0.9 of the command; a full 0.10 m step
 (s = 0.8 above) falls, so larger steps are a balance limit, not the touchdown.
 A CPU overload (two offline episodes next to the chain and a recorder, more
 than nproc − 1) stalled the commands for 80 ms while stepping in place: the

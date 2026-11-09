@@ -534,3 +534,48 @@ left_hip1_joint`), the IMU stopped publishing and the 0.3 s IMU-freshness
 estop latched 0.3 s later. This is the likely mechanism of the earlier
 IMU-freshness estop under load; the estop is the last link, not the cause.
 
+## 15. Turning (2026-11-09)
+
+**Interface.** `StepParams.turn_rad` / `/walk/turn` (Float64, rad per step,
++ = left, clamped to ±0.15 rad as in §4.2), combinable with the step length.
+`/walk/cmd_vel` and `/walk/goal` (§4.1) can be built on it.
+
+**Method.** At lift-off the swing target (level stance foot × nominal
+offset) is rotated by the turn about the stance foot's vertical axis, then
+the step length is added along the new forward axis. Once a turn has been
+commanded:
+
+- the walking frame (MPC lateral/forward axes, origin) is rotated at each
+  lift-off to the measured stance-foot yaw + turn/2 (closed loop; rotating it
+  open loop by the command let it lag the feet by 20° and fell);
+- the swing foot's yaw goes from its start to the target by s = 0.5 of SS
+  (`swing_yaw_end`). Each foot moves every other step, so a swing turns its
+  foot by about twice the turn; interpolating only the commanded turn, or
+  finishing at s = 0.85, realised ~50 % of the turn (touchdown at s ≈ 0.6). A
+  higher swing-orientation weight did not help;
+- the torso yaw reference follows the frame heading through the swing;
+- **the sole-centre offset (foot frame → sole centre) is rotated with the
+  foot's yaw.** It was a world vector from the start, so after ~150° the
+  support regions were several cm off: the feet midpoint drifted 0.4 mm per
+  degree from the frame, walking after a 150° turn fell within ~4 s and
+  continuous turns ≥ 0.10 rad/step fell after 20–33 s (stance widening,
+  hip roll drifting, more often to the left). A first diagnosis from
+  0.5 s samples (one per step) read the normal lateral sway as a bias.
+
+With turn 0 and no earlier turn everything is bit-identical to the straight
+gait (`walk_eval.py` sweep and variable outputs unchanged).
+
+**Results (offline).** Delay 10/15/20 ms × friction 0.65/1.15 × {0.15 rad
+left, right, 0.10 rad on a 0.06 m arc}, 20 s: 18/18; per step 6.7–7.6° at
+0.15 rad (78–88 %), 5.0–5.6° on the arc (87–98 %). In place at 0.10 rad:
+94 % (left). 49 s at 15 ms: continuous 0.10 / 0.15 / −0.15 rad (590–780°),
+arc, and a chase pattern (turn ~90°, walk 3 s, turn back, × 4) at 15 and
+20 ms all walk. M5's 90° in-place turn: met both ways (not yet over 20
+seeds; the offline loop has no random seed, only delay × friction).
+
+**ROS chain (Jetson).** 2/2 without a fall: +0.10 rad/step for 11.5 s →
++155° / +166°, walk 0.06 m for 7 s, −0.10 rad for 11 s → −131°, walk 15.5 s.
+After a turn the frame follows the feet, so there is no fixed heading: straight
+walking then drifted −7 to +14° in yaw. Heading hold belongs to the caller
+(ball chase, `/walk/goal`), which closes the loop with `/walk/turn`.
+

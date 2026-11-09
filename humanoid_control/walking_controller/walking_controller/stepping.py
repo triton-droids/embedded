@@ -44,6 +44,14 @@ class StepParams(GaitParams):
     # from s > 0.6, so with 1.0 an early touchdown leaves the step short.
     swing_fwd_end: float = 0.85
     step_length_m: float = 0.0
+    # Heading change per step (rad, + = left / counter-clockwise). Each swing
+    # target is rotated by it about the stance foot, the MPC frame and the
+    # torso yaw reference turn with it. 0: exactly the straight gait.
+    turn_rad: float = 0.0
+    # The swing foot's yaw reaches the turn at this fraction of SS. Each swing
+    # has to rotate its foot by about twice the turn (the feet alternate), and
+    # touchdown comes at s ~ 0.6.
+    swing_yaw_end: float = 0.5
     first_stance: str = 'left_foot'
     lat_margin_m: float = 0.01
     fwd_margin_m: float = 0.02
@@ -84,6 +92,12 @@ class SteppingController(GaitController):
         self.next_stance = p.first_stance
         self._begin(DS, t, p.t_first_ds)
         self.p_prev = np.zeros(2)
+        self.heading = 0.0              # walking-frame heading relative to the start (rad)
+        self.step_turn = 0.0            # commanded turn of the current swing
+        self.frame_turn = 0.0           # frame rotation applied at this lift-off
+        self.turning = False            # once turned, the frame follows the feet
+        self.yaw0 = {f: self._yaw(self.footholds[f]) for f in FEET}
+        self.swing_yaw = 0.0            # yaw the current swing foot turns
 
     def _sole_extent(self, foot):
         pts = self.rm.sole_points(foot)
@@ -100,7 +114,17 @@ class SteppingController(GaitController):
         return np.array([d @ self.lat_axis, d @ self.fwd_axis])
 
     def _foothold_center(self, foot):
-        return self.footholds[foot].translation + self.sole_offset[foot]
+        return self._sole_center(foot, self.footholds[foot])
+
+    def _sole_center(self, foot, pose):
+        """Sole centre of `foot` placed at `pose`. sole_offset is the world
+        vector at the start; once turning it is rotated with the foot's yaw
+        (straight walking keeps the original, bit-identical behaviour)."""
+        offset = self.sole_offset[foot]
+        if getattr(self, 'turning', False):
+            dyaw = self._yaw(pose) - self.yaw0[foot]
+            offset = pin.rpy.rpyToMatrix(0.0, 0.0, dyaw) @ offset
+        return pose.translation + offset
 
     # -------------------------------------------------------- schedule
     def _plan(self, t):
@@ -135,7 +159,7 @@ class SteppingController(GaitController):
         if self.gphase == SS:
             # The swing foot will land at its target.
             swing = other(self.stance)
-            centers[swing] = self._coords(self.swing_target.translation + self.sole_offset[swing])
+            centers[swing] = self._coords(self._sole_center(swing, self.swing_target))
         width = {f: centers[f][0] for f in FEET}
         prev_phase = seq[0][0]
         for k, (phase, foot) in enumerate(seq):
@@ -249,6 +273,16 @@ class SteppingController(GaitController):
         self.lean = None
         self.stance = stance
         self.swing_start = self.rm.data.oMf[self.rm.frame_id[swing]].copy()
+        self.step_turn = float(p.turn_rad)
+        self.frame_turn = 0.0
+        self.turning = self.turning or bool(self.step_turn)
+        if self.turning:
+            # Closed loop on the measured stance foot: after this step the feet
+            # are at its yaw and yaw + turn, so the frame takes the mean.
+            cop = self.mid + self.p_prev[0] * self.lat_axis + self.p_prev[1] * self.fwd_axis
+            measured = self._wrap(self._yaw(self.rm.frame(stance)) - self.yaw0[stance])
+            self.frame_turn = self._wrap(measured + 0.5 * self.step_turn - self.heading)
+            self._turn_frame(self.frame_turn, self._foothold_center(stance))
         # Target: the measured stance foot, made level, plus the nominal offset
         # and the commanded step length along the walking direction.
         stance_pose = self.rm.data.oMf[self.rm.frame_id[stance]].copy()
@@ -257,10 +291,39 @@ class SteppingController(GaitController):
                         stance_pose.translation.copy())
         level.translation[2] = self.footholds[stance].translation[2]
         target = level * self.nominal_offset[swing]
+        if self.step_turn:
+            # Rotate the nominal placement about the stance foot's vertical axis.
+            Rz = pin.rpy.rpyToMatrix(0.0, 0.0, self.step_turn)
+            pivot = level.translation
+            target = pin.SE3(Rz, pivot - Rz @ pivot) * target
         target.translation = target.translation + p.step_length_m * self.fwd_axis
         self.swing_target = target
+        if self.turning:
+            self.p_prev = self._coords(cop)
+        # Yaw the swing foot has to turn: from where it starts (feet splayed by
+        # the last turn) to the target; 0 for straight walking.
+        self.swing_yaw = (self._wrap(self._yaw(target) - self._yaw(self.swing_start))
+                          if self.turning else 0.0)
         self.events.append({'t': t, 'event': 'lift', 'stance': stance})
         self._begin(SS, t, p.t_ss)
+
+    def _turn_frame(self, angle, pivot):
+        """Rotate the walking frame (MPC axes and origin) by `angle` about the
+        vertical through `pivot`. The caller re-expresses the previous CoP."""
+        Rz = pin.rpy.rpyToMatrix(0.0, 0.0, angle)
+        piv = np.array([pivot[0], pivot[1], self.mid[2]])
+        self.mid = piv + Rz @ (self.mid - piv)
+        self.lat_axis, self.fwd_axis = Rz @ self.lat_axis, Rz @ self.fwd_axis
+        self.half_len = {f: self._sole_extent(f) for f in FEET}
+        self.heading += angle
+
+    @staticmethod
+    def _yaw(pose):
+        return math.atan2(pose.rotation[1, 0], pose.rotation[0, 0])
+
+    @staticmethod
+    def _wrap(angle):
+        return math.atan2(math.sin(angle), math.cos(angle))
 
     def _foot_rest_rotation(self, foot):
         R = self.footholds[foot].rotation
@@ -305,6 +368,17 @@ class SteppingController(GaitController):
             late = t - self.t_gphase - T
             pos[2] = b[2] - 0.05 * late
             vel[2] = -0.05
-        pose = pin.SE3(self.swing_target.rotation, pos)
-        self.wbc.set_swing_reference(swing, pose, np.concatenate([vel, np.zeros(3)]),
-                                     np.concatenate([acc, np.zeros(3)]))
+        # Yaw from the start to the target (only once turning, so a straight
+        # step keeps the exact target orientation).
+        turn = self.swing_yaw
+        Ty = T * p.swing_yaw_end
+        my, dmy, ddmy = min_jerk(min(s / p.swing_yaw_end, 1.0))
+        rot = pin.rpy.rpyToMatrix(0.0, 0.0, -(1.0 - my) * turn) @ self.swing_target.rotation
+        ang_vel = np.array([0.0, 0.0, dmy / Ty * turn])
+        ang_acc = np.array([0.0, 0.0, ddmy / Ty**2 * turn])
+        pose = pin.SE3(rot, pos)
+        self.wbc.set_swing_reference(swing, pose, np.concatenate([vel, ang_vel]),
+                                     np.concatenate([acc, ang_acc]))
+        if self.turning:
+            # Torso yaw from the previous frame heading to the new one with the swing.
+            self.wbc.set_torso_yaw(self.yaw + self.heading - (1.0 - mh) * self.frame_turn)

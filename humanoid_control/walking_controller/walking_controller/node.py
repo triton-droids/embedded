@@ -2,7 +2,8 @@
 
 Inputs (simulation ground truth): /joint_states, /sim/ground_truth/odom,
 /sim/ground_truth/feet, /sim/status (gantry), /safety/estop.
-Command: /walk/step_length (std_msgs/Float64, m per step; 0 = step in place).
+Commands: /walk/step_length (std_msgs/Float64, m per step; 0 = step in place),
+/walk/turn (std_msgs/Float64, rad per step, + = left; 0 = straight).
 Output: MotorCommand (MODE_MOTION) on /walk/desired_motor_subset, forwarded
 by cpp_control_node. Any fault sends DISABLE and latches; restart the node.
 """
@@ -32,6 +33,7 @@ from .stepping import StepParams, SteppingController
 from .wbc import WBCGains
 
 MAX_STEP_M = 0.10  # largest step length validated offline (see README)
+MAX_TURN_RAD = 0.15  # per step; design limit (docs/model_based_walking_design.md 4.2)
 
 
 def stamp_ns(stamp) -> int:
@@ -95,6 +97,7 @@ class WalkingControllerNode(Node):
         self.create_subscription(String, '/sim/status', self._sim_status, 2)
         self.create_subscription(Bool, '/safety/estop', self._on_estop, safety)
         self.create_subscription(Float64, '/walk/step_length', self._on_step_length, 2)
+        self.create_subscription(Float64, '/walk/turn', self._on_turn, 2)
         if p['trigger'] == 'timer':
             self.create_timer(1.0 / p['control_rate_hz'], self.tick)
         else:
@@ -113,6 +116,11 @@ class WalkingControllerNode(Node):
         if not np.isfinite(msg.data):
             return
         self.controller.p.step_length_m = self._clamp(msg.data)
+
+    def _on_turn(self, msg):
+        if not np.isfinite(msg.data):
+            return
+        self.controller.p.turn_rad = float(np.clip(msg.data, -MAX_TURN_RAD, MAX_TURN_RAD))
 
     def _store(self, name, msg):
         self.inputs[name] = (msg, stamp_ns(msg.header.stamp), time.monotonic())
@@ -250,7 +258,9 @@ class WalkingControllerNode(Node):
             return {'mean': float(a.mean()), 'p99': float(np.percentile(a, 99)), 'max': float(a.max())}
         status = {'state': 'fault' if self.fault else c.phase, 'fault': self.fault,
                   'base_held': self.base_held, 'estop': self.estop, 'cycles': self.cycles,
-                  'step_length_m': c.p.step_length_m, 'steps': getattr(c, 'steps', 0),
+                  'step_length_m': c.p.step_length_m, 'turn_rad': c.p.turn_rad,
+                  'heading_deg': float(np.degrees(getattr(c, 'heading', 0.0))),
+                  'steps': getattr(c, 'steps', 0),
                   'trigger': self.params['trigger'], 'cycle_ms': stats(self.cycle_ms),
                   # Age of the odom / joint sample at cycle start (sample stamp -> now).
                   'input_age_ms': stats(self.input_age_ms), 'joint_age_ms': stats(self.joint_age_ms),
