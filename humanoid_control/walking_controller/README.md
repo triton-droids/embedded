@@ -32,7 +32,7 @@ for 0.5 s → step 0, turn 0. Camera ball chase:
 
 ```bash
 scripts/ball_chase_walk.sh                       # headless, domain 0, CycloneDDS
-scripts/ball_chase_walk.sh remote_viewer:=true   # + read-only 3D view on another computer
+scripts/ball_chase_walk.sh remote_viewer:=true   # + read-only 3D view on another computer (not on the Jetson's desktop)
 ```
 
 To watch from another computer, only the rendering runs there (MuJoCo
@@ -197,11 +197,7 @@ ROS chain (Jetson), via `/walk/turn`: 2/2 no fall over 62 s: +0.10 rad for
 11.5 s → +155° / +166° (5.2–5.5° per step), walk 0.06 m 7 s (0.65–0.71 m),
 −0.10 rad for 11 s → −131° (4.7° per step), walk 15.5 s (1.32–1.34 m).
 
-Known issues: with the camera running, a command can arrive ~80 ms late
-(seen once in 3 chase runs, at 44 s): the simulator pauses physics (`command
-expired`), inputs go stale and the 0.3 s IMU-freshness estop latches. Whether
-the controller or the simulator's command reception (same Python process as
-the camera rendering) stalls is not yet known. After a turn there is no fixed heading any more (the frame
+Known issues: the chase is load-sensitive on the Jetson. Plain runs: 4/4 × 65 s without a fault. A MuJoCo window rendering on the Jetson's own desktop stopped 3/3 runs (`command expired`, GPU/shared memory exhausted), so watch from another computer. With a recorder or the viewer stream also running, 2 runs fell during the first approach (command gaps of 30–40 ms, input age p99 12–13 ms instead of 9–11); offline with a constant 15–25 ms delay this does not fall (design doc §16). After a turn there is no fixed heading any more (the frame
 follows the feet), so walking straight drifts in yaw (−7 to +14° over 7–15 s
 in the chain); a caller such as ball chase closes the heading loop with
 `/walk/turn`.  realised steps are 0.6–0.9 of the command; a full 0.10 m step

@@ -610,10 +610,28 @@ Findings, in the order they came up:
 of it, facing it; 2 of the last 3 runs had no fault for 45–80 s. A ball moved
 90° to the side leaves the 58° view and the pursuit stops (no search).
 
-**Open.** One run stopped at 44 s: a command arrived 77 ms old (validity 80
-ms), the simulator paused physics, inputs went stale and the IMU-freshness
-estop latched — the same chain as the overload case in §14. With the camera
-the simulator renders and publishes images in the Python process that also
-receives commands; whether that or the controller stalls is the next thing to
-measure.
+**Estops under load (measured 2026-11-09, Jetson).** Plain runs
+(`scripts/ball_chase_walk.sh`, nothing else running): 4/4 × 65 s without a
+fault, stopping 0.45–0.50 m from the ball. Two kinds of stop show up only with
+extra load on the host:
+
+- *Command expired, no fall*: a MuJoCo window rendering on the Jetson's own
+  desktop (`humanoid_sim.remote_viewer` on `:0`, 15 or 5 Hz): 3/3 runs
+  stopped 2–18 s after release. Free memory dropped to ~100 MB and GPU
+  allocations failed (`NvMapMemAllocInternalTagged ... error 12`; memory is
+  shared with the GPU). The remote-viewer server with a non-rendering client
+  ran fine. Do not render on the Jetson while the chain runs.
+- *Fall during the first approach*: 2 runs with a recorder or the viewer
+  stream running, 6–10 s after release, while the chase commanded the caps
+  (0.06 m, ±0.08 rad) and the heading overshot to +20° and reversed. In the
+  recorded fall the command rate was 86 Hz (95–103 Hz in runs that walked),
+  gaps over 30 ms 10 in 3.8 s (2–7) and input age p99 12–13 ms (9–11);
+  pitch reached 19° (≤ 7° otherwise) before it fell sideways.
+  Offline it does not reproduce: with the same pursuit law, 2–4 Hz, 0.3–0.5
+  s vision lag, 15/20/25 ms constant delay and caps 0.04–0.06 m / 0.06–0.08
+  rad, 20/20 episodes walked 30 s. A slew limit on the velocity input
+  (0.04 m and 0.08 rad per step per second) did not fall either, but the
+  heading swung more (yaw std 11–15° vs 3.5–5.7°), so it was not adopted.
+  The offline delay is constant; the chain's 30–40 ms command gaps under
+  load are what is missing from it.
 
