@@ -38,8 +38,15 @@ Offline (no ROS; one episode ≈ one CPU core, keep `--workers` small):
 python3 humanoid_control/walking_controller/tools/walk_eval.py fixed --length 0.06
 python3 humanoid_control/walking_controller/tools/walk_eval.py variable
 python3 humanoid_control/walking_controller/tools/walk_eval.py sweep --workers 2
-python3 -m pytest humanoid_control/walking_controller/test   # unit tests
+python3 -m pytest humanoid_control/walking_controller/test   # unit + offline smoke, ~15 s
+WALK_SLOW_TESTS=1 python3 -m pytest humanoid_control/walking_controller/test   # + 49 s latency runs
 ```
+
+Tests: MPC (exact LIPM prediction, CoP bounds, terminal DCM, closed-loop
+capture, active-set solver = `lsq_linear`), WBC edge contacts (corners, per-foot
+force cap, lateral CoM authority flat 0.006 vs both edges 0.97), node trigger,
+offline stand / step in place / walk, and the latency limit (15 ms walks; 20 ms
+is a strict xfail, so an improvement shows up as a failure to update).
 
 ## How it works
 
