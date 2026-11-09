@@ -690,3 +690,29 @@ first step, heading overshoot and turn reversal), not the contact gain.
 Stalls (`command expired` → 0.3 s IMU-freshness estop, no fall) are the
 overload case of §14/§16.
 
+## 18. Falls in the first approach (2026-11-09)
+
+All four chain falls came 6–10 s after release. Per step (lift-offs from the
+foot forces, commands from `/ball_chase/cmd_vel`), 21 recorded chase runs:
+
+- Every run overshoots the heading: the ball is at +7.7°, the robot turns to
+  +16…+23° (falls: +21…+32°) with the turn at the 0.08 rad cap from the first
+  step, then reverses. Turn reversals of 0.13–0.16 rad between steps also
+  happen in runs that walk, so neither alone explains a fall.
+- The marker that separates them is the robot's sideways tilt (about its
+  forward axis; in the odometry this is the world-pitch number): steps with
+  more than 10° occur only in the falls (2, 4 and 5 steps; 0 in 18 runs that
+  walked). It builds over 2–3 steps (offline replay, seed 6: 10° → 13° → 18°
+  → fall) after a short single support, a sideways swing of −0.36 → +0.58
+  m/s and a touchdown that leaves the robot leaning on the sole edges in
+  double support (no ankle roll).
+- Step width stays 0.30–0.35 m in the fall; the same commands with another
+  timing seed walk with ≤ 6.5° tilt. So it is lateral margin meeting timing.
+
+§4 planned lateral balance by footstep adjustment (next lateral foot
+position corrected by the measured DCM offset). It is not implemented: the
+swing target is always the nominal offset from the stance foot
+(`stepping.py`, `nominal_offset`), so a sideways error can only be absorbed by
+the CoP inside the sole (±0.04 m). That is the next thing to build and test
+against the offline replay (`ChainTiming`, `DEGRADED_TIMING`) and on the chain.
+
