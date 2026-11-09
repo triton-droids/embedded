@@ -14,6 +14,7 @@ calibration. Rendering uses an OpenGL context owned by this node's own thread
 """
 from __future__ import annotations
 
+import array
 import math
 import threading
 import time
@@ -160,7 +161,9 @@ class SimCameraNode(Node):
         msg.height, msg.width = pixels.shape[:2]
         msg.encoding = 'rgb8'
         msg.step = msg.width * 3
-        msg.data = pixels.tobytes()
+        # array.array skips rclpy's per-element validation of bytes, which
+        # holds the GIL ~150 ms per 640x480 frame and starves the physics loop.
+        msg.data = array.array('B', pixels.tobytes())
         self.color_pub.publish(msg)
 
     def _publish_depth(self, metres: np.ndarray, stamp) -> None:
@@ -172,5 +175,5 @@ class SimCameraNode(Node):
         msg.height, msg.width = millimetres.shape
         msg.encoding = '16UC1'
         msg.step = msg.width * 2
-        msg.data = millimetres.tobytes()
+        msg.data = array.array('B', millimetres.tobytes())
         self.depth_pub.publish(msg)
