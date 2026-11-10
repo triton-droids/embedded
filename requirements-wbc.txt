@@ -7,4 +7,7 @@ eiquadprog==1.2.6
 cmeel-boost==1.83.0
 cmeel-eigen==3.4.0
 cmeel-urdfdom==3.1.1.1
+# Pinocchio's CMake config needs urdfdom_headers to build TSID; cmeel-urdfdom
+# does not depend on it (fresh rosenv on a Humble Jetson, 2026-11-10).
+cmeel-urdfdom-headers==1.1.2
 hpp-fcl==2.4.4
