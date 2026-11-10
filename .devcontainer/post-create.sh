@@ -12,7 +12,6 @@ sudo apt-get update
 rosdep update
 rosdep install -y -r --ignore-src --rosdistro humble \
   --from-paths humanoid_control "imu_process/Attitude_Sensing(Depreciated)/src" humanoid_vision \
-  simulation/humanoid_sim \
   humanoid_arm_description humanoid_leg_description \
   humanoid_arm_moveit_config humanoid_leg_moveit_config \
   || echo "Warning: some rosdep keys failed to install; see above." >&2

@@ -1,6 +1,5 @@
-# Shared Python environment for control, ONNX policy, MuJoCo and local tests.
+# Shared Python environment for hardware control, ONNX policy and local tests.
 # ROS packages and native C++ dependencies remain installed through ROS/rosdep.
 -r humanoid_control/motor_control_hybrid/requirements-runtime.txt
 -r requirements-policy-onnx.txt
--r simulation/humanoid_sim/requirements.txt
 pytest>=7,<9

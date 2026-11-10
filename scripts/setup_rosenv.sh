@@ -85,7 +85,7 @@ if '# embedded rosenv package-path hook' not in text:
 PY
   [[ $? == 0 ]] || return 1
   source "$repo/scripts/activate_rosenv.sh" || return 1
-  echo "Activated rosenv (control, ONNX, MuJoCo and test dependencies): $venv"
+  echo "Activated rosenv (control, ONNX and test dependencies): $venv"
 }
 _setup_workspace_rosenv
 _setup_rosenv_result=$?
