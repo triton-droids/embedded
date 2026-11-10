@@ -157,7 +157,9 @@ with a 58-degree ideal vertical field of view. These are chosen simulation
 intrinsics, not D435 factory calibration or sensor-noise emulation.
 
 Default detection uses the newer checkout's `td-perception.onnx` YOLO11n
-seven-class model through ONNX Runtime CPU. Only class 0 (`ball`) supplies a
+seven-class model. By default (`vision_device:=gpu`) it runs as a TensorRT FP16
+engine; `vision_device:=cpu` uses ONNX Runtime on one CPU thread (see "Detector
+on GPU" below). Only class 0 (`ball`) supplies a
 target, with confidence >= 0.30 and NMS IoU 0.45. Input is letterboxed RGB
 640x640. `assets/MODEL_SOURCE.json` records its source, SHA256 and the model
 metadata's AGPL-3.0 license declaration. The orange HSV detector remains an
@@ -171,8 +173,8 @@ On the HSLVision test split (911 images, same decoder for both) its ball AP is
 per empty image at confidence 0.30 against 0. td-perception was trained on that
 dataset's train split, which favours it. In the simulated chase
 (`controller:=model_walk`, Jetson, 2026-11-09) both reach the ball and stop
-0.50-0.52 m in front of it (nubot: 3/3 released runs, no falls). Jetson CPU
-latency is the same, about 380 ms per frame on one thread.
+0.50-0.52 m in front of it (nubot: 3/3 released runs, no falls). Both have
+the same latency (CPU about 380 ms, GPU about 25 ms per frame).
 
 The scene uses a green pitch and a procedural black/white football (12 black
 pentagons, 20 white hexagons), with an invisible sphere collision shape. On the
@@ -253,7 +255,62 @@ heights, plus loss stop and reacquisition. Position resets hold test height
 against gravity; detections and control still consume rendered images only.
 Runtime verification and exact results are recorded in `VALIDATION.md`.
 
-## CPU inference budget
+## Detector on GPU (TensorRT)
+
+Build the engines once on the target Jetson (about 10 minutes per model on an
+Orin Nano; they are device- and TensorRT-specific and ignored by Git):
+
+```bash
+scripts/build_ball_chase_engines.sh              # every assets/*.onnx
+scripts/build_ball_chase_engines.sh nubot-yolo   # one model
+```
+
+Each `assets/<model>-fp16.engine` gets a `.json` record with its ONNX SHA-256;
+the detector refuses a missing or mismatched engine and names this script. It
+loads JetPack's system TensorRT Python binding (rosenv has none) and calls
+`libcudart` through ctypes; no extra Python packages are installed. Pre/post
+processing, thresholds and NMS are the same as on CPU.
+`test/test_football_detector_gpu.py` checks GPU against CPU (class scores
+within 0.02, confident boxes within 1 px of the 640 input) and is skipped where
+no engine exists.
+
+Jetson Orin Nano Super (JetPack 6.2.1, TensorRT 10.3, MAXN_SUPER), 424x240
+frames, per `detect()` call:
+
+| device | network | detect() incl. pre/post-processing |
+|---|---|---|
+| CPU, ONNX Runtime, 1 thread | 377-381 ms | 382-386 ms |
+| GPU, TensorRT FP16 | 14-16 ms | 25 ms |
+
+Eight instrumented chase runs per device (`controller:=model_walk`, clean and
+`scene:=hard`, both models, 60 s, 2026-11-09; ground truth and
+`/ball_chase/status` recorded):
+
+| | CPU | GPU |
+|---|---|---|
+| processed detections | 2.4 /s | 5.7-6.0 /s (every 6 Hz frame) |
+| image age when used, p50 / p95 | 0.74-0.78 / 0.94-0.96 s | 0.14-0.19 / 0.22-0.27 s |
+| control ticks rejected as `stale_image_stamp` | 0.4-5 % | 0 % |
+| release to within 0.62 m of the ball | 23-30 s | 15.5-20 s |
+| final distance, base to ball centre | 0.59-0.62 m | 0.40-0.60 m |
+| vision process CPU | 110 % of a core | 20 % |
+| whole board busy (6 cores) | 64-68 % | 53-55 % |
+| simulation real-time factor p50 | 0.83-0.87 | 0.90-0.93 |
+| GPU load (tegrastats GR3D) | about 5 % | 9-20 % |
+
+With fresh detections the robot ends 0.1-0.2 m closer than before: it keeps
+stepping forward after the command reaches zero (closest 0.375 m centre
+distance, no ball contact). In `scene:=hard`, td-perception drops the ball in
+4-46 % of control ticks only after it has stopped close to the ball (ball at
+the image bottom among legs and shoes); while approaching it fails in about
+0-1 %. One estop (`command expired`) per eight runs occurs on both devices
+and is not detector related.
+
+`vision_target_timeout_s:=1.0` (below) was chosen for CPU inference; with the
+GPU the p95 image age is under 0.3 s, so it can be lowered, which has not been
+tested yet.
+
+## CPU inference budget (`vision_device:=cpu`)
 
 The current host measured 0.46–0.48 s per YOLO frame under GUI/ROS load,
 versus about 0.12 s in the earlier lighter-load run. The camera acquires at

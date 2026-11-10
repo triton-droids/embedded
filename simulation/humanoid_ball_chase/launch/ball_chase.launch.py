@@ -46,6 +46,9 @@ def generate_launch_description():
                               description='clean: ball on a plain pitch. hard: visual-only clutter (robots, '
                                           'people, lines, goal, boards, shadows) plus camera blur/noise/'
                                           'exposure/JPEG; physics unchanged'),
+        DeclareLaunchArgument('vision_device', default_value='gpu', choices=['gpu', 'cpu'],
+                              description='gpu: TensorRT FP16 engine next to the ONNX (build with '
+                                          'scripts/build_ball_chase_engines.sh); cpu: ONNX Runtime, one thread'),
         DeclareLaunchArgument('vision_model_path', default_value='',
                               description='YOLO11 ONNX for ball detection (class 0 = ball); empty = assets/td-perception.onnx'),
         SetEnvironmentVariable('ROS_DOMAIN_ID', arg('ros_domain_id')),
@@ -72,7 +75,8 @@ def generate_launch_description():
             }.items()),
         Node(package='humanoid_ball_chase', executable='ball_chase_vision', output='screen',
              parameters=[{'target_timeout_s':ParameterValue(arg('vision_target_timeout_s'), value_type=float),
-                         'model_path':ParameterValue(arg('vision_model_path'), value_type=str)}]),
+                         'model_path':ParameterValue(arg('vision_model_path'), value_type=str),
+                         'device':ParameterValue(arg('vision_device'), value_type=str)}]),
         Node(package='humanoid_ball_chase', executable='ball_chase_astar',
              condition=IfCondition(arg('enable_astar')), output='screen'),
         Node(package='humanoid_vision', executable='track_node', name='pitch_tracker',

@@ -48,3 +48,9 @@ data/fall_collection/
 data/fall_training/
 # Local raw simulation experiment output
 experimental/reference_warp/results/
+# Ball-chase TensorRT engines (scripts/build_ball_chase_engines.sh), device-specific
+simulation/humanoid_ball_chase/assets/*.engine
+simulation/humanoid_ball_chase/assets/*.engine.json
+simulation/humanoid_ball_chase/assets/*.engine.log
+simulation/humanoid_ball_chase/assets/*.engine.tmp
+simulation/humanoid_ball_chase/assets/.trt-timing.cache*

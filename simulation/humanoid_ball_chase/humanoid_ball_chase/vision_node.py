@@ -100,6 +100,7 @@ class BallChaseVision(Node):
         self.declare_parameter("max_yaw_rate", 0.5)
         self.declare_parameter("detector", "football_yolo")
         self.declare_parameter("model_path", "")
+        self.declare_parameter("device", "cpu")  # cpu: ONNX Runtime; gpu: TensorRT engine
         self.declare_parameter('target_timeout_s', 0.35)
         self.TARGET_TIMEOUT_S = float(self.get_parameter('target_timeout_s').value)
         if not math.isfinite(self.TARGET_TIMEOUT_S) or not 0 < self.TARGET_TIMEOUT_S <= 2.0:
@@ -108,7 +109,11 @@ class BallChaseVision(Node):
         detector = self.get_parameter('detector').value
         if detector == 'football_yolo':
             from .football_detector import FootballDetector
-            self._detector = FootballDetector(self.get_parameter('model_path').value or None)
+            self._detector = FootballDetector(self.get_parameter('model_path').value or None,
+                                              device=str(self.get_parameter('device').value))
+            self.get_logger().info(
+                f'Football detector on {self._detector.device}'
+                + (f' ({self._detector.engine_path.name})' if self._detector.engine_path else ''))
         elif detector != 'orange_test':
             raise ValueError('detector must be football_yolo or orange_test')
 
