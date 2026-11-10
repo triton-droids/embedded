@@ -343,3 +343,21 @@ def test_commands_respect_custom_speed_and_yaw_limits() -> None:
 )
 def test_invalid_chase_inputs_return_zero(point, rotation, position, kwargs) -> None:
     assert core.chase_command(point, rotation, position, **kwargs) == (0.0, 0.0)
+
+
+def test_yaw_deadband_applies_only_when_stopped() -> None:
+    # Base (0.4, 0.02): inside 0.5 m, heading 0.05 rad.
+    point = (0.4, 0.02, 0.0)
+    _, yaw = core.chase_command(point, np.eye(3), np.zeros(3), stop_distance=0.5)
+    assert yaw == pytest.approx(1.5 * math.atan2(0.02, 0.4))
+    forward, yaw = core.chase_command(point, np.eye(3), np.zeros(3), stop_distance=0.5,
+                                      yaw_deadband_rad=0.06)
+    assert forward == 0.0 and yaw == 0.0
+    # Same heading beyond the stop distance: still steers while walking.
+    forward, yaw = core.chase_command((2.0, 0.1, 0.0), np.eye(3), np.zeros(3), stop_distance=0.5,
+                                      yaw_deadband_rad=0.06)
+    assert forward > 0.0 and yaw > 0.0
+    # A larger heading error inside the stop distance still turns.
+    _, yaw = core.chase_command((0.4, 0.1, 0.0), np.eye(3), np.zeros(3), stop_distance=0.5,
+                                yaw_deadband_rad=0.06)
+    assert yaw > 0.0

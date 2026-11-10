@@ -239,6 +239,7 @@ def chase_command(
     stop_distance: float = 0.5,
     max_speed: float = 0.2,
     max_yaw_rate: float = 0.5,
+    yaw_deadband_rad: float = 0.0,
 ) -> Tuple[float, float]:
     """Compute a bounded ``(forward_m_s, yaw_rad_s)`` chase command.
 
@@ -255,6 +256,8 @@ def chase_command(
       ``stop_distance`` and is zero at or inside that distance.  Yaw keeps
       pointing at the ball while stopped, so a close but off-axis ball can
       still be faced before a kick.
+    * Within ``stop_distance`` a heading error of at most ``yaw_deadband_rad``
+      gives zero yaw, so a robot facing the ball stops turning (default 0: off).
     * ``forward_m_s`` is clamped to ``[0, max_speed]`` and ``yaw_rad_s`` to
       ``[-max_yaw_rate, max_yaw_rate]``.
     * Any malformed or non-finite input returns ``(0.0, 0.0)``.
@@ -294,6 +297,9 @@ def chase_command(
     heading = math.atan2(y, x)
 
     yaw_rate = max(-yaw_limit, min(yaw_limit, HEADING_GAIN * heading))
+    deadband = _finite_scalar(yaw_deadband_rad)
+    if distance <= stop and deadband is not None and abs(heading) <= deadband:
+        yaw_rate = 0.0
 
     if distance <= stop:
         forward = 0.0

@@ -298,9 +298,12 @@ Eight instrumented chase runs per device (`controller:=model_walk`, clean and
 | simulation real-time factor p50 | 0.83-0.87 | 0.90-0.93 |
 | GPU load (tegrastats GR3D) | about 5 % | 9-20 % |
 
-With fresh detections the robot ends 0.1-0.2 m closer than before: it keeps
-stepping forward after the command reaches zero (closest 0.375 m centre
-distance, no ball contact). In `scene:=hard`, td-perception drops the ball in
+With fresh detections the robot first ended 0.1-0.2 m closer: stepping in
+place after the command reached zero crept towards the ball (closest 0.375 m
+centre distance). Since 2026-11-10 the walking controller stands when the
+command rests and the vision node adds stop/yaw hysteresis (`resume_margin`
+0.08 m, `yaw_deadband_rad` 0.05, `yaw_deadband_hold_rad` 0.12): final
+0.53-0.58 m, creep under 1 mm/s (design doc §21). In `scene:=hard`, td-perception drops the ball in
 4-46 % of control ticks only after it has stopped close to the ball (ball at
 the image bottom among legs and shoes); while approaching it fails in about
 0-1 %. One estop (`command expired`) per eight runs occurs on both devices

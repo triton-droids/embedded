@@ -28,7 +28,10 @@ ros2 topic pub --once /walk/turn std_msgs/msg/Float64 "{data: 0.10}"         # t
 (sim.launch.py) the node also follows a `geometry_msgs/TwistStamped` velocity:
 step = linear.x × 0.5 s, turn = angular.z × 0.5 s, capped at 0.06 m and
 0.08 rad per step (`cmd_vel_max_step_m`, `cmd_vel_max_turn_rad`); no message
-for 0.5 s → step 0, turn 0. Turn first: the step shrinks while turning hard (full at |turn| ≤ 0.04 rad,
+for 0.5 s → step 0, turn 0. A velocity command at rest (step < 5 mm, |turn| < 0.01 rad
+per step) for 1 s (`cmd_vel_stand_after_s`; 0 = off) finishes the step and stands in
+double support instead of stepping in place, which drifts; any motion command walks
+again (`/walk/status` `standing`; design doc §21). Turn first: the step shrinks while turning hard (full at |turn| ≤ 0.04 rad,
 a third at the 0.08 cap; `cmd_vel_turn_free_rad`, `cmd_vel_turn_stop_rad`). With the
 'state' trigger, 15 ms without a complete odom/feet/joints sample runs one cycle on the
 latest of each (`trigger_fallback_s`). Loaded Jetson chase: 0/8 falls, 0/8 stalls (before:

@@ -98,6 +98,16 @@ class BallChaseVision(Node):
         self.declare_parameter("stop_distance", 0.5)
         self.declare_parameter("max_speed", 0.2)
         self.declare_parameter("max_yaw_rate", 0.5)
+        # Hysteresis once stopped at the ball, so detection noise does not keep
+        # the walking controller stepping: walk again only when the ball is
+        # resume_margin beyond stop_distance; within it, no yaw for a heading
+        # error up to yaw_deadband_rad, widened to yaw_deadband_hold_rad once
+        # aligned. 0 / 0 / 0 is the previous behaviour.
+        self.declare_parameter("resume_margin", 0.08)
+        self.declare_parameter("yaw_deadband_rad", 0.05)
+        self.declare_parameter("yaw_deadband_hold_rad", 0.12)
+        self._chase_stopped = False
+        self._chase_aligned = False
         self.declare_parameter("detector", "football_yolo")
         self.declare_parameter("model_path", "")
         self.declare_parameter("device", "cpu")  # cpu: ONNX Runtime; gpu: TensorRT engine
@@ -121,17 +131,25 @@ class BallChaseVision(Node):
         self.stop_distance = float(self.get_parameter("stop_distance").value)
         self.max_speed = float(self.get_parameter("max_speed").value)
         self.max_yaw_rate = float(self.get_parameter("max_yaw_rate").value)
+        self.resume_margin = float(self.get_parameter("resume_margin").value)
+        self.yaw_deadband = float(self.get_parameter("yaw_deadband_rad").value)
+        self.yaw_deadband_hold = float(self.get_parameter("yaw_deadband_hold_rad").value)
 
         limits = {
             "stop_distance": self.stop_distance,
             "max_speed": self.max_speed,
             "max_yaw_rate": self.max_yaw_rate,
+            "resume_margin": self.resume_margin,
+            "yaw_deadband_rad": self.yaw_deadband,
+            "yaw_deadband_hold_rad": self.yaw_deadband_hold,
         }
         for name, value in limits.items():
             if not math.isfinite(value) or value < 0.0:
                 raise ValueError(f"{name} must be finite and non-negative")
         if not self.base_frame:
             raise ValueError("base_frame must be a non-empty TF frame")
+        if self.yaw_deadband_hold < self.yaw_deadband or self.yaw_deadband_hold >= core.HEADING_GATE_RAD:
+            raise ValueError("need yaw_deadband_rad <= yaw_deadband_hold_rad < HEADING_GATE_RAD")
 
         self._bridge = CvBridge()
         self._lock = threading.Lock()
@@ -453,14 +471,20 @@ class BallChaseVision(Node):
         """Call the shared controller and enforce the node's safety envelope."""
         point = np.array(point_optical, dtype=np.float64)
         try:
+            stopped = self._chase_stopped
+            stop = self.stop_distance + (self.resume_margin if stopped else 0.0)
+            deadband = (self.yaw_deadband_hold if self._chase_aligned else self.yaw_deadband) if stopped else 0.0
             command = core.chase_command(
                 point, rotation, position,
-                stop_distance=self.stop_distance,
+                stop_distance=stop,
                 max_speed=self.max_speed,
-                max_yaw_rate=self.max_yaw_rate)
+                max_yaw_rate=self.max_yaw_rate,
+                yaw_deadband_rad=deadband)
             vx, wz = command
             vx = float(vx)
             wz = float(wz)
+            self._chase_stopped = vx == 0.0
+            self._chase_aligned = self._chase_stopped and wz == 0.0
         except Exception as exc:
             raise _FrameRejected(
                 f"chase_error:{type(exc).__name__}", True) from exc

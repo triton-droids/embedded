@@ -29,6 +29,7 @@ from .robot import FEET, other
 from .wbc import FLAT, INNER, OUTER, SWING
 
 DS, SS = 'ds', 'ss'
+HOLD = 'hold'   # planned double support with no further lift-off (standing still)
 
 
 @dataclass
@@ -68,6 +69,21 @@ class SteppingController(GaitController):
     def __init__(self, robot, torque_limits, params: StepParams | None = None):
         super().__init__(robot, torque_limits, params or StepParams())
         self.events: list[dict] = []
+        # Stand still (request_stop) / walk again (resume). Requests are flags
+        # consumed by the control step, so any thread may call them.
+        self.stop_requested = False
+        self.holding = False
+        self._resume_requested = False
+
+    def request_stop(self):
+        """Finish the current step, then stand in double support (no stepping in place)."""
+        self._resume_requested = False
+        self.stop_requested = True
+
+    def resume(self):
+        """Leave the stand: a full double-support phase, then the next lift-off."""
+        if self.stop_requested:
+            self._resume_requested = True
 
     # ------------------------------------------------------------ setup
     def _start_active(self, t, q):
@@ -134,6 +150,8 @@ class SteppingController(GaitController):
         phase, start, dur = self.gphase, self.t_gphase, self.t_dur
         stance = self.stance if self.gphase == SS else self.next_stance
         nxt = stance
+        if self.stop_requested and phase == DS:
+            phase, dur = HOLD, math.inf
         for k in range(p.mpc_horizon):
             tk = t + (k + 0.5) * p.mpc_dt
             while tk > start + dur:
@@ -142,7 +160,9 @@ class SteppingController(GaitController):
                     phase, dur = SS, p.t_ss
                 else:
                     phase, dur, nxt = DS, p.t_ds, other(nxt)
-            seq.append(('ds', nxt) if phase == DS else ('ss', nxt))
+                    if self.stop_requested:          # the current swing is the last one
+                        phase, dur = HOLD, math.inf
+            seq.append((phase, nxt))
         return seq
 
     def _bounds(self, seq):
@@ -178,8 +198,9 @@ class SteppingController(GaitController):
                 cs = np.array([centers[f] for f in FEET])
                 lo[k] = [cs[:, 0].min() - hl + p.lat_margin_m, cs[:, 1].min() + heel + p.fwd_margin_m]
                 hi[k] = [cs[:, 0].max() + hl - p.lat_margin_m, cs[:, 1].max() + toe - p.fwd_margin_m]
-                # Halfway between the feet midpoint and the next stance foot.
-                ref[k] = 0.5 * (centers[foot] + cs.mean(axis=0))
+                # Halfway between the feet midpoint and the next stance foot;
+                # standing: the feet midpoint.
+                ref[k] = cs.mean(axis=0) if phase == HOLD else 0.5 * (centers[foot] + cs.mean(axis=0))
         return lo, hi, ref
 
     # ---------------------------------------------------------- active
@@ -191,9 +212,21 @@ class SteppingController(GaitController):
         c2, v2 = self._coords(com), np.array([vcom @ self.lat_axis, vcom @ self.fwd_axis])
         forces = self.forces
 
+        # ---- stand / resume requests
+        if self._resume_requested:
+            self._resume_requested = self.stop_requested = False
+            if self.holding:
+                self.holding = False
+                self.lean = None                     # re-choose contact modes from the CoM side
+                self._begin(DS, t, p.t_ds)           # full DS (with unloading) before lifting off
+                self.events.append({'t': t, 'event': 'resume'})
+        if self.stop_requested and self.gphase == DS and not self.holding:
+            self.holding = True
+            self.events.append({'t': t, 'event': 'hold'})
+
         # ---- phase transitions
         elapsed = t - self.t_gphase
-        done = bool(p.max_steps) and self.steps >= p.max_steps
+        done = (bool(p.max_steps) and self.steps >= p.max_steps) or self.holding
         if self.gphase == DS and elapsed >= self.t_dur and not done:
             self._lift_off(t, q)
         elif self.gphase == SS:
@@ -206,7 +239,15 @@ class SteppingController(GaitController):
                 return self._fail('Swing foot did not touch down')
 
         # ---- contact modes in DS: both feet roll towards the CoM side
-        if self.gphase == DS:
+        if self.holding:
+            # Standing: both feet flat at full force, CoM held over their middle.
+            if self.lean != HOLD:
+                for foot in FEET:
+                    self.wbc.set_mode(foot, FLAT, q)
+                    self.wbc.set_max_force(foot, p.gains.f_max)
+                self.lean = HOLD
+            self.wbc.set_com_mask(np.ones(3))
+        elif self.gphase == DS:
             # The legs tilt towards where the CoM is going: lean by the CoM
             # position 80 ms ahead; from rest, towards the next stance foot.
             ahead = c2[0] + 0.08 * v2[0]
@@ -251,7 +292,8 @@ class SteppingController(GaitController):
             result = self.wbc.solve(q, v, t)
         except RuntimeError as exc:
             return self._fail(str(exc))
-        self.status.update({'gphase': self.gphase, 'stance': self.stance, 'next': self.next_stance,
+        self.status.update({'gphase': self.gphase, 'holding': self.holding, 'stance': self.stance,
+                            'next': self.next_stance,
                             'lat': float(c2[0]), 'fwd': float(c2[1]), 'v_lat': float(v2[0]),
                             'cop_lat': float(p0[0]), 'lean': self.lean, 'steps': self.steps,
                             'forces': result.forces, 'com_z': float(com[2])})

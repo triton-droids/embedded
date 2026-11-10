@@ -780,3 +780,48 @@ Chain, Jetson, camera chase under the load that produced the falls
 Plain run (no recorder or viewer): reached the ball, no fault. The cost is
 speed: the approach takes ~27 s instead of ~18 s.
 
+## 21. Stand when the velocity command rests (2026-11-10)
+
+With the detector on the GPU (fresh detections, no stale-image restarts) the
+chase robot kept creeping towards the ball after it had stopped: 2.7-6.2
+mm/s, ending 0.385-0.50 m from the ball centre instead of ~0.6 m. Cause:
+`step_length 0` meant stepping in place, which drifts (offline 25 s of
+stepping in place: +3.5 cm forward, -5.5 cm sideways), and the pursuit never
+commands backward steps, so the drift towards the ball is never undone. With
+CPU inference the stale detections kept re-commanding small forward steps
+near the threshold and masked it. The pursuit also kept sending a ±0.06
+rad/s yaw that flipped sign ~2 times a second.
+
+**Stand** (`SteppingController.request_stop` / `resume`, the `/walk/stop`
+behaviour of §4.1): the current swing finishes, then the controller stays in
+double support: no lift-off or unloading, both feet flat at full force, and
+the MPC plans double support over the whole horizon with the CoM reference at
+the feet midpoint. `resume` restarts a full double-support phase (with the
+usual unloading) before the next lift-off. The node requests it when the
+velocity command has been at rest (step < 5 mm, |turn| < 0.01 rad per step)
+for `cmd_vel_stand_after_s` (1 s; also when cmd_vel goes stale) and resumes on
+any motion command. `/walk/status` reports `standing`. Velocity input only;
+`/walk/step_length 0` still steps in place.
+
+**Pursuit hysteresis** (ball chase vision node): once stopped, walk again only
+beyond `stop_distance + resume_margin` (0.08 m); no yaw for a heading error up
+to `yaw_deadband_rad` (0.05), widened to `yaw_deadband_hold_rad` (0.12) once
+aligned.
+
+Offline, measured `ChainTiming`, 6 seeds each, no falls or faults in any:
+
+| | stepping in place (before) | stand |
+|---|---|---|
+| walk 0.06 m → stop, first 2 s | 3.5-7.7 cm forward, 4-5 steps | -0.1-2.7 cm, 0 steps |
+| next 8 s | 0.4-7.3 cm forward, up to 8.3 cm sideways, 19-20 steps | within ±2.7 cm forward (pelvis over the fixed feet), ≤ 0.1 cm sideways, 0 steps |
+| walk again 6 s (0.04 m, ±0.05 rad turns) | 42-50 cm | 47-57 cm |
+| max torso tilt | 8-12° | 8-13° |
+
+Toggling stand / walk every 1.5 s for 14 s: 6/6 no fall, 18 steps each.
+
+Chain, Jetson, camera chase on the GPU (8 runs: clean / `scene:=hard`, both
+detectors; one autostart timeout, not released): after arrival
+-0.2-+0.9 mm/s instead of +2.7-6.2 mm/s, final 0.53-0.58 m (before
+0.385-0.60), yaw command 0, approach 15-18.5 s, no fall or estop. A live
+`/walk/status` read showed `standing: true` with the robot at the ball.
+

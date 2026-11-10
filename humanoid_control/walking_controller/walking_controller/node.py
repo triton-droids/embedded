@@ -6,6 +6,9 @@ Commands: /walk/step_length (std_msgs/Float64, m per step; 0 = step in place),
 /walk/turn (std_msgs/Float64, rad per step, + = left; 0 = straight), or with
 cmd_vel_topic set a geometry_msgs/TwistStamped velocity (linear.x m/s,
 angular.z rad/s) converted per step; a stale velocity stops (step 0, turn 0).
+With velocity input, a command that stays at rest (no step, almost no turn)
+for cmd_vel_stand_after_s finishes the current step and stands in double
+support instead of stepping in place; any motion command walks again.
 Output: MotorCommand (MODE_MOTION) on /walk/desired_motor_subset, forwarded
 by cpp_control_node. Any fault sends DISABLE and latches; restart the node.
 """
@@ -97,6 +100,14 @@ class WalkingControllerNode(Node):
             # 22 to 8.5 deg (design doc section 20). 0, 0: off.
             'cmd_vel_turn_free_rad': 0.04,
             'cmd_vel_turn_stop_rad': 0.10,
+            # Stand still when the velocity command has been at rest this long
+            # (step < cmd_vel_rest_step_m and |turn| < cmd_vel_rest_turn_rad per
+            # step). Stepping in place drifted 3-6 mm/s forward in the ball chase,
+            # which only walks forward, so it crept up to the ball. 0 = never
+            # stand (step in place, the previous behaviour).
+            'cmd_vel_stand_after_s': 1.0,
+            'cmd_vel_rest_step_m': 0.005,
+            'cmd_vel_rest_turn_rad': 0.01,
         }
         for key, value in defaults.items():
             self.declare_parameter(key, value)
@@ -133,6 +144,7 @@ class WalkingControllerNode(Node):
         self.create_subscription(Float64, '/walk/step_length', self._on_step_length, 2)
         self.create_subscription(Float64, '/walk/turn', self._on_turn, 2)
         self.cmd_vel = None            # (step_length, turn, receipt monotonic)
+        self._rest_since = None        # monotonic time the velocity command came to rest
         if p['cmd_vel_topic']:
             self.create_subscription(TwistStamped, p['cmd_vel_topic'], self._on_cmd_vel, 2)
             self.create_timer(0.1, self._check_cmd_vel)
@@ -168,13 +180,34 @@ class WalkingControllerNode(Node):
             float(self.params['cmd_vel_turn_free_rad']), float(self.params['cmd_vel_turn_stop_rad']))
         self.cmd_vel = (step, turn, time.monotonic())
         self.controller.p.step_length_m, self.controller.p.turn_rad = self.cmd_vel[:2]
+        self._update_stand(step, turn)
+
+    def _update_stand(self, step, turn):
+        """Velocity input: stand after a while at rest, walk again on any motion."""
+        p, c, now = self.params, self.controller, time.monotonic()
+        if float(p['cmd_vel_stand_after_s']) <= 0.0:
+            return
+        if step < float(p['cmd_vel_rest_step_m']) and abs(turn) < float(p['cmd_vel_rest_turn_rad']):
+            if self._rest_since is None:
+                self._rest_since = now
+            elif now - self._rest_since >= float(p['cmd_vel_stand_after_s']) and not c.stop_requested:
+                c.p.step_length_m = c.p.turn_rad = 0.0
+                c.request_stop()
+                self.get_logger().info('Velocity command at rest: finishing the step, then standing')
+        else:
+            self._rest_since = None
+            if c.stop_requested:
+                c.resume()
+                self.get_logger().info('Velocity command: walking again')
 
     def _check_cmd_vel(self):
         """A velocity source that stops publishing stops the robot."""
         if self.cmd_vel is not None and time.monotonic() - self.cmd_vel[2] > self.params['cmd_vel_timeout_s']:
             self.cmd_vel = None
             self.controller.p.step_length_m = self.controller.p.turn_rad = 0.0
-            self.get_logger().warn('cmd_vel stale: stepping in place')
+            self.get_logger().warn('cmd_vel stale: stopping')
+        if self.cmd_vel is None:
+            self._update_stand(0.0, 0.0)
 
     def _on_turn(self, msg):
         if not np.isfinite(msg.data):
@@ -332,7 +365,7 @@ class WalkingControllerNode(Node):
             return {'mean': float(a.mean()), 'p99': float(np.percentile(a, 99)), 'max': float(a.max())}
         status = {'state': 'fault' if self.fault else c.phase, 'fault': self.fault,
                   'base_held': self.base_held, 'estop': self.estop, 'cycles': self.cycles,
-                  'step_length_m': c.p.step_length_m, 'turn_rad': c.p.turn_rad,
+                  'step_length_m': c.p.step_length_m, 'turn_rad': c.p.turn_rad, 'standing': bool(getattr(c, 'holding', False)),
                   'cmd_vel_active': self.cmd_vel is not None,
                   'contact_kp': float(self.params['contact_kp']),
                   'mixed_ticks': getattr(self, 'mixed_ticks', 0),
