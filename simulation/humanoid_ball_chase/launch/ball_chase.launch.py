@@ -42,6 +42,8 @@ def generate_launch_description():
                               description='controller:=model_walk: WBC contact task gain'),
         DeclareLaunchArgument('vision_target_timeout_s', default_value='1.0',
                               description='Maximum image/receipt age for CPU football inference; seconds'),
+        DeclareLaunchArgument('vision_model_path', default_value='',
+                              description='YOLO11 ONNX for ball detection (class 0 = ball); empty = assets/td-perception.onnx'),
         SetEnvironmentVariable('ROS_DOMAIN_ID', arg('ros_domain_id')),
         SetEnvironmentVariable('ROS_LOCALHOST_ONLY', '1'),
         IncludeLaunchDescription(PythonLaunchDescriptionSource(PathJoinSubstitution([
@@ -62,7 +64,8 @@ def generate_launch_description():
                 'remote_viewer_rate_hz': arg('remote_viewer_rate_hz'),
             }.items()),
         Node(package='humanoid_ball_chase', executable='ball_chase_vision', output='screen',
-             parameters=[{'target_timeout_s':ParameterValue(arg('vision_target_timeout_s'), value_type=float)}]),
+             parameters=[{'target_timeout_s':ParameterValue(arg('vision_target_timeout_s'), value_type=float),
+                         'model_path':ParameterValue(arg('vision_model_path'), value_type=str)}]),
         Node(package='humanoid_ball_chase', executable='ball_chase_astar',
              condition=IfCondition(arg('enable_astar')), output='screen'),
         Node(package='humanoid_vision', executable='track_node', name='pitch_tracker',

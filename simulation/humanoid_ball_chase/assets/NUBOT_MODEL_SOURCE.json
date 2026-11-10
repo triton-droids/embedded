@@ -1,0 +1,12 @@
+{
+  "source": "/home/rcli/Github/td_perception_camera/humanoid_vision/models/nubot-yolo.onnx",
+  "repository": "git@github.com:triton-droids/td_perception.git",
+  "commit": "6e200f307585f3be965294329e08e1b3c62981a8",
+  "sha256": "aa2de20c0143902dba8cc05acd10d366783cc38cbb3b6a1d56e89b9732f7525a",
+  "class_0": "ball",
+  "classes": 6,
+  "architecture": "YOLO11n (Ultralytics 8.3.160 export, 2025-07-02)",
+  "license_from_model_metadata": "AGPL-3.0 License (https://ultralytics.com/license)",
+  "runtime": "ONNX Runtime CPU; letterbox RGB 640x640; class-0 score >= 0.30; NMS IoU 0.45",
+  "usage": "ball_chase.launch.py vision_model_path:=<install share>/humanoid_ball_chase/assets/nubot-yolo.onnx"
+}

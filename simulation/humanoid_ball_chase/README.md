@@ -121,6 +121,17 @@ target, with confidence >= 0.30 and NMS IoU 0.45. Input is letterboxed RGB
 metadata's AGPL-3.0 license declaration. The orange HSV detector remains an
 explicit `orange_test` unit-test mode; it is not an automatic fallback.
 
+The six-class `nubot-yolo.onnx` (same YOLO11n format, class 0 = ball; source in
+`assets/NUBOT_MODEL_SOURCE.json`) is bundled as a non-default alternative:
+`vision_model_path:=$(ros2 pkg prefix humanoid_ball_chase)/share/humanoid_ball_chase/assets/nubot-yolo.onnx`.
+On the HSLVision test split (911 images, same decoder for both) its ball AP is
+0.50 / AP50 0.74 against 0.76 / 0.93 for td-perception, with 0.14 false balls
+per empty image at confidence 0.30 against 0. td-perception was trained on that
+dataset's train split, which favours it. In the simulated chase
+(`controller:=model_walk`, Jetson, 2026-11-09) both reach the ball and stop
+0.50-0.52 m in front of it (nubot: 3/3 released runs, no falls). Jetson CPU
+latency is the same, about 380 ms per frame on one thread.
+
 The scene uses a green pitch and a procedural black/white football (12 black
 pentagons, 20 white hexagons), with an invisible sphere collision shape. On the
 initial rendered green-pitch frame, the actual model detects the football at
