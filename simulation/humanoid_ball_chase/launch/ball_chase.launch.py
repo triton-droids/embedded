@@ -42,14 +42,21 @@ def generate_launch_description():
                               description='controller:=model_walk: WBC contact task gain'),
         DeclareLaunchArgument('vision_target_timeout_s', default_value='1.0',
                               description='Maximum image/receipt age for CPU football inference; seconds'),
+        DeclareLaunchArgument('scene', default_value='clean', choices=['clean', 'hard'],
+                              description='clean: ball on a plain pitch. hard: visual-only clutter (robots, '
+                                          'people, lines, goal, boards, shadows) plus camera blur/noise/'
+                                          'exposure/JPEG; physics unchanged'),
         DeclareLaunchArgument('vision_model_path', default_value='',
                               description='YOLO11 ONNX for ball detection (class 0 = ball); empty = assets/td-perception.onnx'),
         SetEnvironmentVariable('ROS_DOMAIN_ID', arg('ros_domain_id')),
         SetEnvironmentVariable('ROS_LOCALHOST_ONLY', '1'),
         IncludeLaunchDescription(PythonLaunchDescriptionSource(PathJoinSubstitution([
             FindPackageShare('humanoid_sim'), 'launch', 'sim.launch.py'])), launch_arguments={
-                'scene_builder': 'humanoid_ball_chase.scene:build_scene',
-                'sim_config_file': PathJoinSubstitution([FindPackageShare('humanoid_ball_chase'), 'config', 'scene.yaml']),
+                'scene_builder': PythonExpression(["'humanoid_ball_chase.scene:build_scene' + "
+                                                   "('_hard' if '", arg('scene'), "' == 'hard' else '')"]),
+                'sim_config_file': PathJoinSubstitution([
+                    FindPackageShare('humanoid_ball_chase'), 'config',
+                    PythonExpression(["'scene_hard.yaml' if '", arg('scene'), "' == 'hard' else 'scene.yaml'"])]),
                 'enable_vision': 'true', 'enable_depth': 'true', 'start_detector': 'false',
                 'vision_target_timeout_s': arg('vision_target_timeout_s'),
                 'use_viewer': arg('use_viewer'), 'auto_start': arg('auto_start'),

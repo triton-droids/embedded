@@ -86,6 +86,48 @@ Use `dds_tuning:=off` or `imu_split:=false` for controlled comparisons. These
 options do not relax the 250 ms safety IMU timeout or establish walking stability.
 WBC is not enabled: the current shared launch rejects WBC together with vision.
 
+### Harder perception scene (`scene:=hard`)
+
+```bash
+scripts/ball_chase_walk.sh scene:=hard
+```
+
+`scene:=hard` (`scene.py:build_scene_hard`, `config/scene_hard.yaml`) keeps
+the robot, ball, physics and start pose of the default scene and adds what the
+real HSLVision images show detectors missing:
+
+- a row of three red ~0.9 m robots 0.35-0.4 m behind the ball, two blue
+  robots further back, a person in jeans with white shoes beside the ball and
+  two more people further away;
+- white field lines through and next to the ball (goal line, box lines,
+  side line, penalty mark, a centre-circle arc), goal posts and crossbar,
+  coloured advertising boards, striped and speckled turf;
+- a low, shadow-casting sun;
+- camera effects (see `humanoid_sim/image_degradation.py`): motion blur
+  from the camera's actual angular velocity over a 30 ms exposure, slight
+  defocus, gain 1.2 with ±15 % per-frame exposure flicker, sensor noise
+  (σ = 5) and JPEG quality 45. Depth stays ideal.
+
+All added geometry is visual only (no collision, no mass), so locomotion and
+contacts are identical to the default scene; the clutter also appears in the
+depth image. The effects cost about 19 ms per 424x240 frame on the Jetson
+in GIL-releasing OpenCV calls.
+
+Chase runs on the Jetson (`controller:=model_walk`, 55 s each, 2026-11-09),
+per-frame vision status from `/ball_chase/status`:
+
+| model | released runs | reached ball (0.47-0.52 m) | frames with `detection_failed` |
+|---|---|---|---|
+| td-perception | 6/6 | 6/6 | 7-15 % |
+| nubot-yolo | 5/6 | 4/5 (one estop at 4 s: `command expired`, before the GIL fix) | 0 % |
+
+The ranking is the reverse of the real-image HSLVision result (see above):
+on six offline-rendered frames td-perception missed the two most blurred
+ones, and nubot-yolo was partly trained on rendered (NUpbr) images. More
+recall in this scene does not mean more recall on a real camera. Use this scene to exercise the
+chase loop under intermittent detections and clutter, not to choose a
+detector; rendered frames do not predict real-camera accuracy.
+
 ## Ball controls
 
 The football is radius 0.10 m, mass 0.20 kg, with a free joint, floor

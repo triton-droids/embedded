@@ -1,0 +1,28 @@
+mujoco_sim:
+  ros__parameters:
+    scene_nodes: humanoid_ball_chase.ball_control:create_nodes
+    foot_clearance_m: 0.02
+    settle_s: 2.0
+    pause_on_control_fault: true
+    camera_width: 424
+    camera_height: 240
+    camera_fovy_deg: 58.0
+    enable_target: false
+sim_camera:
+  ros__parameters:
+    rate_hz: 6.0  # CPU YOLO + GUI budget; inference still consumes only the newest frame.
+    enable_depth: true
+    publish_tf: true
+    base_forward_axis: positive_y
+    # scene:=hard camera effects (humanoid_sim/image_degradation.py).
+    degrade_exposure_s: 0.03       # 30 ms exposure: smear from head/torso rotation while walking
+    degrade_defocus_px: 0.6
+    degrade_exposure_gain: 1.2     # bright: white ball, lines and shoes clip
+    degrade_exposure_jitter: 0.15  # auto-exposure flicker per frame
+    degrade_noise_std: 5.0
+    degrade_jpeg_quality: 45
+    degrade_seed: 0
+sim_motor_backend:
+  ros__parameters:
+    telemetry_rate_hz: 5.0
+    monitor_rate_hz: 10.0

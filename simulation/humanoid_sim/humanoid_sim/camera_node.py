@@ -27,6 +27,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import CameraInfo, Image
 
 from . import model_builder as mb
+from .image_degradation import DegradationSettings, ImageDegrader
 from .world import SimWorld
 
 
@@ -62,6 +63,10 @@ class SimCameraNode(Node):
         self.declare_parameter('camera_info_topic', '/camera/camera/color/camera_info')
         self.declare_parameter('depth_topic', '/camera/camera/aligned_depth_to_color/image_raw')
         self.declare_parameter('publish_tf', False)
+        # Optional colour-image effects (image_degradation.py); defaults leave it unchanged.
+        defaults = DegradationSettings()
+        for name in DegradationSettings.names():
+            self.declare_parameter('degrade_' + name, getattr(defaults, name))
         self._tf = None
         if self.get_parameter('publish_tf').value:
             from tf2_ros import TransformBroadcaster
@@ -74,6 +79,13 @@ class SimCameraNode(Node):
         self._width, self._height = (int(v) for v in world.model.cam_resolution[camera])
         self._info = pinhole_info(self._width, self._height, float(world.model.cam_fovy[camera]),
                                   self._frame_id)
+        settings = DegradationSettings(**{
+            name: type(getattr(defaults, name))(self.get_parameter('degrade_' + name).value)
+            for name in DegradationSettings.names()})
+        self._degrader = ImageDegrader(settings, self._info.k[0])
+        self._camera_id = camera
+        if settings.enabled:
+            self.get_logger().warn(f'Colour image degradation enabled: {settings}')
         self.color_pub = self.create_publisher(Image, self.get_parameter('color_topic').value, 2)
         self.info_pub = self.create_publisher(
             CameraInfo, self.get_parameter('camera_info_topic').value, 2)
@@ -109,6 +121,12 @@ class SimCameraNode(Node):
                 if depth is not None:
                     depth.update_scene(self.world.data, camera=mb.HEAD_CAMERA)
                 stamp = self.get_clock().now().to_msg()
+                omega = None
+                if self._degrader.s.exposure_s > 0:
+                    velocity = np.zeros(6)
+                    mujoco.mj_objectVelocity(self.world.model, self.world.data, mujoco.mjtObj.mjOBJ_CAMERA,
+                                             self._camera_id, velocity, 1)
+                    omega = velocity[:3]
                 if self._tf is not None:
                     transform = self._camera_transform(stamp)
             if not rclpy.ok():
@@ -116,7 +134,7 @@ class SimCameraNode(Node):
             try:
                 if self._tf is not None:
                     self._tf.sendTransform(transform)
-                self._publish_color(color.render(), stamp)
+                self._publish_color(self._degrader.apply(color.render(), omega), stamp)
                 if depth is not None:
                     self._publish_depth(depth.render(), stamp)
                 self._info.header.stamp = stamp

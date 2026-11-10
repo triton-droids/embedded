@@ -125,6 +125,12 @@ control the running simulation are in
   yaw turns toward robot left. Geometry, mass and servo constants are
   placeholders.
 - **Camera**: ideal pinhole (no distortion), `fovy` 42.5°, 640×480, 15 Hz.
+  Optional colour-only effects (`sim_camera` parameters `degrade_exposure_s`,
+  `degrade_defocus_px`, `degrade_exposure_gain`, `degrade_exposure_jitter`,
+  `degrade_noise_std`, `degrade_jpeg_quality`, `degrade_seed`; see
+  `humanoid_sim/image_degradation.py`) add motion blur from the camera's
+  actual angular velocity, defocus, over-exposure and flicker, sensor noise
+  and JPEG artefacts. All are off by default; depth is never degraded.
 - **Time**: physics runs at real-time pace and every node uses wall-clock ROS
   time (no `/clock`), because the deployed nodes check input age and deadlines
   against host time. If the host cannot keep up, simulated time slows down and

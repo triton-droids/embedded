@@ -117,3 +117,24 @@ def test_camera_faces_toes_and_ball_is_in_front(model):
     assert np.dot(np.mean(lenses,axis=0)-housing,forward)>0
     camera=data.cam_xpos[model.camera('head_camera').id]
     assert np.dot(data.body('chase_ball').xpos-camera,forward)>0
+
+
+def test_hard_scene_adds_only_visual_clutter():
+    hybrid = REPO / 'humanoid_control/motor_control_hybrid'
+    limits = limits_from_registry(yaml.safe_load((hybrid/'config/motors.yaml').read_text())['motor_control_node']['ros__parameters'])
+    def build(builder):
+        return mb.build_model(mb.WorldOptions(
+            robot_xml=str(hybrid/'models/20260914_170827/chrobot_16kg_candidate.xml'),
+            mesh_dir=str(REPO/'humanoid_leg_description/meshes/robot_meshes'),
+            joint_torque_limits={name: lim.max_torque for name,lim in limits.items()},
+            camera_resolution=(424,240), camera_fovy_deg=58,
+            scene_builder='humanoid_ball_chase.scene:' + builder))
+    clean, hard = build('build_scene'), build('build_scene_hard')
+    assert hard.ngeom > clean.ngeom + 100
+    old = {clean.geom(i).name for i in range(clean.ngeom)}
+    added = [hard.geom(i) for i in range(hard.ngeom) if hard.geom(i).name not in old]
+    assert len(added) == hard.ngeom - clean.ngeom
+    assert all(g.contype[0] == 0 and g.conaffinity[0] == 0 for g in added)
+    assert hard.nbody == clean.nbody and hard.nv == clean.nv and hard.nu == clean.nu
+    assert np.allclose(hard.body_mass, clean.body_mass)
+    assert hard.light('low_sun').castshadow
