@@ -40,8 +40,8 @@ from sensor_msgs.msg import CameraInfo, Image
 from std_msgs.msg import Float32, String
 from tf2_ros import Buffer, TransformListener
 
-from humanoid_ball_chase import core, world_model
-from humanoid_ball_chase.tracking.tracker import BallTracker, COASTING, LOST, NO_TRACK
+from humanoid_ball_chase import core, kick, world_model
+from humanoid_ball_chase.tracking.tracker import BallTracker, COASTING, LOST, NO_TRACK, TRACKING
 
 
 class _FrameRejected(Exception):
@@ -129,6 +129,9 @@ class BallChaseVision(Node):
         self.declare_parameter('coast_turn_only_std_m', world_model.PlanConfig.coast_turn_only_std)
         self.declare_parameter('lead_time_s', world_model.PlanConfig.lead_s)
         self.declare_parameter('lead_speed', world_model.PlanConfig.lead_speed)
+        # Kick (world model only): near a still ball line a foot up, stand, request /walk/kick.
+        self.declare_parameter('kick', False)
+        self.declare_parameter('kick_walk_status_timeout_s', 1.5)
         tracker_defaults = world_model.tracker_config()
         tracker_cfg = world_model.tracker_config(**{
             k: self.declare_parameter(f'tracker.{k}', v).value for k, v in vars(tracker_defaults).items()})
@@ -145,6 +148,17 @@ class BallChaseVision(Node):
         self._friction = tracker_cfg.friction
         self._tracker = BallTracker(tracker_cfg)
         self._plan = world_model.NONE
+        self.kick_enabled = bool(self.get_parameter('kick').value) and self.world_model
+        self._kick = kick.KickApproach()
+        self._walk = kick.WalkState()
+        self._walk_timeout = float(self.get_parameter('kick_walk_status_timeout_s').value)
+        # The ball for the kick (odom xy, std): from fresh sightings until it is closer than
+        # kick_freeze_m, then frozen. Next to the feet the robot's legs hide it, partial views
+        # read several cm short and made the tracker think it rolled; odom carries the rest.
+        self.declare_parameter('kick_freeze_m', 0.45)
+        self._kick_freeze = float(self.get_parameter('kick_freeze_m').value)
+        self._kick_anchor = None
+        self._kick_frozen = False
         if not 0.0 <= self.ball_radius < 0.5 or not self.odom_frame:
             raise ValueError('need 0 <= ball_radius < 0.5 and a non-empty odom_frame')
         self.TARGET_TIMEOUT_S = float(self.get_parameter('target_timeout_s').value)
@@ -222,6 +236,9 @@ class BallChaseVision(Node):
         self.create_subscription(Float32, self.BLIND_TOPIC, self._on_blind, 2)
         self._status_publisher = self.create_publisher(
             String, self.STATUS_TOPIC, command_qos)
+        if self.kick_enabled:
+            self._kick_publisher = self.create_publisher(String, '/walk/kick', 2)
+            self.create_subscription(String, '/walk/status', self._on_walk_status, 2)
 
         # Sensor-data QoS (best effort, depth 5) matches the camera streams.
         self._color_subscriber = Subscriber(
@@ -379,14 +396,68 @@ class BallChaseVision(Node):
         except RCLError:
             pass  # Head aiming is best effort; the chase command path has its own fault latch.
 
+    def _on_walk_status(self, msg: String) -> None:
+        try:
+            data = json.loads(msg.data)
+        except ValueError:
+            return
+        with self._lock:
+            self._walk = kick.WalkState(bool(data.get('standing', False)), data.get('kick'),
+                                        int(data.get('kicks', 0) or 0), time.monotonic())
+
+    def _kick_decision(self, out, rotation, position, now_ros: float):
+        """Kick approach on the ball's estimated position (not the lead point), or None."""
+        if not self.kick_enabled:
+            return None
+        with self._lock:
+            walk = self._walk
+        if time.monotonic() - walk.stamp > self._walk_timeout:
+            walk = kick.WalkState()  # no walking controller status: never request a kick
+        def to_base(xy):
+            p = rotation @ np.array([xy[0], xy[1], self.ball_radius]) + position
+            return float(p[0]), float(p[1])
+
+        ball = pos_std = speed = None
+        if self._kick.state in ('chase', 'cooldown'):
+            self._kick_frozen = False
+        if out is not None and out.status in (TRACKING, COASTING):
+            ball = to_base(out.x[:2])
+            pos_std = math.sqrt(max(out.P[0, 0], out.P[1, 1], 0.0))
+            speed = float(math.hypot(out.x[2], out.x[3]))
+            if not self._kick_frozen and now_ros - out.last_seen <= self._plan_cfg.fresh_s:
+                self._kick_anchor = (np.array(out.x[:2], float), pos_std)
+        engaged = self._kick.state in ('approach', 'settle', 'kick')
+        if engaged and self._kick_anchor is not None:
+            anchor_base = to_base(self._kick_anchor[0])
+            if math.hypot(*anchor_base) < self._kick_freeze:
+                self._kick_frozen = True
+            if self._kick_frozen:
+                # A still ball: where it was seen last from a good distance, moved by odometry.
+                ball, pos_std, speed = anchor_base, self._kick_anchor[1], 0.0
+        d = self._kick.update(now_ros, ball, speed or 0.0, pos_std if pos_std is not None else math.inf, walk)
+        if d.kick_foot:
+            try:
+                self._kick_publisher.publish(String(data=d.kick_foot))
+                self.get_logger().info(f'Kick: {d.kick_foot} (ball at {ball[0]:.2f}, {ball[1]:.2f} m)')
+            except RCLError:
+                pass
+        return d if d.active else None
+
     def _world_command(self, out, now_ros: float) -> Tuple[float, float, "world_model.ChasePlan", str]:
         """Command from a tracker estimate: chase its point in base_frame at the current pose."""
         chase = world_model.plan(out, self._friction, self._plan_cfg, now_ros)
-        if chase.mode == "none":
+        if chase.mode == "none" and not (self.kick_enabled and self._kick.state != 'chase'):
+            if self.kick_enabled:
+                self._kick.update(now_ros, None, 0.0, math.inf, kick.WalkState())
             return 0.0, 0.0, chase, "no_confirmed_ball"
         try:
             rotation, position = self._lookup_transform(
                 self.base_frame, self.odom_frame, None, "odom_tf")
+            decision = self._kick_decision(out, rotation, position, now_ros)
+            if decision is not None:
+                return decision.vx, decision.wz, chase, "kick"
+            if chase.mode == "none":
+                return 0.0, 0.0, chase, "no_confirmed_ball"
             point = rotation @ np.array([chase.point_odom[0], chase.point_odom[1], self.ball_radius]) + position
             vx, wz = self._chase_command(point, np.eye(3), np.zeros(3))
         except _FrameRejected as exc:
@@ -803,6 +874,7 @@ class BallChaseVision(Node):
             "lead": chase.lead,
             "speed_scale": chase.speed_scale,
             "reason": reason,
+            "kick": self._kick.status() if self.kick_enabled else None,
         }
 
     def _status_locked(self, now_ros: float, now_monotonic: float,

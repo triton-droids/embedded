@@ -121,6 +121,40 @@ slip, joint offsets and gyro drift will be larger):
 | Still ball through the camera chain, in odom | spread 2 mm |
 | Chase with `odometry:=leg` (still / blind / push / circling 0.25 and 0.4 m/s) | same as ground truth: 10.6 s, 6.7 s, 43.8 s, never lost |
 
+## Kick (`/walk/kick`)
+
+`std_msgs/String` `left_foot` / `right_foot` kicks with that foot. The MPC and
+WBC are the walking ones; the kick is a step whose swing strikes forward:
+
+* **When.** At the next single support of the other foot. Standing: if the
+  feet are staggered more than `kick_square_m` (2 cm, relative to the start
+  stance) the back foot first steps up beside the front one; then a
+  `t_kick_ds` (0.4 s) double support moves the CoM to the stance foot.
+* **Swing** (`t_kick` 0.28 s): lift `kick_lift_m` (4 cm), strike forward
+  (min-jerk; peak ~1.3-1.7 m/s offline) to `kick_reach_m` (10 cm) ahead of
+  the spot beside the stance foot, land `kick_step_m` (6 cm) ahead, the foot
+  lowering only late. The MPC plans this single support like any other, with
+  its duration and landing point.
+* **After.** One more step squares the feet (standing on the staggered landing
+  crept forward and fell offline), then the robot stands, or walks on with a
+  velocity command. `/walk/status` reports `kick` (requested / armed /
+  kicking) and `kicks`.
+
+The legs have no ankle roll, so single support cannot last: a 0.5 s single
+support tips over offline, 0.35 s fell with the Jetson ROS-chain timing, and
+the torso still rolls 10-25 deg during the 0.28 s kick. Joint speeds reach
+5-8 rad/s, above the 4.5 rad/s motor limit (the simulator does not enforce
+it). Offline (`tools/kick_eval.py`, `test/test_kick.py`, Jetson chain timing):
+
+| Case | Result |
+|---|---|
+| Standing, ball 0.215 m ahead of the kicking sole, 13 runs (seeds, both feet, ball 0.12-0.26 m ahead, +-6 cm sideways) | no falls; ball 1.2-1.6 m/s, 2.7-4.2 m |
+| Walk, stop, kick (feet staggered), 10 runs | 8 kicked (1.2-1.6 m/s), 2 right-foot kicks fell |
+| Kick out of walking (no stop) | about half fell: not supported |
+
+Note the model's `left_foot` is on the robot's right (negative y in
+`base_link`) and `right_foot` on its left.
+
 ## How it works
 
 Measured first on the RL gait (it already walks on this robot): ~48 % double

@@ -9,6 +9,9 @@ angular.z rad/s) converted per step; a stale velocity stops (step 0, turn 0).
 With velocity input, a command that stays at rest (no step, almost no turn)
 for cmd_vel_stand_after_s finishes the current step and stands in double
 support instead of stepping in place; any motion command walks again.
+Kick: /walk/kick (std_msgs/String, left_foot / right_foot) kicks with that
+foot at its next swing (standing: after shifting onto the other foot); the
+kick state is in /walk/status ('kick', 'kicks').
 Output: MotorCommand (MODE_MOTION) on /walk/desired_motor_subset, forwarded
 by cpp_control_node. Any fault sends DISABLE and latches; restart the node.
 """
@@ -150,6 +153,7 @@ class WalkingControllerNode(Node):
         self.create_subscription(Bool, '/safety/estop', self._on_estop, safety)
         self.create_subscription(Float64, '/walk/step_length', self._on_step_length, 2)
         self.create_subscription(Float64, '/walk/turn', self._on_turn, 2)
+        self.create_subscription(String, '/walk/kick', self._on_kick, 2)
         self.cmd_vel = None            # (step_length, turn, receipt monotonic)
         self._rest_since = None        # monotonic time the velocity command came to rest
         if p['cmd_vel_topic']:
@@ -215,6 +219,14 @@ class WalkingControllerNode(Node):
             self.get_logger().warn('cmd_vel stale: stopping')
         if self.cmd_vel is None:
             self._update_stand(0.0, 0.0)
+
+    def _on_kick(self, msg):
+        try:
+            self.controller.request_kick(msg.data)
+        except ValueError as exc:
+            self.get_logger().warn(f'Kick ignored: {exc}')
+            return
+        self.get_logger().info(f'Kick requested: {msg.data}')
 
     def _on_turn(self, msg):
         if not np.isfinite(msg.data):

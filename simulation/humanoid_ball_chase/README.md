@@ -243,6 +243,17 @@ for ball motion, and the estimate survives frames without a detection.
   kinematics, what the robot has) publishes `odom → base_footprint →
   base_link` instead; the chase results are the same (see
   `humanoid_control/walking_controller/README.md`, "Leg odometry").
+* **Kick** (`kick:=true`, needs `controller:=model_walk`; `kick.py`). Within
+  0.9 m of a still ball the chase hands over to a slow approach that turns
+  until the ball sits ahead of the foot on its side, walks up until the ball is
+  about 0.19 m ahead of `base_link` (the kick window is 0.18-0.29 m true; the
+  estimate reads 4-7 cm short at this range), waits for the walking
+  controller to stand, sends `/walk/kick`, then holds 2 s and chases again.
+  The ball position is frozen in odom once it is within 0.45 m: next to the
+  feet the robot's own legs hide it, and partial views made the tracker think
+  it rolled. `/ball_chase/status` `world_model.kick` has the state, foot,
+  attempts and kicks. Jetson, still ball (2026-11-11): 4 of 4 runs kicked it
+  on the first attempt (2.6-9.8 m on this low-friction floor), no falls.
 * Test hook: `ros2 topic pub --once /ball_chase/debug/blind std_msgs/msg/Float32 '{data: 1.5}'`
   ignores detections for 1.5 s, like an occlusion.
 

@@ -51,6 +51,9 @@ def generate_launch_description():
                               description='Source of odom -> base_footprint -> base_link: ground_truth '
                                           '(sim_odom_tf) or leg (walking_controller leg_odometry: body IMU '
                                           'attitude + stance-foot kinematics, what the robot has)'),
+        DeclareLaunchArgument('kick', default_value='false', choices=['true', 'false'],
+                              description='Near a still ball line a foot up, stand and kick it (/walk/kick; '
+                                          'needs controller:=model_walk and world_model:=true)'),
         DeclareLaunchArgument('walk_max_step_m', default_value='0.08',
                               description='controller:=model_walk: step cap per 0.5 s step (m; node max 0.10)'),
         DeclareLaunchArgument('walk_max_turn_rad', default_value='0.15',
@@ -100,6 +103,7 @@ def generate_launch_description():
                          'model_path':ParameterValue(arg('vision_model_path'), value_type=str),
                          'device':ParameterValue(arg('vision_device'), value_type=str),
                          'world_model':ParameterValue(arg('world_model'), value_type=bool),
+                         'kick':ParameterValue(arg('kick'), value_type=bool),
                          # Measured in this scene (2026-11-10): the MuJoCo ball's speed decays at
                          # ~0.06/s, far less than turf (~0.4/s, the tracker default).
                          'tracker.friction':0.06}]),

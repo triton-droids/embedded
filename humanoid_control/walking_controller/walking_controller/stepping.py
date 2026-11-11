@@ -14,6 +14,12 @@ re-anchor the schedule.
   SS: stance foot flat (reference with its roll/pitch removed), swing foot
   follows a lift / move / land trajectory to its next foothold.
 - Footholds: stepping in place, or a forward step length per step.
+- Kick (request_kick): the next single support of the other foot becomes a
+  kick swing (lift, wind up, strike forward through the ball, land
+  kick_step_m ahead), after a longer double support. The legs have no ankle
+  roll, so single support cannot last much longer than a walking step
+  (offline, 0.5 s tips over): the kick is a fast step. The MPC plans it like
+  any single support, with the kick's duration and landing spot.
 """
 from __future__ import annotations
 
@@ -63,6 +69,23 @@ class StepParams(GaitParams):
     mpc_dt: float = 0.04
     mpc_horizon: int = 25
     mpc_weights: MPCWeights = field(default_factory=MPCWeights)
+    # Kick (request_kick). Swing foot positions along the walking direction,
+    # relative to the stance foot's nominal partner spot (beside it).
+    t_kick_ds: float = 0.4         # double support before the kick
+    t_kick: float = 0.28           # kick single support (0.35+ tips over with ROS-chain timing)
+    kick_windup_m: float = 0.0     # wind-up point behind the spot
+    kick_reach_m: float = 0.10     # follow-through point ahead of the spot
+    kick_step_m: float = 0.06      # landing point ahead of the spot
+    kick_lift_m: float = 0.04      # foot height during the strike
+    kick_windup_end: float = 0.25  # fractions of t_kick: wind-up done,
+    kick_strike_end: float = 0.65  # strike done (peak foot speed halfway), then to the landing point
+    kick_lower_from: float = 0.4   # fraction of the last segment the foot stays up
+    # Standing with the feet staggered more than this, the back foot first steps up beside the
+    # front one (offline after a walk and stop, ~6 cm stagger: back-foot kicks fell 2 of 3).
+    kick_square_m: float = 0.02
+    # True: lateral CoM reference over the stance foot during the kick (a long
+    # single support); False: as walking (sway about the middle).
+    kick_hold_com: bool = False
 
 
 class SteppingController(GaitController):
@@ -74,6 +97,20 @@ class SteppingController(GaitController):
         self.stop_requested = False
         self.holding = False
         self._resume_requested = False
+        self.kick_request = None        # foot to kick with (request_kick)
+        self.kick_armed = None          # the coming lift-off is this foot's kick
+        self.kicking = False
+        self.kick_settle = False        # one more step after a kick before standing
+        self.kick_squared = False       # this request already squared the feet
+        self.kicks = 0
+
+    def request_kick(self, foot):
+        """Kick with `foot` at the next single support of the other foot (standing: now)."""
+        if foot not in FEET:
+            raise ValueError(f'unknown foot {foot!r}')
+        if self.kick_armed is None and not self.kicking:
+            self.kick_request = foot
+            self.kick_squared = False
 
     def request_stop(self):
         """Finish the current step, then stand in double support (no stepping in place)."""
@@ -102,6 +139,8 @@ class SteppingController(GaitController):
         self.nominal_offset = {f: self.footholds[other(f)].actInv(self.footholds[f]) for f in FEET}
         self.sole_offset = {f: self.rm.sole_center(f) - self.rm.frame(f).translation for f in FEET}
         self.half_len = {f: self._sole_extent(f) for f in FEET}
+        # Nominal forward offset of the left sole centre ahead of the right one (start stance).
+        self.stagger0 = float((self._foothold_center(FEET[0]) - self._foothold_center(FEET[1])) @ self.fwd_axis)
         self.lean = None
         self.steps = 0
         self.stance = None              # stance foot during SS; next stance during DS
@@ -150,18 +189,25 @@ class SteppingController(GaitController):
         phase, start, dur = self.gphase, self.t_gphase, self.t_dur
         stance = self.stance if self.gphase == SS else self.next_stance
         nxt = stance
-        if self.stop_requested and phase == DS:
+        kick_next = self.kick_armed is not None and self.gphase == DS
+        settle = self.kick_settle and self.gphase == DS
+        in_kick = self.kicking
+        self.kick_intervals = np.zeros(p.mpc_horizon, dtype=bool)  # inside a kick single support
+        if self.stop_requested and phase == DS and not (kick_next or settle):
             phase, dur = HOLD, math.inf
         for k in range(p.mpc_horizon):
             tk = t + (k + 0.5) * p.mpc_dt
             while tk > start + dur:
                 start += dur
                 if phase == DS:
-                    phase, dur = SS, p.t_ss
+                    phase, dur = SS, (p.t_kick if kick_next else p.t_ss)
+                    in_kick, kick_next = kick_next, False
                 else:
+                    in_kick = False
                     phase, dur, nxt = DS, p.t_ds, other(nxt)
                     if self.stop_requested:          # the current swing is the last one
                         phase, dur = HOLD, math.inf
+            self.kick_intervals[k] = in_kick and phase == SS
             seq.append((phase, nxt))
         return seq
 
@@ -182,11 +228,17 @@ class SteppingController(GaitController):
             centers[swing] = self._coords(self._sole_center(swing, self.swing_target))
         width = {f: centers[f][0] for f in FEET}
         prev_phase = seq[0][0]
+        kick_next = self.kick_armed is not None and self.gphase == DS
+        settle = self.kick_settle and self.gphase == DS
         for k, (phase, foot) in enumerate(seq):
             if k and prev_phase == 'ds' and phase == 'ss':
-                # A planned lift-off of other(foot): it lands one step ahead.
+                # A planned lift-off of other(foot): it lands one step ahead (a kick
+                # kick_step_m ahead, a settle step beside the stance foot).
                 swing = other(foot)
-                centers[swing] = np.array([width[swing], centers[foot][1] + p.step_length_m])
+                length = p.kick_step_m if kick_next else 0.0 if settle else p.step_length_m
+                settle = False
+                kick_next = False
+                centers[swing] = np.array([width[swing], centers[foot][1] + length])
             prev_phase = phase
             hl, toe, heel = self.half_len[foot]
             if phase == 'ss':
@@ -213,14 +265,35 @@ class SteppingController(GaitController):
         forces = self.forces
 
         # ---- stand / resume requests
-        if self._resume_requested:
+        if self._resume_requested and self.kick_armed is None and not self.kicking:
             self._resume_requested = self.stop_requested = False
             if self.holding:
                 self.holding = False
                 self.lean = None                     # re-choose contact modes from the CoM side
                 self._begin(DS, t, p.t_ds)           # full DS (with unloading) before lifting off
                 self.events.append({'t': t, 'event': 'resume'})
-        if self.stop_requested and self.gphase == DS and not self.holding:
+        if self.kick_request is not None and self.holding:
+            self.holding = False
+            self.lean = None
+            # Stagger relative to the nominal stance (which itself need not be square).
+            fwd = {f: self._coords(self._foothold_center(f))[1] for f in FEET}
+            dev = (fwd[FEET[0]] - fwd[FEET[1]]) - self.stagger0
+            front = FEET[0] if dev > 0 else FEET[1]
+            if abs(dev) > p.kick_square_m and not self.kick_squared:
+                self.kick_squared = True   # at most one squaring step per request
+                # Square the feet first: the back foot steps up beside the front one. If that
+                # leaves the kicking foot as the swing foot, the kick is armed at its touchdown
+                # (_touchdown); otherwise the robot stands again and the next cycle arms it.
+                self.next_stance = front
+                self.kick_settle = True
+                self.events.append({'t': t, 'event': 'kick_square', 'stance': front})
+                self._begin(DS, t, p.t_ds)
+            else:
+                # Standing: shift onto the other foot, then kick.
+                self.next_stance = other(self.kick_request)
+                self._arm_kick(t)
+        if (self.stop_requested and self.gphase == DS and not self.holding and self.kick_armed is None
+                and not self.kick_settle):
             self.holding = True
             self.events.append({'t': t, 'event': 'hold'})
 
@@ -232,7 +305,7 @@ class SteppingController(GaitController):
         elif self.gphase == SS:
             swing = other(self.stance)
             s = elapsed / self.t_dur
-            if (s > 0.6 and forces[FEET.index(swing)] > p.touchdown_force_n) or \
+            if (s > (0.9 if self.kicking else 0.6) and forces[FEET.index(swing)] > p.touchdown_force_n) or \
                (s >= 1.0 and self._swing_height(swing) < 0.003):
                 self._touchdown(t, q)
             elif elapsed > self.t_dur + p.touchdown_timeout_s:
@@ -272,8 +345,11 @@ class SteppingController(GaitController):
         # ---- MPC
         seq = self._plan(t)
         lo, hi, ref = self._bounds(seq)
+        # Walking sways the CoM about the middle (lateral CoM reference 0); a
+        # kick keeps it over the stance foot for the whole long single support.
+        c_lat = np.where(self.kick_intervals & bool(p.kick_hold_com), ref[:, 0], 0.0)
         p_lat = self.mpc_lat.solve([c2[0], v2[0]], ref[:, 0], lo[:, 0], hi[:, 0],
-                                   c_ref=np.zeros(p.mpc_horizon), p_prev=self.p_prev[0])
+                                   c_ref=c_lat, p_prev=self.p_prev[0])
         p_fwd = self.mpc_fwd.solve([c2[1], v2[1]], ref[:, 1], lo[:, 1], hi[:, 1],
                                    c_ref=ref[:, 1], p_prev=self.p_prev[1])
         p0 = np.array([p_lat[0], p_fwd[0]])
@@ -296,6 +372,8 @@ class SteppingController(GaitController):
                             'next': self.next_stance,
                             'lat': float(c2[0]), 'fwd': float(c2[1]), 'v_lat': float(v2[0]),
                             'cop_lat': float(p0[0]), 'lean': self.lean, 'steps': self.steps,
+                            'kick': ('kicking' if self.kicking else 'armed' if self.kick_armed else
+                                     'requested' if self.kick_request else None), 'kicks': self.kicks,
                             'forces': result.forces, 'com_z': float(com[2])})
         return self._sample_command(result, joints, rates)
 
@@ -315,7 +393,10 @@ class SteppingController(GaitController):
         self.lean = None
         self.stance = stance
         self.swing_start = self.rm.data.oMf[self.rm.frame_id[swing]].copy()
-        self.step_turn = float(p.turn_rad)
+        self.kicking = self.kick_armed == swing
+        self.kick_armed = None
+        settle_step, self.kick_settle = self.kick_settle, False
+        self.step_turn = 0.0 if self.kicking else float(p.turn_rad)
         self.frame_turn = 0.0
         self.turning = self.turning or bool(self.step_turn)
         if self.turning:
@@ -338,7 +419,9 @@ class SteppingController(GaitController):
             Rz = pin.rpy.rpyToMatrix(0.0, 0.0, self.step_turn)
             pivot = level.translation
             target = pin.SE3(Rz, pivot - Rz @ pivot) * target
-        target.translation = target.translation + p.step_length_m * self.fwd_axis
+        length = p.kick_step_m if self.kicking else 0.0 if settle_step else p.step_length_m
+        target.translation = target.translation + length * self.fwd_axis
+        self.kick_spot = (target.translation - p.kick_step_m * self.fwd_axis) if self.kicking else None
         self.swing_target = target
         if self.turning:
             self.p_prev = self._coords(cop)
@@ -346,8 +429,14 @@ class SteppingController(GaitController):
         # the last turn) to the target; 0 for straight walking.
         self.swing_yaw = (self._wrap(self._yaw(target) - self._yaw(self.swing_start))
                           if self.turning else 0.0)
-        self.events.append({'t': t, 'event': 'lift', 'stance': stance})
-        self._begin(SS, t, p.t_ss)
+        self.events.append({'t': t, 'event': 'kick' if self.kicking else 'lift', 'stance': stance})
+        self._begin(SS, t, p.t_kick if self.kicking else p.t_ss)
+
+    def _arm_kick(self, t):
+        """The coming lift-off (other(next_stance)) is the kick; a longer DS before it."""
+        self.kick_armed, self.kick_request = self.kick_request, None
+        self.events.append({'t': t, 'event': 'kick_armed', 'foot': self.kick_armed})
+        self._begin(DS, t, self.p.t_kick_ds)
 
     def _turn_frame(self, angle, pivot):
         """Rotate the walking frame (MPC axes and origin) by `angle` about the
@@ -384,13 +473,63 @@ class SteppingController(GaitController):
         self.wbc.set_mode(self.stance, FLAT, q)
         self.lean = None
         self.next_stance = swing
+        if self.kicking:
+            self.kicking = False
+            self.kicks += 1
+            self.events[-1]['kick'] = True
+            # The kick lands ahead (feet staggered, often not quite flat): standing
+            # there crept forward and fell offline; one more step squares the feet.
+            self.kick_settle = True
         self._begin(DS, t, self.p.t_ds)
+        if self.kick_request is not None and other(self.next_stance) == self.kick_request:
+            self._arm_kick(t)
 
     def _swing_height(self, foot):
         return float(self.rm.sole_points(foot)[2].min() - self.ground_z)
 
+    def _kick_reference(self, t):
+        """Kick swing: start -> wind-up (behind, lifted) -> follow-through (ahead,
+        lifted) -> landing spot, min-jerk per segment; the foot keeps its
+        landing orientation."""
+        p = self.p
+        swing = other(self.stance)
+        T = self.t_dur
+        s = (t - self.t_gphase) / T
+        land, spot = self.swing_target.translation, self.kick_spot
+        up = np.array([0.0, 0.0, p.kick_lift_m])
+        windup = spot - p.kick_windup_m * self.fwd_axis + up
+        follow = spot + p.kick_reach_m * self.fwd_axis + up
+        segments = ((0.0, p.kick_windup_end, self.swing_start.translation, windup),
+                    (p.kick_windup_end, p.kick_strike_end, windup, follow),
+                    (p.kick_strike_end, 1.0, follow, land))
+        for s0, s1, a, b in segments:
+            if s <= s1 or s1 == 1.0:
+                break
+        Ts = T * (s1 - s0)
+        u = (s - s0) / (s1 - s0)
+        m, dm, ddm = min_jerk(u)
+        pos, vel, acc = a + m * (b - a), dm / Ts * (b - a), ddm / Ts**2 * (b - a)
+        if s1 == 1.0:
+            # To the landing point: horizontal first, the foot lowers late
+            # (lowered with the horizontal motion it caught the floor ahead).
+            f = p.kick_lower_from
+            Tz = Ts * (1.0 - f)
+            mz, dmz, ddmz = min_jerk((u - f) / (1.0 - f))
+            pos[2], vel[2], acc[2] = a[2] + mz * (b[2] - a[2]), dmz / Tz * (b[2] - a[2]), ddmz / Tz**2 * (b[2] - a[2])
+        if s >= 1.0:
+            late = t - self.t_gphase - T
+            pos, vel, acc = land.copy(), np.zeros(3), np.zeros(3)
+            pos[2] = land[2] - 0.05 * late
+            vel[2] = -0.05
+        self.kick_ref = pos.copy()
+        self.kick_foot_velocity = float(vel @ self.fwd_axis)
+        self.wbc.set_swing_reference(swing, pin.SE3(self.swing_target.rotation, pos),
+                                     np.concatenate([vel, np.zeros(3)]), np.concatenate([acc, np.zeros(3)]))
+
     def _swing_reference(self, t):
         p = self.p
+        if self.kicking:
+            return self._kick_reference(t)
         swing = other(self.stance)
         T = self.t_dur
         s = min(max((t - self.t_gphase) / T, 0.0), 1.0)
