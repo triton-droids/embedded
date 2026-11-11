@@ -47,6 +47,10 @@ def generate_launch_description():
         # (~0.15 s image latency) and the world model the heading loop no longer limit-cycles at
         # 0.15 rad/step; 2026-11-10 Jetson runs: no falls, ball circling at 0.4 m/s kept in view.
         # With vision_device:=cpu (0.4 s+ latency) use 0.06 / 0.08.
+        DeclareLaunchArgument('odometry', default_value='ground_truth', choices=['ground_truth', 'leg'],
+                              description='Source of odom -> base_footprint -> base_link: ground_truth '
+                                          '(sim_odom_tf) or leg (walking_controller leg_odometry: body IMU '
+                                          'attitude + stance-foot kinematics, what the robot has)'),
         DeclareLaunchArgument('walk_max_step_m', default_value='0.08',
                               description='controller:=model_walk: step cap per 0.5 s step (m; node max 0.10)'),
         DeclareLaunchArgument('walk_max_turn_rad', default_value='0.15',
@@ -84,6 +88,7 @@ def generate_launch_description():
                                                         "' == 'model_walk' else ''"]),
                 'walk_contact_kp': arg('walk_contact_kp'),
                 'walk_max_step_m': arg('walk_max_step_m'), 'walk_max_turn_rad': arg('walk_max_turn_rad'),
+                'odom_tf_robot': PythonExpression(["'true' if '", arg('odometry'), "' == 'ground_truth' else 'false'"]),
                 'ros_domain_id': arg('ros_domain_id'), 'web_port': arg('web_port'),
                 'dds_tuning': arg('dds_tuning'), 'imu_split': arg('imu_split'),
                 'remote_viewer': arg('remote_viewer'), 'remote_viewer_host': arg('remote_viewer_host'),
@@ -98,6 +103,9 @@ def generate_launch_description():
                          # Measured in this scene (2026-11-10): the MuJoCo ball's speed decays at
                          # ~0.06/s, far less than turf (~0.4/s, the tracker default).
                          'tracker.friction':0.06}]),
+        Node(package='walking_controller', executable='leg_odometry', prefix='python3', output='screen',
+             condition=IfCondition(PythonExpression(["'", arg('odometry'), "' == 'leg'"])),
+             parameters=[{'base_forward_axis': 'positive_y'}]),
         Node(package='humanoid_ball_chase', executable='ball_chase_astar',
              condition=IfCondition(arg('enable_astar')), output='screen'),
         Node(package='humanoid_vision', executable='track_node', name='pitch_tracker',

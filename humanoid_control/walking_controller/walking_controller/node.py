@@ -34,6 +34,7 @@ from std_msgs.msg import Bool, Float64, String
 from motor_control_interfaces.msg import MotorCommand
 
 from .gait import FAULT
+from .stepping import SS
 from .robot import FEET, RobotModel, load_limits
 from .velocity import step_command
 from .stepping import StepParams, SteppingController
@@ -136,6 +137,12 @@ class WalkingControllerNode(Node):
                             durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.output = self.create_publisher(MotorCommand, p['output_topic'], stream)
         self.status_pub = self.create_publisher(String, '/walk/status', 2)
+        # Stance foot at the start of each single-support phase (left_foot / right_foot), latched:
+        # the swing foot clears the floor by only ~1 cm, so kinematics alone cannot tell (leg_odometry).
+        self.stance_pub = self.create_publisher(
+            String, '/walk/stance', QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
+                                               durability=DurabilityPolicy.TRANSIENT_LOCAL))
+        self._published_stance = None
         self.create_subscription(JointState, '/joint_states', self._on_joints, sensors)
         self.create_subscription(Odometry, '/sim/ground_truth/odom', lambda m: self._store('odom', m), sensors)
         self.create_subscription(JointState, '/sim/ground_truth/feet', self._on_feet, sensors)
@@ -337,6 +344,7 @@ class WalkingControllerNode(Node):
         if command is None or self.controller.phase == FAULT:
             self._fail(f'Controller fault: {self.controller.fault}')
             return
+        self._publish_stance()
         cycle = time.monotonic() - begin
         self.cycle_ms.append(cycle * 1e3)
         if cycle > self.params['max_cycle_s']:
@@ -357,6 +365,16 @@ class WalkingControllerNode(Node):
             self._fail(f'Command publication failed: {error}')
             return
         self.cycles += 1
+
+    def _publish_stance(self):
+        c = self.controller
+        stance = getattr(c, 'stance', None) if getattr(c, 'gphase', None) == SS else None
+        if stance is not None and stance != self._published_stance:
+            self._published_stance = stance
+            try:
+                self.stance_pub.publish(String(data=stance))
+            except RCLError:
+                pass  # Diagnostic/odometry input only; the motor command path has its own checks.
 
     def _publish_status(self):
         c = self.controller

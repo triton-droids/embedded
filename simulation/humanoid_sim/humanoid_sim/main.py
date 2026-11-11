@@ -363,9 +363,10 @@ def main(args=None) -> None:
         if control.get_parameter('enable_camera').value:
             nodes.append(SimCameraNode(world))
     control.declare_parameter('enable_odom_tf', False)
+    control.declare_parameter('odom_tf_robot', True)  # false: only world -> odom (leg odometry runs)
     if control.get_parameter('enable_odom_tf').value:
         from .odom_tf_node import SimOdomTfNode
-        nodes.append(SimOdomTfNode(world))
+        nodes.append(SimOdomTfNode(world, bool(control.get_parameter('odom_tf_robot').value)))
 
     mirror = viewer = None
     remote = None

@@ -238,6 +238,11 @@ for ball motion, and the estimate survives frames without a detection.
 * `/ball_chase/status` adds `world_model` (tracker status, odom position,
   velocity, σ, time since seen, chase mode/point); `state` is then
   `tracking`, `coasting`, or the tracker status.
+* **Odometry.** `odometry:=ground_truth` (default) or `odometry:=leg`: the
+  walking controller package's `leg_odometry` (body IMU attitude + stance-foot
+  kinematics, what the robot has) publishes `odom → base_footprint →
+  base_link` instead; the chase results are the same (see
+  `humanoid_control/walking_controller/README.md`, "Leg odometry").
 * Test hook: `ros2 topic pub --once /ball_chase/debug/blind std_msgs/msg/Float32 '{data: 1.5}'`
   ignores detections for 1.5 s, like an occlusion.
 

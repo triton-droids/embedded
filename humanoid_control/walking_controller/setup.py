@@ -10,5 +10,6 @@ setup(
     install_requires=['setuptools'], zip_safe=True,
     maintainer='Triton Droids', maintainer_email='rul039@ucsd.edu', license='MIT',
     description='Model-based LIPM MPC + TSID walking controller for the simulation stack',
-    entry_points={'console_scripts': ['walking_controller = walking_controller.node:main']},
+    entry_points={'console_scripts': ['walking_controller = walking_controller.node:main',
+                                      'leg_odometry = walking_controller.leg_odometry_node:main']},
 )

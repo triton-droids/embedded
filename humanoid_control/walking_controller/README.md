@@ -7,7 +7,9 @@ torques. Simulation only (uses MuJoCo ground truth for base and feet).
 **Status (2026-11-09): stands, steps in place, walks forward with a
 variable step length and turns (in place or on an arc) in the offline loop
 and the full ROS chain.** Not yet done: larger steps (> 0.10 m commanded),
-push recovery while walking, side steps, a state estimator for hardware.
+push recovery while walking, side steps, a state estimator for hardware
+(`leg_odometry` below gives the ball tracker its odometry; this controller
+itself still needs base pose, velocity and foot contacts on hardware).
 
 ```
 /joint_states, /sim/ground_truth/{odom,feet}, /sim/status, /safety/estop, /walk/step_length, /walk/turn
@@ -80,6 +82,44 @@ offline stand / step in place / walk, realised step length (≥ 0.85 of 0.05 m),
 state prediction, turning (both ways, 90°+ in place, arc, walking after a
 160° turn; slow: chase pattern and 49 s continuous turns), and the latency limit (15 and 20 ms walk 49 s; 30 ms is
 a strict xfail, so an improvement shows up as a failure to update).
+
+## Leg odometry (`leg_odometry`)
+
+Short-horizon odometry from sensors the robot has, for consumers such as the
+ball tracker (not yet for this controller, which still reads ground truth):
+
+```
+/imu/data_raw (body IMU attitude) + /joint_states + /walk/stance
+  → leg_odometry → odom → base_footprint → base_link (/tf), /odom
+```
+
+* Attitude from the IMU orientation (BNO085 Game Rotation Vector: yaw relative
+  to power-on, slow gyro drift). `imu_to_body_rpy` if the IMU is not aligned
+  with the base body.
+* Position: the stance foot does not move, so the base is at
+  `anchor - foot(base)` (forward kinematics of the Pinocchio model, rotated
+  by the IMU attitude); when the other foot becomes the stance foot its
+  current floor position is the new anchor. Flat floor (anchors at z = 0).
+* Stance foot: `/walk/stance` (latched `std_msgs/String`), which this node
+  publishes at the start of each single-support phase. The swing foot clears
+  the floor by only ~1 cm, so foot heights alone miss most steps (4 of ~30
+  offline); without `/walk/stance` the lower foot with a 1 cm margin is used.
+* Same frames and topics as the simulator's ground-truth `sim_odom_tf`; odom
+  starts at the first footprint pose. `ball_chase.launch.py odometry:=leg`
+  runs it in place of ground truth (`sim_odom_tf` then publishes only
+  `world → odom`, for evaluation).
+
+Dead reckoning: error grows with distance and IMU drift; it is meant for the
+seconds a tracker coasts, not for localization. Simulation results
+(2026-11-10; the simulated IMU and encoders are ideal, so a real robot's foot
+slip, joint offsets and gyro drift will be larger):
+
+| Test | Result |
+|---|---|
+| Offline arc walk 15 s, 41 stance switches (`test/test_leg_odometry.py`) | final error 3.5 cm, max 3.7 cm |
+| Ball chase on Jetson, 50 s, 1.0 m walked, TF vs ground truth | 1.5 cm mean, 2.6 cm max; yaw 7 mrad max; 41 Hz |
+| Still ball through the camera chain, in odom | spread 2 mm |
+| Chase with `odometry:=leg` (still / blind / push / circling 0.25 and 0.4 m/s) | same as ground truth: 10.6 s, 6.7 s, 43.8 s, never lost |
 
 ## How it works
 

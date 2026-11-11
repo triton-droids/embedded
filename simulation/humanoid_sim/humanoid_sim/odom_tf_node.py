@@ -49,8 +49,11 @@ def _transform(T: np.ndarray, parent: str, child: str, stamp) -> TransformStampe
 
 class SimOdomTfNode(Node):
 
-    def __init__(self, world: SimWorld) -> None:
+    def __init__(self, world: SimWorld, publish_robot: bool = True) -> None:
         super().__init__('sim_odom_tf')
+        # False: another odometry source (e.g. walking_controller leg_odometry) publishes
+        # odom -> base_footprint -> base_link; only world -> odom comes from here (evaluation).
+        self.publish_robot = bool(publish_robot)
         p = self.declare_parameter
         rate = float(p('rate_hz', 50.0).value)
         self._body_from_base = frames.body_from_base(p('base_forward_axis', 'negative_y').value)
@@ -68,14 +71,18 @@ class SimOdomTfNode(Node):
         self._period_ns = int(1e9 / rate)
         self._tf = TransformBroadcaster(self)
         self._static = StaticTransformBroadcaster(self)
-        self._odom_pub = self.create_publisher(Odometry, topic, 10) if topic else None
+        self._odom_pub = (self.create_publisher(Odometry, topic, 10)
+                          if topic and self.publish_robot else None)
         self._world_from_odom = None
         self._reset_count = None
         self._last_stamp_ns = 0
         self.create_timer(1.0 / rate, self._tick)
         self.get_logger().info(
             f'Odometry TF {self.world_frame} -> {self.odom_frame} -> {self.footprint_frame} -> '
-            f'{self.base_frame} at {rate:.0f} Hz (odom_origin={self.origin}, ground truth)')
+            f'{self.base_frame} at {rate:.0f} Hz (odom_origin={self.origin}, ground truth)'
+            if self.publish_robot else
+            f'Only {self.world_frame} -> {self.odom_frame} from ground truth (odom_origin={self.origin}); '
+            'another node publishes the robot odometry')
 
     def _sample(self):
         with self.world.lock:
@@ -104,6 +111,8 @@ class SimOdomTfNode(Node):
 
         if self._world_from_odom is None or reset_count != self._reset_count:
             self._anchor(world_from_base, reset_count, stamp)
+        if not self.publish_robot:
+            return
         odom_from_fp, fp_from_base = frames.split_odometry(self._world_from_odom, world_from_base)
         self._tf.sendTransform([
             _transform(odom_from_fp, self.odom_frame, self.footprint_frame, stamp),

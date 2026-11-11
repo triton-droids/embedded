@@ -591,6 +591,11 @@ physics sample time at `rate_hz` (50); the camera stamps images on the same
 clock, so lookups at image stamps interpolate. While physics is paused the
 unchanged pose is restamped with the current time.
 
+With `odom_tf_robot: false` (`sim.launch.py odom_tf_robot:=false`) it
+publishes only `world → odom`; another node, such as `walking_controller`'s
+`leg_odometry`, then publishes the robot odometry, and ground truth remains
+available for evaluation.
+
 This node stands in for a state estimator: on the robot, the estimator
 publishes the same `odom → base_footprint → base_link` and nothing that
 consumes TF changes. Frame names (`world_frame`, `odom_frame`,
