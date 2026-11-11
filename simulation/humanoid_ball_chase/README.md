@@ -11,8 +11,11 @@ it does not accept a base velocity command. Consequently the default launch
 (`controller:=policy`) does not make the robot walk toward the ball.
 `controller:=model_walk` runs the model-based walking controller instead and
 feeds it `/ball_chase/cmd_vel` (see `humanoid_control/walking_controller/README.md`):
-the robot then walks to the ball and stops in front of it. There is no search
-behaviour: a ball outside the camera view stops the pursuit. `/ball_chase/cmd_vel` needs a trained
+the robot then walks to the ball and stops in front of it. The ball world
+model (`world_model:=true`, default; see "Ball world model") keeps chasing a
+ball that is briefly unseen and aims slightly ahead of a moving ball. There is
+still no search behaviour: once the track is lost (about 2 s unseen) the robot
+stops. `/ball_chase/cmd_vel` needs a trained
 velocity-conditioned locomotion policy with its exact observation/export
 contract. No base teleport, applied chase forces, motor bypass or reinterpretation
 of tracking observations is used. `auto_start:=true` releases the existing
@@ -196,6 +199,85 @@ uses image-time TF, a stopping distance, heading gate and bounded speed. Loss,
 stale input, invalid depth, mismatched frames or missing TF produce zero
 TwistStamped commands on `/ball_chase/cmd_vel`. `/ball_chase/status` exposes
 perception state; it does not prove a locomotion consumer exists.
+
+With `world_model:=false` that is the whole pursuit: each frame gives a
+command, and any loss stops at once. The default world model is below.
+
+### Ball world model
+
+Both scenes enable the simulated odometry TF (`world → odom → base_footprint →
+base_link`, see `humanoid_sim/README.md`, "Odometry TF"). With
+`world_model:=true` (default) every detection is put into the world-fixed
+`odom` frame at its image stamp and fed to a Kalman tracker (constant velocity
+with exponential rolling friction, vendored from `td_ball_tracker` at cae8fb1
+into `humanoid_ball_chase/tracking/`). Robot motion is therefore not mistaken
+for ball motion, and the estimate survives frames without a detection.
+
+* **Ball center.** Depth at the box center is the ball's front surface; the
+  point is moved one `ball_radius` (0.10 m) further along the ray, in both
+  modes. `/vision/ball_3d_position` is now the center, so the robot stops
+  about 0.07 m closer than before for the same `stop_distance`.
+* **States** (td_ball_tracker): tentative (2 hits within 0.6 s needed, retuned
+  for 6 Hz) → tracking → coasting (no detection) → lost after 2.0 s or a
+  position σ above 1.5 m.
+* **Chase** (20 Hz timer, current `odom → base_link`): tentative or lost →
+  zero command. Seen within the last 0.5 s → chase as before. Coasting →
+  chase the prediction at half speed, and only turn once σ exceeds 0.5 m. A
+  ball moving faster than 0.15 m/s with a confident velocity → chase where
+  the motion model puts it `lead_time_s` (1 s) later, at most 1 m ahead. An
+  earlier version chased the rest point `p + v / friction`; on this floor that
+  is metres away, and with a ball circling the robot it turned the robot away
+  until the ball left the view.
+* **Head.** Both `track_node`s follow `/ball_chase/head_target`: the detection
+  pixel when seen, the projected prediction while coasting (also off-image or
+  behind the camera, so the head turns towards it). Lost → no target; the
+  trackers stop as before.
+* **Friction.** The MuJoCo ball's speed decays at about 0.06/s (measured
+  2026-11-10 by pushing it), far less than turf; the launch sets
+  `tracker.friction: 0.06`. On a real pitch it must be measured again.
+* `/ball_chase/status` adds `world_model` (tracker status, odom position,
+  velocity, σ, time since seen, chase mode/point); `state` is then
+  `tracking`, `coasting`, or the tracker status.
+* Test hook: `ros2 topic pub --once /ball_chase/debug/blind std_msgs/msg/Float32 '{data: 1.5}'`
+  ignores detections for 1.5 s, like an occlusion.
+
+Jetson, `scripts/ball_chase_walk.sh`, GPU detector, one run per cell
+(2026-11-10), with the walking controller's original caps (0.06 m, 0.08 rad
+per step) and the first rest-point version of the chase. Arrive = ball center
+within 0.70 m; no falls in any run.
+
+| Scenario | `world_model:=true` | `world_model:=false` |
+|---|---|---|
+| Still ball | arrives 14.0 s, stops 0.55 m | arrives 13.0 s, stops 0.49 m |
+| 1.5 s blind while walking | keeps walking (mean 0.13 m/s), arrives 8.5 s after | stops (mean 0.02 m/s), arrives 9.5 s after |
+| Push (0.35, 0.45) m/s while walking; ball rolls 5.1 m | arrives 55.7 s after | arrives 54.4 s after |
+| Push 0.6 m/s sideways when stopped; ball rolls 5.4 m | never lost, arrives 53.7 s after | never lost, arrives 57.0 s after |
+| Push 1.5 m/s sideways; ball rolls 13.7 m | smooth chase with coasting, lost at about 10 m (24 s), never found; ends 12.6 m away | stop-go: lost/seen every 0.2-0.5 s (lost 84 % of the time); ends 13.1 m away |
+
+Tracker position error against ground truth: 0.3-1.1 cm mean, p95 under
+2.2 cm. A ball that leaves detection range is not searched for.
+
+**Walking caps.** At 0.08 rad per step the robot turned only about
+0.13 rad/s, so a ball circling it (`/ball_chase/orbit`, below) drifted out of
+view. The launch now passes `walk_max_step_m:=0.08` and
+`walk_max_turn_rad:=0.15` (node limits 0.10 / 0.15). The earlier 0.08 rad cap
+avoided a heading limit cycle with the 0.5-1 s CPU detector; with the GPU
+detector none was seen. With `vision_device:=cpu` pass 0.06 / 0.08. Jetson,
+world model on (lead 1 s), 2026-11-10, no falls in 17 runs:
+
+| Scenario | 0.06 m / 0.08 rad | 0.08 m / 0.15 rad |
+|---|---|---|
+| Still ball | arrives 13.5 s | arrives 9.9-10.8 s (4 runs), stops 0.50-0.52 m |
+| 1.5 s blind while walking | arrives 9.0 s after | arrives 7.0 s after |
+| Push while walking; ball rolls 5.1 m | arrives 54.3 s after | arrives 43.8 s after |
+| Ball circles at r 1.5 m, 0.25 m/s | lost 15 %, heading error 65 deg | never lost, 2.6 deg (also `scene:=hard`: 3.2 deg) |
+| Ball circles at 0.4 m/s | - | never lost, 5.2 deg |
+| Ball circles at 0.6 m/s | lost 50 % | lost 41 % (needs about 0.4 rad/s) |
+
+Ball circling (simulator only): `ros2 topic pub --once /ball_chase/orbit
+std_msgs/msg/Float32MultiArray '{data: [1.5, 0.25]}'` (radius m, speed m/s,
+positive counter-clockwise, centred on the robot as it moves); `'{data: []}'`
+stops it.
 
 ## Asset provenance and assumptions
 

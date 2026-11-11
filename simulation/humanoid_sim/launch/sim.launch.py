@@ -277,7 +277,9 @@ def simulation_and_stack(context):
             parameters=[{'motor_config_file': registry_path,
                          'step_length_m': float(arg('step_length_m').perform(context)),
                          'cmd_vel_topic': arg('walk_cmd_vel_topic').perform(context),
-                         'contact_kp': float(arg('walk_contact_kp').perform(context))}]))
+                         'contact_kp': float(arg('walk_contact_kp').perform(context)),
+                         'cmd_vel_max_step_m': float(arg('walk_max_step_m').perform(context)),
+                         'cmd_vel_max_turn_rad': float(arg('walk_max_turn_rad').perform(context))}]))
     if connected and flag(context, 'auto_start'):
         stack.append(Node(
             package='humanoid_sim', executable='sim_autostart', output='screen',
@@ -316,6 +318,7 @@ def simulation_and_stack(context):
             'start_tracker': 'true',
             'use_cuda': arg('use_cuda'),
             'target_timeout_s': arg('vision_target_timeout_s'),
+            'target_topic': arg('head_target_topic'),
             # Included launches inherit this launch's configurations; the PD
             # path's control_rate_hz ('auto') is not the tracker's rate.
             'control_rate_hz': '50.0',
@@ -353,6 +356,8 @@ def generate_launch_description():
         ('controller', 'policy', 'policy (RL tracking policy) or model_walk (LIPM MPC + TSID, no RL)'),
         ('step_length_m', '0.0', 'controller:=model_walk: initial step length (0..0.10 m); change with /walk/step_length'),
         ('walk_contact_kp', '100.0', 'controller:=model_walk: WBC contact task gain'),
+        ('walk_max_step_m', '0.06', 'controller:=model_walk: velocity input step cap per 0.5 s step, m (node clamps to 0.10)'),
+        ('walk_max_turn_rad', '0.08', 'controller:=model_walk: velocity input turn cap per step, rad (node clamps to 0.15)'),
         ('walk_cmd_vel_topic', '', 'controller:=model_walk: optional TwistStamped velocity input, e.g. /ball_chase/cmd_vel'),
         ('enable_policy', 'true', 'Run tracking_policy_node on simulated IMU/joint feedback'),
         ('enable_wbc', 'false', 'Deprecated: insert TSID between RL and C++ (less stable than tuned PD; see docs/reports/2026-11-08-wbc-deprecation.md)'),
@@ -382,6 +387,7 @@ def generate_launch_description():
         ('enable_vision', 'false', 'Render the head camera and run detector + head tracker'),
         ('start_detector', 'true', 'With enable_vision: false for TRACK_ONLY builds'),
         ('vision_target_timeout_s', '0.15', 'Head tracker source/receipt freshness limit'),
+        ('head_target_topic', '/vision/target_center', 'Pixel the yaw head tracker centres (PointStamped)'),
         ('use_cuda', 'false', 'Detector CUDA backend'),
         ('dedicated_imu_executor', 'true', 'Run body IMU publication in a dedicated executor thread'),
         ('enable_depth', 'false', 'Render aligned depth for the detector 3D output'),

@@ -16,6 +16,9 @@ from launch_ros.parameter_descriptions import ParameterValue
 
 def generate_launch_description():
     arg = LaunchConfiguration
+    # With the world model the head follows the detection when seen and the prediction while coasting.
+    head_target = PythonExpression(["'/ball_chase/head_target' if '", arg('world_model'),
+                                    "' == 'true' else '/vision/target_center'"])
     return LaunchDescription([
         DeclareLaunchArgument('use_viewer', default_value='true'),
         DeclareLaunchArgument('controller', default_value='policy',
@@ -40,6 +43,14 @@ def generate_launch_description():
         DeclareLaunchArgument('remote_viewer_rate_hz', default_value='15.0'),
         DeclareLaunchArgument('walk_contact_kp', default_value='100.0',
                               description='controller:=model_walk: WBC contact task gain'),
+        # Faster than the walking controller's own defaults (0.06 m / 0.08 rad): with the GPU detector
+        # (~0.15 s image latency) and the world model the heading loop no longer limit-cycles at
+        # 0.15 rad/step; 2026-11-10 Jetson runs: no falls, ball circling at 0.4 m/s kept in view.
+        # With vision_device:=cpu (0.4 s+ latency) use 0.06 / 0.08.
+        DeclareLaunchArgument('walk_max_step_m', default_value='0.08',
+                              description='controller:=model_walk: step cap per 0.5 s step (m; node max 0.10)'),
+        DeclareLaunchArgument('walk_max_turn_rad', default_value='0.15',
+                              description='controller:=model_walk: turn cap per step (rad; node max 0.15)'),
         DeclareLaunchArgument('vision_target_timeout_s', default_value='1.0',
                               description='Maximum image/receipt age for CPU football inference; seconds'),
         DeclareLaunchArgument('scene', default_value='clean', choices=['clean', 'hard'],
@@ -51,6 +62,10 @@ def generate_launch_description():
                                           'scripts/build_ball_chase_engines.sh); cpu: ONNX Runtime, one thread'),
         DeclareLaunchArgument('vision_model_path', default_value='',
                               description='YOLO11 ONNX for ball detection (class 0 = ball); empty = assets/td-perception.onnx'),
+        DeclareLaunchArgument('world_model', default_value='true', choices=['true', 'false'],
+                              description='true: track the ball in odom (coast through misses, chase a '
+                                          'moving ball a little ahead, head looks at the prediction); '
+                                          'false: stateless per-frame chase'),
         SetEnvironmentVariable('ROS_DOMAIN_ID', arg('ros_domain_id')),
         SetEnvironmentVariable('ROS_LOCALHOST_ONLY', '1'),
         IncludeLaunchDescription(PythonLaunchDescriptionSource(PathJoinSubstitution([
@@ -62,11 +77,13 @@ def generate_launch_description():
                     PythonExpression(["'scene_hard.yaml' if '", arg('scene'), "' == 'hard' else 'scene.yaml'"])]),
                 'enable_vision': 'true', 'enable_depth': 'true', 'start_detector': 'false',
                 'vision_target_timeout_s': arg('vision_target_timeout_s'),
+                'head_target_topic': head_target,
                 'use_viewer': arg('use_viewer'), 'auto_start': arg('auto_start'),
                 'pd_profile': arg('pd_profile'), 'controller': arg('controller'),
                 'walk_cmd_vel_topic': PythonExpression(["'/ball_chase/cmd_vel' if '", arg('controller'),
                                                         "' == 'model_walk' else ''"]),
                 'walk_contact_kp': arg('walk_contact_kp'),
+                'walk_max_step_m': arg('walk_max_step_m'), 'walk_max_turn_rad': arg('walk_max_turn_rad'),
                 'ros_domain_id': arg('ros_domain_id'), 'web_port': arg('web_port'),
                 'dds_tuning': arg('dds_tuning'), 'imu_split': arg('imu_split'),
                 'remote_viewer': arg('remote_viewer'), 'remote_viewer_host': arg('remote_viewer_host'),
@@ -76,11 +93,16 @@ def generate_launch_description():
         Node(package='humanoid_ball_chase', executable='ball_chase_vision', output='screen',
              parameters=[{'target_timeout_s':ParameterValue(arg('vision_target_timeout_s'), value_type=float),
                          'model_path':ParameterValue(arg('vision_model_path'), value_type=str),
-                         'device':ParameterValue(arg('vision_device'), value_type=str)}]),
+                         'device':ParameterValue(arg('vision_device'), value_type=str),
+                         'world_model':ParameterValue(arg('world_model'), value_type=bool),
+                         # Measured in this scene (2026-11-10): the MuJoCo ball's speed decays at
+                         # ~0.06/s, far less than turf (~0.4/s, the tracker default).
+                         'tracker.friction':0.06}]),
         Node(package='humanoid_ball_chase', executable='ball_chase_astar',
              condition=IfCondition(arg('enable_astar')), output='screen'),
         Node(package='humanoid_vision', executable='track_node', name='pitch_tracker',
              parameters=[{'axis':'pitch', 'command_topic':'/head/tilt_target_rad',
+                          'target_topic':head_target,
                           'direction':1.0, 'initial_angle_rad':0.0,
                           'target_timeout_s':ParameterValue(arg('vision_target_timeout_s'), value_type=float),
                           'max_speed_rad_s':0.3,

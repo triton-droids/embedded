@@ -16,7 +16,7 @@ from itertools import chain, repeat
 
 @pytest.fixture
 def node():
-    rclpy.init(args=['--ros-args','-p','detector:=orange_test'])
+    rclpy.init(args=['--ros-args','-p','detector:=orange_test','-p','world_model:=false'])
     n=BallChaseVision()
     yield n
     n.destroy_node()
@@ -137,3 +137,76 @@ def test_cpu_budget_accepts_bounded_latency_and_still_expires(node):
     node._check_timing(now-.5,time.monotonic())
     with pytest.raises(_FrameRejected):node._check_timing(now-1.1,time.monotonic())
     with pytest.raises(_FrameRejected):node._check_timing(now,time.monotonic()-1.1)
+
+
+# ----------------------------------------------------------------- world model
+@pytest.fixture
+def wm_node():
+    rclpy.init(args=['--ros-args','-p','detector:=orange_test'])
+    n=BallChaseVision()
+    t=TransformStamped();t.header.frame_id='odom';t.child_frame_id='base_link'
+    t.transform.translation.x=0.3;t.transform.rotation.w=1.0
+    n._tf_buffer.set_transform_static(t,'test')
+    yield n
+    n.destroy_node()
+    rclpy.shutdown()
+
+
+def blank(color):
+    color.data=bytes(len(color.data))
+    return color
+
+
+def test_world_model_confirms_then_coasts_through_misses(wm_node):
+    n=wm_node
+    assert n.world_model
+    n._process_frame(*frame(n))
+    assert n._tracker.status==0  # tentative: one sighting does not drive
+    vx,wz,chase,_=n._world_command(n._tracker.peek(n.get_clock().now().nanoseconds*1e-9),
+                                   n.get_clock().now().nanoseconds*1e-9)
+    assert chase.mode=='none' and vx==0
+    for _ in range(4):  # 6 Hz spacing so the velocity estimate settles
+        time.sleep(1/6)
+        n._process_frame(*frame(n))
+    assert n._tracker.status==1
+    out=n._tracker.peek(n._tracker.kf.t)
+    # Depth 2.0 m hits the front surface; the center is 2.1 m ahead, plus odom offset 0.3.
+    assert out.x[:2]==pytest.approx([2.4,0.0],abs=0.02)
+    now=n._tracker.kf.t
+    vx,wz,chase,reason=n._world_command(out,now)
+    assert reason=='ok' and chase.mode=='tracking' and vx>0 and abs(wz)<0.05
+
+    n._head_publisher=Mock()
+    n._command_publisher=Mock()
+    color,depth,info=frame(n)
+    n._process_frame(blank(color),depth,info)
+    assert not n._valid
+    n._command_publisher.publish.assert_not_called()  # a miss does not stop at once
+    assert n._tracker.status==2
+    head=n._head_publisher.publish.call_args.args[0]  # head aims at the prediction
+    # Prediction is the ball center one radius above the floor; this test camera sits on the floor.
+    assert head.point.x==pytest.approx(80.0,abs=1.0)
+    assert head.point.y==pytest.approx(59.5-100*0.1/2.1,abs=1.0)
+
+    t=n._tracker.kf.t+1.0
+    vx_c,_,chase,_=n._world_command(n._tracker.peek(t),t)
+    assert chase.mode=='coasting' and 0<vx_c<vx
+    t=n._tracker.kf.t+5.0
+    assert n._tracker.peek(t).status==3
+    assert n._world_command(n._tracker.peek(t),t)[:2]==(0.0,0.0)
+
+
+def test_world_model_status_and_missing_odom_tf(wm_node):
+    n=wm_node
+    for _ in range(2):
+        n._process_frame(*frame(n))
+    n._control_tick()
+    n.odom_frame='odom_missing'
+    n._process_frame(*frame(n))  # no odom TF: rejected, nothing chased
+    assert not n._valid
+    n._command_publisher=Mock()
+    n._control_tick()
+    command=n._command_publisher.publish.call_args.args[0]
+    assert command.twist.linear.x==0 and command.twist.angular.z==0
+    status=n._status_locked(0.0,time.monotonic(),0.,0.)
+    assert 'world_model' not in status  # added by the timer only

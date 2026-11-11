@@ -37,10 +37,11 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from rclpy.time import Time
 from sensor_msgs.msg import CameraInfo, Image
-from std_msgs.msg import String
+from std_msgs.msg import Float32, String
 from tf2_ros import Buffer, TransformListener
 
-from humanoid_ball_chase import core
+from humanoid_ball_chase import core, world_model
+from humanoid_ball_chase.tracking.tracker import BallTracker, COASTING, LOST, NO_TRACK
 
 
 class _FrameRejected(Exception):
@@ -89,6 +90,9 @@ class BallChaseVision(Node):
     TARGET_CENTER_TOPIC = "/vision/target_center"
     BALL_3D_TOPIC = "/vision/ball_3d_position"
     CMD_VEL_TOPIC = "/ball_chase/cmd_vel"
+    HEAD_TARGET_TOPIC = "/ball_chase/head_target"
+    # Test hook: treat frames as "no ball" for the given seconds (emulates an occlusion).
+    BLIND_TOPIC = "/ball_chase/debug/blind"
     STATUS_TOPIC = "/ball_chase/status"
 
     def __init__(self) -> None:
@@ -112,6 +116,37 @@ class BallChaseVision(Node):
         self.declare_parameter("model_path", "")
         self.declare_parameter("device", "cpu")  # cpu: ONNX Runtime; gpu: TensorRT engine
         self.declare_parameter('target_timeout_s', 0.35)
+        # Ball world model: track the ball in odom_frame (needs odom -> base TF),
+        # keep chasing a briefly unseen ball, chase a moving ball slightly ahead.
+        # false = the stateless per-frame chase.
+        self.declare_parameter('world_model', True)
+        self.declare_parameter('odom_frame', 'odom')
+        # Depth hits the ball's front surface; the center is one radius further (0 = off).
+        self.declare_parameter('ball_radius', 0.10)
+        self.declare_parameter('measurement_sigma_m', 0.03)
+        self.declare_parameter('measurement_sigma_per_m', 0.01)
+        self.declare_parameter('coast_speed_scale', world_model.PlanConfig.coast_speed_scale)
+        self.declare_parameter('coast_turn_only_std_m', world_model.PlanConfig.coast_turn_only_std)
+        self.declare_parameter('lead_time_s', world_model.PlanConfig.lead_s)
+        self.declare_parameter('lead_speed', world_model.PlanConfig.lead_speed)
+        tracker_defaults = world_model.tracker_config()
+        tracker_cfg = world_model.tracker_config(**{
+            k: self.declare_parameter(f'tracker.{k}', v).value for k, v in vars(tracker_defaults).items()})
+        self.world_model = bool(self.get_parameter('world_model').value)
+        self.odom_frame = str(self.get_parameter('odom_frame').value).strip()
+        self.ball_radius = float(self.get_parameter('ball_radius').value)
+        self._sigma0 = float(self.get_parameter('measurement_sigma_m').value)
+        self._sigma_per_m = float(self.get_parameter('measurement_sigma_per_m').value)
+        self._plan_cfg = world_model.PlanConfig(
+            lead_s=float(self.get_parameter('lead_time_s').value),
+            lead_speed=float(self.get_parameter('lead_speed').value),
+            coast_speed_scale=float(self.get_parameter('coast_speed_scale').value),
+            coast_turn_only_std=float(self.get_parameter('coast_turn_only_std_m').value))
+        self._friction = tracker_cfg.friction
+        self._tracker = BallTracker(tracker_cfg)
+        self._plan = world_model.NONE
+        if not 0.0 <= self.ball_radius < 0.5 or not self.odom_frame:
+            raise ValueError('need 0 <= ball_radius < 0.5 and a non-empty odom_frame')
         self.TARGET_TIMEOUT_S = float(self.get_parameter('target_timeout_s').value)
         if not math.isfinite(self.TARGET_TIMEOUT_S) or not 0 < self.TARGET_TIMEOUT_S <= 2.0:
             raise ValueError('target_timeout_s must be in (0, 2] seconds')
@@ -180,6 +215,11 @@ class BallChaseVision(Node):
             PointStamped, self.BALL_3D_TOPIC, point_qos)
         self._command_publisher = self.create_publisher(
             TwistStamped, self.CMD_VEL_TOPIC, command_qos)
+        # Pixel for the head trackers: the detection when seen, the prediction while coasting.
+        self._head_publisher = self.create_publisher(
+            PointStamped, self.HEAD_TARGET_TOPIC, point_qos)
+        self._blind_until = 0.0
+        self.create_subscription(Float32, self.BLIND_TOPIC, self._on_blind, 2)
         self._status_publisher = self.create_publisher(
             String, self.STATUS_TOPIC, command_qos)
 
@@ -214,7 +254,9 @@ class BallChaseVision(Node):
             f"base_frame={self.base_frame}, stop_distance={self.stop_distance:.2f} m, "
             f"max_speed={self.max_speed:.2f} m/s, "
             f"max_yaw_rate={self.max_yaw_rate:.2f} rad/s; "
-            "cmd_vel is a request and no locomotion consumer is assumed.")
+            "cmd_vel is a request and no locomotion consumer is assumed. "
+            + (f"World model on: tracking in {self.odom_frame}, friction {self._friction:.2f}/s."
+               if self.world_model else "World model off: stateless per-frame chase."))
 
     # ------------------------------------------------------------------ input
     def _on_frame(self, color_msg: Image, depth_msg: Image,
@@ -252,7 +294,15 @@ class BallChaseVision(Node):
             depth_m = self._decode_depth(depth_msg, color_msg, rgb)
             k = self._camera_matrix(info_msg, color_msg, rgb)
 
-            u, v, x, y, z = self._detect(rgb, depth_m, k, color_msg)
+            try:
+                if time.monotonic() < self._blind_until:
+                    raise _FrameRejected("debug_blind", True)
+                u, v, x, y, z = self._detect(rgb, depth_m, k, color_msg)
+            except _FrameRejected as miss:
+                if self.world_model and miss.perception_ok:
+                    self._world_miss(stamp_sec, frame_id, color_msg.header.stamp, k)
+                raise
+            x, y, z = (float(c) for c in world_model.ball_center((x, y, z), self.ball_radius))
             self._check_timing(stamp_sec, receipt)
 
             self._publish_vision(color_msg, u, v, x, y, z)
@@ -260,16 +310,88 @@ class BallChaseVision(Node):
                 frame_id, color_msg.header.stamp)
             self._check_timing(stamp_sec, receipt)
 
-            vx, wz = self._chase_command((x, y, z), rotation, position)
+            if self.world_model:
+                self._world_hit(stamp_sec, frame_id, color_msg.header.stamp, (x, y, z), u, v)
+                vx = wz = 0.0  # The 20 Hz timer derives commands from the tracker.
+            else:
+                vx, wz = self._chase_command((x, y, z), rotation, position)
             self._accept_color_frame(
                 stamp_sec, frame_id, receipt, u, v, (x, y, z),
                 rotation, position, vx, wz)
         except _FrameRejected as exc:
-            self._invalidate(exc.reason, exc.perception_ok)
+            self._reject(exc.reason, exc.perception_ok)
         except Exception as exc:  # Defensive: a malformed frame must never drive.
-            self._invalidate(
+            self._reject(
                 f"unexpected_frame_error:{type(exc).__name__}",
                 perception_ok=False)
+
+    def _reject(self, reason: str, perception_ok: bool) -> None:
+        """Drop the per-frame target. Without the world model this also stops at once;
+        with it the timer keeps following the tracker, which coasts and then goes LOST."""
+        if self.world_model:
+            with self._lock:
+                self._invalidate_locked(reason, perception_ok)
+        else:
+            self._invalidate(reason, perception_ok)
+
+    def _on_blind(self, msg: Float32) -> None:
+        seconds = float(msg.data)
+        if math.isfinite(seconds) and 0.0 <= seconds <= 30.0:
+            self._blind_until = time.monotonic() + seconds
+            self.get_logger().warning(f"Debug: ignoring detections for {seconds:.1f} s")
+
+    # ------------------------------------------------------------- world model
+    def _world_hit(self, stamp_sec: float, frame_id: str, stamp,
+                   center_optical, u: float, v: float) -> None:
+        """Feed one detection (ball center, camera optical) to the odom tracker."""
+        rotation, position = self._lookup_transform(self.odom_frame, frame_id, stamp, "odom_tf")
+        center = np.asarray(center_optical, dtype=np.float64)
+        point_odom = rotation @ center + position
+        score = self._detector.last_confidence if self._detector is not None else 1.0
+        meas = world_model.measurement(point_odom, float(np.linalg.norm(center)), score or 1.0,
+                                       self._sigma0, self._sigma_per_m)
+        with self._lock:
+            self._tracker.step(stamp_sec, [meas])
+        self._publish_head_target(stamp, frame_id, u, v)
+
+    def _world_miss(self, stamp_sec: float, frame_id: str, stamp, k: np.ndarray) -> None:
+        """A good frame without the ball: let the tracker coast and aim the head at the prediction."""
+        with self._lock:
+            self._tracker.step(stamp_sec, [])
+            out = self._tracker.peek(stamp_sec)
+        if out is None or out.status != COASTING:
+            return
+        try:
+            rotation, position = self._lookup_transform(frame_id, self.odom_frame, stamp, "odom_tf")
+        except _FrameRejected:
+            return
+        ball = rotation @ np.array([out.x[0], out.x[1], self.ball_radius]) + position
+        u, v = world_model.look_pixel(ball, k)
+        self._publish_head_target(stamp, frame_id, u, v)
+
+    def _publish_head_target(self, stamp, frame_id: str, u: float, v: float) -> None:
+        msg = PointStamped()
+        msg.header.stamp = stamp
+        msg.header.frame_id = frame_id
+        msg.point.x, msg.point.y = float(u), float(v)
+        try:
+            self._head_publisher.publish(msg)
+        except RCLError:
+            pass  # Head aiming is best effort; the chase command path has its own fault latch.
+
+    def _world_command(self, out, now_ros: float) -> Tuple[float, float, "world_model.ChasePlan", str]:
+        """Command from a tracker estimate: chase its point in base_frame at the current pose."""
+        chase = world_model.plan(out, self._friction, self._plan_cfg, now_ros)
+        if chase.mode == "none":
+            return 0.0, 0.0, chase, "no_confirmed_ball"
+        try:
+            rotation, position = self._lookup_transform(
+                self.base_frame, self.odom_frame, None, "odom_tf")
+            point = rotation @ np.array([chase.point_odom[0], chase.point_odom[1], self.ball_radius]) + position
+            vx, wz = self._chase_command(point, np.eye(3), np.zeros(3))
+        except _FrameRejected as exc:
+            return 0.0, 0.0, chase, exc.reason
+        return vx * chase.speed_scale, wz, chase, "ok"
 
     def _validate_headers(self, color_msg: Image, depth_msg: Image,
                           info_msg: CameraInfo) -> Tuple[int, str]:
@@ -418,13 +540,21 @@ class BallChaseVision(Node):
     def _lookup_camera_transform(self, camera_frame: str, stamp
                                  ) -> Tuple[np.ndarray, np.ndarray]:
         """Look up base<-camera at the image stamp, never at latest time."""
+        return self._lookup_transform(self.base_frame, camera_frame, stamp, "tf")
+
+    def _lookup_transform(self, target: str, source: str, stamp, name: str
+                          ) -> Tuple[np.ndarray, np.ndarray]:
+        """target<-source rotation and translation; stamp None = latest, without waiting."""
         try:
-            transform = self._tf_buffer.lookup_transform(
-                self.base_frame, camera_frame, Time.from_msg(stamp),
-                timeout=Duration(seconds=self.TF_TIMEOUT_S))
+            if stamp is None:
+                transform = self._tf_buffer.lookup_transform(target, source, Time())
+            else:
+                transform = self._tf_buffer.lookup_transform(
+                    target, source, Time.from_msg(stamp),
+                    timeout=Duration(seconds=self.TF_TIMEOUT_S))
         except Exception as exc:
             raise _FrameRejected(
-                f"tf_lookup_failed:{type(exc).__name__}", True) from exc
+                f"{name}_lookup_failed:{type(exc).__name__}", True) from exc
 
         try:
             translation = transform.transform.translation
@@ -600,7 +730,18 @@ class BallChaseVision(Node):
                 elif receipt_age > self.TARGET_TIMEOUT_S:
                     self._invalidate_locked("stale_receipt", False)
 
-            if self._valid and self._target is not None:
+            out = self._tracker.peek(now_ros) if self.world_model else None
+
+        world = None
+        if self.world_model:
+            # TF lookup outside the lock: the inference worker must not wait on it.
+            vx, wz, chase, reason = self._world_command(out, now_ros)
+            world = self._world_status(out, chase, reason, now_ros)
+        with self._lock:
+            if self.world_model:
+                if self._command_publish_fault:
+                    vx = wz = 0.0
+            elif self._valid and self._target is not None:
                 vx = self._target.vx
                 wz = self._target.wz
             else:
@@ -608,6 +749,12 @@ class BallChaseVision(Node):
                 wz = 0.0
 
             status = self._status_locked(now_ros, now_monotonic, vx, wz)
+            if world is not None:
+                status["world_model"] = world
+                chasing = world["chase"] != "none" and not self._command_publish_fault
+                status["state"] = world["chase"] if chasing else world["status"]
+                status["tracking"] = chasing
+                status["lost"] = not chasing
 
             command = TwistStamped()
             command.header.stamp = now.to_msg()
@@ -638,6 +785,25 @@ class BallChaseVision(Node):
         except RCLError as error:
             self.get_logger().error(f'Chase diagnostics publication failed: {error}',
                                     throttle_duration_sec=5.0)
+
+    def _world_status(self, out, chase, reason: str, now_ros: float) -> dict:
+        def floats(values):
+            return [float(v) for v in values]
+        return {
+            "status": world_model.STATUS_NAMES[out.status if out is not None else NO_TRACK],
+            "frame_id": self.odom_frame,
+            "position": floats(out.x[:2]) if out is not None else None,
+            "velocity": floats(out.x[2:]) if out is not None else None,
+            "position_std_m": (float(math.sqrt(max(out.P[0, 0], out.P[1, 1])))
+                               if out is not None else None),
+            "since_seen_s": float(now_ros - out.last_seen) if out is not None else None,
+            "confidence": float(out.confidence) if out is not None else 0.0,
+            "chase": chase.mode,
+            "chase_point": floats(chase.point_odom) if chase.point_odom is not None else None,
+            "lead": chase.lead,
+            "speed_scale": chase.speed_scale,
+            "reason": reason,
+        }
 
     def _status_locked(self, now_ros: float, now_monotonic: float,
                        vx: float, wz: float) -> dict:
