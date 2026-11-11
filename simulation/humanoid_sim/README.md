@@ -568,6 +568,35 @@ are maintained in [wbc_control_node](../../humanoid_control/wbc_control_node/REA
 | `/sim/ground_truth/odom` | `nav_msgs/Odometry` | Base pose; twist is in the **world** frame |
 | `/sim/status` | `std_msgs/String` | JSON: sim time, real-time factor, overruns, gantry, estop |
 
+### Odometry TF (`enable_odom_tf`)
+
+With `enable_odom_tf: true` on `mujoco_sim` (on in the ball chase scenes), the
+`sim_odom_tf` node publishes the standard frame chain from ground truth, so
+consumers use TF instead of reading `/sim/ground_truth/odom`:
+
+```
+world ──/tf_static──▶ odom ──/tf──▶ base_footprint ──/tf──▶ base_link ──▶ camera (sim_camera)
+```
+
+| Frame / topic | Meaning |
+|---|---|
+| `odom` | World fixed, continuous (REP-105). `odom_origin: start` (default): origin = robot footprint at start, re-anchored after `/sim/reset` (like an estimator restart). `world`: odom = world. |
+| `base_footprint` | Floor point (z = 0) under `base_link`, yaw only (REP-120) |
+| `base_link` | ROS axes of the base body (`base_forward_axis`, must match `sim_camera`) |
+| `world → odom` | Static, simulator only. On a robot this is self-localization (`map`/`field`). |
+| `/odom` | `nav_msgs/Odometry`, frame `odom`, child `base_footprint`, twist in `base_footprint` axes; covariance zero (ground truth). `odom_topic: ''` disables it. |
+
+`odom → base_footprint` and `base_footprint → base_link` are stamped with the
+physics sample time at `rate_hz` (50); the camera stamps images on the same
+clock, so lookups at image stamps interpolate. While physics is paused the
+unchanged pose is restamped with the current time.
+
+This node stands in for a state estimator: on the robot, the estimator
+publishes the same `odom → base_footprint → base_link` and nothing that
+consumes TF changes. Frame names (`world_frame`, `odom_frame`,
+`base_footprint_frame`, `base_frame`) are parameters, for example `robot1/odom`
+in a multi-robot setup (the camera TF parent is still a fixed `base_link`).
+
 The `mujoco_sim` process can also be started alone, to drive the real nodes
 from another launch:
 

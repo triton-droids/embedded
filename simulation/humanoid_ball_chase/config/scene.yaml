@@ -8,12 +8,17 @@ mujoco_sim:
     camera_height: 240
     camera_fovy_deg: 58.0
     enable_target: false
+    enable_odom_tf: true  # odom -> base_footprint -> base_link TF from ground truth (sim_odom_tf)
 sim_camera:
   ros__parameters:
     rate_hz: 6.0  # CPU YOLO + GUI budget; inference still consumes only the newest frame.
     enable_depth: true
     publish_tf: true
     base_forward_axis: positive_y
+sim_odom_tf:
+  ros__parameters:
+    base_forward_axis: positive_y  # must match sim_camera
+    odom_origin: start             # odom origin = robot footprint at start / after /sim/reset
 sim_motor_backend:
   ros__parameters:
     telemetry_rate_hz: 5.0

@@ -11,6 +11,7 @@ name and parameters, so ``--params-file`` sections map one-to-one to nodes:
   sim_body_imu       replaces the body IMU MCU + micro-ROS Agent
   sim_head_mcu       replaces the head MCU + micro-ROS Agent
   sim_camera         replaces realsense2_camera_node (optional)
+  sim_odom_tf        odom -> base_footprint -> base_link TF from ground truth (optional, enable_odom_tf)
 """
 from __future__ import annotations
 from .publish_sample import publish_sample
@@ -361,6 +362,10 @@ def main(args=None) -> None:
         nodes.append(SimHeadMcuNode(world))
         if control.get_parameter('enable_camera').value:
             nodes.append(SimCameraNode(world))
+    control.declare_parameter('enable_odom_tf', False)
+    if control.get_parameter('enable_odom_tf').value:
+        from .odom_tf_node import SimOdomTfNode
+        nodes.append(SimOdomTfNode(world))
 
     mirror = viewer = None
     remote = None

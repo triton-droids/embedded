@@ -75,6 +75,7 @@ class SimWorld:
         self.lock = threading.RLock()
         self.overruns = 0
         self.steps = 0
+        self.reset_count = 0  # bumped by reset(); odometry re-anchors on change
         self.settle_s = float(settle_s)
         self.pause_on_control_fault = pause_on_control_fault
         self.control_fault: str | None = None
@@ -253,6 +254,7 @@ class SimWorld:
         """
         with self.lock:
             self.control_fault = None
+            self.reset_count += 1
             mujoco.mj_resetData(self.model, self.data)
             for joint in self.joint_names:
                 self.motors.disable(joint)

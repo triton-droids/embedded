@@ -26,6 +26,7 @@ from rclpy._rclpy_pybind11 import RCLError
 from rclpy.node import Node
 from sensor_msgs.msg import CameraInfo, Image
 
+from .frames import body_from_base
 from . import model_builder as mb
 from .image_degradation import DegradationSettings, ImageDegrader
 from .world import SimWorld
@@ -54,11 +55,7 @@ class SimCameraNode(Node):
         self.declare_parameter('enable_depth', False)
         self.declare_parameter('frame_id', 'camera_color_optical_frame')
         self.declare_parameter('base_forward_axis', 'negative_y')
-        forward_axis = self.get_parameter('base_forward_axis').value
-        if forward_axis not in ('negative_y', 'positive_y'):
-            raise ValueError('base_forward_axis must be negative_y or positive_y')
-        sign = 1.0 if forward_axis == 'positive_y' else -1.0
-        self._body_from_base = np.array([[0., -sign, 0.], [sign, 0., 0.], [0., 0., 1.]])
+        self._body_from_base = body_from_base(self.get_parameter('base_forward_axis').value)
         self.declare_parameter('color_topic', '/camera/camera/color/image_raw')
         self.declare_parameter('camera_info_topic', '/camera/camera/color/camera_info')
         self.declare_parameter('depth_topic', '/camera/camera/aligned_depth_to_color/image_raw')
