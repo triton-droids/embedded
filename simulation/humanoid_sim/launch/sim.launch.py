@@ -142,6 +142,10 @@ def simulation_and_stack(context):
     imu_extra = dict(imu_split=imu_split)
     if snapshot_path:
         imu_extra['imu_snapshot_path'] = snapshot_path
+    stereo_split = flag(context, 'enable_stereo') and flag(context, 'stereo_split')
+    # Body IMU heading error (in-process or split publisher).
+    yaw_error = {'yaw_error_amplitude_deg': ParameterValue(arg('imu_yaw_error_deg'), value_type=float),
+                 'yaw_error_period_s': ParameterValue(arg('imu_yaw_error_period_s'), value_type=float)}
     simulator = Node(
             package='humanoid_sim', executable='mujoco_sim',
             additional_env=({'RMW_FASTRTPS_PUBLICATION_MODE': arg('dds_publication_mode')} if enable_wbc else {}),
@@ -187,7 +191,12 @@ def simulation_and_stack(context):
                 **({'publish_rate_hz': float(joint_state_rate)} if joint_state_rate else {}),
                 **({'telemetry_rate_hz': 0.0, 'enable_head': False,
                     'enable_target': False, 'ground_truth_rate_hz': 10.0} if minimal else {}),
-            }, {'enable_depth': flag(context, 'enable_depth')}],
+            }, {'enable_depth': flag(context, 'enable_depth')},
+               {'enable_stereo': flag(context, 'enable_stereo'),
+                'stereo_split': stereo_split,
+                'stereo_baseline_m': 0.05 if flag(context, 'enable_stereo') else 0.0,
+                'stereo_rate_hz': ParameterValue(arg('stereo_rate_hz'), value_type=float)},
+               yaw_error],
         # Without the simulator every other node would only report stale inputs.
         on_exit=[EmitEvent(event=Shutdown(reason='mujoco_sim exited'))],
     )
@@ -195,7 +204,7 @@ def simulation_and_stack(context):
     if imu_split:
         # Starts with the simulator: it blocks on the shared segment until the
         # first physics step writes one, so it cannot miss the first sample.
-        imu_params = [arg('sim_config_file')]
+        imu_params = [arg('sim_config_file'), yaw_error]
         if snapshot_path:
             imu_params.append({'snapshot_path': snapshot_path})
         split_imu = Node(
@@ -203,6 +212,15 @@ def simulation_and_stack(context):
             output='screen',
             ros_arguments=['--log-level', arg('log_level')],
             parameters=imu_params)
+
+    split_stereo = None
+    if stereo_split:
+        # Renders from the kinematic state mujoco_sim shares after every step.
+        split_stereo = Node(
+            package='humanoid_sim', executable='sim_stereo_publisher',
+            output='screen',
+            ros_arguments=['--log-level', arg('log_level')],
+            parameters=[{'stereo_rate_hz': ParameterValue(arg('stereo_rate_hz'), value_type=float)}])
 
     stack = []
     if not minimal:
@@ -334,7 +352,7 @@ def simulation_and_stack(context):
         started.append(True)
         return stack
 
-    nodes = [simulator] + ([split_imu] if split_imu is not None else [])
+    nodes = [simulator] + [n for n in (split_imu, split_stereo) if n is not None]
     nodes.append(RegisterEventHandler(OnProcessIO(
         target_action=simulator, on_stdout=start_stack_once, on_stderr=start_stack_once)))
     return nodes
@@ -393,6 +411,11 @@ def generate_launch_description():
         ('use_cuda', 'false', 'Detector CUDA backend'),
         ('dedicated_imu_executor', 'true', 'Run body IMU publication in a dedicated executor thread'),
         ('enable_depth', 'false', 'Render aligned depth for the detector 3D output'),
+        ('enable_stereo', 'false', 'Render a passive 50 mm grayscale stereo pair on /stereo/* for visual odometry'),
+        ('stereo_rate_hz', '15.0', 'With enable_stereo: stereo frame rate'),
+        ('stereo_split', 'true', 'With enable_stereo: render in sim_stereo_publisher, not in mujoco_sim'),
+        ('imu_yaw_error_deg', '0.0', 'Body IMU heading error amplitude (sine, degrees; 0 = off)'),
+        ('imu_yaw_error_period_s', '60.0', 'Period of the body IMU heading error'),
         ('start_base_held', 'true', 'Start on the virtual gantry'),
         ('target_image', '', 'PNG face image on the mocap target board'),
         ('scene_builder', '', 'Optional installed module:function adding scene fixtures'),

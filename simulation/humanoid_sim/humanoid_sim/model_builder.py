@@ -39,6 +39,9 @@ HEAD_ACTUATOR = 'head_yaw_servo'
 HEAD_GYRO = 'head_imu_gyro'
 HEAD_ACCEL = 'head_imu_accel'
 HEAD_CAMERA = 'head_camera'
+# Passive stereo pair beside HEAD_CAMERA, no projector (RoboCup requires active camera
+# components such as a RealSense IR projector to be covered).
+STEREO_CAMERAS = ('stereo_left', 'stereo_right')
 TARGET_BODY = 'face_target'
 FOOT_SITES = ('left_foot', 'right_foot')  # Sole centers in the robot MJCF.
 
@@ -67,6 +70,11 @@ class WorldOptions:
     target_distance_m: float = 1.5
     target_image: str = ''  # PNG only: MuJoCo decodes no other image format.
     scene_builder: str = ''  # Optional installed module:function extending this spec.
+    # Passive grayscale stereo pair rigidly attached next to HEAD_CAMERA; 0 = none.
+    # 0.050 m is the D435 infrared-imager spacing, 58 deg its vertical field of view.
+    stereo_baseline_m: float = 0.0
+    stereo_fovy_deg: float = 58.0
+    stereo_resolution: tuple[int, int] = (640, 480)
 
 
 def build_model(options: WorldOptions) -> mujoco.MjModel:
@@ -74,8 +82,8 @@ def build_model(options: WorldOptions) -> mujoco.MjModel:
     spec.meshdir = options.mesh_dir
     if options.timestep > 0.0:
         spec.option.timestep = options.timestep
-    spec.visual.global_.offwidth = max(options.camera_resolution[0], 1280)
-    spec.visual.global_.offheight = max(options.camera_resolution[1], 720)
+    spec.visual.global_.offwidth = max(options.camera_resolution[0], options.stereo_resolution[0], 1280)
+    spec.visual.global_.offheight = max(options.camera_resolution[1], options.stereo_resolution[1], 720)
 
     _add_environment(spec)
     _add_leg_actuators(spec, options.joint_torque_limits)
@@ -88,6 +96,8 @@ def build_model(options: WorldOptions) -> mujoco.MjModel:
     if options.scene_builder:
         module, function = options.scene_builder.split(':', 1)
         getattr(importlib.import_module(module), function)(spec, options)
+    if options.stereo_baseline_m > 0.0:
+        _add_stereo(spec, options)
     _lift_base_to_clearance(spec, options.foot_clearance_m)
     return spec.compile()
 
@@ -223,6 +233,27 @@ def _add_target(spec: mujoco.MjSpec, options: WorldOptions) -> None:
     # Thin board facing +Y (toward the robot); the image spans its X-Z face.
     body.add_geom(name='target_board', type=mujoco.mjtGeom.mjGEOM_BOX,
                   size=[0.12, 0.002, 0.12], material=material, contype=0, conaffinity=0)
+
+
+def _add_stereo(spec: mujoco.MjSpec, options: WorldOptions) -> None:
+    """Left/right cameras on HEAD_CAMERA's body, same orientation, split along its +X.
+
+    Both cameras keep HEAD_CAMERA's optical axis, so the pair is already rectified
+    (identical ideal pinholes, pure horizontal baseline). Left is at -X (image left).
+    """
+    if spec.camera(HEAD_CAMERA) is None:
+        raise ValueError('Stereo cameras need the head camera; enable the head')
+    if not 0.0 < options.stereo_baseline_m < 0.5:
+        raise ValueError('stereo_baseline_m must be in (0, 0.5) m')
+    head = spec.camera(HEAD_CAMERA)
+    rotation = np.zeros(9)
+    mujoco.mju_quat2Mat(rotation, np.asarray(head.quat, dtype=float))
+    x_axis = rotation.reshape(3, 3)[:, 0]
+    width, height = options.stereo_resolution
+    for name, side in zip(STEREO_CAMERAS, (-0.5, 0.5)):
+        head.parent.add_camera(
+            name=name, pos=(np.asarray(head.pos) + side * options.stereo_baseline_m * x_axis).tolist(),
+            quat=list(head.quat), fovy=options.stereo_fovy_deg, resolution=[width, height])
 
 
 def _quat_from_axes(x_axis, y_axis) -> list[float]:

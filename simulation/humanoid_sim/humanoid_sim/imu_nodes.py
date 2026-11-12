@@ -3,7 +3,8 @@
 Body IMU (replaces policy_imu_microros firmware + micro_ros_agent):
   /imu/data_raw  sensor_msgs/Imu, frame imu_link, 100 Hz
                  orientation    sensor-to-world quaternion (like Game RV; yaw is
-                                relative to the spawn heading, not a compass)
+                                relative to the spawn heading, not a compass;
+                                optional periodic heading error, see _YawError)
                  angular_vel    rad/s in the sensor frame
                  linear_accel   specific force in m/s^2, ~[0, 0, +9.81] upright
   /imu/status    std_msgs/String JSON, 1 Hz
@@ -67,6 +68,41 @@ class _ImuNoise:
         return gyro, accel
 
 
+class _YawError:
+    """Periodic heading error of the Game Rotation Vector (no magnetometer).
+
+    The published attitude is the true one turned about world z by
+    ``amplitude * sin(2*pi*t / period)``, t from the first sample. Roll, pitch,
+    gyro and accelerometer are unchanged. Amplitude 0 (default) disables it.
+    """
+
+    def __init__(self, node: Node) -> None:
+        node.declare_parameter('yaw_error_amplitude_deg', 0.0)
+        node.declare_parameter('yaw_error_period_s', 60.0)
+        self.amplitude = math.radians(float(node.get_parameter('yaw_error_amplitude_deg').value))
+        self.period = float(node.get_parameter('yaw_error_period_s').value)
+        if self.amplitude != 0.0 and not self.period > 0.0:
+            raise ValueError('yaw_error_period_s must be positive')
+        self._start_ns = None
+
+    def error_rad(self, stamp_ns: int) -> float:
+        if self.amplitude == 0.0:
+            return 0.0
+        if self._start_ns is None:
+            self._start_ns = stamp_ns
+        t = (stamp_ns - self._start_ns) * 1e-9
+        return self.amplitude * math.sin(2.0 * math.pi * t / self.period)
+
+    def apply(self, quat_wxyz, stamp_ns: int) -> np.ndarray:
+        q = np.asarray(quat_wxyz, dtype=float)
+        e = self.error_rad(stamp_ns)
+        if e == 0.0:
+            return q
+        c, s = math.cos(e / 2.0), math.sin(e / 2.0)
+        w, x, y, z = q  # (c, 0, 0, s) * q: rotation about world z applied after q.
+        return np.array([c * w - s * z, c * x - s * y, c * y + s * x, c * z + s * w])
+
+
 def _fill_imu(msg: Imu, gyro: np.ndarray, accel: np.ndarray) -> None:
     msg.angular_velocity.x, msg.angular_velocity.y, msg.angular_velocity.z = map(float, gyro)
     msg.linear_acceleration.x, msg.linear_acceleration.y, msg.linear_acceleration.z = map(float, accel)
@@ -82,6 +118,7 @@ class SimBodyImuNode(Node):
         self.world = world
         self._frame_id = str(self.get_parameter('frame_id').value)
         self._noise = _ImuNoise(self, int(self.get_parameter('seed').value))
+        self._yaw_error = _YawError(self)
         self._published = 0
         self._last_publish_mono = None
         self._max_publish_gap_s = 0.0
@@ -144,7 +181,7 @@ class SimBodyImuNode(Node):
             msg = Imu()
             msg.header.stamp.sec, msg.header.stamp.nanosec = divmod(sample.stamp_ns, 10**9)
             msg.header.frame_id = self._frame_id
-            w, x, y, z = (float(v) for v in sample.quat_wxyz)
+            w, x, y, z = (float(v) for v in self._yaw_error.apply(sample.quat_wxyz, sample.stamp_ns))
             msg.orientation.w, msg.orientation.x, msg.orientation.y, msg.orientation.z = w, x, y, z
             msg.orientation_covariance = BODY_ORIENTATION_COVARIANCE
             _fill_imu(msg, gyro, accel)

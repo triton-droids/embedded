@@ -12,6 +12,8 @@ name and parameters, so ``--params-file`` sections map one-to-one to nodes:
   sim_head_mcu       replaces the head MCU + micro-ROS Agent
   sim_camera         replaces realsense2_camera_node (optional)
   sim_odom_tf        odom -> base_footprint -> base_link TF from ground truth (optional, enable_odom_tf)
+  sim_stereo_camera  passive grayscale stereo pair for visual odometry (optional;
+                     stereo_split renders it in sim_stereo_publisher instead)
 """
 from __future__ import annotations
 from .publish_sample import publish_sample
@@ -87,6 +89,10 @@ class SimControlNode(Node):
             'camera_fovy_deg': 42.5,
             'camera_width': 640,
             'camera_height': 480,
+            'stereo_baseline_m': 0.0,
+            'stereo_fovy_deg': 58.0,
+            'stereo_width': 640,
+            'stereo_height': 480,
             'enable_target': True,
             'target_image': '',
             'scene_builder': '',
@@ -116,6 +122,9 @@ class SimControlNode(Node):
             head_mass_kg=float(p['head_mass_kg']),
             camera_fovy_deg=float(p['camera_fovy_deg']),
             camera_resolution=(int(p['camera_width']), int(p['camera_height'])),
+            stereo_baseline_m=float(p['stereo_baseline_m']),
+            stereo_fovy_deg=float(p['stereo_fovy_deg']),
+            stereo_resolution=(int(p['stereo_width']), int(p['stereo_height'])),
             add_target=bool(p['enable_target']),
             target_image=str(p['target_image']),
             scene_builder=str(p['scene_builder']),
@@ -299,6 +308,10 @@ def main(args=None) -> None:
     from .motor_backend_node import SimMotorBackendNode
 
     control.declare_parameter('enable_camera', False)
+    # Stereo for visual odometry; needs a nonzero stereo_baseline_m (cameras in the model).
+    control.declare_parameter('enable_stereo', False)
+    # Render the stereo pair in sim_stereo_publisher (own process) from shared kinematic state.
+    control.declare_parameter('stereo_split', False)
     control.declare_parameter('use_viewer', False)
     control.declare_parameter('collection_output_dir', '')
     control.declare_parameter('collection_seed', 1)
@@ -335,6 +348,7 @@ def main(args=None) -> None:
     if recorder is not None and imu_split:
         raise ValueError('Collection records the in-process IMU publication; use imu_split:=false')
     imu_writer = None
+    state_writer = None
     imu_node = None
     imu_diagnostics = (Node('sim_body_imu_diagnostics', start_parameter_services=False,
                             enable_rosout=False)
@@ -362,6 +376,15 @@ def main(args=None) -> None:
         nodes.append(SimHeadMcuNode(world))
         if control.get_parameter('enable_camera').value:
             nodes.append(SimCameraNode(world))
+        if control.get_parameter('enable_stereo').value:
+            if control.get_parameter('stereo_split').value:
+                from .state_shm import StateWriter
+                state_writer = StateWriter(world.model)
+                world.state_writer = state_writer
+                control.get_logger().info(f'Stereo state shared at {state_writer.path}')
+            else:
+                from .stereo_camera_node import SimStereoCameraNode
+                nodes.append(SimStereoCameraNode.in_process(world))
     control.declare_parameter('enable_odom_tf', False)
     control.declare_parameter('odom_tf_robot', True)  # false: only world -> odom (leg odometry runs)
     if control.get_parameter('enable_odom_tf').value:
@@ -422,6 +445,9 @@ def main(args=None) -> None:
         world.stop()
         if imu_writer is not None:
             imu_writer.close()
+        if state_writer is not None:
+            world.state_writer = None
+            state_writer.close()
         if remote is not None:
             remote.close()
         if viewer is not None:
@@ -464,6 +490,9 @@ def main(args=None) -> None:
             print('Collection saved: ' + json.dumps(metadata), flush=True)
         if imu_writer is not None:
             imu_writer.close()
+        if state_writer is not None:
+            world.state_writer = None
+            state_writer.close()
         if remote is not None:
             remote.close()
         if viewer is not None:

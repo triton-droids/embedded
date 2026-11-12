@@ -81,6 +81,8 @@ class SimWorld:
         self.control_fault: str | None = None
         # Optional shared-segment writer for the out-of-process IMU publisher.
         self.imu_writer = imu_writer
+        # Optional kinematic-state writer for the out-of-process stereo renderer.
+        self.state_writer = None
 
         self.joint_names = list(motors.joint_names)
         self._qpos = np.array([model.joint(n).qposadr[0] for n in self.joint_names])
@@ -185,6 +187,11 @@ class SimWorld:
             self.sample_stamp_ns = time.time_ns()
             self.sampled_mono = time.monotonic()
             self._write_imu_snapshot()
+            if self.state_writer is not None:
+                try:
+                    self.state_writer.write(self.sample_stamp_ns, data.qpos, data.mocap_pos, data.mocap_quat)
+                except (ValueError, BufferError):
+                    pass  # Segment closed during shutdown.
             self.steps += 1
             if self.recorder is not None:
                 self.recorder.after_step()

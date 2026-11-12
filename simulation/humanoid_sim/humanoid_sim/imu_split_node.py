@@ -24,7 +24,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Imu
 from std_msgs.msg import String
 
-from .imu_nodes import BODY_ORIENTATION_COVARIANCE, _ImuNoise, _fill_imu
+from .imu_nodes import BODY_ORIENTATION_COVARIANCE, _ImuNoise, _YawError, _fill_imu
 from .imu_shm import ImuSnapshotReader
 from .world import ImuSnapshot
 from .publish_sample import publish_sample
@@ -42,6 +42,7 @@ class SplitBodyImuNode(Node):
         self.declare_parameter('snapshot_timeout_s', 30.0)
         self._frame_id = str(self.get_parameter('frame_id').value)
         self._noise = _ImuNoise(self, int(self.get_parameter('seed').value))
+        self._yaw_error = _YawError(self)
         self._published = 0
         self._last_publish_mono = None
         self._last_callback_mono = None
@@ -99,7 +100,7 @@ class SplitBodyImuNode(Node):
         msg = Imu()
         msg.header.stamp.sec, msg.header.stamp.nanosec = divmod(record['stamp_ns'], 10**9)
         msg.header.frame_id = self._frame_id
-        w, x, y, z = (float(v) for v in quat)
+        w, x, y, z = (float(v) for v in self._yaw_error.apply(quat, record['stamp_ns']))
         msg.orientation.w, msg.orientation.x, msg.orientation.y, msg.orientation.z = w, x, y, z
         msg.orientation_covariance = BODY_ORIENTATION_COVARIANCE
         _fill_imu(msg, gyro, accel)
