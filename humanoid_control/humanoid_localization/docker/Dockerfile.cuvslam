@@ -1,8 +1,11 @@
-# Isaac ROS 3.2 dev image (JetPack 6.x, ROS 2 Humble) plus cuVSLAM and CycloneDDS.
+# Isaac ROS 3.2 dev image (JetPack 6.x, ROS 2 Humble) plus cuVSLAM, the GPU YOLO
+# pipeline (DNN image encoder, TensorRT, YOLOv8 decoder) and CycloneDDS.
 # Base: isaac_ros_common/scripts/build_image_layers.sh --image_key aarch64.ros2_humble
 #       --image_name isaac_ros_dev-aarch64
 ARG BASE_IMAGE=isaac_ros_dev-aarch64
 FROM ${BASE_IMAGE}
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ros-humble-isaac-ros-visual-slam ros-humble-rmw-cyclonedds-cpp \
+        ros-humble-isaac-ros-dnn-image-encoder ros-humble-isaac-ros-tensor-rt \
+        ros-humble-isaac-ros-yolov8 \
     && rm -rf /var/lib/apt/lists/*

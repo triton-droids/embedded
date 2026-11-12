@@ -15,7 +15,10 @@ if [[ "${1:-}" == build ]]; then
 fi
 docker image inspect "$image" >/dev/null 2>&1 || { echo "Run '$0 build' first" >&2; exit 1; }
 config=cyclonedds_sim_humble.xml  # The container is Humble.
-exec docker run --rm --name humanoid_cuvslam --runtime nvidia --privileged \
+# The same image also runs other Isaac ROS graphs (scripts/run_isaac_yolo.sh).
+name="${ISAAC_CONTAINER_NAME:-humanoid_cuvslam}"
+launch="${ISAAC_LAUNCH:-/workspaces/humanoid/humanoid_control/humanoid_localization/launch/cuvslam.launch.py}"
+exec docker run --rm --name "$name" --runtime nvidia --privileged \
   --network host --ipc host --pid host \
   -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=all \
   -v /usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra \
@@ -25,4 +28,4 @@ exec docker run --rm --name humanoid_cuvslam --runtime nvidia --privileged \
   -e RMW_IMPLEMENTATION=rmw_cyclonedds_cpp \
   -e CYCLONEDDS_URI="file:///workspaces/humanoid/simulation/humanoid_sim/config/$config" \
   --entrypoint /bin/bash "$image" -c \
-  'source /opt/ros/humble/setup.bash && exec ros2 launch /workspaces/humanoid/humanoid_control/humanoid_localization/launch/cuvslam.launch.py'
+  "source /opt/ros/humble/setup.bash && exec ros2 launch $launch ${*:-}"

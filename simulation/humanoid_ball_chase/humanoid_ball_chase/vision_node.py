@@ -112,7 +112,14 @@ class BallChaseVision(Node):
         self.declare_parameter("yaw_deadband_hold_rad", 0.12)
         self._chase_stopped = False
         self._chase_aligned = False
+        # football_yolo: built-in TensorRT/ONNX YOLO (ball = class 0); isaac: detections
+        # from the Isaac ROS pipeline (scripts/run_isaac_yolo.sh), chasing target_class_id.
         self.declare_parameter("detector", "football_yolo")
+        self.declare_parameter("detections_topic", "/isaac_yolo/detections")
+        self.declare_parameter("target_class_id", 0)
+        self.declare_parameter("detection_wait_s", 0.3)
+        # isaac: keep the instance nearest the previous target; re-pick the nearest one after this gap.
+        self.declare_parameter("target_reacquire_s", 1.0)
         self.declare_parameter("model_path", "")
         self.declare_parameter("device", "cpu")  # cpu: ONNX Runtime; gpu: TensorRT engine
         self.declare_parameter('target_timeout_s', 0.35)
@@ -173,8 +180,18 @@ class BallChaseVision(Node):
             self.get_logger().info(
                 f'Football detector on {self._detector.device}'
                 + (f' ({self._detector.engine_path.name})' if self._detector.engine_path else ''))
+        elif detector == 'isaac':
+            from .isaac_detections import IsaacDetectionSource
+            self._detector = IsaacDetectionSource(
+                self, str(self.get_parameter('detections_topic').value),
+                int(self.get_parameter('target_class_id').value),
+                float(self.get_parameter('detection_wait_s').value),
+                reacquire_s=float(self.get_parameter('target_reacquire_s').value))
+            self.get_logger().info(
+                f"Isaac ROS detections from {self.get_parameter('detections_topic').value}, "
+                f"class {self._detector.class_id}")
         elif detector != 'orange_test':
-            raise ValueError('detector must be football_yolo or orange_test')
+            raise ValueError('detector must be football_yolo, isaac or orange_test')
 
         self.base_frame = str(self.get_parameter("base_frame").value).strip()
         self.stop_distance = float(self.get_parameter("stop_distance").value)
@@ -568,8 +585,12 @@ class BallChaseVision(Node):
                 color_msg: Image) -> Tuple[float, float, float, float, float]:
         """Run the shared detector and validate its five-tuple result."""
         try:
-            detected = (self._detector.detect(rgb, depth_m, k) if self._detector is not None
-                        else core.detect_ball(rgb, depth_m, k))
+            if self._detector is None:
+                detected = core.detect_ball(rgb, depth_m, k)
+            elif getattr(self._detector, 'needs_stamp', False):
+                detected = self._detector.detect(rgb, depth_m, k, color_msg.header.stamp)
+            else:
+                detected = self._detector.detect(rgb, depth_m, k)
         except Exception as exc:
             raise _FrameRejected(
                 f"detection_error:{type(exc).__name__}", True) from exc

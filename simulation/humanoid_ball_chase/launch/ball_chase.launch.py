@@ -38,6 +38,8 @@ def generate_launch_description():
         DeclareLaunchArgument('enable_vio', default_value='false',
                               description='Render the passive stereo pair and run vio_localizer (body IMU + '
                                           'cuVSLAM from scripts/run_cuvslam.sh); A* then uses /localization/odom'),
+        DeclareLaunchArgument('share_state', default_value='false',
+                              description='Share the simulator kinematic state in shared memory (for recorders)'),
         DeclareLaunchArgument('imu_yaw_error_deg', default_value='0.0',
                               description='Body IMU heading error amplitude (sine, degrees; 0 = off)'),
         DeclareLaunchArgument('imu_yaw_error_period_s', default_value='60.0',
@@ -71,6 +73,13 @@ def generate_launch_description():
                               description='clean: ball on a plain pitch. hard: visual-only clutter (robots, '
                                           'people, lines, goal, boards, shadows) plus camera blur/noise/'
                                           'exposure/JPEG; physics unchanged'),
+        DeclareLaunchArgument('vision_detector', default_value='football_yolo',
+                              choices=['football_yolo', 'isaac', 'orange_test'],
+                              description='isaac: chase vision_target_class from /isaac_yolo/detections '
+                                          '(start scripts/run_isaac_yolo.sh on the same ROS_DOMAIN_ID)'),
+        DeclareLaunchArgument('vision_target_class', default_value='0',
+                              description='With vision_detector:=isaac: class id to chase (td-perception: '
+                                          '0 ball, 1 goalpost, 2 robot, 3 L-, 4 T-, 5 X-intersection, 6 penalty mark)'),
         DeclareLaunchArgument('vision_device', default_value='gpu', choices=['gpu', 'cpu'],
                               description='gpu: TensorRT FP16 engine next to the ONNX (build with '
                                           'scripts/build_ball_chase_engines.sh); cpu: ONNX Runtime, one thread'),
@@ -105,6 +114,7 @@ def generate_launch_description():
                 'remote_viewer_port': arg('remote_viewer_port'),
                 'remote_viewer_rate_hz': arg('remote_viewer_rate_hz'),
                 'enable_stereo': arg('enable_vio'),
+                'share_state': arg('share_state'),
                 'imu_yaw_error_deg': arg('imu_yaw_error_deg'),
                 'imu_yaw_error_period_s': arg('imu_yaw_error_period_s'),
             }.items()),
@@ -116,6 +126,8 @@ def generate_launch_description():
              parameters=[{'target_timeout_s':ParameterValue(arg('vision_target_timeout_s'), value_type=float),
                          'model_path':ParameterValue(arg('vision_model_path'), value_type=str),
                          'device':ParameterValue(arg('vision_device'), value_type=str),
+                         'detector':ParameterValue(arg('vision_detector'), value_type=str),
+                         'target_class_id':ParameterValue(arg('vision_target_class'), value_type=int),
                          'world_model':ParameterValue(arg('world_model'), value_type=bool),
                          'kick':ParameterValue(arg('kick'), value_type=bool),
                          # Measured in this scene (2026-11-10): the MuJoCo ball's speed decays at

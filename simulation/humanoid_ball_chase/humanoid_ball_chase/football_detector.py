@@ -197,18 +197,36 @@ class FootballDetector:
             boxes.append([(float(cx-bw/2)-left)/scale,(float(cy-bh/2)-top)/scale,
                           float(bw)/scale,float(bh)/scale])
         selected=cv2.dnn.NMSBoxes(boxes,conf.tolist(),self.confidence,.45)
+        mat=np.asarray(k).reshape(3,3)
+        if not np.isfinite(mat).all() or min(mat[0,0],mat[1,1])<=0:return None
         for idx in np.asarray(selected).reshape(-1):
             x,y,bw,bh=boxes[int(idx)]
-            u,v=x+bw/2,y+bh/2
-            if not (0<=u<w and 0<=v<h):continue
-            radius=max(1,int(min(bw,bh)*.20))
-            x0,x1=max(0,int(u)-radius),min(w,int(u)+radius+1)
-            y0,y1=max(0,int(v)-radius),min(h,int(v)+radius+1)
-            samples=depth_m[y0:y1,x0:x1]
-            samples=samples[np.isfinite(samples)&(samples>.1)&(samples<10)]
-            if len(samples)<5:continue
-            z=float(np.median(samples));mat=np.asarray(k).reshape(3,3)
-            if not np.isfinite(mat).all() or min(mat[0,0],mat[1,1])<=0:return None
+            point=point_from_box(x+bw/2,y+bh/2,bw,bh,depth_m,mat)
+            if point is None:continue
             self.last_confidence=float(conf[idx])
-            return float(u),float(v),(u-mat[0,2])*z/mat[0,0],(v-mat[1,2])*z/mat[1,1],z
+            return point
         return None
+
+
+def point_from_box(u, v, bw, bh, depth_m, k):
+    """(u, v, x, y, z) in camera optical axes from a box center and the aligned depth.
+
+    Median of valid depth (0.1-10 m) in a window of 20 % of the smaller box side
+    around the center; None if the center is outside the image, fewer than five
+    depth samples are valid, or the intrinsics are invalid.
+    """
+    h, w = depth_m.shape
+    if not (0 <= u < w and 0 <= v < h):
+        return None
+    mat = np.asarray(k, dtype=float).reshape(3, 3)
+    if not np.isfinite(mat).all() or min(mat[0, 0], mat[1, 1]) <= 0:
+        return None
+    radius = max(1, int(min(bw, bh) * .20))
+    x0, x1 = max(0, int(u) - radius), min(w, int(u) + radius + 1)
+    y0, y1 = max(0, int(v) - radius), min(h, int(v) + radius + 1)
+    samples = depth_m[y0:y1, x0:x1]
+    samples = samples[np.isfinite(samples) & (samples > .1) & (samples < 10)]
+    if len(samples) < 5:
+        return None
+    z = float(np.median(samples))
+    return float(u), float(v), (u - mat[0, 2]) * z / mat[0, 0], (v - mat[1, 2]) * z / mat[1, 1], z
