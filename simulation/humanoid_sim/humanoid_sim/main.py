@@ -312,6 +312,8 @@ def main(args=None) -> None:
     control.declare_parameter('enable_stereo', False)
     # Render the stereo pair in sim_stereo_publisher (own process) from shared kinematic state.
     control.declare_parameter('stereo_split', False)
+    # Share qpos/mocap after every step (state_shm) for recorders, without stereo.
+    control.declare_parameter('share_state', False)
     control.declare_parameter('use_viewer', False)
     control.declare_parameter('collection_output_dir', '')
     control.declare_parameter('collection_seed', 1)
@@ -376,15 +378,17 @@ def main(args=None) -> None:
         nodes.append(SimHeadMcuNode(world))
         if control.get_parameter('enable_camera').value:
             nodes.append(SimCameraNode(world))
-        if control.get_parameter('enable_stereo').value:
-            if control.get_parameter('stereo_split').value:
-                from .state_shm import StateWriter
-                state_writer = StateWriter(world.model)
-                world.state_writer = state_writer
-                control.get_logger().info(f'Stereo state shared at {state_writer.path}')
-            else:
-                from .stereo_camera_node import SimStereoCameraNode
-                nodes.append(SimStereoCameraNode.in_process(world))
+        if (control.get_parameter('enable_stereo').value
+                and not control.get_parameter('stereo_split').value):
+            from .stereo_camera_node import SimStereoCameraNode
+            nodes.append(SimStereoCameraNode.in_process(world))
+    stereo_split = (world.head is not None and control.get_parameter('enable_stereo').value
+                    and control.get_parameter('stereo_split').value)
+    if stereo_split or control.get_parameter('share_state').value:
+        from .state_shm import StateWriter
+        state_writer = StateWriter(world.model)
+        world.state_writer = state_writer
+        control.get_logger().info(f'Kinematic state shared at {state_writer.path}')
     control.declare_parameter('enable_odom_tf', False)
     control.declare_parameter('odom_tf_robot', True)  # false: only world -> odom (leg odometry runs)
     if control.get_parameter('enable_odom_tf').value:
