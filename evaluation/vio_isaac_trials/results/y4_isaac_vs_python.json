@@ -1,0 +1,33 @@
+{
+ "isaac_frames": 360,
+ "isaac_ball_frames": 350,
+ "python_ball_frames": 342,
+ "both": 342,
+ "isaac_only": 8,
+ "python_only": 0,
+ "classes_seen": {
+  "L-int": 34,
+  "T-int": 28,
+  "robot": 316,
+  "goalpost": 2,
+  "ball": 353,
+  "penalty": 9,
+  "X-int": 1
+ },
+ "isaac_latency_ms": {
+  "median": 117.0,
+  "p95": 141.6
+ },
+ "python_latency_ms": {
+  "median": 110.2,
+  "p95": 134.6
+ },
+ "pixel_diff_top_left_padding": {
+  "median": 91.58,
+  "max": 101.96
+ },
+ "pixel_diff_centered_padding": {
+  "median": 0.64,
+  "max": 9.98
+ }
+}
