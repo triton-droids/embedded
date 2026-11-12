@@ -1,0 +1,19 @@
+# cuVSLAM (isaac_ros_visual_slam, Isaac ROS 3.2) on the simulated passive stereo pair.
+# Pure stereo VO: the body IMU is fused downstream by vio_localizer, because the
+# camera moves with the head and cuVSLAM's IMU must be rigidly on the camera rig.
+visual_slam_node:
+  ros__parameters:
+    num_cameras: 2
+    rectified_images: true          # Identical ideal pinholes, horizontal baseline.
+    enable_imu_fusion: false
+    base_frame: stereo_rig          # Rig frame (x forward); its pose is the output.
+    camera_optical_frames: [stereo_left_optical, stereo_right_optical]
+    # vio_localizer owns the base pose: no TF from cuVSLAM (would reparent stereo_rig).
+    publish_odom_to_base_tf: false
+    publish_map_to_odom_tf: false
+    enable_localization_n_mapping: false
+    enable_slam_visualization: false
+    enable_landmarks_view: false
+    enable_observations_view: false
+    # 15 Hz input: the default jitter threshold assumes 30 Hz cameras.
+    image_jitter_threshold_ms: 100.0

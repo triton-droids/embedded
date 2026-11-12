@@ -18,6 +18,8 @@ class AStarPlanner(Node):
         super().__init__('ball_chase_astar')
         self.declare_parameter('robot_radius_m', 0.25)
         self.declare_parameter('pose_timeout_s', 1.0)
+        # /localization/odom (IMU + visual odometry) or the simulator ground truth.
+        self.declare_parameter('odom_topic', '/sim/ground_truth/odom')
         self.radius = float(self.get_parameter('robot_radius_m').value)
         self.timeout = float(self.get_parameter('pose_timeout_s').value)
         if not math.isfinite(self.radius) or self.radius < 0 or not 0 < self.timeout <= 5:
@@ -29,7 +31,7 @@ class AStarPlanner(Node):
         map_qos = QoSProfile(depth=2, durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.create_subscription(OccupancyGrid, '/ball_chase/map', self.on_map, map_qos)
         self.create_subscription(PoseStamped, '/ball_chase/goal', self.on_goal, 2)
-        self.create_subscription(Odometry, '/sim/ground_truth/odom', self.on_odom, 2)
+        self.create_subscription(Odometry, self.get_parameter('odom_topic').value, self.on_odom, 2)
         self.create_timer(0.5, self.replan)
 
     def on_map(self, msg):

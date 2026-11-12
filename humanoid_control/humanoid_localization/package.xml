@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>humanoid_localization</name>
+  <version>0.1.0</version>
+  <description>Base pose from the BNO085 game rotation vector and stereo visual odometry, without simulator ground truth.</description>
+  <maintainer email="rul039@ucsd.edu">Triton Droids</maintainer>
+  <license>MIT</license>
+  <buildtool_depend>ament_python</buildtool_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <test_depend>python3-pytest</test_depend>
+  <export><build_type>ament_python</build_type></export>
+</package>
