@@ -299,7 +299,8 @@ def simulation_and_stack(context):
                          'cmd_vel_topic': arg('walk_cmd_vel_topic').perform(context),
                          'contact_kp': float(arg('walk_contact_kp').perform(context)),
                          'cmd_vel_max_step_m': float(arg('walk_max_step_m').perform(context)),
-                         'cmd_vel_max_turn_rad': float(arg('walk_max_turn_rad').perform(context))}]))
+                         'cmd_vel_max_turn_rad': float(arg('walk_max_turn_rad').perform(context)),
+                         'slow_log_ms': float(arg('walk_slow_log_ms').perform(context))}]))
     if connected and flag(context, 'auto_start'):
         stack.append(Node(
             package='humanoid_sim', executable='sim_autostart', output='screen',
@@ -416,6 +417,7 @@ def generate_launch_description():
         ('stereo_rate_hz', '15.0', 'With enable_stereo: stereo frame rate'),
         ('stereo_split', 'true', 'With enable_stereo: render in sim_stereo_publisher, not in mujoco_sim'),
         ('share_state', 'false', 'Share qpos/mocap in shared memory (state_shm) for recorders'),
+        ('walk_slow_log_ms', '0.0', 'model_walk diagnostics: log cycles and cycle gaps longer than this (0 = off)'),
         ('imu_yaw_error_deg', '0.0', 'Body IMU heading error amplitude (sine, degrees; 0 = off)'),
         ('imu_yaw_error_period_s', '60.0', 'Period of the body IMU heading error'),
         ('start_base_held', 'true', 'Start on the virtual gantry'),

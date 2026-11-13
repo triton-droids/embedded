@@ -69,6 +69,9 @@ class WalkingControllerNode(Node):
             'output_lifetime_s': 0.08,
             # A single slow cycle is harmless while the last command is valid.
             'max_cycle_s': 0.03,
+            # Diagnostics: > 0 logs every cycle slower than this and every gap between
+            # cycles longer than this (ms), with input ages (0 = off).
+            'slow_log_ms': 0.0,
             'step_length_m': 0.0,
             # 'state': one cycle per physics sample, as soon as its odom, feet and
             # joint states have all arrived (lowest latency); 'timer': fixed-rate
@@ -128,6 +131,7 @@ class WalkingControllerNode(Node):
             gains=WBCGains(com_kp_z=100.0, com_weight=10.0, contact_kp=float(p['contact_kp']))))
         self.inputs, self.base_held, self.estop = {}, None, True
         self.started, self.fault, self.cycles = False, '', 0
+        self._slow_log_last = None  # Start of the previous cycle (slow_log_ms gap).
         # Last 400 cycles (2 s) for /walk/status.
         self.cycle_ms, self.input_age_ms, self.joint_age_ms = (deque(maxlen=400) for _ in range(3))
         self._last_sample = None   # stamp of the last physics sample computed ('state')
@@ -359,6 +363,15 @@ class WalkingControllerNode(Node):
         self._publish_stance()
         cycle = time.monotonic() - begin
         self.cycle_ms.append(cycle * 1e3)
+        slow_ms = float(self.params['slow_log_ms'])
+        if slow_ms > 0.0:
+            gap_ms = 0.0 if self._slow_log_last is None else (begin - self._slow_log_last) * 1e3
+            if cycle * 1e3 > slow_ms or gap_ms > slow_ms:
+                self.get_logger().warn(
+                    f'Slow: cycle {cycle * 1e3:.1f} ms, gap {gap_ms:.1f} ms, input age '
+                    f'{self.input_age_ms[-1]:.1f} ms, joint age {self.joint_age_ms[-1]:.1f} ms, '
+                    f'phase {self.controller.phase}')
+        self._slow_log_last = begin
         if cycle > self.params['max_cycle_s']:
             self._fail(f'Cycle took {cycle * 1e3:.1f} ms')
             return

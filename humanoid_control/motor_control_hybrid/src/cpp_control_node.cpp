@@ -11,6 +11,9 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include <algorithm>
 #include <sched.h>
 #include <cerrno>
 #include <cstring>
@@ -162,6 +165,21 @@ public:
       std::chrono::duration<double>(1.0 / rate)
     );
     control_timer_ = this->create_wall_timer(period, std::bind(&CppControlNode::control_loop, this));
+    // Timing diagnostics (HUMANOID_CPP_DIAG=1): per-second maxima of the command age on
+    // receipt and on forwarding, and of the gap between control ticks, on stderr.
+    const char* diag_env = std::getenv("HUMANOID_CPP_DIAG");
+    diag_enabled_ = diag_env && std::string(diag_env) != "0" && std::string(diag_env) != "";
+    if (diag_enabled_) {
+      diag_timer_ = this->create_wall_timer(std::chrono::seconds(1), [this]() {
+        fprintf(stderr, "CPPDIAG {\"t\": %.1f, \"rx_age_ms\": %.1f, \"tx_age_ms\": %.1f, "
+                "\"loop_gap_ms\": %.1f, \"n_rx\": %d, \"n_tx\": %d}\n",
+                this->now().seconds(), diag_rx_max_ms_, diag_tx_max_ms_, diag_gap_max_ms_,
+                diag_n_rx_, diag_n_tx_);
+        fflush(stderr);
+        diag_rx_max_ms_ = diag_tx_max_ms_ = diag_gap_max_ms_ = 0.0;
+        diag_n_rx_ = diag_n_tx_ = 0;
+      });
+    }
 
     RCLCPP_INFO(
       this->get_logger(),
@@ -627,6 +645,10 @@ private:
           std::chrono::duration<double>(cmd_timeout_s_))};
     }
     if (!disable_only && timing.source <= minimum_command_source_) return;
+    if (diag_enabled_) {
+      diag_rx_max_ms_ = std::max(diag_rx_max_ms_, (this->now().seconds() - timing.source) * 1e3);
+      ++diag_n_rx_;
+    }
     for (const auto& name : msg->joint_name) idle_enabled_.erase(name);
     last_cmd_time_ = this->now();
     has_cmd_ = true;
@@ -760,6 +782,14 @@ private:
 
   void control_loop()
   {
+    if (diag_enabled_) {
+      const auto tick = std::chrono::steady_clock::now();
+      if (diag_last_tick_.time_since_epoch().count() != 0) {
+        diag_gap_max_ms_ = std::max(diag_gap_max_ms_,
+          std::chrono::duration<double, std::milli>(tick - diag_last_tick_).count());
+      }
+      diag_last_tick_ = tick;
+    }
     // Snapshot state
     std::vector<std::string> joint_order;
     std::unordered_map<std::string, JointDataRT> state_map;
@@ -948,6 +978,10 @@ private:
     }
     msg.header.stamp = rclcpp::Time(static_cast<int64_t>(source * 1e9));
     msg.valid_until = rclcpp::Time(static_cast<int64_t>(expiry * 1e9));
+    if (diag_enabled_ && !operation_owned) {
+      diag_tx_max_ms_ = std::max(diag_tx_max_ms_, (this->now().seconds() - source) * 1e3);
+      ++diag_n_tx_;
+    }
     msg.joint_name = out.joint_name;
 
     const size_t n = out.joint_name.size();
@@ -1060,6 +1094,11 @@ private:
 
   // Parameters
   double control_rate_hz_{50.0};
+  bool diag_enabled_{false};
+  rclcpp::TimerBase::SharedPtr diag_timer_;
+  double diag_rx_max_ms_{0.0}, diag_tx_max_ms_{0.0}, diag_gap_max_ms_{0.0};
+  int diag_n_rx_{0}, diag_n_tx_{0};
+  std::chrono::steady_clock::time_point diag_last_tick_{};
   double state_timeout_s_{0.2};
   bool auto_append_new_joints_{false};
   double cmd_timeout_s_{0.5};

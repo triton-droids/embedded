@@ -26,6 +26,7 @@ from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool, String
 
+from . import diag
 from .world import SimWorld
 from .publish_sample import publish_sample
 
@@ -126,9 +127,12 @@ class SimMotorBackendNode(Node):
     def _command_callback(self, msg: MotorCommand) -> None:
         stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         valid_until = msg.valid_until.sec + msg.valid_until.nanosec * 1e-9
+        lock_begin = time.monotonic()
         with self.world.lock:
             now_mono = time.monotonic()
             now_ros = self.get_clock().now().nanoseconds * 1e-9
+            diag.record('cmd_lock_ms', (now_mono - lock_begin) * 1e3)
+            diag.record('cmd_age_ms', (now_ros - stamp) * 1e3)
             rejected = self.world.motors.submit(
                 list(msg.joint_name), list(msg.mode), list(msg.position), list(msg.velocity),
                 list(msg.torque), list(msg.kp), list(msg.kd),

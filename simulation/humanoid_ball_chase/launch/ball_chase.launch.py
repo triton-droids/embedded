@@ -38,6 +38,8 @@ def generate_launch_description():
         DeclareLaunchArgument('enable_vio', default_value='false',
                               description='Render the passive stereo pair and run vio_localizer (body IMU + '
                                           'cuVSLAM from scripts/run_cuvslam.sh); A* then uses /localization/odom'),
+        DeclareLaunchArgument('walk_slow_log_ms', default_value='0.0',
+                              description='model_walk diagnostics: log cycles and cycle gaps longer than this (ms)'),
         DeclareLaunchArgument('share_state', default_value='false',
                               description='Share the simulator kinematic state in shared memory (for recorders)'),
         DeclareLaunchArgument('imu_yaw_error_deg', default_value='0.0',
@@ -115,6 +117,7 @@ def generate_launch_description():
                 'remote_viewer_rate_hz': arg('remote_viewer_rate_hz'),
                 'enable_stereo': arg('enable_vio'),
                 'share_state': arg('share_state'),
+                'walk_slow_log_ms': arg('walk_slow_log_ms'),
                 'imu_yaw_error_deg': arg('imu_yaw_error_deg'),
                 'imu_yaw_error_period_s': arg('imu_yaw_error_period_s'),
             }.items()),

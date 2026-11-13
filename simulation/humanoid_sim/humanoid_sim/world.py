@@ -19,6 +19,7 @@ import time
 import mujoco
 import numpy as np
 
+from . import diag
 from . import model_builder as mb
 from .motor_model import MotorBank
 
@@ -135,7 +136,9 @@ class SimWorld:
             if now < next_step:
                 time.sleep(next_step - now)
                 continue
+            diag.record('step_late_ms', (now - next_step) * 1e3)
             self.step(now)
+            diag.record('step_ms', (time.monotonic() - now) * 1e3)
             next_step += dt
             finished = time.monotonic()
             if next_step < finished:

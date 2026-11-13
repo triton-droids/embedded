@@ -26,6 +26,7 @@ from rclpy._rclpy_pybind11 import RCLError
 from rclpy.node import Node
 from sensor_msgs.msg import CameraInfo, Image
 
+from . import diag
 from .frames import body_from_base
 from . import model_builder as mb
 from .image_degradation import DegradationSettings, ImageDegrader
@@ -113,6 +114,7 @@ class SimCameraNode(Node):
         next_frame = time.monotonic()
         while not self._stop.is_set():
             next_frame += self._period
+            scene_begin = time.monotonic()
             with self.world.lock:
                 color.update_scene(self.world.data, camera=mb.HEAD_CAMERA)
                 if depth is not None:
@@ -131,7 +133,11 @@ class SimCameraNode(Node):
             try:
                 if self._tf is not None:
                     self._tf.sendTransform(transform)
-                self._publish_color(self._degrader.apply(color.render(), omega), stamp)
+                render_begin = time.monotonic()
+                diag.record('cam_scene_ms', (render_begin - scene_begin) * 1e3)
+                rgb = color.render()
+                diag.record('cam_render_ms', (time.monotonic() - render_begin) * 1e3)
+                self._publish_color(self._degrader.apply(rgb, omega), stamp)
                 if depth is not None:
                     self._publish_depth(depth.render(), stamp)
                 self._info.header.stamp = stamp
