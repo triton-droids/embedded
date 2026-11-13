@@ -10,7 +10,7 @@ import time
 
 import numpy as np
 import rclpy
-from geometry_msgs.msg import PointStamped
+from geometry_msgs.msg import PointStamped, TwistStamped
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from vision_msgs.msg import Detection2DArray
@@ -25,11 +25,12 @@ def ns(stamp):
 class Rec(Node):
     def __init__(self):
         super().__init__('chase_recorder')
-        self.detections, self.targets, self.poses, self.points = [], [], [], []
+        self.detections, self.targets, self.poses, self.points, self.cmds = [], [], [], [], []
         self.create_subscription(Detection2DArray, '/isaac_yolo/detections', self._det, 10)
         self.create_subscription(PointStamped, '/vision/target_center', self._tgt, 10)
         self.create_subscription(PointStamped, '/vision/ball_3d_position', self._pt, 10)
         self.create_subscription(Odometry, '/localization/odom', self._odom, 10)
+        self.create_subscription(TwistStamped, '/ball_chase/cmd_vel', self._cmd, 10)
 
     def _det(self, msg):
         boxes = [(int(d.results[0].hypothesis.class_id), float(d.results[0].hypothesis.score),
@@ -45,6 +46,9 @@ class Rec(Node):
             return  # 20 Hz is plenty for the video.
         p, q = msg.pose.pose.position, msg.pose.pose.orientation
         self.poses.append((ns(msg.header.stamp), p.x, p.y, p.z, q.w, q.x, q.y, q.z))
+
+    def _cmd(self, msg):
+        self.cmds.append((ns(msg.header.stamp), msg.twist.linear.x, msg.twist.angular.z))
 
     def _tgt(self, msg):
         self.targets.append((ns(msg.header.stamp), msg.point.x, msg.point.y))
@@ -70,7 +74,7 @@ def main():
                         mocap_pos=np.array([r[2] for r in rows]), mocap_quat=np.array([r[3] for r in rows]))
     with open(out.replace('.npz', '.json'), 'w') as f:
         json.dump({'detections': node.detections, 'targets': node.targets,
-                   'poses': node.poses, 'points': node.points}, f)
+                   'poses': node.poses, 'points': node.points, 'cmds': node.cmds}, f)
     shutil.copy(reader.model_path, out.replace('.npz', '.mjb'))
     print(f'saved {len(rows)} frames, {len(node.detections)} detection arrays, {len(node.targets)} targets, '
           f'{len(node.poses)} poses, {len(node.points)} points')

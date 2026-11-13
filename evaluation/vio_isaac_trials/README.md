@@ -39,7 +39,7 @@ Paths are hard-coded for that layout; adjust `R=` at the top of each shell scrip
 | Script | What it does |
 |---|---|
 | `trial.sh NAME EVAL_S [launch args]` | VIO trial: starts cuVSLAM, then the hard-scene chase with `enable_vio:=true`, runs `localization_eval` for `EVAL_S` s. `ROUTE_LEGS=16` adds `route_driver` (long route), `RECORD_S=290` adds `record_route.py`. Writes `errors.csv`, `eval.json`, status snapshots and logs. |
-| `vio_chase.sh NAME SECONDS LEGS` | VIO + Isaac YOLO chase along a route, recorded with `record_chase.py` (no evaluator, to keep the load down). Used for `videos/vio_isaac_chase.mp4`. |
+| `vio_chase.sh NAME SECONDS LEGS` | Chase along a route, recorded with `record_chase.py` (no evaluator, to keep the load down). Default: VIO + Isaac YOLO in one container (`run_isaac_perception.sh`); `ISAAC=split` two containers, `DETECTOR=builtin` the built-in detector, `VIO=0` no localization, `ISAAC_CPUSET=4,5` pins the container. Logs `/sim/status`, `/walk/status`, tegrastats and the timing diagnostics below from before the launch. Used for `videos/vio_isaac_chase.mp4` and the load investigation. |
 | `isaac_chase.sh NAME CLASS SECONDS` | Chase with `vision_detector:=isaac vision_target_class:=CLASS`. `BALL_XY=0.8,1.0` moves the ball after release, `RECORD=1` records with `record_chase.py`. Used for `videos/isaac_target_class.mp4`. |
 | `yolo_trial.sh NAME SECONDS` | Runs the Isaac YOLO pipeline next to the built-in Python/TensorRT detector and compares them with `compare_yolo.py`. |
 | `compare_yolo.py DURATION [W H]` | Pairs `/isaac_yolo/detections` with `/vision/target_center` by image stamp: ball agreement, pixel difference (both padding conventions), classes seen, latency from the image stamp. |
@@ -47,6 +47,8 @@ Paths are hard-coded for that layout; adjust `R=` at the top of each shell scrip
 | `render_route.py REC.npz ERRORS.csv OUT.mp4` | Video for a VIO route: chase view, stereo-left inset, top-down truth vs `/localization/odom` from the evaluator CSV. |
 | `record_chase.py DURATION OUT.npz` | Shared-memory state at 15 Hz plus low-rate ROS: Isaac detections, chased pixel, chased 3D point, `/localization/odom` (20 Hz). Needs `share_state:=true` or stereo. |
 | `render_chase.py OUT.mp4 REC.npz "TITLE" [...]` | Video per recording (joined): chase view; head camera with the Isaac boxes and the chased target; top-down with truth (white path, green ball), the robot's own estimate (orange) and where it believes the target is (yellow, from its own pose + head kinematics + the detection's depth). Skips frames from a stale state file left by an earlier run. |
+| `analyze_diag.py RUN [...]` | Per run: gantry-held and walking statistics of the `DIAG` / `CPPDIAG` per-second maxima (command age at each hop, GIL, physics step, camera render) and the seconds before a physics pause. |
+| `analyze_status.py RUN [...]` | Real-time factor, physics overruns, walking-controller cycle and input ages, GPU and CPU load from the status logs. |
 | `probe_start.py` | Offline (no ROS): stand, then start walking; times every `controller.step` and profiles slow cycles. Used to rule out the controller itself for the start-up faults (single-threaded BLAS: max 4.9 ms on the Jetson). |
 
 ## Results
@@ -103,14 +105,36 @@ Head-camera panels are re-rendered from the recorded state, so they lack the
 hard scene's image degradation; the boxes are what Isaac detected on the
 degraded images.
 
+## Timing diagnostics (all off by default)
+
+| Switch | Where | Output in `sim.log` |
+|---|---|---|
+| `HUMANOID_SIM_DIAG=1` | `mujoco_sim` (`humanoid_sim/diag.py`) | `DIAG {...}` per second: command age on admission, world-lock wait, physics step and lateness, camera scene/render, GIL probe |
+| `HUMANOID_CPP_DIAG=1` | `cpp_control_node` | `CPPDIAG {...}` per second: command age on receipt (`rx_age_ms`) and on forwarding (`tx_age_ms`), control-tick gap |
+| `walk_slow_log_ms:=40` | `walking_controller` (`slow_log_ms`) | `Slow: ...` for each cycle or gap between cycles over the threshold |
+
+They perturb the system they measure: a 10 ms `walk_slow_log_ms` floods the log and
+slows the controller enough that `sim_autostart` times out; the GIL probe thread
+adds GIL traffic in `mujoco_sim`.
+
 ## Known issues
 
-- **Load on the Orin Nano.** Simulation, stereo rendering, cuVSLAM, the Isaac YOLO
-  container and the walking controller together leave little CPU. Symptoms:
-  walking-controller cycles over 30 ms, command expiry, physics pause, then an
-  IMU-freshness estop. The trial scripts renice the evaluation tools to 19 and
-  avoid 200 Hz Python subscriptions; with cuVSLAM and YOLO both running the robot
-  still fell twice while turning (`vio_isaac_chase.mp4`).
+- **Little timing margin on the Orin Nano.** The built-in detector completed every
+  route without extra load (w5, w9, s2). With the Isaac YOLO container (w1-w4,
+  w7, w8; with or without VIO, one or two containers, pinned or not) and also with
+  the built-in detector while the timing diagnostics ran (d8), the robot fell
+  while turning, so extra load in general, not Isaac itself, is the trigger.
+  Detections before the falls were correct; the command spikes seen there follow
+  the camera as the robot tips over.
+- **Command path (d8, built-in detector, walking).** Per-second maxima of the
+  command age, median: 3 ms on receipt in `cpp_control_node`, 23 ms when it
+  forwards, 29 ms on admission in the simulator, against an 80 ms command
+  lifetime. About 20 ms is spent inside `cpp_control_node` for a 200 Hz loop; why
+  is open. In the second of the fall the last hop rose to 78 ms while the
+  simulator's GIL, lock wait and physics step stayed normal.
+- **`sim_autostart` timeouts** (`Release denied: ... enabled=[]`): frequent in the
+  later runs (d1, d3-d7), including without log flooding. During start-up the
+  simulator showed GIL holds up to 580 ms and physics steps up to 161 ms.
 - **`Physics paused` right after `signal_handler(SIGINT)`** in `sim.log` is the
   script tearing the launch down, not a fault.
 - **Start order.** The localizer takes the start pose at its first VO frame:
