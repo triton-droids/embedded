@@ -18,7 +18,11 @@ config=cyclonedds_sim_humble.xml  # The container is Humble.
 # The same image also runs other Isaac ROS graphs (scripts/run_isaac_yolo.sh).
 name="${ISAAC_CONTAINER_NAME:-humanoid_cuvslam}"
 launch="${ISAAC_LAUNCH:-/workspaces/humanoid/humanoid_control/humanoid_localization/launch/cuvslam.launch.py}"
-exec docker run --rm --name "$name" --runtime nvidia --privileged \
+# ISAAC_CPUSET (e.g. 4,5) keeps the container on those cores, leaving the others to
+# the simulator and the walking controller.
+cpuset=()
+[[ -n "${ISAAC_CPUSET:-}" ]] && cpuset=(--cpuset-cpus "$ISAAC_CPUSET")
+exec docker run --rm --name "$name" --runtime nvidia --privileged "${cpuset[@]}" \
   --network host --ipc host --pid host \
   -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=all \
   -v /usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra \

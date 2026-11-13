@@ -602,6 +602,16 @@ consumes TF changes. Frame names (`world_frame`, `odom_frame`,
 `base_footprint_frame`, `base_frame`) are parameters, for example `robot1/odom`
 in a multi-robot setup (the camera TF parent is still a fixed `base_link`).
 
+### Stereo pair, shared state and IMU heading error
+
+| `sim.launch.py` argument | Effect |
+|---|---|
+| `enable_stereo:=true` | Two head cameras 50 mm apart (the D435 IR imagers, projector covered): `/stereo/{left,right}/image_raw` (mono8, 640x480, `stereo_rate_hz` 15) and `camera_info` (rectified pinhole, right `P[3] = -fx * b`), TF `floating_base → stereo_rig` (dynamic) and `stereo_rig → stereo_{left,right}_optical` (static). Stamps are the physics sample time. Used by `humanoid_localization` (cuVSLAM). |
+| `stereo_split:=true` (default with stereo) | `mujoco_sim` writes qpos/mocap after every step to shared memory (`state_shm`, per `ROS_DOMAIN_ID`) and saves the compiled model; `sim_stereo_publisher` renders from it in its own process, so rendering never holds the simulator GIL or world lock. `false` renders inside `mujoco_sim`. |
+| `share_state:=true` | The same shared state without stereo, for recorders (`evaluation/vio_isaac_trials/scripts/record_*.py`). |
+| `HUMANOID_SIM_DIAG=1` (environment) | Prints `DIAG {...}` once per second: maxima of motor-command age on admission, world-lock wait, physics step time and lateness, camera scene update and render time, and a GIL probe (oversleep of a 2 ms sleep). Off by default; the probe thread itself adds GIL traffic. |
+| `imu_yaw_error_deg`, `imu_yaw_error_period_s` | Sinusoidal heading error on the simulated BNO085 game rotation vector (`/imu/data_raw` orientation only; roll, pitch, gyro and accelerometer unchanged). 0 (default) is off. |
+
 The `mujoco_sim` process can also be started alone, to drive the real nodes
 from another launch:
 

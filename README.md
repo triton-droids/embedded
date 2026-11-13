@@ -1,81 +1,47 @@
 # Humanoid ROS 2 Simulation
 
-MuJoCo simulation of a ten-joint humanoid leg robot with ONNX policy inference,
-C++ command scheduling, safety supervision, Web monitoring and optional visual
-head tracking. Physical-device code is archived in [hardware/](hardware/README.md).
-An optional [WBC simulation path](humanoid_control/wbc_control_node/README.md)
-inserts patched TSID between the policy and command scheduler.
+MuJoCo simulation of a ten-joint humanoid leg robot running the robot's own
+software stack: an ONNX tracking policy or a model-based walking controller
+(LIPM MPC + TSID), the C++ command scheduler, safety supervision and Web
+monitoring, and a camera ball chase (YOLO on TensorRT or Isaac ROS) with
+optional localization from the body IMU and stereo visual odometry.
 
 ## Quick start
 
-From the repository root on ROS 2 Jazzy, or the supplied Humble dev container:
+ROS 2 Jazzy, or Humble (Jetson / dev container), from the repository root:
 
 ```bash
-source scripts/setup_rosenv.sh
-CMAKE_BUILD_PARALLEL_LEVEL=1 MAKEFLAGS=-j1 colcon build --symlink-install \
-  --executor sequential --packages-up-to humanoid_sim
+source scripts/setup_rosenv.sh        # first time: Python env, Pinocchio, patched TSID
+CMAKE_BUILD_PARALLEL_LEVEL=1 MAKEFLAGS=-j1 colcon build --symlink-install --executor sequential \
+  --packages-up-to humanoid_sim humanoid_ball_chase walking_controller humanoid_localization \
+  --cmake-args -DTRACK_ONLY=ON      # humanoid_vision: tracker only, no OpenCV detector build
 source install/setup.bash
-ros2 launch humanoid_sim sim.launch.py
 ```
 
-The environment setup also installs Pinocchio and builds patched TSID for WBC.
-The first setup requires network access and a C++ toolchain; the native build
-uses one compiler process by default to limit Jetson memory use.
+Run:
 
-The default simulation starts held on a virtual gantry with motors disabled.
-Add `auto_start:=true` to enable and release after fresh control is available.
-The connected policy always passes through `cpp_control_node`; Web monitoring
-and safety remain in the full stack.
+```bash
+ros2 launch humanoid_sim sim.launch.py             # policy simulation, viewer, robot held on a gantry
+ros2 launch humanoid_sim sim.launch.py auto_start:=true   # enable motors and release when control is ready
+scripts/ball_chase_walk.sh scene:=hard             # walking robot chases the football (headless)
+```
 
-Read the [simulation guide](simulation/humanoid_sim/README.md) for viewer controls,
-headless runs, reset, launch arguments and current limitations. In particular,
-the current policy is sensitive to feedback/command delay and does not reliably
-complete its reference walk. The dynamics model remains a candidate model.
-
-For an existing checkout, use fresh build/install directories after this source
-reorganization. Old install trees can retain removed hardware executables and
-symlinks to previous source locations.
-
-## Workspace layout
-
-| Path | Responsibility |
-|---|---|
-| [`simulation/humanoid_sim/`](simulation/humanoid_sim) | MuJoCo world, simulated motors, IMUs, head servo, camera and dynamics tests. |
-| [`humanoid_control/motor_control_interfaces/`](humanoid_control/motor_control_interfaces) | Shared command, feedback and operation messages/services. |
-| [`humanoid_control/motor_control_hybrid/`](humanoid_control/motor_control_hybrid) | ONNX policy, C++ scheduler, fake motor, visualization relay and simulation registry/calibration helpers. |
-| [`humanoid_control/humanoid_safety/`](humanoid_control/humanoid_safety/README.md) | Safety supervisor, Web telemetry and advisory collision checking. |
-| [`libraries/control_core/`](libraries/control_core/README.md) | ROS-independent C++ command core and operation state machines; optional Python bindings. |
-| [`humanoid_leg_description/`](humanoid_leg_description/README.md) | Leg URDFs and meshes used by simulation, display and collision checking. |
-| [`humanoid_vision/`](humanoid_vision) | Optional detection, depth projection and head tracking on simulated camera topics. |
-| [`launch/`](launch/README.md) | Existing leg display and head-tracking launch entry points. |
-| [`scripts/`](scripts) | Simulation environment, build and model-conversion helpers. |
-| [`docs/`](docs/README.md) | Simulation guides, shared control contracts and architecture notes. |
-| [`hardware/`](hardware/README.md) | Archived physical CAN backends, firmware, tuning tools, arm model, device launches and deployment references. |
-| [`legacy/`](legacy/README.md) | Archived SDK/Torch/WebSocket adapters, MoveIt demos and superseded implementations. |
-
-## Default build boundaries
-
-- `hardware/` and `legacy/` are excluded with `COLCON_IGNORE`.
-- No physical CAN node, serial IMU reader, micro-ROS Agent or RealSense driver
-  is installed or launched by the default simulation composition.
-- The simulation build does not fetch ENCOS drivers or require RobStride,
-  serial, gRPC, WebSocket or Torch Python dependencies.
-- `motors.yaml`, `MotorSettings` and ankle conversion stay in shared control
-  code because the simulated backend uses their registry and feedback semantics.
-- Existing launch source and defaults are preserved. The simulation explicitly
-  passes `start_camera:=false start_agent:=false` to the shared vision launch.
-  When invoking that launch directly on simulated topics, pass both flags too;
-  its original standalone defaults still request physical camera/Agent startup.
-- Build output, logs, PlatformIO output and local compilation databases are
-  ignored. Use `/tmp` or ignored `local_test/` for disposable checks.
-- Model exports, mesh variants and protocol source archives are retained.
+Jetson extras (see the guides below): `scripts/build_ball_chase_engines.sh` for
+the GPU detector, `scripts/run_cuvslam.sh` + `enable_vio:=true` for localization,
+`scripts/run_isaac_yolo.sh` + `vision_detector:=isaac` for the Isaac ROS detector.
 
 ## Guides
 
-- [MuJoCo simulation](simulation/humanoid_sim/README.md)
-- [Launch shortcuts](launch/README.md)
-- [Documentation index](docs/README.md)
-- [Control watchdogs and command lifetime](docs/control_watchdogs.md)
-- [ONNX policy contract](docs/tracking_policy_ros2.md)
-- [Development container](docs/devcontainer.md)
-- [Archived physical robot reference](hardware/README.md)
+| Topic | README |
+|---|---|
+| Simulator: launch arguments, viewer, controls, stereo, limitations | [simulation/humanoid_sim](simulation/humanoid_sim/README.md) |
+| Ball chase: camera, detectors (TensorRT, Isaac ROS), A*, VIO switch | [simulation/humanoid_ball_chase](simulation/humanoid_ball_chase/README.md) |
+| Model-based walking controller | [humanoid_control/walking_controller](humanoid_control/walking_controller/README.md) |
+| Localization: body IMU + cuVSLAM stereo VO | [humanoid_control/humanoid_localization](humanoid_control/humanoid_localization/README.md) |
+| WBC simulation path (policy + TSID) | [humanoid_control/wbc_control_node](humanoid_control/wbc_control_node/README.md) |
+| Safety, Web monitoring | [humanoid_control/humanoid_safety](humanoid_control/humanoid_safety/README.md) |
+| C++ command core | [libraries/control_core](libraries/control_core/README.md) |
+| Leg URDF and meshes | [humanoid_leg_description](humanoid_leg_description/README.md) |
+| Evaluations | [VIO and Isaac trials](evaluation/vio_isaac_trials/README.md), [fall predictor](evaluation/fall_predictor/README.md) |
+| Documentation index, architecture, build boundaries | [docs](docs/README.md) |
+| Physical robot (archived) and legacy code | [hardware](hardware/README.md), [legacy](legacy/README.md) |

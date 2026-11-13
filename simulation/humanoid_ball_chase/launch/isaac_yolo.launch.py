@@ -8,18 +8,25 @@ Every stage is a composable node in one container, so tensors stay on the GPU
 output [1, 4 + classes, 8400] has the YOLOv8 layout the decoder expects.
 td-perception classes: 0 ball, 1 goalpost, 2 robot, 3 L-, 4 T-, 5 X-intersection,
 6 penalty mark.
+
+with_cuvslam:=true also loads cuVSLAM (humanoid_localization/launch/cuvslam.launch.py
+settings) into the same container: one process for all Isaac ROS perception,
+which saves the memory and threads of a second container on the Orin Nano
+(scripts/run_isaac_perception.sh).
 """
 import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import ComposableNodeContainer
+from launch_ros.actions import ComposableNodeContainer, LoadComposableNodes
 from launch_ros.descriptions import ComposableNode
 
 ASSETS = '/workspaces/humanoid/simulation/humanoid_ball_chase/assets'
+CUVSLAM_PARAMS = '/workspaces/humanoid/humanoid_control/humanoid_localization/config/cuvslam.yaml'
 
 
 def generate_launch_description():
@@ -34,6 +41,8 @@ def generate_launch_description():
         DeclareLaunchArgument('camera_info_topic', default_value='/camera/camera/color/camera_info'),
         DeclareLaunchArgument('input_image_width', default_value='424'),
         DeclareLaunchArgument('input_image_height', default_value='240'),
+        DeclareLaunchArgument('with_cuvslam', default_value='false',
+                              description='Also run cuVSLAM on /stereo/* in this container'),
     ]
     container = ComposableNodeContainer(
         name='isaac_yolo_container', namespace='', package='rclcpp_components',
@@ -78,4 +87,13 @@ def generate_launch_description():
             'camera_info_input_topic': arg('camera_info_topic'),
             'tensor_output_topic': '/isaac_yolo/input_tensor',
         }.items())
-    return LaunchDescription(args + [container, encoder])
+    slam = LoadComposableNodes(
+        target_container='isaac_yolo_container', condition=IfCondition(arg('with_cuvslam')),
+        composable_node_descriptions=[ComposableNode(
+            package='isaac_ros_visual_slam', plugin='nvidia::isaac_ros::visual_slam::VisualSlamNode',
+            name='visual_slam_node', parameters=[CUVSLAM_PARAMS],
+            remappings=[('visual_slam/image_0', '/stereo/left/image_raw'),
+                        ('visual_slam/camera_info_0', '/stereo/left/camera_info'),
+                        ('visual_slam/image_1', '/stereo/right/image_raw'),
+                        ('visual_slam/camera_info_1', '/stereo/right/camera_info')])])
+    return LaunchDescription(args + [container, encoder, slam])

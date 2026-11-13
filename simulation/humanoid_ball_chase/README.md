@@ -40,7 +40,7 @@ The radius is an initial simulation setting, not a verified walking envelope.
 |---|---|---|
 | `/ball_chase/map` | `nav_msgs/OccupancyGrid` | External obstacle map; reliable/transient-local QoS |
 | `/ball_chase/goal` | `geometry_msgs/PoseStamped` | Static XY goal; final heading is currently ignored |
-| `/sim/ground_truth/odom` | `nav_msgs/Odometry` | Simulation-only start position |
+| `odom_topic` (default `/sim/ground_truth/odom`) | `nav_msgs/Odometry` | Start position; the launch sets `/localization/odom` with `enable_vio:=true` |
 | `/ball_chase/global_path` | `nav_msgs/Path` | Cell-centre route, replanned at 2 Hz and on map/goal updates |
 | `/ball_chase/planner_status` | `std_msgs/String` | Planned, waiting, or rejection reason |
 
@@ -410,6 +410,63 @@ and is not detector related.
 `vision_target_timeout_s:=1.0` (below) was chosen for CPU inference; with the
 GPU the p95 image age is under 0.3 s, so it can be lowered, which has not been
 tested yet.
+
+## Isaac ROS detector (`vision_detector:=isaac`)
+
+The same YOLO11n engines also run in the Isaac ROS pipeline (Jetson only):
+encoder (aspect-preserving resize, centered padding) -> TensorRT ->
+YOLOv8 decoder in one NITROS container. Their output `[1, 4 + classes, 8400]` has
+the YOLOv8 layout, so the models are used unchanged. The pipeline publishes all
+classes on `/isaac_yolo/detections` (`vision_msgs/Detection2DArray`, boxes in
+640x640 network pixels); `ball_chase_vision` then chases one class id.
+
+```bash
+scripts/run_cuvslam.sh build          # once: the Isaac ROS image (also used for cuVSLAM)
+scripts/run_isaac_yolo.sh             # terminal 1, td-perception (7 classes)
+scripts/ball_chase_walk.sh scene:=hard vision_detector:=isaac vision_target_class:=0   # terminal 2
+```
+
+With VIO, `scripts/run_isaac_perception.sh` runs cuVSLAM and this pipeline in one
+container process instead of `run_cuvslam.sh` + `run_isaac_yolo.sh` (about 85 MB
+less memory, otherwise the same). `ISAAC_CPUSET=4,5` keeps any of these containers
+on those cores (`docker --cpuset-cpus`).
+
+`vision_target_class` (td-perception): 0 ball, 1 goalpost, 2 robot,
+3 L-, 4 T-, 5 X-intersection, 6 penalty mark. For nubot-yolo pass
+`num_classes:=6 engine_file_path:=...` to `run_isaac_yolo.sh`. Each RGB-D frame
+waits up to `detection_wait_s` (0.3 s) for the detections with its stamp, maps
+the box back to image pixels and reads depth like the built-in detector
+(`point_from_box`). A class with several instances (robots, intersections) locks
+on the instance nearest the previous target (camera-frame 3D point) and re-picks
+the one nearest the camera after `target_reacquire_s` (1 s) without it.
+
+Measured on the Orin Nano (hard scene, 60 s, same engine): the ball agrees with
+the built-in detector in 342 of 342 shared frames, 0.64 px median center
+difference, similar latency; no CPU saving in simulation, where images reach the
+container over DDS. Log messages and `ball_radius` still assume a ball.
+Trials and videos: [`evaluation/vio_isaac_trials/`](../../evaluation/vio_isaac_trials/README.md).
+
+## Localization without simulator odometry (`enable_vio:=true`)
+
+Renders a passive stereo pair (the D435 IR imagers with the projector off),
+starts `vio_localizer` (body IMU + cuVSLAM visual odometry) and points the A*
+planner at `/localization/odom`. The walking controller keeps ground truth.
+cuVSLAM runs in the Isaac ROS container; start it before the robot moves, since
+the localizer takes the known start pose at its first VO frame:
+
+```bash
+scripts/run_cuvslam.sh                                    # terminal 1 (Jetson)
+scripts/ball_chase_walk.sh scene:=hard enable_vio:=true   # terminal 2
+```
+
+`imu_yaw_error_deg` / `imu_yaw_error_period_s` add a sinusoidal heading error to
+the simulated BNO085. Details and accuracy: [`humanoid_localization`](../../humanoid_control/humanoid_localization/README.md).
+On the Orin Nano the simulated chase has little timing margin: with the Isaac
+YOLO container (with or without cuVSLAM), and also with the built-in detector
+when timing diagnostics run, the robot fell while turning; the built-in detector
+without extra load completed every route. Merging the containers or pinning them
+to two cores did not change this. Measurements and open questions:
+[`evaluation/vio_isaac_trials`](../../evaluation/vio_isaac_trials/README.md#known-issues).
 
 ## CPU inference budget (`vision_device:=cpu`)
 
