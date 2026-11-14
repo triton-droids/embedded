@@ -1,0 +1,81 @@
+{
+  "excluded": [],
+  "episodes_valid": 2,
+  "episodes_invalid": 0,
+  "falls": 0,
+  "pushed_recovered": 2,
+  "no_push": 0,
+  "online_coverage": 1.0,
+  "feature_max_abs_diff": 1.9033097018450462e-06,
+  "online_vs_offline_score_max_abs_diff": 4.023313522338867e-07,
+  "infer_ms": {
+    "p50": 1.633,
+    "p99": 3.2617999999999956,
+    "max": 127.6877
+  },
+  "imu_transport_ms": {
+    "p50": 3.6015165,
+    "p99": 6.382143569999998,
+    "max": 130.505317
+  },
+  "heads": {
+    "300ms": {
+      "threshold": 0.6019949167966843,
+      "confirm_frames": 3,
+      "eligible_fall_episodes": 0,
+      "detected_fall_episodes": 0,
+      "event_recall": 0.0,
+      "falls_with_any_alarm_before_contact": 0,
+      "window_recall": 0.0,
+      "precision": 0.0,
+      "false_alarm_onsets": 0,
+      "negative_exposure_min": 0.6505,
+      "false_alarm_onsets_per_hour": 0.0,
+      "recovered_episodes_with_alarm": 0,
+      "no_push_episodes_with_alarm": 0,
+      "contact_lead_ms": {
+        "median": null,
+        "min": null
+      },
+      "before_safety_estop_ms_sim": {
+        "median": null,
+        "min": null,
+        "negative": 0
+      },
+      "before_safety_estop_ms_live": {
+        "n": 0,
+        "median": null,
+        "min": null
+      }
+    },
+    "600ms": {
+      "threshold": 0.99,
+      "confirm_frames": 5,
+      "eligible_fall_episodes": 0,
+      "detected_fall_episodes": 0,
+      "event_recall": 0.0,
+      "falls_with_any_alarm_before_contact": 0,
+      "window_recall": 0.0,
+      "precision": 0.0,
+      "false_alarm_onsets": 0,
+      "negative_exposure_min": 0.6405,
+      "false_alarm_onsets_per_hour": 0.0,
+      "recovered_episodes_with_alarm": 0,
+      "no_push_episodes_with_alarm": 0,
+      "contact_lead_ms": {
+        "median": null,
+        "min": null
+      },
+      "before_safety_estop_ms_sim": {
+        "median": null,
+        "min": null,
+        "negative": 0
+      },
+      "before_safety_estop_ms_live": {
+        "n": 0,
+        "median": null,
+        "min": null
+      }
+    }
+  }
+}

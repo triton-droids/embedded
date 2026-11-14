@@ -1,0 +1,113 @@
+{
+  "features": [
+    "roll_rad",
+    "pitch_rad",
+    "gyro_x",
+    "gyro_y",
+    "gyro_z",
+    "accel_x",
+    "accel_y",
+    "accel_z"
+  ],
+  "horizons_s": [
+    0.3,
+    0.6
+  ],
+  "time_tolerance_s": 1e-09,
+  "normalization_mean": [
+    0.10391797870397568,
+    0.003626135177910328,
+    -0.023930801078677177,
+    -0.017052486538887024,
+    -0.09270134568214417,
+    -0.0963480994105339,
+    1.0107065439224243,
+    9.43274211883545
+  ],
+  "normalization_std": [
+    0.09371178597211838,
+    0.07514931261539459,
+    0.9794610142707825,
+    0.9542106986045837,
+    1.015323519706726,
+    3.9160854816436768,
+    8.37389850616455,
+    4.387442111968994
+  ],
+  "source_manifest_hashes": {
+    "/home/rcli/Github/Humanoid_simulation/embedded/data/fall_collection/overnight_20261107": "d12b509bbe7ee744a7a0c825d70f756af27f4c218418d1bbdc60c2b802ece41e",
+    "/home/rcli/Github/Humanoid_simulation/embedded/data/fall_training/dual_v2_20261107/collection": "5d1a9c78f91e028e8344225ce78687d31617447cc7afe5b5acff929b32e708c9"
+  },
+  "scenario_family_folds": {
+    "walking_reference:friction0:sector0": "train",
+    "walking_reference:friction1:sector0": "train",
+    "walking_reference:friction2:sector0": "train",
+    "walking_reference:friction2:sector7": "train",
+    "walking_reference:friction0:sector6": "train",
+    "walking_reference:friction0:sector2": "train",
+    "walking_reference:friction1:sector2": "train",
+    "walking_reference:friction1:sector5": "train",
+    "walking_reference:friction2:sector2": "train",
+    "walking_reference:friction1:sector3": "train",
+    "walking_reference:friction2:sector6": "train",
+    "walking_reference:friction1:sector4": "train",
+    "walking_reference:friction2:sector5": "train",
+    "walking_reference:friction1:sector6": "train",
+    "walking_reference:friction0:sector5": "train",
+    "walking_reference:friction0:sector4": "train",
+    "walking_reference:friction2:sector1": "validation",
+    "walking_reference:friction0:sector1": "validation",
+    "walking_reference:friction1:sector1": "validation",
+    "walking_reference:friction2:sector4": "validation",
+    "walking_reference:friction0:sector3": "test",
+    "walking_reference:friction2:sector3": "test",
+    "walking_reference:friction1:sector7": "test",
+    "walking_reference:friction0:sector7": "test",
+    "standing_reference:friction2:sector7": "train",
+    "standing_reference:friction0:sector6": "train",
+    "standing_reference:friction0:sector2": "train",
+    "standing_reference:friction1:sector2": "train",
+    "standing_reference:friction1:sector5": "train",
+    "standing_reference:friction2:sector0": "train",
+    "standing_reference:friction2:sector2": "train",
+    "standing_reference:friction1:sector0": "train",
+    "standing_reference:friction0:sector0": "train",
+    "standing_reference:friction1:sector3": "train",
+    "standing_reference:friction2:sector6": "train",
+    "standing_reference:friction1:sector4": "train",
+    "standing_reference:friction2:sector5": "train",
+    "standing_reference:friction1:sector6": "train",
+    "standing_reference:friction0:sector5": "train",
+    "standing_reference:friction0:sector4": "train",
+    "standing_reference:friction2:sector1": "validation",
+    "standing_reference:friction0:sector1": "validation",
+    "standing_reference:friction1:sector1": "validation",
+    "standing_reference:friction2:sector4": "validation",
+    "standing_reference:friction0:sector3": "test",
+    "standing_reference:friction2:sector3": "test",
+    "standing_reference:friction1:sector7": "test",
+    "standing_reference:friction0:sector7": "test"
+  },
+  "hard_negative_windows": 76628,
+  "split_summary": {
+    "train": {
+      "windows": 839281,
+      "episodes": 1277,
+      "positive_300": 11268,
+      "positive_600": 35942
+    },
+    "validation": {
+      "windows": 188368,
+      "episodes": 279,
+      "positive_300": 2552,
+      "positive_600": 7947
+    },
+    "test": {
+      "windows": 47362,
+      "episodes": 60,
+      "positive_300": 709,
+      "positive_600": 1948
+    }
+  },
+  "note": "Old test excluded; new test families sealed until one final selected-model evaluation"
+}

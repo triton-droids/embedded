@@ -1,0 +1,81 @@
+{
+  "excluded": [],
+  "episodes_valid": 49,
+  "episodes_invalid": 1,
+  "falls": 32,
+  "pushed_recovered": 17,
+  "no_push": 0,
+  "online_coverage": 0.999866577718479,
+  "feature_max_abs_diff": 3.6848548177204066e-06,
+  "online_vs_offline_score_max_abs_diff": 0.1283765584230423,
+  "infer_ms": {
+    "p50": 1.5764,
+    "p99": 4.001619999999992,
+    "max": 99.5651
+  },
+  "imu_transport_ms": {
+    "p50": 3.63544,
+    "p99": 7.1501111,
+    "max": 102.153094
+  },
+  "heads": {
+    "300ms": {
+      "threshold": 0.6019949167966843,
+      "confirm_frames": 3,
+      "eligible_fall_episodes": 29,
+      "detected_fall_episodes": 29,
+      "event_recall": 1.0,
+      "falls_with_any_alarm_before_contact": 30,
+      "window_recall": 0.8778761061946903,
+      "precision": 0.9202226345083488,
+      "false_alarm_onsets": 11,
+      "negative_exposure_min": 7.315166666666666,
+      "false_alarm_onsets_per_hour": 90.22350823631268,
+      "recovered_episodes_with_alarm": 0,
+      "no_push_episodes_with_alarm": 0,
+      "contact_lead_ms": {
+        "median": 290.00000000004536,
+        "min": 199.9999999999602
+      },
+      "before_safety_estop_ms_sim": {
+        "median": 185.00000000002893,
+        "min": 10.000000000001563,
+        "negative": 0.0
+      },
+      "before_safety_estop_ms_live": {
+        "n": 29,
+        "median": 181.8588989553973,
+        "min": 19.487790996208787
+      }
+    },
+    "600ms": {
+      "threshold": 0.99,
+      "confirm_frames": 5,
+      "eligible_fall_episodes": 32,
+      "detected_fall_episodes": 32,
+      "event_recall": 1.0,
+      "falls_with_any_alarm_before_contact": 32,
+      "window_recall": 0.49666666666666665,
+      "precision": 0.9946595460614153,
+      "false_alarm_onsets": 1,
+      "negative_exposure_min": 7.0764999999999985,
+      "false_alarm_onsets_per_hour": 8.478767752419984,
+      "recovered_episodes_with_alarm": 0,
+      "no_push_episodes_with_alarm": 0,
+      "contact_lead_ms": {
+        "median": 360.00000000003274,
+        "min": 240.00000000003752
+      },
+      "before_safety_estop_ms_sim": {
+        "median": 237.50000000003712,
+        "min": 20.000000000003126,
+        "negative": 0.0
+      },
+      "before_safety_estop_ms_live": {
+        "n": 32,
+        "median": 229.56715943291783,
+        "min": 4.09219297580421
+      }
+    }
+  }
+}

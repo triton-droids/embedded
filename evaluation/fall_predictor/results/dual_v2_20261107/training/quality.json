@@ -1,0 +1,14 @@
+{
+  "quality": {
+    "train_new_episodes": 241,
+    "validation_new_episodes": 58,
+    "test_new_episodes": 60,
+    "train_recovered": 40,
+    "validation_recovered": 13,
+    "test_recovered": 6
+  },
+  "audit": {
+    "corrected_300ms_boundary_labels": 83,
+    "invalid_episode": 86
+  }
+}

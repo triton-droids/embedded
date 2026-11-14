@@ -1,0 +1,82 @@
+{
+  "300ms": {
+    "events": {
+      "threshold": 0.6019949167966843,
+      "confirm_frames": 3,
+      "eligible_fall_episodes": 40,
+      "detected_fall_episodes": 36,
+      "event_recall": 0.9,
+      "window_recall": 0.7856135401974612,
+      "precision": 0.8813291139240507,
+      "false_positive_windows": 75,
+      "false_alarm_onsets": 15,
+      "negative_exposure_minutes": 7.776666666666623,
+      "false_alarm_onsets_per_hour": 115.73081868838472,
+      "median_before_safety_estop_ms": 159.9999999999966,
+      "median_contact_lead_ms": 277.50000000001853,
+      "qualifies": false,
+      "fall_episodes_total": 43,
+      "fall_episodes_without_eligible_positive_windows": 3
+    },
+    "raw_window_metrics": {
+      "n": 47362,
+      "positive": 709,
+      "threshold": 0.6019949167966843,
+      "tp": 620,
+      "fp": 130,
+      "fn": 89,
+      "tn": 46523,
+      "recall": 0.8744710860366713,
+      "precision": 0.8266666666666667,
+      "false_positive_rate": 0.002786530341028444,
+      "accuracy": 0.9953760398631815,
+      "f1": 0.8498971898560658
+    },
+    "ranking": {
+      "average_precision": 0.9324728297293932,
+      "auroc": 0.9987694461921354
+    },
+    "recovery_episodes": 6,
+    "recovery_episodes_with_alarm": 0
+  },
+  "600ms": {
+    "events": {
+      "threshold": 0.99,
+      "confirm_frames": 5,
+      "eligible_fall_episodes": 43,
+      "detected_fall_episodes": 43,
+      "event_recall": 1.0,
+      "window_recall": 0.47997946611909653,
+      "precision": 0.9873284054910243,
+      "false_positive_windows": 12,
+      "false_alarm_onsets": 3,
+      "negative_exposure_minutes": 7.570166666666619,
+      "false_alarm_onsets_per_hour": 23.77754783029891,
+      "median_before_safety_estop_ms": 249.99999999999466,
+      "median_contact_lead_ms": 359.9999999999923,
+      "qualifies": true,
+      "fall_episodes_total": 43,
+      "fall_episodes_without_eligible_positive_windows": 0
+    },
+    "raw_window_metrics": {
+      "n": 47362,
+      "positive": 1948,
+      "threshold": 0.99,
+      "tp": 1170,
+      "fp": 45,
+      "fn": 778,
+      "tn": 45369,
+      "recall": 0.6006160164271047,
+      "precision": 0.9629629629629629,
+      "false_positive_rate": 0.0009908838684106222,
+      "accuracy": 0.9826232000337823,
+      "f1": 0.7398039835599115
+    },
+    "ranking": {
+      "average_precision": 0.8761557236167921,
+      "auroc": 0.9802039296876223
+    },
+    "recovery_episodes": 6,
+    "recovery_episodes_with_alarm": 0
+  }
+}

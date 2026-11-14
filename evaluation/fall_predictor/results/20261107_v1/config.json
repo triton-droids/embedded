@@ -1,0 +1,83 @@
+{
+  "seed": 20261107,
+  "features": [
+    "roll_rad",
+    "pitch_rad",
+    "gyro_x",
+    "gyro_y",
+    "gyro_z",
+    "accel_x",
+    "accel_y",
+    "accel_z"
+  ],
+  "history_frames": 20,
+  "horizon_s": 0.3,
+  "network": [
+    160,
+    64,
+    32,
+    1
+  ],
+  "parameters": 12417,
+  "batch_size": 128,
+  "learning_rate": 0.001,
+  "max_epochs": 50,
+  "early_stopping_patience": 5,
+  "training_balance": "all train positives plus equal randomly resampled negatives each epoch",
+  "excludes": "invalid episodes, null labels, and histories containing active estop",
+  "threshold_rule": "highest validation threshold achieving at least 95% positive-window recall",
+  "source": "/home/rcli/Github/Humanoid_simulation/embedded/data/fall_collection/overnight_20261107",
+  "device": "cpu",
+  "threads": 4,
+  "torch_version": "2.6.0+cpu",
+  "numpy_version": "1.26.4",
+  "mean": [
+    0.10353139042854309,
+    0.004979691002517939,
+    -0.025601966306567192,
+    -0.01722695492208004,
+    -0.09517505764961243,
+    -0.09946386516094208,
+    1.008547306060791,
+    9.431939125061035
+  ],
+  "std": [
+    0.0960966944694519,
+    0.07550543546676636,
+    0.9878600239753723,
+    0.9652068018913269,
+    1.018700361251831,
+    3.9636390209198,
+    8.50416088104248,
+    4.46109676361084
+  ],
+  "audit": {
+    "unknown_windows_excluded": 590892,
+    "post_estop_label_0_excluded": 690,
+    "post_estop_label_1_excluded": 14326,
+    "invalid_episodes_excluded": 61,
+    "episodes_without_pre_estop_windows": 2
+  },
+  "manifest_sha256": "d12b509bbe7ee744a7a0c825d70f756af27f4c218418d1bbdc60c2b802ece41e",
+  "source_sha256": "1714e6183e1320c2dcfb3ce38a7b633c66e3845dd407179181932c7f5b1d8def",
+  "split_summary": {
+    "train": {
+      "episodes": 1036,
+      "windows": 632154,
+      "positive": 8293,
+      "negative": 623861
+    },
+    "validation": {
+      "episodes": 221,
+      "windows": 135554,
+      "positive": 1770,
+      "negative": 133784
+    },
+    "test": {
+      "episodes": 227,
+      "windows": 144385,
+      "positive": 1978,
+      "negative": 142407
+    }
+  }
+}

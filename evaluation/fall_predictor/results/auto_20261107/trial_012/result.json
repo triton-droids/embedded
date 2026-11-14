@@ -1,0 +1,31 @@
+{
+  "trial": 12,
+  "config": {
+    "architecture": "cnn",
+    "learning_rate": 0.001,
+    "negative_per_positive": 4,
+    "dropout": 0.1,
+    "weight_decay": 0.0001,
+    "seed": 20261120
+  },
+  "validation_ap": 0.8566267268682012,
+  "policy": {
+    "threshold": 0.95,
+    "confirm_frames": 3,
+    "eligible_fall_episodes": 124,
+    "detected_fall_episodes": 119,
+    "event_recall": 0.9596774193548387,
+    "window_recall": 0.6214689265536724,
+    "precision": 0.8972267536704731,
+    "false_positive_windows": 126,
+    "false_alarm_onsets": 29,
+    "negative_exposure_minutes": 22.305333333334115,
+    "false_alarm_onsets_per_hour": 78.00824914818304,
+    "median_before_safety_estop_ms": 79.9999999999983,
+    "median_contact_lead_ms": 255.00000000003985,
+    "qualifies": true
+  },
+  "parameters": 11745,
+  "epochs": 24,
+  "model_path": "/home/rcli/Github/Humanoid_simulation/embedded/data/fall_training/auto_20261107/trial_012/model_torchscript.pt"
+}

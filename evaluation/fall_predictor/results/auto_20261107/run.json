@@ -1,0 +1,20 @@
+{
+  "arguments": {
+    "source": "data/fall_collection/overnight_20261107",
+    "fixed_splits": "data/fall_training/20261107_v1/splits.json",
+    "output": "data/fall_training/auto_20261107",
+    "hours": 6.5,
+    "max_trials": 96,
+    "stagnation": 24,
+    "max_epochs": 50,
+    "seed": 20261108
+  },
+  "torch_version": "2.6.0+cpu",
+  "manifest_sha256": "d12b509bbe7ee744a7a0c825d70f756af27f4c218418d1bbdc60c2b802ece41e",
+  "split_sha256": "32ebe2be626f1e1415a298191886ca9a8e32660e1a22048daee502e2dc131a72",
+  "intent": "validation-only search; no deployment; retain old test without evaluation",
+  "validation_gates": {
+    "min_event_recall": 0.95,
+    "min_median_before_safety_ms": 50
+  }
+}

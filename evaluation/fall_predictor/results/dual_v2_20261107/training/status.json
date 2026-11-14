@@ -1,0 +1,51 @@
+{
+  "pid": 3900353,
+  "state": "complete",
+  "test_evaluated": true,
+  "trial": 7,
+  "epoch": 50,
+  "elapsed_s": 2223.0521660650847,
+  "test_evaluations": 1,
+  "best": {
+    "trial": 3,
+    "lr": 0.001,
+    "negative_ratio": 4,
+    "dropout": 0.2,
+    "mean_validation_ap": 0.8599096420254149,
+    "validation_policies": {
+      "300ms": {
+        "threshold": 0.6019949167966843,
+        "confirm_frames": 3,
+        "eligible_fall_episodes": 161,
+        "detected_fall_episodes": 153,
+        "event_recall": 0.9503105590062112,
+        "window_recall": 0.7511755485893417,
+        "precision": 0.8821905200184077,
+        "false_positive_windows": 256,
+        "false_alarm_onsets": 65,
+        "negative_exposure_minutes": 30.973416666667354,
+        "false_alarm_onsets_per_hour": 125.91442661852223,
+        "median_before_safety_estop_ms": 130.00000000002032,
+        "median_contact_lead_ms": 270.0000000000422,
+        "qualifies": true
+      },
+      "600ms": {
+        "threshold": 0.99,
+        "confirm_frames": 5,
+        "eligible_fall_episodes": 185,
+        "detected_fall_episodes": 185,
+        "event_recall": 1.0,
+        "window_recall": 0.44582861457153644,
+        "precision": 0.9849874895746455,
+        "false_positive_windows": 54,
+        "false_alarm_onsets": 7,
+        "negative_exposure_minutes": 30.074333333334017,
+        "false_alarm_onsets_per_hour": 13.965396850026838,
+        "median_before_safety_estop_ms": 179.99999999999616,
+        "median_contact_lead_ms": 350.0000000000547,
+        "qualifies": true
+      }
+    },
+    "model_path": "/home/rcli/Github/Humanoid_simulation/embedded/data/fall_training/dual_v2_20261107/training/trial_03/model_torchscript.pt"
+  }
+}

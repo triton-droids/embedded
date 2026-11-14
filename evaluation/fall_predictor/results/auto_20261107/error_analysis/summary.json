@@ -1,0 +1,92 @@
+{
+  "reproduced": {
+    "threshold": 0.95,
+    "confirm_frames": 3,
+    "eligible_fall_episodes": 124,
+    "detected_fall_episodes": 119,
+    "event_recall": 0.9596774193548387,
+    "window_recall": 0.6214689265536724,
+    "precision": 0.8972267536704731,
+    "false_positive_windows": 126,
+    "false_alarm_onsets": 29,
+    "negative_exposure_minutes": 22.305333333334115,
+    "false_alarm_onsets_per_hour": 78.00824914818304,
+    "median_before_safety_estop_ms": 79.9999999999983,
+    "median_contact_lead_ms": 255.00000000003985,
+    "qualifies": true
+  },
+  "event_categories": {
+    "fall_301_to_400ms_later": 20,
+    "fall_401_to_500ms_later": 6,
+    "fall_over_500ms_later": 3
+  },
+  "false_positive_window_categories": {
+    "fall_301_to_400ms_later": 89,
+    "fall_401_to_500ms_later": 24,
+    "fall_over_500ms_later": 13
+  },
+  "event_modes": {
+    "walking_reference": 19,
+    "standing_reference": 10
+  },
+  "events_without_actual_push": 3,
+  "events_with_alarm_continuing_into_positive": 14,
+  "events_in_distinct_episodes": 29,
+  "same_threshold_confirmation_comparison": [
+    {
+      "threshold": 0.95,
+      "confirm_frames": 1,
+      "eligible_fall_episodes": 124,
+      "detected_fall_episodes": 124,
+      "event_recall": 1.0,
+      "window_recall": 0.7389830508474576,
+      "precision": 0.8482490272373541,
+      "false_positive_windows": 234,
+      "false_alarm_onsets": 59,
+      "negative_exposure_minutes": 22.305333333334115,
+      "false_alarm_onsets_per_hour": 158.70643792216552,
+      "median_before_safety_estop_ms": 105.00000000000665,
+      "median_contact_lead_ms": 275.0000000000186,
+      "qualifies": true
+    },
+    {
+      "threshold": 0.95,
+      "confirm_frames": 3,
+      "eligible_fall_episodes": 124,
+      "detected_fall_episodes": 119,
+      "event_recall": 0.9596774193548387,
+      "window_recall": 0.6214689265536724,
+      "precision": 0.8972267536704731,
+      "false_positive_windows": 126,
+      "false_alarm_onsets": 29,
+      "negative_exposure_minutes": 22.305333333334115,
+      "false_alarm_onsets_per_hour": 78.00824914818304,
+      "median_before_safety_estop_ms": 79.9999999999983,
+      "median_contact_lead_ms": 255.00000000003985,
+      "qualifies": true
+    },
+    {
+      "threshold": 0.95,
+      "confirm_frames": 5,
+      "eligible_fall_episodes": 124,
+      "detected_fall_episodes": 97,
+      "event_recall": 0.782258064516129,
+      "window_recall": 0.5022598870056497,
+      "precision": 0.9250780437044746,
+      "false_positive_windows": 72,
+      "false_alarm_onsets": 13,
+      "negative_exposure_minutes": 22.305333333334115,
+      "false_alarm_onsets_per_hour": 34.9692151353924,
+      "median_before_safety_estop_ms": 85.00000000001329,
+      "median_contact_lead_ms": 234.999999999995,
+      "qualifies": false
+    }
+  ],
+  "onset_fall_lead_ms": {
+    "min": 300.0000000000469,
+    "median": 334.99999999999284,
+    "max": 579.9999999999876
+  },
+  "onsets_at_numeric_300ms_boundary": 1,
+  "false_windows_at_numeric_300ms_boundary": 2
+}

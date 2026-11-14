@@ -1,0 +1,23 @@
+{
+  "pid": 3849298,
+  "state": "complete",
+  "started_utc": "2026-11-07T22:45:10.923991+00:00",
+  "hours": 6.5,
+  "planned_episodes": 384,
+  "child_pid": null,
+  "elapsed_s": 9281.019519716967,
+  "remaining_s": 14118.980479130987,
+  "command": [
+    "/tmp/safety-nano-venv/bin/python",
+    "/home/rcli/Github/Humanoid_simulation/embedded/data/fall_training/dual_v2_20261107/source/embedded/evaluation/fall_predictor/train_dual.py",
+    "--legacy-source",
+    "/home/rcli/Github/Humanoid_simulation/embedded/data/fall_collection/overnight_20261107",
+    "--legacy-splits",
+    "/home/rcli/Github/Humanoid_simulation/embedded/data/fall_training/20261107_v1/splits.json",
+    "--new-source",
+    "/home/rcli/Github/Humanoid_simulation/embedded/data/fall_training/dual_v2_20261107/collection",
+    "--output",
+    "/home/rcli/Github/Humanoid_simulation/embedded/data/fall_training/dual_v2_20261107/training"
+  ],
+  "ended_utc": "2026-11-08T01:19:51.943463+00:00"
+}

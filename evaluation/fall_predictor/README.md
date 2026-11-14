@@ -1,5 +1,8 @@
 # Small pre-estop fall predictor
 
+Results of the 2026-11-07 runs (v1, auto search, dual v2, online shadow tests):
+[results/README.md](results/README.md).
+
 Run from `embedded/`, using an environment with NumPy and CPU PyTorch:
 
 ```bash

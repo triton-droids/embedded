@@ -1,0 +1,24 @@
+{
+  "status": {
+    "pid": 3849298,
+    "state": "starting",
+    "started_utc": "2026-11-07T22:45:10.923991+00:00",
+    "hours": 6.5,
+    "planned_episodes": 384,
+    "child_pid": null,
+    "elapsed_s": 4.2786006815731525e-05,
+    "remaining_s": 23399.999955934007
+  },
+  "arguments": {
+    "output": "/home/rcli/Github/Humanoid_simulation/embedded/data/fall_training/dual_v2_20261107",
+    "episodes": 384,
+    "hours": 6.5,
+    "collection_hours": 2.5
+  },
+  "scope": "camera off; active simulator stack; collect -> train two horizons -> one new test evaluation",
+  "quality_gates": {
+    "train_recovered": 8,
+    "validation_recovered": 2,
+    "test_recovered": 2
+  }
+}
