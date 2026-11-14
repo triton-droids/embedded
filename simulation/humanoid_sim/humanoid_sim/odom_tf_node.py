@@ -98,7 +98,11 @@ class SimOdomTfNode(Node):
         world_from_base, lin, ang, stamp_ns, reset_count = self._sample()
         if not np.isfinite(world_from_base).all():
             return
-        now_ns = time.time_ns()
+        # Simulated time under use_sim_time: host time there is thousands of seconds
+        # ahead, and one restamp with it would push every later transform into the
+        # future (image-stamp lookups then fail for the rest of the run).
+        now_ns = (self.world.clock_ns if getattr(self.world, 'sim_clock', False)
+                  else time.time_ns())
         if stamp_ns <= self._last_stamp_ns:
             # Physics paused or slower than this timer: the pose is unchanged, so restamp it with the
             # current time (keeps lookups at new image stamps working), but never repeat a stamp.
