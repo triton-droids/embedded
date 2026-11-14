@@ -216,6 +216,8 @@ class SplitHeadImuNode(Node):
 
 
 def main(args=None) -> None:
+    from .stack_dump import enable as _enable_stack_dump
+    _enable_stack_dump()
     from rclpy.executors import SingleThreadedExecutor
     rclpy.init(args=args)
     node = SplitBodyImuNode()

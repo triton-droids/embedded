@@ -301,6 +301,8 @@ def spin_executor(executor):
 
 
 def main(args=None) -> None:
+    from .stack_dump import enable as _enable_stack_dump
+    _enable_stack_dump()
     rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
     signal.signal(signal.SIGTERM, signal.default_int_handler)
     control = SimControlNode()

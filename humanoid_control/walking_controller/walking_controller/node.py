@@ -435,6 +435,8 @@ class WalkingControllerNode(Node):
 
 
 def main(args=None):
+    import faulthandler, signal
+    faulthandler.register(signal.SIGUSR1, all_threads=True)  # kill -USR1: thread stacks to stderr.
     rclpy.init(args=args)
     node = WalkingControllerNode()
     try:

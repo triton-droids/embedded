@@ -236,6 +236,8 @@ def main(args=None) -> None:
     the model it saved, and renders that state with its own MjData, so rendering
     never holds the simulator's GIL or world lock.
     """
+    from .stack_dump import enable as _enable_stack_dump
+    _enable_stack_dump()
     import rclpy
     from rclpy.executors import ExternalShutdownException
 
