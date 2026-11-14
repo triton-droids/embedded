@@ -844,3 +844,20 @@ state-copy and sampler scheduling cost on the simulation host; no hard real-time
 or IMU-timeout improvement is guaranteed. The state stream rate may be set in
 `(0, 60]` Hz. Keep `use_viewer:=false` to avoid also rendering locally. A busy port
 or sender startup failure is logged while the simulation continues headless.
+
+
+## Goal-shot recording checkpoint (2026-11-13)
+
+A complete `model_walk` + Isaac visual approach/shot run was recorded via
+`share_state:=true` at 20Hz and rendered after motion finished, keeping video
+rendering outside the active control load. The 1x video includes the external,
+overhead and reconstructed head-camera views. This is actual recorded simulation
+state replay, not a physical-robot camera recording. In the selected success the
+ball crossed within 1.488cm of the configured goal center; repeated runs still
+include command-expiry stops and failed shots. The ball truth is measurement-only.
+
+See the [full report](../../docs/reports/2026-11-13-goal-shot.md) for per-run
+results and host-local video locations, and the
+[handoff](../../docs/handoff-goal-shot-2026-11-13.md) for continuation. Recent
+working-tree implementation changes are not included in this documentation commit.
+No timing protection was relaxed for the recording or the planned ML transition.

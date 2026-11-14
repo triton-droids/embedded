@@ -448,6 +448,7 @@ the built-in detector in 342 of 342 shared frames, 0.64 px median center
 difference, similar latency; no CPU saving in simulation, where images reach the
 container over DDS. Log messages and `ball_radius` still assume a ball.
 Trials and videos: [`evaluation/vio_isaac_trials/`](../../evaluation/vio_isaac_trials/README.md).
+Goal-shot trials and videos: [2026-11-13 report](../../docs/reports/2026-11-13-goal-shot.md).
 
 ## Localization without simulator odometry (`enable_vio:=true`)
 
@@ -487,3 +488,115 @@ pursuit goes to zero immediately; without new images it expires at that
 source/receipt limit. The independent 250 ms servo-command watchdog and all
 leg motor deadlines/safety thresholds remain unchanged. They do not reduce
 the host's visual-data age budget. This is a simulation CPU compromise.
+
+
+## Experimental goal-directed shot (simulation)
+
+**2026-11-13 publication note:** this section describes the tested Jetson
+working tree. Recent implementation/test files remain uncommitted; this
+publication contains Markdown only. A checkout of this commit alone does not
+provide the complete new shot path. See the
+[test report](../../docs/reports/2026-11-13-goal-shot.md) and
+[handoff](../../docs/handoff-goal-shot-2026-11-13.md).
+
+
+`controller:=model_walk world_model:=true kick:=true shoot:=true` enables a one-shot
+supervisor. Set `shoot_goal_frame` and `shoot_goal_x_m` / `shoot_goal_y_m` to the known
+goal center; defaults are the simulation world frame and (0.35, 1.8) m. These
+coordinates must describe the goal in the selected scene. `scene:=shoot` adds a
+clean shooting fixture with that default goal and a ball at world (-0.35, 0.95).
+The goal posts are visual; scoring uses the ball crossing the goal opening. The
+feature does not detect the goal center from the camera.
+
+The supervisor uses the visual world-model ball estimate and TF to stage 0.65 m
+behind the ball with a kicking-foot offset (0.12 m coarse staging tolerance), avoids crossing the ball on its way,
+aligns with the ball-to-goal ray and waits for actual standing before final approach.
+Shooting uses the gravity-aligned `shoot_control_frame` (default `base_footprint`)
+for both ball and goal coordinates; camera extrinsics still use the full body pose.
+This keeps torso lean from changing the planar kick-distance measurement. Missing
+TF holds zero command. A pose controller jointly follows the position behind the
+ball and the goal heading;
+the generic foot-bearing steering no longer competes with goal alignment. A gross
+staging displacement (>0.18 m) returns to staging. Within 0.40 m the command is capped to 0.03 m/s and 0.12 rad/s and prioritizes
+goal heading. Entering the kick window uses 0.025 m forward / 0.035 m lateral
+tolerance and <=0.08 rad goal-heading error; the existing 1.6x exit hysteresis
+absorbs the final support shift. The robot stands for 0.3 s before admission through the existing KickApproach and /walk/kick
+interface. Final approach uses the existing robot model and measured `/joint_states`
+to compute the current kicking-foot center. The ball target is 0.20 m in front of
+that foot, expressed in the same gravity-aligned frame. Joint source age and local
+receipt age must each be <=0.15 s; missing, invalid or stale geometry holds final
+approach and forbids a kick. After standing, the original tight kick window is
+checked again. `shoot_urdf_path` defaults to the installed
+`humanoid_leg_description/urdf/human_offset_corrected.urdf`, and
+`shoot_base_forward_axis` defaults to `positive_y`, matching this simulation.
+The model, joint names and axis must match any other deployment. Inspect
+`world_model.last_foot_admission` and `world_model.kick.foot_reference_xy`.
+This is read-only geometry; it does not write motor commands. A stationary visual anchor with <=0.12 m
+uncertainty may bridge up to 20 s of lost view before close approach. Within
+0.70 m a fixed anchor is used for navigation/alignment. At approximately 0.40 m
+during final approach, close visual confirmation is required: the head continues
+tracking, and every consistent accepted image updates the target in odometry
+coordinates. Confirmation requires at least three image observations spanning
+0.20 s, <=0.06 m spread, confidence >=0.5 and measurement sigma <=0.12 m.
+When occluded, the last confirmed image position is carried by current TF for
+up to 12 s from its original image stamp, assuming the ball stays still.
+Observations with confidence <0.5 do not update or invalidate the last reliable
+position, and do not refresh its original timestamp. A gap in good detections
+resets candidate confirmation without revoking a consistent, unexpired last
+position. A contradictory high-quality new position still stops use of the old
+anchor; a single new image cannot revive an expired target. Other inconsistent
+observations or missing/expired close confirmation hold locomotion
+and forbid a new kick request; they do not cancel an already executing kick.
+Inspect `world_model.final_ball` for close confirmation and image age. Normal TF
+and vision validity checks still apply. No simulator ball truth is used for control.
+
+With `shoot:=true`, YOLO detections use a known-radius fit to the visible depth
+surface to estimate the ball center, instead of adding one radius to the median
+box-center depth. The fit uses at most 600 points and 1024 deterministic hypotheses;
+insufficient surface support is rejected. The center is not shifted by a radius a
+second time. The configured `ball_radius` must match the ball; this is a simulation
+assumption, not validation on a physical depth camera. Confidence <0.5 still cannot
+refresh the saved kicking target. Other chase modes keep their original depth path.
+
+Alignment targets 0.055 rad before approach. A kick request is refused if the
+remaining heading error exceeds 0.18 rad (~10 degrees); it holds and reports that
+repositioning is required, rather than turning beside the ball. The attempt ends
+after one kick or after 120 s. Inspect `world_model.kick` on /ball_chase/status for
+phase, heading error and refusal reason. Restart the vision node for another
+attempt. `shoot:=false` remains the default.
+
+The current tests use known goal coordinates and simulation ground-truth robot
+odometry through the existing TF source. They are not visual goal localization or
+physical robot qualification. Existing motor expiry, tilt and stop protections are
+unchanged. Test fixtures, recordings and development failures are documented in the
+[dated test report](../../docs/reports/2026-11-13-goal-shot.md). Raw evidence remains
+on the Jetson under `/home/darin/vio_runs/shot_refine_20261113/`.
+
+Example (activate the normal ROS environment first):
+
+```bash
+ros2 launch humanoid_ball_chase ball_chase.launch.py controller:=model_walk \
+  auto_start:=true scene:=shoot shoot:=true kick:=true world_model:=true \
+  use_viewer:=false walk_max_step_m:=0.06 walk_max_turn_rad:=0.08
+```
+
+The default detector is the existing football detector. For Isaac, use
+`vision_detector:=isaac` and start the normal Isaac detector on the same ROS domain.
+
+
+### Latest validation and learned-motion plan
+
+The final working-tree regression suite passed 117 non-GPU tests; actual Isaac
+GPU inference was exercised in complete simulation. The selected recording
+`video03` completed autonomous approach, standing admission, kick and `done`:
+0.8724m/s peak ball speed, 1.488cm goal-center crossing error, no pre-kick ball
+contact or control fault during the observation window. Other attempts still
+failed to score or stopped on command expiry. A previous successful but inaccurate
+trial moved the ball 2.31cm before kicking, breaking the saved-target stationary
+assumption. No claim of general stability or hardware readiness follows.
+
+The next intended controller is ML for walking, turning and kicking. Keep visual
+ball tracking, confidence/time validity, known goal and task supervision reusable.
+The replacement needs compatible command and action-status semantics; simply
+changing an MPC file to an inference call is insufficient when the policy replaces
+whole action execution. See [design §22](../../docs/model_based_walking_design.md#22-goal-shot-validation-and-ml-transition-2026-11-13).
