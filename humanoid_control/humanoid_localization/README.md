@@ -33,7 +33,10 @@ The camera-carrier IMU (`/head/imu`, frame `head_imu_link`) is an MPU9250 on
 the revL head, on the same rigid body as the stereo pair, with its
 magnetometer unused. In simulation it is sampled at every 5 ms physics
 step (200 Hz) and published from `sim_imu_publisher`, a separate process, so
-simulator GIL stalls cannot leave gaps in it. Its white noise uses the datasheet
+simulator GIL stalls cannot leave gaps in it. That process wakes at 100 Hz and
+publishes every sample since its last wake-up from a ring in the shared IMU
+segment. Waking at twice the sample rate instead cost about 45 % of an Orin
+Nano core. Its white noise uses the datasheet
 densities. It also has a constant gyro bias but no bias random walk
 (`simulation/humanoid_ball_chase/config/scene*.yaml`, `head_imu_*`
 parameters). The axes are those of the `head_imu` site (the camera carrier's

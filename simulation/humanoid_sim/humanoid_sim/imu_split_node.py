@@ -152,38 +152,56 @@ class SplitBodyImuNode(Node):
 class SplitHeadImuNode(Node):
     """Head (camera-rig) IMU from the same shared segment, every physics sample.
 
-    Polls at twice ``head_imu_rate_hz`` and publishes each new sample once, so at
-    the physics rate no sample is skipped or repeated. Publishes nothing while
-    the segment has no head data (headless model) or under a control fault.
+    Wakes at ``head_imu_poll_hz`` (default 100 Hz) and publishes every sample
+    written since the last wake-up from the segment's head ring, oldest first,
+    decimated to ``head_imu_rate_hz``. Waking at the physics rate or faster
+    costs a large share of a Jetson core in Python; the ring keeps every sample
+    without it. Publishes nothing while the segment has no head data (headless
+    model) or under a control fault.
     """
 
     def __init__(self, reader: ImuSnapshotReader) -> None:
         super().__init__('sim_head_imu')
         self.declare_parameter('seed', 2)
+        self.declare_parameter(HEAD_IMU_PREFIX + 'poll_hz', 100.0)
         rate, self._frame_id = declare_head_imu(self)
         self._noise = _ImuNoise(self, int(self.get_parameter('seed').value), HEAD_IMU_PREFIX)
         self._gate = _RateGate(rate)
         self.reader = reader
         self.published = 0
+        self.missed = 0  # Samples overwritten in the ring before they were read.
+        self._last_index = None
         self.imu_pub = self.create_publisher(Imu, '/head/imu', QoSProfile(
             depth=10, reliability=ReliabilityPolicy.RELIABLE))
-        self.create_timer(0.5 / rate, self._publish)
+        self.create_timer(1.0 / float(self.get_parameter(HEAD_IMU_PREFIX + 'poll_hz').value),
+                          self._publish)
 
     def _publish(self) -> None:
-        record = self.reader.read()
-        if (record is None or not record['valid'] or not record['head_valid']
-                or record['control_fault'] or not self._gate.accept(record['stamp_ns'])):
+        result = self.reader.read_head_since(self._last_index or 0)
+        if result is None:
             return
-        sample = ImuSnapshot(gyro=np.asarray(record['head_gyro']),
-                             accel=np.asarray(record['head_accel']),
-                             quat_wxyz=None, stamp_ns=record['stamp_ns'])
-        gyro, accel = self._noise.apply(sample)
-        if not np.isfinite(gyro).all() or not np.isfinite(accel).all():
+        record, samples = result
+        if not samples:
             return
-        if publish_sample(self, self.imu_pub,
-                          head_imu_message(record['stamp_ns'], self._frame_id, gyro, accel),
-                          '/head/imu'):
-            self.published += 1
+        if self._last_index is None:
+            samples = samples[-1:]  # Start at the newest sample, not the ring's history.
+        elif samples[0]['index'] > self._last_index + 1:
+            self.missed += samples[0]['index'] - self._last_index - 1
+        self._last_index = samples[-1]['index']
+        if not record['valid'] or not record['head_valid'] or record['control_fault']:
+            return
+        for sample in samples:
+            if not self._gate.accept(sample['stamp_ns']):
+                continue
+            gyro, accel = self._noise.apply(ImuSnapshot(
+                gyro=np.asarray(sample['gyro']), accel=np.asarray(sample['accel']),
+                quat_wxyz=None, stamp_ns=sample['stamp_ns']))
+            if not np.isfinite(gyro).all() or not np.isfinite(accel).all():
+                continue
+            if publish_sample(self, self.imu_pub,
+                              head_imu_message(sample['stamp_ns'], self._frame_id, gyro, accel),
+                              '/head/imu'):
+                self.published += 1
 
 
 def main(args=None) -> None:

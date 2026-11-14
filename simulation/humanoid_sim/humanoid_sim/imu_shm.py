@@ -19,8 +19,8 @@ import tempfile
 import time
 
 MAGIC = b'HIMU'
-VERSION = 2
-SIZE = 4096  # one page: the record is ~170 bytes, the rest is slack
+VERSION = 3
+SIZE = 4096  # one page: record ~170 bytes, head ring 2 KiB, the rest is slack
 
 # magic, version, seq, stamp_ns, mono, gyro[3], accel[3], quat[4], flags,
 # head_gyro[3], head_accel[3] (camera-rig IMU; valid only with FLAG_HEAD_VALID)
@@ -32,6 +32,15 @@ FLAG_CONTROL_FAULT = 1 << 0
 FLAG_VALID = 1 << 1
 FLAG_HEAD_VALID = 1 << 2
 _NO_HEAD = (0.0, 0.0, 0.0)
+
+# Head IMU history: the last HEAD_RING samples, so a reader waking at a fraction
+# of the physics rate still gets every sample. Slot = index % HEAD_RING, holding
+# index (1-based, 0 = empty), stamp_ns, gyro[3], accel[3]; same seqlock.
+HEAD_RING = 32
+_RING_OFFSET = 512
+_SLOT = '<Q q 3d 3d'
+_SLOT_SIZE = struct.calcsize(_SLOT)
+assert _RECORD <= _RING_OFFSET and _RING_OFFSET + HEAD_RING * _SLOT_SIZE <= SIZE
 
 
 def candidate_paths(path: str | None = None) -> list:
@@ -73,9 +82,11 @@ class ImuSnapshotWriter:
         else:
             raise OSError(f'cannot create IMU snapshot segment: {last_error}')
         self._seq = 0
+        self._head_index = 0
         self._closed = False
         # Header first, then an even (quiescent) sequence number.
         struct.pack_into('<4sII', self._map, 0, MAGIC, VERSION, 0)
+        self._map[_RING_OFFSET:_RING_OFFSET + HEAD_RING * _SLOT_SIZE] = bytes(HEAD_RING * _SLOT_SIZE)
 
     @staticmethod
     def _create(path):
@@ -110,6 +121,12 @@ class ImuSnapshotWriter:
             | (FLAG_HEAD_VALID if head else 0),
             float(head_gyro[0]), float(head_gyro[1]), float(head_gyro[2]),
             float(head_accel[0]), float(head_accel[1]), float(head_accel[2]))
+        if head:
+            self._head_index += 1
+            struct.pack_into(
+                _SLOT, self._map, _RING_OFFSET + (self._head_index % HEAD_RING) * _SLOT_SIZE,
+                self._head_index, int(stamp_ns), *(float(v) for v in head_gyro),
+                *(float(v) for v in head_accel))
         self._seq += 1
         struct.pack_into('<Q', self._map, 8, self._seq)
 
@@ -163,11 +180,36 @@ class ImuSnapshotReader:
 
     def read(self):
         """Return the newest record as a dict, or None if none is available."""
+        result = self._read(with_ring=False)
+        return None if result is None else result[0]
+
+    def read_head_since(self, after_index: int):
+        """(record, head samples with index > after_index, oldest first), or None.
+
+        Each sample is a dict(index, stamp_ns, gyro, accel). At most HEAD_RING
+        samples are kept; a reader that falls further behind sees an index gap.
+        """
+        result = self._read(with_ring=True)
+        if result is None:
+            return None
+        record, ring = result
+        samples = []
+        for slot in range(HEAD_RING):
+            index, stamp_ns, *values = struct.unpack_from(_SLOT, ring, slot * _SLOT_SIZE)
+            if index > after_index:
+                samples.append(dict(index=index, stamp_ns=stamp_ns,
+                                    gyro=tuple(values[0:3]), accel=tuple(values[3:6])))
+        samples.sort(key=lambda sample: sample['index'])
+        return record, samples
+
+    def _read(self, with_ring: bool):
         for _ in range(64):
             seq_before = struct.unpack_from('<Q', self._map, 8)[0]
             if seq_before & 1 or seq_before == 0:
                 continue
             fields = struct.unpack_from(_LAYOUT, self._map, 0)
+            ring = (bytes(self._map[_RING_OFFSET:_RING_OFFSET + HEAD_RING * _SLOT_SIZE])
+                    if with_ring else None)
             seq_after = struct.unpack_from('<Q', self._map, 8)[0]
             if seq_before != seq_after:
                 continue
@@ -182,7 +224,7 @@ class ImuSnapshotReader:
                 valid=bool(flags & FLAG_VALID),
                 head_valid=bool(flags & FLAG_HEAD_VALID),
                 head_gyro=rest[11:14], head_accel=rest[14:17],
-            )
+            ), ring
         return None
 
     def close(self) -> None:

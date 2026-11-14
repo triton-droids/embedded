@@ -6,6 +6,7 @@ import pytest
 from humanoid_sim.imu_shm import (
     FLAG_CONTROL_FAULT,
     MAGIC,
+    HEAD_RING,
     VERSION,
     ImuSnapshotReader,
     ImuSnapshotWriter,
@@ -110,6 +111,29 @@ def test_head_imu_round_trip_and_absence(tmp_path):
         assert record['head_valid'] is True and record['valid'] is True
         assert record['head_gyro'] == pytest.approx((0.4, -0.5, 0.6))
         assert record['head_accel'] == pytest.approx((1.0, 2.0, 3.0))
+    finally:
+        reader.close()
+        writer.close()
+
+
+def test_head_ring_keeps_every_recent_sample(tmp_path):
+    path = str(tmp_path / 'imu.bin')
+    writer = ImuSnapshotWriter(path)
+    reader = ImuSnapshotReader(path, timeout_s=1.0)
+    try:
+        assert reader.read_head_since(0) is None  # Nothing written yet.
+        _sample(writer)  # No head data: nothing enters the ring.
+        assert reader.read_head_since(0)[1] == []
+        for i in range(1, 41):
+            writer.write(1000 + i, (0, 0, 0), (0, 0, 9.81), (1, 0, 0, 0), False,
+                         head_gyro=(i, 0, 0), head_accel=(0, 0, -i))
+        record, samples = reader.read_head_since(38)
+        assert [s['index'] for s in samples] == [39, 40]
+        assert [s['stamp_ns'] for s in samples] == [1039, 1040]
+        assert samples[-1]['gyro'] == (40.0, 0.0, 0.0) and samples[-1]['accel'] == (0.0, 0.0, -40.0)
+        assert record['stamp_ns'] == 1040
+        _record, samples = reader.read_head_since(0)
+        assert [s['index'] for s in samples] == list(range(41 - HEAD_RING, 41))
     finally:
         reader.close()
         writer.close()
