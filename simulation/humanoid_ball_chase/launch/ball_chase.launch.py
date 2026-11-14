@@ -99,7 +99,11 @@ def generate_launch_description():
         DeclareLaunchArgument('sim_time', default_value='true', choices=['true', 'false'],
                               description='Every node on simulated time (/clock from mujoco_sim); '
                                           'host-clock safety timeouts off. false: wall clock, real time'),
-        DeclareLaunchArgument('real_time_factor', default_value='0.5',
+        # Orin Nano, hard scene with VIO (2026-11-14): at 0.5 the walking controller's
+        # cycle p99 (~10-11 ms wall) used the whole 10 ms per 5 ms step and the robot
+        # fell in 3 of 3 runs with IMU fusion; at 0.3 both fusion on and off finished
+        # the 16-leg route (input age max 5-10 ms).
+        DeclareLaunchArgument('real_time_factor', default_value='0.3',
                               description='With sim_time: physics pace relative to real time'),
         SetEnvironmentVariable('ROS_DOMAIN_ID', arg('ros_domain_id')),
         SetEnvironmentVariable('ROS_LOCALHOST_ONLY', '1'),
