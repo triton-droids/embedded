@@ -1,36 +1,52 @@
 #!/usr/bin/env bash
-# cuVSLAM stereo visual odometry for the simulation, in the Isaac ROS 3.2 container (Jetson, JetPack 6).
-#   scripts/run_cuvslam.sh build    # once: derived image with cuVSLAM + CycloneDDS
-#   scripts/run_cuvslam.sh          # run in the foreground (Ctrl+C stops the container)
-#   scripts/run_cuvslam.sh imu_fusion:=false   # pure stereo VO (default fuses /head/imu)
-# Needs the base image isaac_ros_dev-aarch64 (isaac_ros_common release-3.2:
-#   scripts/build_image_layers.sh --image_key aarch64.ros2_humble --image_name isaac_ros_dev-aarch64)
-# and a simulation started with enable_stereo:=true on the same ROS_DOMAIN_ID.
-# DDS matches scripts/ball_chase_walk.sh: CycloneDDS, localhost only.
+# Isaac ROS 4.6 / JetPack 7.2.x stereo VO. See humanoid_localization/README.md.
 set -euo pipefail
 repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-image=humanoid_cuvslam:3.2
-if [[ "${1:-}" == build ]]; then
-  exec docker build -t "$image" -f "$repo_dir/humanoid_control/humanoid_localization/docker/Dockerfile.cuvslam" \
+image=humanoid_cuvslam:4.6-jp7
+mode=run
+case "${1:-}" in
+  check|build|run) mode="$1"; shift ;;
+  -h|--help) echo "Usage: $0 [check|build|run] [ROS launch arguments...]"; exit 0 ;;
+  *:=*|'') ;;
+  *) echo "Usage: $0 [check|build|run] [ROS launch arguments...]" >&2; exit 2 ;;
+esac
+if [[ "$mode" != run && $# -gt 0 ]]; then
+  echo "Launch arguments are only accepted in run mode." >&2
+  exit 2
+fi
+# A new container cannot replace the host BSP, driver or firmware.
+if [[ "$(uname -m)" != aarch64 ]] ||
+   ! grep -Eq '^# R39 \(release\), REVISION: 2\.' /etc/nv_tegra_release 2>/dev/null; then
+  echo "Requires Jetson with JetPack 7.2.x (L4T R39.2.x); host upgrade is required first." >&2
+  exit 1
+fi
+if ! grep -qx 'VERSION_ID="24.04"' /etc/os-release; then
+  echo "Requires the JetPack 7 Ubuntu 24.04 userspace." >&2
+  exit 1
+fi
+if [[ "$mode" == check ]]; then
+  echo "Host BSP and Ubuntu match the JetPack 7.2.x deployment target."
+  exit 0
+fi
+command -v docker >/dev/null || { echo "Docker is required." >&2; exit 1; }
+if [[ "$mode" == build ]]; then
+  : "${ISAAC_ROS_BASE_IMAGE:?Set ISAAC_ROS_BASE_IMAGE to an Isaac ROS 4.6 JetPack 7.2 Jazzy development image; see README.md}"
+  exec docker build --build-arg "BASE_IMAGE=$ISAAC_ROS_BASE_IMAGE" \
+    -t "$image" -f "$repo_dir/humanoid_control/humanoid_localization/docker/Dockerfile.cuvslam" \
     "$repo_dir/humanoid_control/humanoid_localization/docker"
 fi
 docker image inspect "$image" >/dev/null 2>&1 || { echo "Run '$0 build' first" >&2; exit 1; }
-config=cyclonedds_sim_humble.xml  # The container is Humble.
-# The same image also runs other Isaac ROS graphs (scripts/run_isaac_yolo.sh).
+config=cyclonedds_sim.xml
 name="${ISAAC_CONTAINER_NAME:-humanoid_cuvslam}"
 launch="${ISAAC_LAUNCH:-/workspaces/humanoid/humanoid_control/humanoid_localization/launch/cuvslam.launch.py}"
-# ISAAC_CPUSET (e.g. 4,5) keeps the container on those cores, leaving the others to
-# the simulator and the walking controller.
 cpuset=()
 [[ -n "${ISAAC_CPUSET:-}" ]] && cpuset=(--cpuset-cpus "$ISAAC_CPUSET")
-exec docker run --rm --name "$name" --runtime nvidia --privileged "${cpuset[@]}" \
+exec docker run --rm --name "$name" --runtime nvidia "${cpuset[@]}" \
   --network host --ipc host --pid host \
   -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=all \
-  -v /usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra \
-  -v /usr/share/vpi3:/usr/share/vpi3 \
   -v "$repo_dir":/workspaces/humanoid:ro \
   -e ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}" -e ROS_LOCALHOST_ONLY=1 \
   -e RMW_IMPLEMENTATION=rmw_cyclonedds_cpp \
   -e CYCLONEDDS_URI="file:///workspaces/humanoid/simulation/humanoid_sim/config/$config" \
   --entrypoint /bin/bash "$image" -c \
-  "source /opt/ros/humble/setup.bash && exec ros2 launch $launch ${*:-}"
+  'source /opt/ros/jazzy/setup.bash && exec ros2 launch "$@"' bash "$launch" "$@"

@@ -18,7 +18,13 @@
       <Interfaces>
         <NetworkInterface name="lo"/>
       </Interfaces>
+      <AllowMulticast>false</AllowMulticast>
     </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>32</MaxAutoParticipantIndex>
+      <Peers><Peer Address="127.0.0.1"/></Peers>
+    </Discovery>
     <Internal>
       <SocketReceiveBufferSize max="16MB"/>
     </Internal>

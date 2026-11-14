@@ -1,4 +1,4 @@
-"""cuVSLAM on /stereo/{left,right} (+ /head/imu); run inside the Isaac ROS 3.2 container (scripts/run_cuvslam.sh).
+"""cuVSLAM on /stereo/{left,right} (+ /head/imu); run inside the Isaac ROS 4.6 container (scripts/run_cuvslam.sh).
 
 imu_fusion:=true (default) fuses the camera-carrier IMU (/head/imu, frame head_imu_link);
 imu_fusion:=false is pure stereo VO, as before.
@@ -7,7 +7,7 @@ import os
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import PythonExpression, LaunchConfiguration
 from launch_ros.actions import ComposableNodeContainer
 from launch_ros.descriptions import ComposableNode
 from launch_ros.parameter_descriptions import ParameterValue
@@ -32,7 +32,7 @@ def slam_node(params=PARAMS):
         package='isaac_ros_visual_slam', plugin='nvidia::isaac_ros::visual_slam::VisualSlamNode',
         name='visual_slam_node',
         parameters=[params, {
-            'enable_imu_fusion': ParameterValue(LaunchConfiguration('imu_fusion'), value_type=bool),
+            'tracking_mode': ParameterValue(PythonExpression(["1 if '", LaunchConfiguration('imu_fusion'), "'.lower() == 'true' else 0"]), value_type=int),
             'use_sim_time': ParameterValue(LaunchConfiguration('use_sim_time'), value_type=bool)}],
         remappings=REMAPPINGS)
 

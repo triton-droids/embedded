@@ -1,11 +1,16 @@
-# Isaac ROS 3.2 dev image (JetPack 6.x, ROS 2 Humble) plus cuVSLAM, the GPU YOLO
-# pipeline (DNN image encoder, TensorRT, YOLOv8 decoder) and CycloneDDS.
-# Base: isaac_ros_common/scripts/build_image_layers.sh --image_key aarch64.ros2_humble
-#       --image_name isaac_ros_dev-aarch64
-ARG BASE_IMAGE=isaac_ros_dev-aarch64
+# Supply an Isaac ROS 4.6 JetPack 7.2 / Jazzy development image.
+# No default: an old locally cached Humble image must not be silently reused.
+ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
+USER root
+RUN grep -qx 'VERSION_ID="24.04"' /etc/os-release \
+    && test -f /opt/ros/jazzy/setup.bash
+# The official 4.6 development base must already configure its signed repository.
+# Reject older/latest repositories instead of combining conflicting signing keys.
+RUN grep -R -E 'isaac-ros/release-4\.6[[:space:]]+noble-jetpack' /etc/apt/sources.list.d/ \
+    && ! grep -R -E 'isaac-ros/release-(3|5|4[[:space:]])' /etc/apt/sources.list.d/
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ros-humble-isaac-ros-visual-slam ros-humble-rmw-cyclonedds-cpp \
-        ros-humble-isaac-ros-dnn-image-encoder ros-humble-isaac-ros-tensor-rt \
-        ros-humble-isaac-ros-yolov8 \
+        ros-jazzy-isaac-ros-visual-slam ros-jazzy-rmw-cyclonedds-cpp \
+        ros-jazzy-isaac-ros-dnn-image-encoder ros-jazzy-isaac-ros-tensor-rt \
+        ros-jazzy-isaac-ros-yolov8 \
     && rm -rf /var/lib/apt/lists/*

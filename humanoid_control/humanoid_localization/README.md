@@ -2,7 +2,7 @@
 
 Base pose without simulator ground truth: body IMU attitude (BNO085 game
 rotation vector) plus stereo-inertial visual odometry from cuVSLAM (Isaac ROS
-3.2, Jetson GPU) with the camera-carrier IMU (revL head, MPU9250). Navigation consumers (A*) read `/localization/odom`; the walking
+4.6, JetPack 7.2.x, Jetson GPU) with the camera-carrier IMU (revL head, MPU9250). Navigation consumers (A*) read `/localization/odom`; the walking
 controller's WBC still uses ground truth.
 
 ```
@@ -53,7 +53,7 @@ CAD axes). They are not the physical MPU9250 axes marked in the CAD
   `world` with the IMU attitude, and added. Steps implying more than
   `max_speed_m_s` are rejected; a VO gap longer than 0.5 s restarts the
   increment chain without moving the estimate.
-- cuVSLAM fuses the camera-carrier IMU (`enable_imu_fusion`, `imu_frame:
+- cuVSLAM fuses the camera-carrier IMU (`tracking_mode: 1`, `imu_frame:
   head_imu_link`, MPU9250 noise densities, `calibration_frequency: 200`). The
   body IMU cannot be used: it is not rigid with the cameras (head pan/tilt).
   The extrinsic is the static TF `stereo_rig → head_imu_link`, computed from
@@ -64,13 +64,47 @@ CAD axes). They are not the physical MPU9250 axes marked in the CAD
 - The start pose (`initial_x/y/z/yaw`) is a known placement, like a kickoff
   position. In the ball-chase scene it is the spawn pose (0, 0, yaw 0).
 
-## Run (Jetson)
+## Deployment target and host migration
+
+Target: JetPack 7.2.x (L4T R39.2.x), Ubuntu 24.04, ROS 2 Jazzy and
+Isaac ROS 4.6. The previous JetPack 6 / Humble / Isaac ROS 3.2 image is not
+compatible with this deployment. This change prepares deployment; it does not
+flash the device or claim GPU validation.
+
+Host inspected on 2026-11-14: Orin Nano Super reference developer kit,
+L4T R36.4.7, Ubuntu 22.04.5, ROS Humble. Root is on `/dev/mmcblk0p1`,
+with approximately 213 GiB used; no separate NVMe target was visible.
+The old host is intentionally rejected by `scripts/run_cuvslam.sh check`.
+
+Before flashing, back up the workspace **including uncommitted and untracked
+files**, models and calibration data to a separate physical device. A copy on
+the current root partition is not a recovery backup. Select the installation
+target explicitly: flashing the current card can erase the workspace and OS.
+Use NVIDIA's JetPack 7.2.x installation instructions for the Orin Nano; do not
+perform a generic Ubuntu distribution upgrade or replace R36 apt sources with
+R39. JetPack 7.2.1 uses a unified ISO rather than an Orin Nano SD-card image.
+Firmware and rollback procedures must follow the official board instructions.
+
+After installing the new BSP, install ROS 2 Jazzy and its CycloneDDS RMW, then
+recreate `rosenv` with the new system Python and rebuild the workspace. Do not
+reuse Humble's `build/`, `install/`, `log/` or Python environment. Follow the
+workspace setup instructions and first validate simulation without VIO.
+
+## Build and run (after host migration)
+
+Follow the **release-4.6** Isaac ROS setup guide (links below) to initialize the
+Docker development environment. Select its JetPack 7.2 / Jazzy base, with the
+`release-4.6 noble-jetpack` signed apt repository configured. The old
+`release-3.2` `build_image_layers.sh` recipe no longer applies. Obtain the actual
+base image reference from the configured CLI / local Docker image list; use an
+immutable digest where available, rather than guessing a registry tag or using
+`latest`. Set `ISAAC_ROS_BASE_IMAGE` to that reference. The Dockerfile checks
+Ubuntu, Jazzy and the repository before installing cuVSLAM.
 
 ```bash
-# once: Isaac ROS base image, then the derived image
-git clone -b release-3.2 https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_common.git ~/isaac_ros_ws/src/isaac_ros_common
-TERM=xterm ~/isaac_ros_ws/src/isaac_ros_common/scripts/build_image_layers.sh \
-  --image_key aarch64.ros2_humble --image_name isaac_ros_dev-aarch64
+scripts/run_cuvslam.sh check
+# Replace the value with the verified Isaac ROS 4.6 JetPack 7.2 base reference.
+export ISAAC_ROS_BASE_IMAGE='<verified-image-reference>'
 scripts/run_cuvslam.sh build
 
 # terminal 1: simulation with stereo and the localizer (textured scene)
@@ -81,14 +115,32 @@ scripts/run_cuvslam.sh
 ros2 run humanoid_localization localization_eval --ros-args -p duration_s:=120.0
 ```
 
-For a long route with turns, `ros2 run humanoid_localization route_driver`
-(simulation only) keeps the ball out of view until `/localization/status`
-reports `initialized`, then places it 1.3 m ahead and 35° to the left of the
-robot each time the robot reaches it (16 legs by default).
+All terminals must use the same `ROS_DOMAIN_ID` (default 0),
+`RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`, `ROS_LOCALHOST_ONLY=1` and
+`cyclonedds_sim.xml` settings. Rebuild the simulator to install the updated XML.
+For terminal 3, set `CYCLONEDDS_URI` to the installed simulator config as in
+`scripts/ball_chase_walk.sh`. The container uses the repository copy of that
+same config. It no longer mounts the host's old `tegra` or `vpi3` directories.
 
-Terminals 2 and 3 need the same `ROS_DOMAIN_ID` as the simulation
-(`ball_chase_walk.sh` uses 0 by default) and terminal 3 the same DDS settings
-(see `scripts/ball_chase_walk.sh`).
+The 4.6 API replaces `enable_imu_fusion` with `tracking_mode`. Both cuVSLAM
+launch paths map `imu_fusion:=true` (default) to mode 1 using the rigidly mounted
+`/head/imu`, and `imu_fusion:=false` to mode 0 (stereo VO). The body IMU remains
+downstream only. Existing container-name, launch-path and CPU-affinity overrides
+are preserved for the combined YOLO/cuVSLAM graph. YOLO TensorRT engines must be
+rebuilt for the target device and new runtime before using that graph.
+
+Before accepting deployment, verify both stereo inputs at 15 Hz, camera-info
+and TF availability, continuous VO and localization output, and the 120-second
+localization evaluation. Exercise head pan/tilt, walking, low texture and VO
+loss/recovery; compare drift and output gaps with the JetPack 6 baseline.
+Container build and live GPU execution have not been verified on JetPack 7.
+
+Official references:
+
+- [JetPack downloads and board installation links](https://developer.nvidia.com/embedded/jetpack/downloads)
+- [Isaac ROS 4.6 setup](https://nvidia-isaac-ros.github.io/v/release-4.6/getting_started/index.html)
+- [Isaac ROS 4.6 development environment](https://nvidia-isaac-ros.github.io/v/release-4.6/concepts/dev_env/index.html)
+- [4.6 cuVSLAM parameter and topic implementation](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_visual_slam/blob/release-4.6/isaac_ros_visual_slam/src/visual_slam_node.cpp)
 
 ## Limits
 

@@ -1,4 +1,4 @@
-"""GPU YOLO pipeline with Isaac ROS 3.2 (runs in the Isaac container: scripts/run_isaac_yolo.sh).
+"""GPU YOLO pipeline with Isaac ROS 4.6 (runs in the Isaac container: scripts/run_isaac_yolo.sh).
 
   color image -> DnnImageEncoder (resize with padding, /255) -> TensorRTNode -> YoloV8DecoderNode
   -> /isaac_yolo/detections (vision_msgs/Detection2DArray, boxes in network pixels)
@@ -21,7 +21,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import PythonExpression, LaunchConfiguration
 from launch_ros.actions import ComposableNodeContainer, LoadComposableNodes
 from launch_ros.descriptions import ComposableNode
 from launch_ros.parameter_descriptions import ParameterValue
@@ -97,7 +97,7 @@ def generate_launch_description():
         composable_node_descriptions=[ComposableNode(
             package='isaac_ros_visual_slam', plugin='nvidia::isaac_ros::visual_slam::VisualSlamNode',
             name='visual_slam_node', parameters=[CUVSLAM_PARAMS, {
-                'enable_imu_fusion': ParameterValue(arg('imu_fusion'), value_type=bool),
+                'tracking_mode': ParameterValue(PythonExpression(["1 if '", arg('imu_fusion'), "'.lower() == 'true' else 0"]), value_type=int),
                 'use_sim_time': ParameterValue(arg('use_sim_time'), value_type=bool)}],
             # Same remappings as humanoid_localization/launch/cuvslam.launch.py.
             remappings=[('visual_slam/image_0', '/stereo/left/image_raw'),
