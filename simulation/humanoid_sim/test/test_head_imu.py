@@ -3,7 +3,9 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import numpy as np
+import pytest
 
+from humanoid_sim.gyro_bias import GyroBiasCalibrator
 from humanoid_sim.imu_nodes import _RateGate
 from humanoid_sim.imu_split_node import SplitHeadImuNode
 
@@ -27,7 +29,7 @@ def _node(record, samples):
             record, [x for x in samples if x['index'] > after])),
         _gate=_RateGate(200.0), _noise=SimpleNamespace(apply=lambda s: (s.gyro, s.accel)),
         _frame_id='head_imu_link', imu_pub=Mock(), published=0, missed=0, _last_index=None,
-        get_logger=lambda: Mock())
+        get_logger=lambda: Mock(), _calibrator=GyroBiasCalibrator(0.0))
 
 
 def _record(**changes):
@@ -92,3 +94,18 @@ def test_split_head_imu_follows_a_restarted_writer():
     samples += [dict(s, stamp_ns=s['stamp_ns'] + 10**12) for s in _samples(3, 3)]
     SplitHeadImuNode._publish(node)
     assert node.published == 1 and node._last_index == 3
+
+
+def test_split_head_imu_withholds_samples_until_calibrated_then_subtracts_the_bias():
+    samples = _samples(1, 1)
+    node = _node(_record(), samples)
+    node._calibrator = GyroBiasCalibrator(0.02, still_rad_s=1.0)  # 4 steps of stillness.
+    for last in range(2, 40):
+        samples.append(_samples(last, last)[0])
+        SplitHeadImuNode._publish(node)
+    calibrator = node._calibrator
+    assert calibrator.ready and not calibrator.failed
+    assert calibrator.bias == pytest.approx([0.1, 0.2, 0.3])
+    first = node.imu_pub.publish.call_args_list[0].args[0]
+    assert first.header.stamp.sec * 10**9 + first.header.stamp.nanosec > 123_000_000_456 + 5 * STEP_NS
+    assert abs(first.angular_velocity.x) < 1e-12 and abs(first.angular_velocity.z) < 1e-12

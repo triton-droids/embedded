@@ -26,7 +26,7 @@ sim_motor_backend:
 # Camera-rig IMU (MPU9250 on the revL camera carrier, magnetometer unused): every
 # 5 ms physics sample, white noise from the datasheet densities at 200 Hz
 # (gyro 0.01 deg/s/sqrt(Hz) -> 2.47e-3 rad/s, accel 300 ug/sqrt(Hz) -> 0.0416 m/s^2)
-# and a constant residual gyro bias (~0.1-0.2 deg/s after a startup calibration).
+# and a constant gyro bias (~0.1-0.2 deg/s, the board's uncalibrated offset).
 # No bias random walk is simulated. cuVSLAM's matching settings: config/cuvslam.yaml
 # in humanoid_localization. Published by sim_head_imu (imu_split) or sim_head_mcu.
 /**:
@@ -35,3 +35,7 @@ sim_motor_backend:
     head_imu_gyro_noise_std_rad_s: 0.00247
     head_imu_accel_noise_std_m_s2: 0.0416
     head_imu_gyro_bias_rad_s: [0.003, -0.002, 0.0015]
+    # Start-up calibration (the MCU at power-on): mean rate over 2 s of stillness on
+    # the gantry is subtracted; /head/imu starts after it. Without it cuVSLAM did
+    # not absorb the bias above (Jetson, 0.3x: 0.3-0.4 m error vs <= 0.15 m with no bias).
+    head_imu_bias_calibration_s: 2.0

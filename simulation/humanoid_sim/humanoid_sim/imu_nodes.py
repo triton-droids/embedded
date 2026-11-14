@@ -27,8 +27,10 @@ placeholders, not identified sensor characteristics.
 
 Head IMU parameters are prefixed (``head_imu_rate_hz``,
 ``head_imu_gyro_noise_std_rad_s``, ``head_imu_accel_noise_std_m_s2``,
-``head_imu_gyro_bias_rad_s``, ``head_imu_frame_id``) so one ``/**`` block in a
-config file reaches both possible publishers (sim_head_mcu or sim_head_imu).
+``head_imu_gyro_bias_rad_s``, ``head_imu_frame_id``, ``head_imu_bias_calibration_s``
+and the other ``head_imu_bias_*`` start-up calibration settings) so one ``/**``
+block in a config file reaches both possible publishers (sim_head_mcu or
+sim_head_imu). With calibration on, /head/imu starts only after it.
 """
 from __future__ import annotations
 
@@ -52,6 +54,35 @@ from .publish_sample import publish_sample
 BODY_ORIENTATION_COVARIANCE = [0.001, 0.0, 0.0, 0.0, 0.001, 0.0, 0.0, 0.0, 1e6]
 HEAD_IMU_FRAME = 'head_imu_link'
 HEAD_IMU_PREFIX = 'head_imu_'
+
+
+def head_imu_calibrator(node: Node):
+    """Start-up gyro bias calibration of the head IMU (head_imu_bias_calibration_s; 0 = off)."""
+    from .gyro_bias import GyroBiasCalibrator
+    node.declare_parameter(HEAD_IMU_PREFIX + 'bias_calibration_s', 0.0)
+    node.declare_parameter(HEAD_IMU_PREFIX + 'bias_still_rad_s', 0.05)
+    node.declare_parameter(HEAD_IMU_PREFIX + 'bias_timeout_s', 30.0)
+    return GyroBiasCalibrator(
+        float(node.get_parameter(HEAD_IMU_PREFIX + 'bias_calibration_s').value),
+        float(node.get_parameter(HEAD_IMU_PREFIX + 'bias_still_rad_s').value),
+        float(node.get_parameter(HEAD_IMU_PREFIX + 'bias_timeout_s').value))
+
+
+def calibrated_head_sample(node, stamp_ns: int, gyro):
+    """Bias-corrected gyro, or None while the start-up calibration still runs."""
+    calibrator = node._calibrator
+    was_ready = calibrator.ready
+    if not calibrator.update(stamp_ns, gyro):
+        return None
+    if not was_ready:
+        if calibrator.failed:
+            node.get_logger().warn('Head IMU: no still window for gyro bias calibration; '
+                                   'publishing uncorrected rates')
+        else:
+            node.get_logger().warn(
+                'Head IMU gyro bias calibrated over %d samples: [%.5f, %.5f, %.5f] rad/s'
+                % (calibrator.samples, *calibrator.bias))
+    return calibrator.correct(gyro)
 
 
 def declare_head_imu(node: Node) -> tuple[float, str]:
@@ -287,6 +318,7 @@ class SimHeadMcuNode(Node):
         self._timeout = float(self.get_parameter('command_timeout_s').value)
         self._noise = _ImuNoise(self, int(self.get_parameter('seed').value), HEAD_IMU_PREFIX)
         self._gate = _RateGate(rate)
+        self._calibrator = head_imu_calibrator(self)
         self._last_command = -math.inf
         self._last_pitch_command = None
         # With imu_split, sim_imu_publisher owns /head/imu (no GIL coupling).
@@ -334,6 +366,9 @@ class SimHeadMcuNode(Node):
         if not self._gate.accept(sample.stamp_ns):
             return
         gyro, accel = self._noise.apply(sample)
+        gyro = calibrated_head_sample(self, sample.stamp_ns, gyro)
+        if gyro is None:
+            return
         publish_sample(self, self.imu_pub, head_imu_message(sample.stamp_ns, self._frame_id, gyro, accel),
                        '/head/imu')
 

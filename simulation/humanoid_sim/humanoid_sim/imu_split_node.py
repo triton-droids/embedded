@@ -29,7 +29,8 @@ from sensor_msgs.msg import Imu
 from std_msgs.msg import String
 
 from .imu_nodes import (BODY_ORIENTATION_COVARIANCE, HEAD_IMU_PREFIX, _ImuNoise, _RateGate,
-                        _YawError, _fill_imu, declare_head_imu, head_imu_message)
+                        _YawError, _fill_imu, calibrated_head_sample, declare_head_imu,
+                        head_imu_calibrator, head_imu_message)
 from .imu_shm import ImuSnapshotReader
 from .world import ImuSnapshot
 from .publish_sample import publish_sample
@@ -167,6 +168,7 @@ class SplitHeadImuNode(Node):
         rate, self._frame_id = declare_head_imu(self)
         self._noise = _ImuNoise(self, int(self.get_parameter('seed').value), HEAD_IMU_PREFIX)
         self._gate = _RateGate(rate)
+        self._calibrator = head_imu_calibrator(self)
         self.reader = reader
         self.published = 0
         self.missed = 0  # Samples overwritten in the ring before they were read.
@@ -208,6 +210,9 @@ class SplitHeadImuNode(Node):
                 gyro=np.asarray(sample['gyro']), accel=np.asarray(sample['accel']),
                 quat_wxyz=None, stamp_ns=sample['stamp_ns']))
             if not np.isfinite(gyro).all() or not np.isfinite(accel).all():
+                continue
+            gyro = calibrated_head_sample(self, sample['stamp_ns'], gyro)
+            if gyro is None:
                 continue
             if publish_sample(self, self.imu_pub,
                               head_imu_message(sample['stamp_ns'], self._frame_id, gyro, accel),
