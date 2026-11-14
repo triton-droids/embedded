@@ -118,5 +118,35 @@
       0.8
     ],
     "note": "FIT0036: OD20, small holes1.5, centre screw hole3, 14.5mm opposing centre holes per manufacturer. Plate thickness3 is assumed; spline and boss not modeled."
+  },
+  {
+    "name": "REF_IMU_PCB_24x20_ASSUMED",
+    "group": "pitch",
+    "color": [
+      0.12,
+      0.55,
+      0.26
+    ],
+    "note": "Assumed 24x20 PCB; dimensions and sensor axis markings require physical confirmation."
+  },
+  {
+    "name": "REF_IMU_insulating_pad",
+    "group": "pitch",
+    "color": [
+      0.65,
+      0.66,
+      0.68
+    ],
+    "note": ""
+  },
+  {
+    "name": "REF_IMU_header_ASSUMED",
+    "group": "pitch",
+    "color": [
+      0.1,
+      0.12,
+      0.15
+    ],
+    "note": ""
   }
 ]

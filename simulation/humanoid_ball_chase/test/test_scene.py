@@ -35,6 +35,26 @@ def test_scene_has_cad_and_physical_ball(model):
     assert any(model.geom('chase_ball').id in (c.geom1,c.geom2) for c in data.contact)
 
 
+def test_rev_l_imu_follows_camera_carrier(model):
+    # RevL adds the board, insulating pad and header to the pitch group.
+    pitch_body = model.body('d435_pitch').id
+    for name in ('REF_IMU_PCB_24x20_ASSUMED', 'REF_IMU_insulating_pad',
+                 'REF_IMU_header_ASSUMED'):
+        geom = model.geom('d435_' + name)
+        assert geom.bodyid[0] == pitch_body
+        assert geom.contype[0] == 0 and geom.conaffinity[0] == 0
+    imu = model.site('head_imu')
+    assert imu.pos == pytest.approx([0, 0, 0.0228])
+    data = mujoco.MjData(model)
+    for yaw, pitch in ((0, 0), (0.5, 0.3), (-0.5, -0.3)):
+        data.qpos[model.joint(mb.HEAD_JOINT).qposadr[0]] = yaw
+        data.qpos[model.joint('head_pitch_joint').qposadr[0]] = pitch
+        mujoco.mj_forward(model, data)
+        body = data.body('d435_pitch')
+        expected = body.xpos + body.xmat.reshape(3, 3) @ np.array([0, 0, 0.0228])
+        assert data.site('head_imu').xpos == pytest.approx(expected)
+
+
 def test_optical_extrinsics_follow_actual_yaw(model):
     from humanoid_sim.camera_node import SimCameraNode
     from builtin_interfaces.msg import Time

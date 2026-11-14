@@ -1,14 +1,71 @@
 {
-  "source": "/home/rcli/Github/td_perception_camera/ds3225_d435_pantilt_rev_k_slotted_horn.zip",
-  "archive_member": "ds3225_d435_pantilt_rev_k_slotted_horn/meshes.json",
-  "source_sha256": "93efce6322492a0386aed57295504793eb2e8daa0340c437df0a444eff74fe6b",
-  "archive_sha256": "be6cb51a430eb7509bbd4070926a6d852cf9091cef908e18816ff6deb46846d2",
-  "repository": "git@github.com:triton-droids/td_perception.git",
-  "revision_commit": "d75a50b8adb356a025fea7d9511fa55630d16477",
-  "revision_branch": "p-33-ball-tracker",
-  "revision": "K USB_LEFT",
+  "source": "/home/rcli/Github/Humanoid_ros2/embedded/mechanical/ds3225_d435_pantilt_rev_l_camera_imu/meshes.json",
+  "source_sha256": "8f8765c5f6e4ebd1c674f24848714816961dbbb6450341565648998b87123d1a",
+  "parameters_sha256": "8072764e13b3ac18f81dd8a534378d350b3af24d1f9c6ef49f5c0d1a9f20f2c5",
+  "repository": "git@github.com:triton-droids/embedded.git",
+  "revision_commit": "49092489c379aaa366b7de98f6df69229dc0b13a",
+  "revision_branch": "Humanoid_ros2",
+  "source_files_tracked": false,
+  "revision": "L USB_LEFT",
   "units": "mm",
-  "status": "Imported from user-provided td_perception_camera checkout. Reference CAD, not vendor D435 production geometry. Mass/inertia are simulation assumptions.",
-  "pitch_axis_z_mm": 88,
-  "yaw_axis_x_mm": 20
+  "status": "Imported from local embedded/mechanical revision L exports. Repository commit is context; source files may be untracked, so SHA256 identifies the exports. Reference CAD, not vendor D435 production geometry. Mass/inertia are simulation assumptions.",
+  "pitch_axis_z_mm": 88.0,
+  "yaw_axis_x_mm": 20.0,
+  "imu_mount": {
+    "platform_mm": [
+      36,
+      34,
+      3
+    ],
+    "platform_bounds": [
+      [
+        -18,
+        18
+      ],
+      [
+        -23,
+        11
+      ],
+      [
+        105,
+        108
+      ]
+    ],
+    "board_reference_mm": [
+      24,
+      20,
+      1.6
+    ],
+    "board_centre_mm": [
+      0,
+      0,
+      110.8
+    ],
+    "board_size_verified": false,
+    "attachment": "Insulating pad plus two nonconductive ties through 2.5 x 17 slots; board-specific screw holes not assumed",
+    "neutral_sensor_axes": {
+      "x": [
+        0,
+        1,
+        0
+      ],
+      "y": [
+        1,
+        0,
+        0
+      ],
+      "z": [
+        0,
+        0,
+        -1
+      ]
+    },
+    "axis_note": "Physical module axes must be checked against actual PCB marking; Z down only at neutral pitch",
+    "group": "pitch",
+    "camera_centre_height_mm": 88,
+    "board_centre_above_camera_mm": 22.8,
+    "camera_top_to_shelf_underside_mm": 4.5,
+    "pad_thickness_mm": 2,
+    "wire_note": "Route IMU service loop behind camera with strain relief; flexible cable sweep not validated"
+  }
 }

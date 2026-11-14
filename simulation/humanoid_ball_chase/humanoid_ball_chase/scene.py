@@ -1,4 +1,4 @@
-"""Optional MuJoCo scene: D435 revision K visuals and a physical football.
+"""Optional MuJoCo scene: D435 revision L visuals and a physical football.
 
 CAD is in mm with +Y toward the lenses. This robot's toes face +Y.
 The pitch axis starts 30 degrees down; both axes use simulated servos.
@@ -68,7 +68,12 @@ def build_scene(spec, options):
                      quat=mb._quat_from_axes([1,0,0],[0,0,1]),
                      fovy=options.camera_fovy_deg, resolution=list(options.camera_resolution))
     spec.delete(spec.site('head_imu'))
-    pitch.add_site(name='head_imu')
+    parameters = json.loads((assets_directory() / 'mount_parameters.json').read_text())
+    # CAD board centre is 22.8 mm above the camera/pitch axis. Keep the
+    # existing head_imu_link axis convention; the PCB axis marks are references.
+    imu_pos = [v * 0.001 for v in parameters['imu_mount']['board_centre_mm']]
+    imu_pos[2] -= parameters['pitch_axis_z'] * 0.001
+    pitch.add_site(name='head_imu', pos=imu_pos)
     ball = spec.worldbody.add_body(name='chase_ball', pos=[-0.25,1.8,0.11])
     ball.add_freejoint(name='chase_ball_free')
     ball.add_geom(name='chase_ball', type=mujoco.mjtGeom.mjGEOM_SPHERE,

@@ -297,27 +297,30 @@ stops it.
 
 ## Asset provenance and assumptions
 
-Assets are imported from the user-provided checkout
-`/home/rcli/Github/td_perception_camera`, archive
-`ds3225_d435_pantilt_rev_k_slotted_horn.zip`. Its Git remote is
-`git@github.com:triton-droids/td_perception.git`, branch `p-33-ball-tracker`,
-commit `d75a50b8adb356a025fea7d9511fa55630d16477`.
-`assets/SOURCE.json` records the archive SHA256 and assembly mesh SHA256.
-All 12 generated STL files are byte-identical to the earlier local revision K
-assets, so this source confirmation does not change simulation geometry.
+The head assembly is revision **L USB_LEFT**, imported from
+`/home/rcli/Github/Humanoid_ros2/embedded/mechanical/ds3225_d435_pantilt_rev_l_camera_imu`.
+`assets/SOURCE.json` records SHA256 hashes of `meshes.json` and `parameters.json`,
+plus the enclosing repository state. These local CAD exports are untracked;
+the recorded repository commit alone does not identify their contents.
 
-Reimport assets from that checkout with:
+Reimport the assembly with:
 
 ```bash
 python3 simulation/humanoid_ball_chase/scripts/import_camera_assets.py \
-  /home/rcli/Github/td_perception_camera
+  /home/rcli/Github/Humanoid_ros2/embedded/mechanical/ds3225_d435_pantilt_rev_l_camera_imu
 ```
 
-Meshes are converted from the archive's assembly tessellation, with millimetres
-scaled to metres. They include the three printed supports, servo envelopes,
-horn envelopes, D435 envelope and schematic lens windows; keep-out volumes and
-screws are omitted.
+Meshes use the assembly tessellation, with millimetres scaled to metres.
+They include the three printed supports, servo and horn envelopes, D435 and
+schematic lens windows, plus the revL IMU platform, reference PCB, insulating
+pad and header. Keep-out volumes, screws and axis-display arrows are omitted.
+The head IMU sampling site follows the PCB centre, 22.8 mm above the camera
+centre, through both joints; its existing `head_imu_link` axis convention is
+retained. PCB dimensions, horn fit and head mass/inertia remain unverified
+assumptions. The base simulator's simple fallback head is unchanged; this CAD
+assembly is used by the ball-chase scenes (including `scene:=hard`).
 
+The detector source checkout is `/home/rcli/Github/td_perception_camera`.
 The newer checkout also contains a package named `humanoid_vision`. It adds
 six-/seven-class YOLO11 ball models (`nubot-yolo`, `td-perception`), class-0
 ball target selection, a second pitch tracker, and yaw search after target loss.

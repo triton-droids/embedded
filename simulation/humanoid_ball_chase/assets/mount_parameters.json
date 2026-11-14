@@ -1,0 +1,193 @@
+{
+  "revision": "L",
+  "units": "mm",
+  "pitch_axis_z": 88.0,
+  "yaw_axis_x": 20.0,
+  "yaw_range": [
+    -90,
+    90
+  ],
+  "pitch_range": [
+    -75,
+    75
+  ],
+  "external_bearings": 0,
+  "yaw_servo_mount": {
+    "hole_diameter": 3.1,
+    "blind_depth": 8.5,
+    "screw": "M3x10 from above",
+    "engagement": 8.0,
+    "bottom_clearance": 0.5,
+    "nuts": 0,
+    "internal_head_pockets": 0,
+    "fit_basis": "User specified printed undersize for direct screw retention; physical strength not tested"
+  },
+  "camera_pad_thickness": 11.4,
+  "camera_counterbore": [
+    6.8,
+    3.4
+  ],
+  "camera_effective_thickness": 8,
+  "camera_screw": "M3x10",
+  "camera_engagement": 2,
+  "USB_plug_length": 45,
+  "USB_extra_straight_lead": 30,
+  "recommended_variant": "USB_LEFT: user-confirmed USB end; pitch motor moved to opposite end",
+  "recommended_assembly": "assembly.step",
+  "USB_side_definition": "USB_LEFT = model -X open end; pitch motor at +X. User confirmed prior USB_RIGHT was opposite to the real camera.",
+  "camera_visual_fix": "Photo-confirmed viewer front: USB left, largest window second from left; pitch motor right. Aperture diameters remain schematic.",
+  "yaw_wire_window": {
+    "x": [
+      -11,
+      11
+    ],
+    "y": [
+      -8,
+      8
+    ],
+    "z": [
+      7,
+      23
+    ],
+    "clear_section": [
+      16,
+      16
+    ]
+  },
+  "yaw_wire_assumptions": "Mirrored exit at case X=+10 toward -X; lead and plug envelopes assumed, not measured",
+  "yaw_wire_keepout": {
+    "x": [
+      -28,
+      10
+    ],
+    "y": [
+      -5,
+      5
+    ],
+    "z": [
+      9,
+      19
+    ]
+  },
+  "yaw_plug_keepout": {
+    "x": [
+      -44,
+      -28
+    ],
+    "y": [
+      -6,
+      6
+    ],
+    "z": [
+      9,
+      19
+    ]
+  },
+  "horn_interface_UNVERIFIED": "DFRobot FIT0036 identified by user; plate thickness, hub geometry, centre screw and supplied screw dimensions still need fit confirmation",
+  "horn_model": "DFRobot FIT0036 (user-identified)",
+  "horn_drawing": "https://dfimg.dfrobot.com/enshop/image/data/FIT0036/FIT0036Dimensions.png",
+  "hole_pattern_basis": "User requested four cardinal radial slots, screw-centre radii 6..10mm; includes FIT0036 radius7.25 and cross-horn example radii6/9 and7.5/8.",
+  "horn_slots": {
+    "count_per_axis": 4,
+    "width": 2.2,
+    "centre_radius_range": [
+      6,
+      10
+    ],
+    "overall_length": 6.2,
+    "head_slot_width": 4.8,
+    "head_slot_length": 8.8,
+    "head_slot_depth": 1.8,
+    "centre_hole_diameter": 6.8
+  },
+  "reference_horn_envelope": [
+    20,
+    3
+  ],
+  "adapter_opposing_hole_centres": 14.5,
+  "horn_fastener": {
+    "type": "2mm plastic self-tapping; NOT M2 machine thread",
+    "quantity_per_axis": 4,
+    "reference_length": 6,
+    "clearance_diameter": 2.2,
+    "head_pocket_diameter": 4.8,
+    "head_pocket_depth": 1.8,
+    "assumed_head_diameter": 4.0,
+    "assumed_head_height": 1.6,
+    "effective_printed_grip": 4.2,
+    "tip_penetration_into_reference_horn": 1.8,
+    "cylindrical_engagement_excluding_tip": 1.0,
+    "tip_length": 0.8,
+    "nominal_clearance_to_horn_back": 1.2,
+    "pilot_diameter_UNVERIFIED": 1.5,
+    "warning": "Radial slots accept screw centres6..10mm; actual screw length and holding strength not tested"
+  },
+  "horn_mount_face_diameter": 28,
+  "horn_enclosing_rims": false,
+  "horn_mount_style": "Flat mounting faces; no enclosing rim or circular receiving cavity",
+  "other_horn_compatibility": "No enclosing rim. Four cardinal radial slots6..10mm; centre interface retained per user confirmation. Actual horn arm sweep is not modeled.",
+  "plastic_spline": "NONE",
+  "material": "printed PETG/PA prototype",
+  "nominal_body_envelope": [
+    145,
+    68,
+    104
+  ],
+  "imu_mount": {
+    "platform_mm": [
+      36,
+      34,
+      3
+    ],
+    "platform_bounds": [
+      [
+        -18,
+        18
+      ],
+      [
+        -23,
+        11
+      ],
+      [
+        105,
+        108
+      ]
+    ],
+    "board_reference_mm": [
+      24,
+      20,
+      1.6
+    ],
+    "board_centre_mm": [
+      0,
+      0,
+      110.8
+    ],
+    "board_size_verified": false,
+    "attachment": "Insulating pad plus two nonconductive ties through 2.5 x 17 slots; board-specific screw holes not assumed",
+    "neutral_sensor_axes": {
+      "x": [
+        0,
+        1,
+        0
+      ],
+      "y": [
+        1,
+        0,
+        0
+      ],
+      "z": [
+        0,
+        0,
+        -1
+      ]
+    },
+    "axis_note": "Physical module axes must be checked against actual PCB marking; Z down only at neutral pitch",
+    "group": "pitch",
+    "camera_centre_height_mm": 88,
+    "board_centre_above_camera_mm": 22.8,
+    "camera_top_to_shelf_underside_mm": 4.5,
+    "pad_thickness_mm": 2,
+    "wire_note": "Route IMU service loop behind camera with strain relief; flexible cable sweep not validated"
+  }
+}
