@@ -602,6 +602,15 @@ consumes TF changes. Frame names (`world_frame`, `odom_frame`,
 `base_footprint_frame`, `base_frame`) are parameters, for example `robot1/odom`
 in a multi-robot setup (the camera TF parent is still a fixed `base_link`).
 
+### Stereo pair, shared state and IMU heading error
+
+| `sim.launch.py` argument | Effect |
+|---|---|
+| `enable_stereo:=true` | Two head cameras 50 mm apart (the D435 IR imagers, projector covered): `/stereo/{left,right}/image_raw` (mono8, 640x480, `stereo_rate_hz` 15) and `camera_info` (rectified pinhole, right `P[3] = -fx * b`), TF `floating_base → stereo_rig` (dynamic) and `stereo_rig → stereo_{left,right}_optical` (static). Stamps are the physics sample time. Used by `humanoid_localization` (cuVSLAM). |
+| `stereo_split:=true` (default with stereo) | `mujoco_sim` writes qpos/mocap after every step to shared memory (`state_shm`, per `ROS_DOMAIN_ID`) and saves the compiled model; `sim_stereo_publisher` renders from it in its own process, so rendering never holds the simulator GIL or world lock. `false` renders inside `mujoco_sim`. |
+| `share_state:=true` | The same shared state without stereo, for recorders (`evaluation/vio_isaac_trials/scripts/record_*.py`). |
+| `imu_yaw_error_deg`, `imu_yaw_error_period_s` | Sinusoidal heading error on the simulated BNO085 game rotation vector (`/imu/data_raw` orientation only; roll, pitch, gyro and accelerometer unchanged). 0 (default) is off. |
+
 The `mujoco_sim` process can also be started alone, to drive the real nodes
 from another launch:
 
@@ -834,3 +843,20 @@ state-copy and sampler scheduling cost on the simulation host; no hard real-time
 or IMU-timeout improvement is guaranteed. The state stream rate may be set in
 `(0, 60]` Hz. Keep `use_viewer:=false` to avoid also rendering locally. A busy port
 or sender startup failure is logged while the simulation continues headless.
+
+
+## Goal-shot recording checkpoint (2026-11-13)
+
+A complete `model_walk` + Isaac visual approach/shot run was recorded via
+`share_state:=true` at 20Hz and rendered after motion finished, keeping video
+rendering outside the active control load. The 1x video includes the external,
+overhead and reconstructed head-camera views. This is actual recorded simulation
+state replay, not a physical-robot camera recording. In the selected success the
+ball crossed within 1.488cm of the configured goal center; repeated runs still
+include command-expiry stops and failed shots. The ball truth is measurement-only.
+
+See the [full report](../../docs/reports/2026-11-13-goal-shot.md) for per-run
+results and host-local video locations, and the
+[handoff](../../docs/handoff-goal-shot-2026-11-13.md) for continuation. Recent
+working-tree implementation changes are not included in this documentation commit.
+No timing protection was relaxed for the recording or the planned ML transition.

@@ -107,3 +107,35 @@ for figure in node_topology control_data_flow; do
   dot -Tpng -Gdpi=105 "docs/architecture/$figure.dot" -o "docs/architecture/$figure.png"
 done
 ```
+
+
+## Goal-shot working-tree path and learned-motion boundary (2026-11-13)
+
+The recent simulation task follows this path:
+
+```text
+RGB-D + Isaac YOLO + robot TF
+  -> visual ball estimate / last reliable fixed-frame position
+  -> stage, align, approach, stand, request one kick, await completion
+  -> walking_controller: LIPM MPC + gait + TSID WBC
+  -> cpp_control_node -> simulated motor backend
+```
+
+The goal center is configured, not visually detected. The recorded trials use
+simulation robot ground-truth odometry through existing TF; ball truth is only
+used for evaluation. Final approach computes the current kicking-foot location
+from measured joints and the existing model, expressed with ball/goal positions
+in `base_footprint`. That read-only geometry does not command motors.
+
+For future ML, retain perception, target validity and task supervision. Replacing
+MPC alone keeps gait/WBC and requires their motion-reference interface. Replacing
+walking/turning/kicking as learned actions instead requires an adapter at the
+low-level controller boundary, with a specified joint action contract and task
+status feedback. Only one controller may produce active motor commands. Preserve
+source ages, finite bounds, command expiry, watchdogs and independent estop.
+A faster policy does not by itself repair delayed inputs or DDS/scheduling tails.
+
+The existing `controller:=policy` launch path is a separate reference policy;
+it is not evidence of a trained ball-shooting policy or a drop-in adapter for
+`/walk/kick`. See the [dated report](reports/2026-11-13-goal-shot.md) for test
+outcomes and the explicit documentation-only publication boundary.

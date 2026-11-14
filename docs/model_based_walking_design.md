@@ -825,3 +825,50 @@ detectors; one autostart timeout, not released): after arrival
 0.385-0.60), yaw command 0, approach 15-18.5 s, no fall or estop. A live
 `/walk/status` read showed `standing: true` with the robot at the ball.
 
+
+
+## 22. Goal-shot validation and ML transition (2026-11-13)
+
+This checkpoint describes the dirty `vio-test` Jetson working tree based on
+9f32cc41. This documentation-only commit does not include its recent source and
+test changes. See the [report](reports/2026-11-13-goal-shot.md) and
+[handoff](handoff-goal-shot-2026-11-13.md) before reproducing or continuing work.
+
+The task chain now reaches a known goal-directed shot, including continuous
+near-ball observation, confidence-gated saved ball positions, a gravity-aligned
+control frame, current-foot FK and standing/completion acknowledgement.
+117 non-GPU regression tests passed on that working tree. A later recorded
+full-chain run (`video03`, real Isaac detection) kicked through the goal within
+1.488cm of center at 0.8724m/s peak ball speed, with no earlier foot-ball contact
+or protection fault. Earlier same-implementation runs still suffered command
+expiry, no goal, or pre-kick ball motion. Do not infer repeated stability from
+the selected success; the report retains the unsuccessful runs.
+
+The user's next control direction is learned walking/turning/kicking. The model
+controller is a baseline for task flow, so maximizing MPC shot precision is not
+a prerequisite for that transition. Two replacement scopes must be explicit:
+
+| Scope | Policy output | Existing parts retained |
+|---|---|---|
+| MPC planner only | A documented compatible motion/CoP/footstep reference | Gait/contact schedule and WBC as required by their interfaces |
+| Whole action controller | Specified joint targets, gains and/or torques under a trained policy contract | Visual task layer, command validation/scheduler, backend and independent safety |
+
+No such new learned policy or adapter has been validated. Before integration,
+fix observation units, axes, joint order, history and source freshness; action
+units/scaling, bounds and gains; training/runtime update rate; command deadline
+behavior; and task status (`standing`, kick accepted/in progress/completed/fault).
+A replacement must preserve meaningful equivalents of `/walk/status` and the
+one-shot completion acknowledgement, or deliberately adapt the supervisor. It
+must not send an apparent completion merely because a fixed timer elapsed.
+
+Select a single active motor-command producer. Policy staleness or invalid output
+must stop admission; the model must not clear estop, enable motors by itself,
+weaken deadlines or become a second command writer. Retest the trained controller
+in isolation, then the complete visual approach/shot chain. Existing policy launch
+support alone does not prove learned walking/turning/kicking compatibility.
+
+Timing remains a separate unresolved item: one latest full-chain fault recorded
+a 34.3ms control cycle against the existing 30ms limit, alongside command expiry.
+The 80ms motor command lifetime and protections were preserved. Replacing MPC/WBC
+may reduce compute, but input starvation, publisher latency, queueing and scheduler
+contention still need correlated measurements; they are not proven fixed by ML.

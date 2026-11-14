@@ -1,5 +1,13 @@
 # Simulation documentation
 
+## Latest checkpoint
+
+- [2026-11-13 goal-shot tests, successful video and publication scope](reports/2026-11-13-goal-shot.md)
+- [Goal-shot / learned-motion continuation handoff](handoff-goal-shot-2026-11-13.md)
+
+These records describe the tested Jetson working tree. Associated recent code is
+not included in this documentation-only commit.
+
 ## Run and inspect
 
 - [Workspace overview](../README.md)
