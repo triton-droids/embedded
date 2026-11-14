@@ -63,6 +63,10 @@ def generate_launch_description():
                               description='Source of odom -> base_footprint -> base_link: ground_truth '
                                           '(sim_odom_tf) or leg (walking_controller leg_odometry: body IMU '
                                           'attitude + stance-foot kinematics, what the robot has)'),
+        DeclareLaunchArgument('shoot', default_value='false'),
+        DeclareLaunchArgument('shoot_goal_frame', default_value='world'),
+        DeclareLaunchArgument('shoot_goal_x_m', default_value='0.35'),
+        DeclareLaunchArgument('shoot_goal_y_m', default_value='1.8'),
         DeclareLaunchArgument('kick', default_value='false', choices=['true', 'false'],
                               description='Near a still ball line a foot up, stand and kick it (/walk/kick; '
                                           'needs controller:=model_walk and world_model:=true)'),
@@ -72,7 +76,7 @@ def generate_launch_description():
                               description='controller:=model_walk: turn cap per step (rad; node max 0.15)'),
         DeclareLaunchArgument('vision_target_timeout_s', default_value='1.0',
                               description='Maximum image/receipt age for CPU football inference; seconds'),
-        DeclareLaunchArgument('scene', default_value='clean', choices=['clean', 'hard'],
+        DeclareLaunchArgument('scene', default_value='clean', choices=['clean', 'hard', 'shoot'],
                               description='clean: ball on a plain pitch. hard: visual-only clutter (robots, '
                                           'people, lines, goal, boards, shadows) plus camera blur/noise/'
                                           'exposure/JPEG; physics unchanged'),
@@ -97,7 +101,7 @@ def generate_launch_description():
         IncludeLaunchDescription(PythonLaunchDescriptionSource(PathJoinSubstitution([
             FindPackageShare('humanoid_sim'), 'launch', 'sim.launch.py'])), launch_arguments={
                 'scene_builder': PythonExpression(["'humanoid_ball_chase.scene:build_scene' + "
-                                                   "('_hard' if '", arg('scene'), "' == 'hard' else '')"]),
+                                                   "('_hard' if '", arg('scene'), "' == 'hard' else '_shoot' if '", arg('scene'), "' == 'shoot' else '')"]),
                 'sim_config_file': PathJoinSubstitution([
                     FindPackageShare('humanoid_ball_chase'), 'config',
                     PythonExpression(["'scene_hard.yaml' if '", arg('scene'), "' == 'hard' else 'scene.yaml'"])]),
@@ -134,6 +138,10 @@ def generate_launch_description():
                          'target_class_id':ParameterValue(arg('vision_target_class'), value_type=int),
                          'world_model':ParameterValue(arg('world_model'), value_type=bool),
                          'kick':ParameterValue(arg('kick'), value_type=bool),
+                         'shoot':ParameterValue(arg('shoot'), value_type=bool),
+                         'shoot_goal_frame':ParameterValue(arg('shoot_goal_frame'), value_type=str),
+                         'shoot_goal_x_m':ParameterValue(arg('shoot_goal_x_m'), value_type=float),
+                         'shoot_goal_y_m':ParameterValue(arg('shoot_goal_y_m'), value_type=float),
                          # Measured in this scene (2026-11-10): the MuJoCo ball's speed decays at
                          # ~0.06/s, far less than turf (~0.4/s, the tracker default).
                          'tracker.friction':0.06}]),

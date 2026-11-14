@@ -188,3 +188,16 @@ def build_scene_hard(spec, options):
     world.add_light(name='low_sun', pos=[-2, -1, 3], dir=[0.45, 0.55, -0.7],
                     type=mujoco.mjtLightType.mjLIGHT_DIRECTIONAL, castshadow=True,
                     diffuse=[0.75, 0.72, 0.65], specular=[0.1, 0.1, 0.1])
+
+
+def build_scene_shoot(spec, options):
+    """Clean, stationary shooting fixture; known goal center is world (0.35, 1.8)."""
+    build_scene(spec, options)
+    spec.body('chase_ball').pos = [-0.35, 0.95, 0.11]
+    center, line, half, height = 0.35, 1.8, 0.65, 0.8
+    for index, x in enumerate((center - half, center + half)):
+        _capsule(spec.worldbody, f'shot_post_{index}', [x, line, 0],
+                 [x, line, height], 0.035, [1, 1, 1, 1])
+    _capsule(spec.worldbody, 'shot_crossbar', [center-half, line, height],
+             [center+half, line, height], 0.035, [1, 1, 1, 1])
+    _line(spec.worldbody, 'shot_goal_line', (center-half, line), (center+half, line))

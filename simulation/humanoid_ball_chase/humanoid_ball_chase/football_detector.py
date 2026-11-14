@@ -201,20 +201,25 @@ class FootballDetector:
         if not np.isfinite(mat).all() or min(mat[0,0],mat[1,1])<=0:return None
         for idx in np.asarray(selected).reshape(-1):
             x,y,bw,bh=boxes[int(idx)]
-            point=point_from_box(x+bw/2,y+bh/2,bw,bh,depth_m,mat)
+            point=point_from_box(x+bw/2,y+bh/2,bw,bh,depth_m,mat, getattr(self, "ball_radius_m", 0.0))
             if point is None:continue
             self.last_confidence=float(conf[idx])
             return point
         return None
 
 
-def point_from_box(u, v, bw, bh, depth_m, k):
+def point_from_box(u, v, bw, bh, depth_m, k, ball_radius_m=0.0):
     """(u, v, x, y, z) in camera optical axes from a box center and the aligned depth.
 
-    Median of valid depth (0.1-10 m) in a window of 20 % of the smaller box side
+    A positive ball_radius_m instead requests a fitted sphere CENTER and may
+    reject partial surfaces without enough support. Otherwise use the surface:
+    median of valid depth (0.1-10 m) in a window of 20 % of the smaller box side
     around the center; None if the center is outside the image, fewer than five
     depth samples are valid, or the intrinsics are invalid.
     """
+    if ball_radius_m > 0:
+        from .ball_surface import point_from_sphere
+        return point_from_sphere(u, v, bw, bh, depth_m, k, ball_radius_m)
     h, w = depth_m.shape
     if not (0 <= u < w and 0 <= v < h):
         return None

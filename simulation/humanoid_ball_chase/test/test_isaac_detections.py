@@ -25,8 +25,8 @@ def array(stamp, boxes):
         hyp = vision_msgs.ObjectHypothesisWithPose()
         hyp.hypothesis.class_id, hyp.hypothesis.score = str(cls), score
         det.results.append(hyp)
-        det.bbox.center.position.x, det.bbox.center.position.y = cx, cy
-        det.bbox.size_x, det.bbox.size_y = bw, bh
+        det.bbox.center.position.x, det.bbox.center.position.y = float(cx), float(cy)
+        det.bbox.size_x, det.bbox.size_y = float(bw), float(bh)
         msg.detections.append(det)
     return msg
 

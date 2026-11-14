@@ -210,3 +210,26 @@ def test_world_model_status_and_missing_odom_tf(wm_node):
     assert command.twist.linear.x==0 and command.twist.angular.z==0
     status=n._status_locked(0.0,time.monotonic(),0.,0.)
     assert 'world_model' not in status  # added by the timer only
+
+
+def test_fitted_ball_center_is_not_shifted_by_radius_a_second_time(node):
+    class CenterDetector:
+        returns_ball_center = True
+        last_confidence = .9
+        def detect(self, rgb, depth, k):
+            return 80., 60., 0., 0., 2.
+    node._detector = CenterDetector()
+    color,depth,info = frame(node)
+    node._process_frame(color,depth,info)
+    assert node._valid
+    assert node._target.optical == (0.,0.,2.)
+
+
+def test_shooting_plan_uses_gravity_aligned_frame(node):
+    from humanoid_ball_chase.kick import KickDecision
+    node.shoot_enabled = node.kick_enabled = True
+    node._kick.state = 'approach'
+    node._kick_decision = Mock(return_value=KickDecision(True))
+    node._lookup_transform = Mock(return_value=(np.eye(3),np.zeros(3)))
+    node._world_command(None,1.)
+    node._lookup_transform.assert_called_once_with('base_footprint',node.odom_frame,None,'odom_tf')

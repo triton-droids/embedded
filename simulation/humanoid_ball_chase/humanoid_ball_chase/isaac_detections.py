@@ -96,7 +96,7 @@ class IsaacDetectionSource:
         k = np.asarray(k).reshape(3, 3)
         points = []
         for score, (u, v, bw, bh) in candidates:
-            point = point_from_box(u, v, bw, bh, depth_m, k)
+            point = point_from_box(u, v, bw, bh, depth_m, k, getattr(self, "ball_radius_m", 0.0))
             if point is not None:
                 points.append((score, point))
         if not points:
