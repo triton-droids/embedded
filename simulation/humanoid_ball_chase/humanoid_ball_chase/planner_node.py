@@ -38,12 +38,18 @@ class AStarPlanner(Node):
         self.grid = msg
         self.replan()
 
+    def _clock_s(self):
+        """Receipt time: simulated with use_sim_time, else host monotonic."""
+        if self.get_parameter('use_sim_time').value:
+            return self.get_clock().now().nanoseconds * 1e-9
+        return time.monotonic()
+
     def on_goal(self, msg):
         self.goal = msg
         self.replan()
 
     def on_odom(self, msg):
-        self.odom, self.received = msg, time.monotonic()
+        self.odom, self.received = msg, self._clock_s()
 
     def replan(self):
         path = Path()
@@ -56,7 +62,7 @@ class AStarPlanner(Node):
             q = info.origin.orientation
             age = (self.get_clock().now().nanoseconds
                    - (odom.header.stamp.sec*10**9+odom.header.stamp.nanosec))/1e9
-            if (time.monotonic()-self.received > self.timeout
+            if (self._clock_s()-self.received > self.timeout
                     or not 0 <= age <= self.timeout):
                 status = 'stale_pose'
             elif (not grid.header.frame_id or goal.header.frame_id != grid.header.frame_id

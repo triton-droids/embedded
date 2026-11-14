@@ -97,6 +97,7 @@ class BallChaseVision(Node):
 
     def __init__(self) -> None:
         super().__init__("ball_chase_vision")
+        self._sim_time = bool(self.get_parameter("use_sim_time").value)
 
         self.declare_parameter("base_frame", "base_link")
         self.declare_parameter("stop_distance", 0.5)
@@ -321,10 +322,18 @@ class BallChaseVision(Node):
                if self.world_model else "World model off: stateless per-frame chase."))
 
     # ------------------------------------------------------------------ input
+    def _clock_s(self) -> float:
+        """Seconds for receipt ages, timeouts and holds: simulated time with
+        use_sim_time (so a slowed simulation keeps every limit in its own time),
+        else host monotonic time."""
+        if self._sim_time:
+            return self.get_clock().now().nanoseconds * 1e-9
+        return time.monotonic()
+
     def _on_frame(self, color_msg: Image, depth_msg: Image,
                   info_msg: CameraInfo) -> None:
         with self._pending_lock:
-            self._pending = (color_msg, depth_msg, info_msg, time.monotonic())
+            self._pending = (color_msg, depth_msg, info_msg, self._clock_s())
             self._frame_ready.set()
 
     def _inference_loop(self):
@@ -345,7 +354,7 @@ class BallChaseVision(Node):
         the current target.  Keeping the old command alive after a rejection
         would be unsafe because the old command may point at a different ball.
         """
-        receipt = time.monotonic() if receipt is None else receipt
+        receipt = self._clock_s() if receipt is None else receipt
         try:
             stamp_ns, frame_id = self._validate_headers(
                 color_msg, depth_msg, info_msg)
@@ -357,7 +366,7 @@ class BallChaseVision(Node):
             k = self._camera_matrix(info_msg, color_msg, rgb)
 
             try:
-                if time.monotonic() < self._blind_until:
+                if self._clock_s() < self._blind_until:
                     raise _FrameRejected("debug_blind", True)
                 u, v, x, y, z = self._detect(rgb, depth_m, k, color_msg)
             except _FrameRejected as miss:
@@ -400,7 +409,7 @@ class BallChaseVision(Node):
     def _on_blind(self, msg: Float32) -> None:
         seconds = float(msg.data)
         if math.isfinite(seconds) and 0.0 <= seconds <= 30.0:
-            self._blind_until = time.monotonic() + seconds
+            self._blind_until = self._clock_s() + seconds
             self.get_logger().warning(f"Debug: ignoring detections for {seconds:.1f} s")
 
     # ------------------------------------------------------------- world model
@@ -451,12 +460,12 @@ class BallChaseVision(Node):
 
     def _on_kick_joints(self, msg: JointState) -> None:
         stamp = self._stamp_ns(msg.header.stamp)
-        self._foot_geometry.observe(msg.name, msg.position, (stamp or 0)*1e-9)
+        self._foot_geometry.observe(msg.name, msg.position, (stamp or 0)*1e-9, self._clock_s())
 
     def _foot_xy(self, now_ros):
         if self._foot_geometry is None:
             return None
-        point = self._foot_geometry.point_base(now_ros)
+        point = self._foot_geometry.point_base(now_ros, self._clock_s())
         if point is None:
             self._foot_status = {'reason': self._foot_geometry.reason}
             return None
@@ -473,7 +482,7 @@ class BallChaseVision(Node):
             return
         with self._lock:
             self._walk = kick.WalkState(bool(data.get('standing', False)), data.get('kick'),
-                                        int(data.get('kicks', 0) or 0), time.monotonic())
+                                        int(data.get('kicks', 0) or 0), self._clock_s())
 
     def _kick_decision(self, out, rotation, position, now_ros: float):
         """Kick approach on the ball's estimated position (not the lead point), or None."""
@@ -481,7 +490,7 @@ class BallChaseVision(Node):
             return None
         with self._lock:
             walk = self._walk
-        if time.monotonic() - walk.stamp > self._walk_timeout:
+        if self._clock_s() - walk.stamp > self._walk_timeout:
             walk = kick.WalkState()  # no walking controller status: never request a kick
         if self.shoot_enabled and self._kick.state in ('kick', 'done', 'fault'):
             # Visual target admission is no longer relevant after a request.
@@ -610,7 +619,7 @@ class BallChaseVision(Node):
             raise _FrameRejected("future_image_stamp", False)
         if source_age > self.TARGET_TIMEOUT_S:
             raise _FrameRejected("stale_image_stamp", False)
-        if time.monotonic() - receipt > self.TARGET_TIMEOUT_S:
+        if self._clock_s() - receipt > self.TARGET_TIMEOUT_S:
             raise _FrameRejected("stale_receipt", False)
 
     def _decode_rgb(self, msg: Image) -> np.ndarray:
@@ -861,7 +870,7 @@ class BallChaseVision(Node):
                            log: bool = True) -> bool:
         was_tracking = self._valid and self._target is not None
         reason_changed = reason != self._last_logged_reason
-        now = time.monotonic()
+        now = self._clock_s()
 
         self._valid = False
         self._perception_ok = bool(perception_ok)
@@ -901,7 +910,7 @@ class BallChaseVision(Node):
         """Publish one current-stamped command and status at a nominal 20 Hz."""
         now = self.get_clock().now()
         now_ros = now.nanoseconds * 1e-9
-        now_monotonic = time.monotonic()
+        now_monotonic = self._clock_s()
 
         with self._lock:
             if self._valid and self._target is not None:

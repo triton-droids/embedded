@@ -217,3 +217,36 @@ def test_sensor_source_time_tracks_physics_not_snapshot_reads(world, monkeypatch
     world.control_fault = 'test fault'
     world.step(0.005)
     assert world.body_imu().stamp_ns == imu.stamp_ns
+
+
+def test_simulation_clock_paces_at_real_time_factor_and_publishes_each_step(monkeypatch):
+    from types import SimpleNamespace
+    from humanoid_sim import world as module
+
+    clock = SimpleNamespace(now=0.0)
+    starts, published = [], []
+
+    def step(now):
+        starts.append(now)
+        runner.clock_ns += 5_000_000
+
+    runner = SimpleNamespace(
+        model=SimpleNamespace(opt=SimpleNamespace(timestep=0.005)),
+        _stop=SimpleNamespace(is_set=lambda: len(starts) >= 4),
+        step=step, overruns=0, real_time_factor=0.5, clock_ns=10**18,
+        clock_callback=published.append)
+    monkeypatch.setattr(module, 'time', SimpleNamespace(
+        monotonic=lambda: clock.now, sleep=lambda d: setattr(clock, 'now', clock.now + d)))
+    SimWorld._run(runner)
+    assert starts == pytest.approx([0.0, 0.010, 0.020, 0.030])  # Half speed: 10 ms per 5 ms step.
+    assert published == [10**18 + i * 5_000_000 for i in range(1, 5)]
+
+
+def test_simulation_clock_stamps_are_simulated_time_across_resets():
+    model = make_world().model
+    world = SimWorld(model, make_world().motors, sim_clock=True, real_time_factor=0.5, settle_s=0.0)
+    start = world.clock_ns
+    run(world, 0.05)
+    assert world.sample_stamp_ns == world.clock_ns == start + 10 * world._step_ns
+    world.reset()
+    assert world.sample_stamp_ns == world.clock_ns >= start + 10 * world._step_ns  # Never backwards.

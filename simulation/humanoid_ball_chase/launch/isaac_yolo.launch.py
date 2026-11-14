@@ -46,6 +46,8 @@ def generate_launch_description():
                               description='Also run cuVSLAM on /stereo/* in this container'),
         DeclareLaunchArgument('imu_fusion', default_value='true',
                               description='with_cuvslam: fuse the camera-carrier IMU /head/imu'),
+        DeclareLaunchArgument('use_sim_time', default_value='true',
+                              description='Follow /clock (ball_chase sim_time:=true, the default)'),
     ]
     container = ComposableNodeContainer(
         name='isaac_yolo_container', namespace='', package='rclcpp_components',
@@ -95,7 +97,8 @@ def generate_launch_description():
         composable_node_descriptions=[ComposableNode(
             package='isaac_ros_visual_slam', plugin='nvidia::isaac_ros::visual_slam::VisualSlamNode',
             name='visual_slam_node', parameters=[CUVSLAM_PARAMS, {
-                'enable_imu_fusion': ParameterValue(arg('imu_fusion'), value_type=bool)}],
+                'enable_imu_fusion': ParameterValue(arg('imu_fusion'), value_type=bool),
+                'use_sim_time': ParameterValue(arg('use_sim_time'), value_type=bool)}],
             # Same remappings as humanoid_localization/launch/cuvslam.launch.py.
             remappings=[('visual_slam/image_0', '/stereo/left/image_raw'),
                         ('visual_slam/camera_info_0', '/stereo/left/camera_info'),

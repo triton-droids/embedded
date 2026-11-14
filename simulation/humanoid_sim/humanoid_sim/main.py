@@ -103,9 +103,12 @@ class SimControlNode(Node):
             'ground_truth_rate_hz': 50.0,
             'allow_torque_only_motion': False,
             'publish_feet_ground_truth': False,
+            # use_sim_time only: wall pace of the physics loop (0.5 = half speed).
+            'real_time_factor': 1.0,
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
+        self.sim_clock = bool(self.get_parameter('use_sim_time').value)
         p = {name: self.get_parameter(name).value for name in defaults}
 
         registry_path = p['motor_config_file'] or _share('motor_control_hybrid', 'config', 'motors.yaml')
@@ -139,7 +142,22 @@ class SimControlNode(Node):
             head=HeadServoConfig() if options.add_head else None,
             target_motion=TargetMotion(float(p['target_amplitude_m']), float(p['target_period_s'])),
             base_held=bool(p['start_base_held']), settle_s=float(p['settle_s']),
-            pause_on_control_fault=bool(p['pause_on_control_fault']))
+            pause_on_control_fault=bool(p['pause_on_control_fault']),
+            sim_clock=self.sim_clock, real_time_factor=float(p['real_time_factor'])
+            if self.sim_clock else 1.0)
+        if self.sim_clock:
+            # Every node runs with use_sim_time: this is the only clock source.
+            from rclpy.qos import QoSProfile, ReliabilityPolicy
+            from rosgraph_msgs.msg import Clock
+            clock_pub = self.create_publisher(
+                Clock, '/clock', QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT))
+
+            def publish_clock(ns: int, msg=Clock()) -> None:
+                msg.clock.sec, msg.clock.nanosec = divmod(ns, 10**9)
+                clock_pub.publish(msg)
+            self.world.clock_callback = publish_clock
+            self.get_logger().warn(
+                f'Simulation clock on /clock, physics paced at {self.world.real_time_factor:g}x real time')
         self.get_logger().warn(
             f'MuJoCo {mujoco.__version__} simulation: {model.nu} actuators, '
             f'timestep {model.opt.timestep * 1e3:.1f} ms, registry {registry_path}')

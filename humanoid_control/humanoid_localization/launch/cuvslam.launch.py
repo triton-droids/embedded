@@ -21,6 +21,9 @@ REMAPPINGS = [('visual_slam/image_0', '/stereo/left/image_raw'),
 IMU_FUSION_ARG = DeclareLaunchArgument(
     'imu_fusion', default_value='true',
     description='Fuse the camera-carrier IMU /head/imu (false: pure stereo VO)')
+SIM_TIME_ARG = DeclareLaunchArgument(
+    'use_sim_time', default_value='true',
+    description='Follow /clock (ball_chase sim_time:=true, the default); false for wall-clock runs')
 
 
 def slam_node(params=PARAMS):
@@ -28,13 +31,14 @@ def slam_node(params=PARAMS):
     return ComposableNode(
         package='isaac_ros_visual_slam', plugin='nvidia::isaac_ros::visual_slam::VisualSlamNode',
         name='visual_slam_node',
-        parameters=[params, {'enable_imu_fusion': ParameterValue(
-            LaunchConfiguration('imu_fusion'), value_type=bool)}],
+        parameters=[params, {
+            'enable_imu_fusion': ParameterValue(LaunchConfiguration('imu_fusion'), value_type=bool),
+            'use_sim_time': ParameterValue(LaunchConfiguration('use_sim_time'), value_type=bool)}],
         remappings=REMAPPINGS)
 
 
 def generate_launch_description():
-    return LaunchDescription([IMU_FUSION_ARG, ComposableNodeContainer(
+    return LaunchDescription([IMU_FUSION_ARG, SIM_TIME_ARG, ComposableNodeContainer(
         name='visual_slam_container', namespace='', package='rclcpp_components',
         executable='component_container_mt', composable_node_descriptions=[slam_node()],
         output='screen')])

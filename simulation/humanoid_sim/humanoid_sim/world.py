@@ -1,10 +1,18 @@
 """Thread-safe MuJoCo world shared by the simulated peripheral nodes.
 
-One physics thread steps the model at real-time pace and wall-clock ROS time is
-used throughout (no /clock, no use_sim_time). The deployed nodes measure input
-age, deadlines and IMU timeouts against host time, so running the simulation in
-real time lets them run unmodified. If stepping falls behind, simulated time
-slows down rather than skipping physics; ``overruns`` counts these events.
+One physics thread steps the model. Two clock modes:
+
+* Wall clock (default): steps at real-time pace, sensor stamps are host time and
+  no /clock is published. The deployed nodes measure input age, deadlines and
+  IMU timeouts against host time, so they run unmodified. If stepping falls
+  behind, simulated time slows down rather than skipping physics;
+  ``overruns`` counts these events.
+* Simulation clock (``sim_clock=True``, launch ``sim_time:=true``): every stamp
+  is simulated time (``clock_ns``, starting at the host time of construction
+  and advancing exactly one timestep per step, also across resets), published
+  on /clock after every step, and the loop is paced at ``real_time_factor``.
+  Nodes run with use_sim_time, so a slow host or a deliberately slow factor
+  changes nothing they observe; sensor stamps always match the motion.
 
 Every access to ``data`` must hold ``lock``. Callers should copy what they need
 and release it quickly; rendering happens outside the lock.
@@ -69,12 +77,21 @@ class SimWorld:
                  target_motion: TargetMotion | None = None,
                  base_held: bool = True, settle_s: float = 2.0,
                  pause_on_control_fault: bool = False,
-                 imu_writer=None) -> None:
+                 imu_writer=None, sim_clock: bool = False,
+                 real_time_factor: float = 1.0) -> None:
         self.model = model
         self.data = mujoco.MjData(model)
         self.motors = motors
         self.lock = threading.RLock()
         self.overruns = 0
+        if not real_time_factor > 0.0:
+            raise ValueError('real_time_factor must be positive')
+        self.sim_clock = bool(sim_clock)
+        self.real_time_factor = float(real_time_factor)
+        self._step_ns = int(round(model.opt.timestep * 1e9))
+        self.clock_ns = time.time_ns()  # Simulated time (sim_clock mode).
+        # Called with clock_ns after every paced step, outside the lock (/clock).
+        self.clock_callback = None
         self.steps = 0
         self.reset_count = 0  # bumped by reset(); odometry re-anchors on change
         self.settle_s = float(settle_s)
@@ -129,7 +146,8 @@ class SimWorld:
     def _run(self) -> None:
         from .thread_setup import configure_thread
         configure_thread('imu_source')
-        dt = self.model.opt.timestep
+        # Wall period per step (real_time_factor only under the simulation clock).
+        dt = self.model.opt.timestep / getattr(self, 'real_time_factor', 1.0)
         next_step = time.monotonic()
         while not self._stop.is_set():
             now = time.monotonic()
@@ -139,6 +157,9 @@ class SimWorld:
             diag.record('step_late_ms', (now - next_step) * 1e3)
             self.step(now)
             diag.record('step_ms', (time.monotonic() - now) * 1e3)
+            callback = getattr(self, 'clock_callback', None)
+            if callback is not None:
+                callback(self.clock_ns)
             next_step += dt
             finished = time.monotonic()
             if next_step < finished:
@@ -187,7 +208,8 @@ class SimWorld:
             if self._target_mocap is not None and self.target_motion is not None:
                 self._move_target()
             mujoco.mj_step(model, data)
-            self.sample_stamp_ns = time.time_ns()
+            self.clock_ns += self._step_ns
+            self.sample_stamp_ns = self.clock_ns if self.sim_clock else time.time_ns()
             self.sampled_mono = time.monotonic()
             self._write_imu_snapshot()
             if self.state_writer is not None:
@@ -276,7 +298,7 @@ class SimWorld:
             self._pitch_ref = 0.0
             self.data.eq_active[self._weld] = 1 if base_held else 0
             mujoco.mj_forward(self.model, self.data)
-            self.sample_stamp_ns = time.time_ns()
+            self.sample_stamp_ns = self.clock_ns if self.sim_clock else time.time_ns()
             self.sampled_mono = time.monotonic()
             start = time.monotonic()
             for _ in range(int(self.settle_s / self.model.opt.timestep)):

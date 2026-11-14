@@ -9,7 +9,7 @@ from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetE
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
-from launch_ros.actions import Node
+from launch_ros.actions import Node, SetParameter
 from launch_ros.substitutions import FindPackageShare
 from launch_ros.parameter_descriptions import ParameterValue
 
@@ -96,8 +96,14 @@ def generate_launch_description():
                               description='true: track the ball in odom (coast through misses, chase a '
                                           'moving ball a little ahead, head looks at the prediction); '
                                           'false: stateless per-frame chase'),
+        DeclareLaunchArgument('sim_time', default_value='true', choices=['true', 'false'],
+                              description='Every node on simulated time (/clock from mujoco_sim); '
+                                          'host-clock safety timeouts off. false: wall clock, real time'),
+        DeclareLaunchArgument('real_time_factor', default_value='0.5',
+                              description='With sim_time: physics pace relative to real time'),
         SetEnvironmentVariable('ROS_DOMAIN_ID', arg('ros_domain_id')),
         SetEnvironmentVariable('ROS_LOCALHOST_ONLY', '1'),
+        SetParameter(name='use_sim_time', value=ParameterValue(arg('sim_time'), value_type=bool)),
         IncludeLaunchDescription(PythonLaunchDescriptionSource(PathJoinSubstitution([
             FindPackageShare('humanoid_sim'), 'launch', 'sim.launch.py'])), launch_arguments={
                 'scene_builder': PythonExpression(["'humanoid_ball_chase.scene:build_scene' + "
@@ -121,6 +127,7 @@ def generate_launch_description():
                 'remote_viewer_port': arg('remote_viewer_port'),
                 'remote_viewer_rate_hz': arg('remote_viewer_rate_hz'),
                 'enable_stereo': arg('enable_vio'),
+                'sim_time': arg('sim_time'), 'real_time_factor': arg('real_time_factor'),
                 'share_state': arg('share_state'),
                 'walk_slow_log_ms': arg('walk_slow_log_ms'),
                 'imu_yaw_error_deg': arg('imu_yaw_error_deg'),

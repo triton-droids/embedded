@@ -83,9 +83,11 @@ public:
         [this](geometry_msgs::msg::PointStamped::ConstSharedPtr msg) {
           receive_target(*msg);
         });
-    last_tick_ = Clock::now();
-    timer_ = create_wall_timer(std::chrono::duration<double>(1.0 / rate),
-                              [this]() { control_tick(); });
+    last_tick_ = received_at_ = now();
+    // Node clock: host time normally, simulated time with use_sim_time (a slowed
+    // simulation must not see the head move at host-time speed).
+    timer_ = rclcpp::create_timer(this, get_clock(),
+        rclcpp::Duration::from_seconds(1.0 / rate), [this]() { control_tick(); });
     RCLCPP_INFO(get_logger(),
         "Single-axis %s tracker -> %s; direction=%+.0f (verify on hardware). "
         "No depth required; no commands until fresh target + CameraInfo.",
@@ -93,8 +95,7 @@ public:
   }
 
 private:
-  // Monotonic time measures scheduling/receipt intervals; ROS time checks stamps.
-  using Clock = std::chrono::steady_clock;
+  // The node clock measures scheduling/receipt intervals and checks stamps.
 
   /** @brief Accept nonzero ROS stamps no older than timeout_, with 50 ms skew.
    * @param stamp Original color-image acquisition stamp, not detection completion.
@@ -149,7 +150,7 @@ private:
     error_ = std::abs(pixel - center) <= deadband_ ? 0.0 :
         std::atan2(pixel - principal, focal) - std::atan2(center - principal, focal);
     target_stamp_ = msg.header.stamp;
-    received_at_ = Clock::now();
+    received_at_ = now();
     target_valid_ = true;
   }
 
@@ -160,12 +161,12 @@ private:
    */
   void control_tick() {
     if (publish_fault_) return;
-    const auto current = Clock::now();
-    const double dt = std::chrono::duration<double>(current - last_tick_).count();
+    const rclcpp::Time current = now();
+    const double dt = (current - last_tick_).seconds();
     last_tick_ = current;
     // A stalled executor must not integrate a large jump on recovery.
     if (!target_valid_ || dt <= 0.0 || dt > timeout_ ||
-        std::chrono::duration<double>(current - received_at_).count() > timeout_ ||
+        (current - received_at_).seconds() > timeout_ ||
         !fresh_stamp(target_stamp_)) {
       if (tracking_) RCLCPP_INFO(get_logger(), "Target lost/stale: stop commands; MCU watchdog releases servo");
       tracking_ = false;
@@ -203,7 +204,7 @@ private:
   double max_speed_, max_acceleration_, timeout_;
   double error_ = 0.0, speed_ = 0.0;
   bool target_valid_ = false, tracking_ = false, publish_fault_ = false;
-  Clock::time_point last_tick_, received_at_;
+  rclcpp::Time last_tick_, received_at_;
   builtin_interfaces::msg::Time target_stamp_;
   sensor_msgs::msg::CameraInfo::ConstSharedPtr camera_info_;
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr command_publisher_;

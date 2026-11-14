@@ -24,6 +24,7 @@ import numpy as np
 import rclpy
 from rclpy._rclpy_pybind11 import RCLError
 from rclpy.node import Node
+from rclpy.time import Time
 from sensor_msgs.msg import CameraInfo, Image
 
 from . import diag
@@ -111,15 +112,24 @@ class SimCameraNode(Node):
             self.get_logger().error(f'Camera disabled; could not create a MuJoCo renderer: {exc}')
             return
         self.get_logger().info(f'Rendering {self._width}x{self._height} head camera')
-        next_frame = time.monotonic()
+        from .frame_pacer import FramePacer
+        pacer = FramePacer(self._period, getattr(self.world, 'sim_clock', False))
         while not self._stop.is_set():
-            next_frame += self._period
             scene_begin = time.monotonic()
+            if pacer.sim_clock:
+                with self.world.lock:
+                    due = pacer.due(self.world.sample_stamp_ns)
+                if not due:
+                    pacer.wait(self._stop)
+                    continue
             with self.world.lock:
                 color.update_scene(self.world.data, camera=mb.HEAD_CAMERA)
                 if depth is not None:
                     depth.update_scene(self.world.data, camera=mb.HEAD_CAMERA)
-                stamp = self.get_clock().now().to_msg()
+                if pacer.sim_clock:  # The rendered state's own (simulated) time.
+                    stamp = Time(nanoseconds=int(self.world.sample_stamp_ns)).to_msg()
+                else:
+                    stamp = self.get_clock().now().to_msg()
                 omega = None
                 if self._degrader.s.exposure_s > 0:
                     velocity = np.zeros(6)
@@ -144,11 +154,7 @@ class SimCameraNode(Node):
                 self.info_pub.publish(self._info)
             except RCLError:  # Context shut down between the check and publish.
                 break
-            delay = next_frame - time.monotonic()
-            if delay > 0.0:
-                self._stop.wait(delay)
-            else:
-                next_frame = time.monotonic()
+            pacer.wait(self._stop)
         color.close()
         if depth is not None:
             depth.close()

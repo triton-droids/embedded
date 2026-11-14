@@ -58,9 +58,18 @@ def ordered(names, values, wanted) -> np.ndarray:
     return np.array([values[index[n]] for n in wanted], dtype=float)
 
 
+def _behaviour_now(node):
+    """Seconds for behaviour timing: node (simulated) time with use_sim_time,
+    else host monotonic time as before. Cycle compute time stays host time."""
+    if getattr(node, '_sim_time', False):
+        return node.get_clock().now().nanoseconds * 1e-9
+    return time.monotonic()
+
+
 class WalkingControllerNode(Node):
     def __init__(self):
         super().__init__('walking_controller')
+        self._sim_time = bool(self.get_parameter('use_sim_time').value)
         defaults = {
             'urdf_path': '', 'motor_config_file': '',
             'output_topic': '/walk/desired_motor_subset',
@@ -193,13 +202,13 @@ class WalkingControllerNode(Node):
             v, w, self.step_period_s(), min(MAX_STEP_M, float(self.params['cmd_vel_max_step_m'])),
             min(MAX_TURN_RAD, float(self.params['cmd_vel_max_turn_rad'])),
             float(self.params['cmd_vel_turn_free_rad']), float(self.params['cmd_vel_turn_stop_rad']))
-        self.cmd_vel = (step, turn, time.monotonic())
+        self.cmd_vel = (step, turn, _behaviour_now(self))
         self.controller.p.step_length_m, self.controller.p.turn_rad = self.cmd_vel[:2]
         self._update_stand(step, turn)
 
     def _update_stand(self, step, turn):
         """Velocity input: stand after a while at rest, walk again on any motion."""
-        p, c, now = self.params, self.controller, time.monotonic()
+        p, c, now = self.params, self.controller, _behaviour_now(self)
         if float(p['cmd_vel_stand_after_s']) <= 0.0:
             return
         if step < float(p['cmd_vel_rest_step_m']) and abs(turn) < float(p['cmd_vel_rest_turn_rad']):
@@ -217,7 +226,7 @@ class WalkingControllerNode(Node):
 
     def _check_cmd_vel(self):
         """A velocity source that stops publishing stops the robot."""
-        if self.cmd_vel is not None and time.monotonic() - self.cmd_vel[2] > self.params['cmd_vel_timeout_s']:
+        if self.cmd_vel is not None and _behaviour_now(self) - self.cmd_vel[2] > self.params['cmd_vel_timeout_s']:
             self.cmd_vel = None
             self.controller.p.step_length_m = self.controller.p.turn_rad = 0.0
             self.get_logger().warn('cmd_vel stale: stopping')
@@ -238,7 +247,7 @@ class WalkingControllerNode(Node):
         self.controller.p.turn_rad = float(np.clip(msg.data, -MAX_TURN_RAD, MAX_TURN_RAD))
 
     def _store(self, name, msg):
-        self.inputs[name] = (msg, stamp_ns(msg.header.stamp), time.monotonic())
+        self.inputs[name] = (msg, stamp_ns(msg.header.stamp), _behaviour_now(self))
 
     def _on_feet(self, msg):
         self._store('feet', msg)
@@ -263,7 +272,7 @@ class WalkingControllerNode(Node):
         stamps = [self.inputs[k][1] for k in ('odom', 'feet', 'joints') if k in self.inputs]
         if len(stamps) != 3:
             return
-        now = time.monotonic()
+        now = _behaviour_now(self)
         if stamps[0] == stamps[1] == stamps[2] != self._last_sample:
             self._last_sample = stamps[0]
         else:
@@ -289,7 +298,7 @@ class WalkingControllerNode(Node):
         if not self.started or self.estop:
             return
         missing = [k for k in ('joints', 'odom', 'feet') if k not in self.inputs]
-        stale = missing or self._stale(self.get_clock().now().nanoseconds, time.monotonic())
+        stale = missing or self._stale(self.get_clock().now().nanoseconds, _behaviour_now(self))
         if stale:
             self._fail(f'Stale inputs: {stale}')
 

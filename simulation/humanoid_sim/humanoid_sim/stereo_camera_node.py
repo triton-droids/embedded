@@ -180,14 +180,16 @@ class SimStereoCameraNode(Node):
             return
         self.get_logger().info(
             f'Rendering {self._width}x{self._height} stereo pair, baseline {self.baseline_m * 1e3:.1f} mm')
-        next_frame = time.monotonic()
+        from .frame_pacer import FramePacer
+        # Simulated time: a frame per period of physics stamps. Each poll syncs
+        # the state (a shared-memory copy when split), so poll at 200 Hz only.
+        pacer = FramePacer(self._period, bool(self.get_parameter('use_sim_time').value), poll_s=0.005)
         last_stamp_ns = None
         while not self._stop.is_set():
-            next_frame += self._period
             rig = None
             with self._lock:  # Both views and the rig pose from one state.
                 stamp_ns = self._sync()
-                if stamp_ns is not None and stamp_ns != last_stamp_ns:
+                if stamp_ns is not None and stamp_ns != last_stamp_ns and pacer.due(stamp_ns):
                     for renderer, camera in zip(renderers, self._ids):
                         renderer.update_scene(self.data, camera=camera)
                     stamp = Time(nanoseconds=int(stamp_ns)).to_msg()
@@ -204,11 +206,7 @@ class SimStereoCameraNode(Node):
                 except RCLError:  # Context shut down between the check and publish.
                     break
                 self.frames += 1
-            delay = next_frame - time.monotonic()
-            if delay > 0.0:
-                self._stop.wait(delay)
-            else:
-                next_frame = time.monotonic()
+            pacer.wait(self._stop)
         for renderer in renderers:
             renderer.close()
 
@@ -247,11 +245,16 @@ def main(args=None) -> None:
     node = None
     try:
         reader = StateReader(timeout_s=120.0, should_stop=lambda: not rclpy.ok())
-        # A file left by an earlier run looks valid; wait for this run's steps.
+        # A file left by an earlier run looks valid; wait for this run's steps:
+        # stamps that advance (a stale file never does). Simulated-time stamps
+        # need not be near host time, so host time is not the test.
+        first = None
         while rclpy.ok():
             record = reader.read()
-            if record is not None and abs(time.time_ns() - record[0]) < 2e9:
-                break
+            if record is not None:
+                if first is not None and record[0] > first:
+                    break
+                first = record[0] if first is None else first
             time.sleep(0.05)
         model = mujoco.MjModel.from_binary_path(reader.model_path)
         if model.nq != reader.nq or model.nmocap != reader.nmocap:

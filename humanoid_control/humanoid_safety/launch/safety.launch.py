@@ -8,6 +8,9 @@ from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 
+NO_TIMEOUT_S = 1.0e6  # 'Disabled' freshness limits must stay positive and finite.
+
+
 def mode_nodes(context):
     mode = LaunchConfiguration('mode').perform(context)
     nodes = []
@@ -22,6 +25,12 @@ def mode_nodes(context):
         # check. A separate process removes that queue; inline restores it.
         external = LaunchConfiguration('start_diagnostics').perform(context).lower() == 'true'
         overrides['status_publisher'] = 'external' if external else 'inline'
+        # Simulation-time runs: no freshness trips (IMU, motor feedback, CAN timing
+        # are judged on the host's steady clock, which a slowed simulation lags).
+        no_timeouts = LaunchConfiguration('disable_timeouts').perform(context).lower() == 'true'
+        if no_timeouts:
+            overrides.update(trip_on_imu_timeout=False, imu_timeout_s=NO_TIMEOUT_S,
+                             motor_feedback_timeout_s=NO_TIMEOUT_S, can_timeout_s=NO_TIMEOUT_S)
         nodes.append(Node(package='humanoid_safety', executable='safety_node',
             name='safety_node', output='screen',
             ros_arguments=['--log-level', LaunchConfiguration('log_level')],
@@ -35,7 +44,7 @@ def mode_nodes(context):
                     'state_topic': LaunchConfiguration('supervisor_state_topic'),
                     'status_topic': LaunchConfiguration('supervisor_status_topic'),
                     'status_reliability': LaunchConfiguration('status_reliability'),
-                    'stale_after_s': ParameterValue(
+                    'stale_after_s': NO_TIMEOUT_S if no_timeouts else ParameterValue(
                         LaunchConfiguration('diagnostics_stale_after_s'), value_type=float),
                 }]))
     if mode in ('web', 'monitor', 'all'):
@@ -106,6 +115,8 @@ def generate_launch_description():
         DeclareLaunchArgument('use_rviz', default_value='true', choices=['true', 'false']),
         DeclareLaunchArgument('fall_detection_enabled', default_value='', choices=['', 'true', 'false'],
                              description='Override YAML fall detection; empty preserves configuration'),
+        DeclareLaunchArgument('disable_timeouts', default_value='false', choices=['true', 'false'],
+                              description='Simulation time: no IMU/feedback/CAN freshness trips'),
         DeclareLaunchArgument('trip_on_imu_timeout', default_value='', choices=['', 'true', 'false'],
                              description='Override YAML IMU timeout trip; empty preserves configuration'),
         DeclareLaunchArgument('safety_config', default_value=PathJoinSubstitution(

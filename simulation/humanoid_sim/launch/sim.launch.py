@@ -21,6 +21,14 @@ exactly as it would with a late IMU MCU on hardware.
 
 DDS discovery is limited to this host by default so simulated feedback cannot
 reach a robot on the same network and domain.
+
+sim_time:=true runs everything on simulated time: mujoco_sim publishes /clock
+(one tick per physics step), every node gets use_sim_time, sensor stamps are
+simulated time and physics is paced at real_time_factor (e.g. 0.5 = half speed).
+A slow host then only slows the run down; nothing sees a late input. Freshness
+timeouts that compare against the host clock (command lifetimes and timeouts in
+C++ and the simulated backend, the walking controller's input/cycle limits, the
+safety supervisor's IMU/feedback/CAN timeouts) are disabled in this mode.
 """
 from launch import LaunchDescription
 from launch.actions import (DeclareLaunchArgument, EmitEvent, GroupAction,
@@ -31,10 +39,13 @@ from launch.event_handlers import OnProcessIO
 from launch.events import Shutdown
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import EnvironmentVariable, LaunchConfiguration, PathJoinSubstitution
-from launch_ros.actions import Node
+from launch_ros.actions import Node, SetParameter
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 import yaml
+
+# 'Disabled' host-clock timeouts under sim_time; validators require finite > 0.
+NO_TIMEOUT_S = 1.0e6
 
 # Must match humanoid_sim.main.READY_MESSAGE.
 SIM_READY = b'Simulation ready'
@@ -77,6 +88,7 @@ def simulation_and_stack(context):
         raise ValueError('controller must be policy or model_walk')
     # model_walk: walking_controller (LIPM MPC + TSID, no RL) replaces the policy.
     model_walk = controller == 'model_walk'
+    sim_time = flag(context, 'sim_time')
     connect_policy = (flag(context, 'enable_policy') and flag(context, 'connect_policy')
                       and not model_walk)
     connected = connect_policy or model_walk
@@ -128,6 +140,8 @@ def simulation_and_stack(context):
     timeout_arg = arg('autostart_timeout_s').perform(context).strip()
     autostart_timeout = ((10.0 if enable_wbc or model_walk else 2.0) if timeout_arg == 'auto'
                          else float(timeout_arg))
+    if sim_time:  # A host-time wait: the slowed simulation needs proportionally longer.
+        autostart_timeout /= float(arg('real_time_factor').perform(context))
     if minimal and connected:
         raise ValueError('Connected policy requires minimal:=false; cpp_control_node must remain in the command path')
     if minimal and flag(context, 'enable_vision'):
@@ -166,7 +180,9 @@ def simulation_and_stack(context):
                 'odom_tf_robot': flag(context, 'odom_tf_robot'),
                 'target_image': arg('target_image').perform(context),
                 'scene_builder': arg('scene_builder').perform(context),
-                'command_timeout_s': float(arg('can_command_timeout_s').perform(context)),
+                'command_timeout_s': (NO_TIMEOUT_S if sim_time
+                                      else float(arg('can_command_timeout_s').perform(context))),
+                'real_time_factor': ParameterValue(arg('real_time_factor'), value_type=float),
                 'policy_commands_topic': '',
                 'gil_switch_interval_s': float(arg('gil_switch_interval_s').perform(context)),
                 'collection_output_dir': arg('collection_output_dir').perform(context),
@@ -243,6 +259,10 @@ def simulation_and_stack(context):
                     'control_rate_hz': float(arg('wbc_command_rate_hz').perform(context) if enable_wbc else control_rate),
                     'cmd_timeout_s': float(arg('cmd_timeout_s').perform(context)),
                     'control_rt_enabled': False,
+                    # Its command deadlines and state/supervisor freshness use the
+                    # host steady clock, which a slowed simulation lags.
+                    **({'cmd_timeout_s': NO_TIMEOUT_S, 'state_timeout_s': NO_TIMEOUT_S,
+                        'supervisor_warning_timeout_s': NO_TIMEOUT_S} if sim_time else {}),
                 }],
                 remappings=[('/desired_motor_subset', command_topic)]
                 if connected else [],
@@ -300,7 +320,10 @@ def simulation_and_stack(context):
                          'contact_kp': float(arg('walk_contact_kp').perform(context)),
                          'cmd_vel_max_step_m': float(arg('walk_max_step_m').perform(context)),
                          'cmd_vel_max_turn_rad': float(arg('walk_max_turn_rad').perform(context)),
-                         'slow_log_ms': float(arg('walk_slow_log_ms').perform(context))}]))
+                         'slow_log_ms': float(arg('walk_slow_log_ms').perform(context)),
+                         # Input freshness, command lifetime and the cycle-time fault.
+                         **({'input_timeout_s': NO_TIMEOUT_S, 'output_lifetime_s': NO_TIMEOUT_S,
+                             'max_cycle_s': NO_TIMEOUT_S} if sim_time else {})}]))
     if connected and flag(context, 'auto_start'):
         stack.append(Node(
             package='humanoid_sim', executable='sim_autostart', output='screen',
@@ -322,6 +345,7 @@ def simulation_and_stack(context):
             'safety_config': arg('safety_config_file'),
             'fall_detection_enabled': arg('fall_detection_enabled'),
             'trip_on_imu_timeout': arg('trip_on_imu_timeout'),
+            'disable_timeouts': 'true' if sim_time else 'false',
             'status_reliability': 'best_effort',
             'ros_domain_id': arg('ros_domain_id'),
             'source_topic': '/sim/monitor/joint_states',
@@ -444,6 +468,8 @@ def generate_launch_description():
         ('collection_seed', '1', 'Collection perturbation and sensor noise seed'),
         ('collection_duration_s', '15.0', 'Maximum simulated seconds after gantry release'),
         ('collection_profile', 'standard', 'standard or recovery perturbation scenario bank'),
+        ('sim_time', 'false', 'Run every node on simulated time (/clock); disables host-clock timeouts'),
+        ('real_time_factor', '1.0', 'With sim_time: physics pace relative to real time (0.5 = half speed)'),
     ]
     paths = [
         ('motor_config_file', [share('motor_control_hybrid'), 'config', 'motors.yaml']),
@@ -461,6 +487,10 @@ def generate_launch_description():
             SetEnvironmentVariable('ROS_DOMAIN_ID', arg('ros_domain_id')),
             SetEnvironmentVariable('ROS_LOCALHOST_ONLY', arg('localhost_only')),
             SetEnvironmentVariable('RMW_FASTRTPS_PUBLICATION_MODE', arg('dds_publication_mode')),
+            # Every node of this launch, including included launches and the
+            # stack started after the simulator reports ready.
+            SetParameter(name='use_sim_time',
+                         value=ParameterValue(arg('sim_time'), value_type=bool)),
             OpaqueFunction(function=dds_profile),
             OpaqueFunction(function=simulation_and_stack),
         ])
