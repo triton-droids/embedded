@@ -492,10 +492,8 @@ the host's visual-data age budget. This is a simulation CPU compromise.
 
 ## Experimental goal-directed shot (simulation)
 
-**2026-11-13 publication note:** this section describes the tested Jetson
-working tree. Recent implementation/test files remain uncommitted; this
-publication contains Markdown only. A checkout of this commit alone does not
-provide the complete new shot path. See the
+**2026-11-13 note:** tested on the Jetson `vio-test` working tree; the
+implementation and tests are merged into this branch in `f15528ca`. See the
 [test report](../../docs/reports/2026-11-13-goal-shot.md) and
 [handoff](../../docs/handoff-goal-shot-2026-11-13.md).
 

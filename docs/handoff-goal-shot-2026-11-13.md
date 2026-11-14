@@ -8,7 +8,7 @@ The user intends to learn walking/turning/kicking with ML. The current model con
 
 ## Checkout and publication boundary
 
-Work was performed over SSH as `td@100.71.186.19` in `/home/darin/Documents/Github/embedded-vio`, branch `vio-test`, implementation baseline `9f32cc41ba93d9383f37e619ce460b2882260dda`. The latest publication request is for Markdown updates. These documents describe a tested, dirty working tree; the associated recent Python/C++/launch changes are not included in this documentation commit. Inspect `git status --short --branch` before continuing. A fresh checkout of this documentation commit alone does not reproduce the shot implementation.
+Work was performed over SSH as `td@100.71.186.19` in `/home/darin/Documents/Github/embedded-vio`, branch `vio-test`, implementation baseline `9f32cc41ba93d9383f37e619ce460b2882260dda`. The latest publication request is for Markdown updates. These documents describe a tested, dirty working tree. Update 2026-11-14: its goal-shot Python code, launch wiring and tests were merged into `sim-experimental-cyclonedds` in `f15528ca`; continue from that branch.
 
 `origin` in that checkout points to the local sibling `/home/darin/Documents/Github/embedded-sim-experimental`. The sibling's GitHub origin is `git@github.com:triton-droids/embedded.git`. Do not push to or reset the sibling's checked-out `sim-experimental-cyclonedds` branch by accident. Preserve `.deps`, `rosenv`, all existing dirty changes and simulation evidence. No entity should write commands alongside the active controller.
 
@@ -18,4 +18,4 @@ Work was performed over SSH as `td@100.71.186.19` in `/home/darin/Documents/Gith
 - Ball assumption: the last saved target assumes a stationary ball. One trial nudged it before kicking; distinguish that from detection confidence. Measurement-only MuJoCo truth must stay outside ball control.
 - ML: first define observation/action units, axes, joint order, gains, update rate and acknowledgement/status semantics. Choose explicitly between replacing only MPC and replacing the whole low-level MPC/gait/WBC action controller. Keep one active command producer and fail closed on stale policy output.
 
-For debugging, use the `diagnose` skill and the report's existing reproducer/measurements. For a documentation-only continuation no new motion test is required. No simulation or Isaac detector is left running; the pre-existing buildkit container is retained. No physical robot, CAN, firmware or flashing validation was performed.
+For debugging, use the `diagnose` skill and the report's existing reproducer/measurements. No simulation or Isaac detector is left running; the pre-existing buildkit container is retained. No physical robot, CAN, firmware or flashing validation was performed.

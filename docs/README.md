@@ -5,8 +5,8 @@
 - [2026-11-13 goal-shot tests, successful video and publication scope](reports/2026-11-13-goal-shot.md)
 - [Goal-shot / learned-motion continuation handoff](handoff-goal-shot-2026-11-13.md)
 
-These records describe the tested Jetson working tree. Associated recent code is
-not included in this documentation-only commit.
+These records were measured on the Jetson `vio-test` tree; its goal-shot code is
+merged into this branch in `f15528ca`.
 
 ## Run and inspect
 
@@ -41,7 +41,6 @@ not included in this documentation-only commit.
 - [Original complete interface/deployment reference](../hardware/docs/ros_interfaces.md)
 - [Historical software and relocation notes](../legacy/README.md)
 - [Historical architecture image](architecture/historical_system.png)
-- [2026-10-19 update](updates/2026-10-19.md)
 
 Some retained architecture/performance guides describe the original mixed
 hardware/simulation workspace. Hardware launch options in those historical

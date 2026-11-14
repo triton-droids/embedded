@@ -138,4 +138,4 @@ A faster policy does not by itself repair delayed inputs or DDS/scheduling tails
 The existing `controller:=policy` launch path is a separate reference policy;
 it is not evidence of a trained ball-shooting policy or a drop-in adapter for
 `/walk/kick`. See the [dated report](reports/2026-11-13-goal-shot.md) for test
-outcomes and the explicit documentation-only publication boundary.
+outcomes.

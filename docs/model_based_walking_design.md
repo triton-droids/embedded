@@ -286,7 +286,7 @@ M3 is the go/no-go point for this approach (§4.4).
 - WBC tests: on the gantry pose and a few random configurations, the QP is
   feasible, the torques are within limits and the contact forces are inside the
   cone; TSID dynamics match MuJoCo's mass matrix and gravity (existing approach
-  in `experimental/reference_warp`).
+  in `experimental/test_wbc_model.py`).
 - Simulation tests: one headless smoke test per milestone in CI-sized form
   (single seed, short duration); full seed sweeps run manually and are recorded
   under `docs/reports/`.
@@ -829,9 +829,9 @@ detectors; one autostart timeout, not released): after arrival
 
 ## 22. Goal-shot validation and ML transition (2026-11-13)
 
-This checkpoint describes the dirty `vio-test` Jetson working tree based on
-9f32cc41. This documentation-only commit does not include its recent source and
-test changes. See the [report](reports/2026-11-13-goal-shot.md) and
+This checkpoint was measured on the `vio-test` Jetson working tree based on
+9f32cc41; its goal-shot source and tests are merged into this branch in
+`f15528ca`. See the [report](reports/2026-11-13-goal-shot.md) and
 [handoff](handoff-goal-shot-2026-11-13.md) before reproducing or continuing work.
 
 The task chain now reaches a known goal-directed shot, including continuous

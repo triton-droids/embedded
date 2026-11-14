@@ -292,13 +292,13 @@ under load: the IMU estop is the last link, not the cause.
 
 ## Goal-shot checkpoint and future learned controller (2026-11-13)
 
-The current Jetson working tree can execute an autonomous goal-directed shot;
+The ball-chase goal-shot path can execute an autonomous goal-directed shot;
 its selected recorded success passed within 1.5cm of goal center. Repeated trials
 still include expired-command stops and unsuccessful shots. Full evidence and the
 planned learned-controller boundary are in the
 [dated report](../../docs/reports/2026-11-13-goal-shot.md) and
 [design §22](../../docs/model_based_walking_design.md#22-goal-shot-validation-and-ml-transition-2026-11-13).
-The recent implementation remains uncommitted; this update publishes documents.
+The implementation is merged in `f15528ca`; the trials were run on the Jetson.
 Learning all walking/turning/kicking actions would replace more than just the MPC
 planner and must preserve motor command and task-status contracts. No new learned
 shot policy has been trained or validated by this checkpoint.
