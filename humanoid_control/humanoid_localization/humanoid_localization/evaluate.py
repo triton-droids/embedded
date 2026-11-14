@@ -109,11 +109,12 @@ class LocalizationEval(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = LocalizationEval()
+    from rclpy.executors import ExternalShutdownException
     try:
         while rclpy.ok() and not node.done:
             rclpy.spin_once(node, timeout_sec=0.1)
-    except KeyboardInterrupt:
-        pass
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass  # Interrupted (e.g. a wall-clock limit on a paused simulation): report anyway.
     print(json.dumps(node.summary(), indent=2))
     csv = node.get_parameter('csv').value
     if csv:
