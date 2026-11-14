@@ -26,7 +26,8 @@ def _node(record, samples):
         reader=SimpleNamespace(read_head_since=lambda after: None if record is None else (
             record, [x for x in samples if x['index'] > after])),
         _gate=_RateGate(200.0), _noise=SimpleNamespace(apply=lambda s: (s.gyro, s.accel)),
-        _frame_id='head_imu_link', imu_pub=Mock(), published=0, missed=0, _last_index=None)
+        _frame_id='head_imu_link', imu_pub=Mock(), published=0, missed=0, _last_index=None,
+        get_logger=lambda: Mock())
 
 
 def _record(**changes):
@@ -48,11 +49,11 @@ def _stamps(node):
 def test_split_head_imu_publishes_every_new_sample_once_with_its_physics_stamp():
     samples = _samples(1, 3)
     node = _node(_record(), samples)
-    SplitHeadImuNode._publish(node)  # First wake-up: newest sample only.
+    SplitHeadImuNode._publish(node)  # First wake-up: only finds its place.
     samples += _samples(4, 5)         # Two physics steps per 10 ms wake-up.
     SplitHeadImuNode._publish(node)
     SplitHeadImuNode._publish(node)  # Nothing new: nothing republished.
-    assert _stamps(node) == [123_000_000_456 + i*STEP_NS for i in (3, 4, 5)]
+    assert _stamps(node) == [123_000_000_456 + i*STEP_NS for i in (4, 5)]
     msg = node.imu_pub.publish.call_args.args[0]
     assert msg.header.frame_id == 'head_imu_link'
     assert msg.orientation_covariance[0] == -1.0
@@ -68,11 +69,26 @@ def test_split_head_imu_counts_samples_lost_from_the_ring():
     SplitHeadImuNode._publish(node)
     samples[:] = _samples(40, 41)
     SplitHeadImuNode._publish(node)
-    assert node.missed == 38 and node.published == 3
+    assert node.missed == 38 and node.published == 2
 
 
 def test_split_head_imu_is_silent_without_head_data_or_under_fault():
     for record in (_record(head_valid=False), _record(control_fault=True), None):
-        node = _node(record, _samples(1, 2))
+        samples = _samples(1, 1)
+        node = _node(record, samples)
+        SplitHeadImuNode._publish(node)
+        samples += _samples(2, 3)
         SplitHeadImuNode._publish(node)
         node.imu_pub.publish.assert_not_called()
+
+
+def test_split_head_imu_follows_a_restarted_writer():
+    """A segment left by an earlier run: its high indices must not mute the new writer."""
+    samples = _samples(60_000, 60_031)  # Stale ring of the previous run.
+    node = _node(_record(), samples)
+    SplitHeadImuNode._publish(node)
+    samples[:] = [dict(s, stamp_ns=s['stamp_ns'] + 10**12) for s in _samples(1, 2)]
+    SplitHeadImuNode._publish(node)
+    samples += [dict(s, stamp_ns=s['stamp_ns'] + 10**12) for s in _samples(3, 3)]
+    SplitHeadImuNode._publish(node)
+    assert node.published == 1 and node._last_index == 3

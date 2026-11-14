@@ -177,15 +177,26 @@ class SplitHeadImuNode(Node):
                           self._publish)
 
     def _publish(self) -> None:
-        result = self.reader.read_head_since(self._last_index or 0)
+        # The whole ring every time: the newest index is needed to notice a new
+        # writer. This process may have opened a segment left by an earlier run
+        # before the simulator rewrote it; the new writer counts from 1 again.
+        result = self.reader.read_head_since(0)
         if result is None:
             return
         record, samples = result
         if not samples:
             return
+        if self._last_index is not None and samples[-1]['index'] < self._last_index:
+            self.get_logger().warn('Head IMU writer restarted; following the new samples')
+            self._last_index = None
         if self._last_index is None:
-            samples = samples[-1:]  # Start at the newest sample, not the ring's history.
-        elif samples[0]['index'] > self._last_index + 1:
+            # Start after the newest sample: the ring's history may be stale.
+            self._last_index = samples[-1]['index']
+            return
+        samples = [sample for sample in samples if sample['index'] > self._last_index]
+        if not samples:
+            return
+        if samples[0]['index'] > self._last_index + 1:
             self.missed += samples[0]['index'] - self._last_index - 1
         self._last_index = samples[-1]['index']
         if not record['valid'] or not record['head_valid'] or record['control_fault']:

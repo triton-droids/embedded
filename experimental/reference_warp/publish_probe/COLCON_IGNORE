@@ -1,1 +1,0 @@
-# Standalone measurement tools; build explicitly with CMake, not with robot packages.
