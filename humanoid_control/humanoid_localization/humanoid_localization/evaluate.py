@@ -43,13 +43,23 @@ class LocalizationEval(Node):
                                  qos_profile_sensor_data)
         self.create_subscription(Odometry, self.get_parameter('estimate_topic').value,
                                  self._on_estimate, qos_profile_sensor_data)
-        duration = float(self.get_parameter('duration_s').value)
+        self._duration_ns = int(float(self.get_parameter('duration_s').value) * 1e9)
+        self._deadline_ns = None
         self.done = False
-        if duration > 0:
-            self.create_timer(duration, self._finish)
+        if self._duration_ns > 0:
+            # Polled, from the first valid clock reading: under use_sim_time the
+            # clock reads 0 until /clock arrives, and a timer created then fires
+            # at once on the jump to the simulated time.
+            self.create_timer(0.1, self._check_duration)
 
-    def _finish(self):
-        self.done = True
+    def _check_duration(self):
+        now = self.get_clock().now().nanoseconds
+        if now <= 0:
+            return
+        if self._deadline_ns is None:
+            self._deadline_ns = now + self._duration_ns
+        elif now >= self._deadline_ns:
+            self.done = True
 
     def _on_truth(self, msg):
         t, xy, yaw = _sample(msg)

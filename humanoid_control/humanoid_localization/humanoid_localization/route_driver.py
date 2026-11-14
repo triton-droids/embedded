@@ -105,6 +105,8 @@ class RouteDriver(Node):
             if np.linalg.norm(self.ball - (self.p['park_x'], self.p['park_y'])) > 0.2:
                 self._place(self.p['park_x'], self.p['park_y'])  # Out of view: the robot stands.
             return
+        if self.started.nanoseconds == 0:  # use_sim_time: no /clock yet at construction.
+            self.started = self.get_clock().now()
         since = self.localized_at or self.started
         if (self.get_clock().now() - since).nanoseconds * 1e-9 < float(self.p['start_delay_s']):
             return
