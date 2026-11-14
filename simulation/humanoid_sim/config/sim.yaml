@@ -48,8 +48,13 @@ sim_body_imu:
 
 sim_head_mcu:
   ros__parameters:
-    imu_rate_hz: 100.0
     command_timeout_s: 0.25    # Same as the head firmware servo watchdog
+
+# Head IMU (published by sim_head_mcu, or by sim_head_imu in sim_imu_publisher
+# with imu_split); prefixed names so this one block reaches either node.
+/**:
+  ros__parameters:
+    head_imu_rate_hz: 100.0
 
 sim_camera:
   ros__parameters:

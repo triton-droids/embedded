@@ -10,7 +10,10 @@ Body IMU (replaces policy_imu_microros firmware + micro_ros_agent):
   /imu/status    std_msgs/String JSON, 1 Hz
 
 Head MCU (replaces humanoid_vision_microros firmware + micro_ros_agent):
-  /head/imu               sensor_msgs/Imu without orientation (covariance[0] = -1)
+  /head/imu               sensor_msgs/Imu without orientation (covariance[0] = -1),
+                          frame head_imu_link (the head_imu site's axes), stamped
+                          with the physics sample. With imu_split it is published
+                          by sim_imu_publisher (node sim_head_imu) instead.
   /head/mcu_status        std_msgs/Int32 bits: 0 IMU, 1 PCA9685, 2 servo enabled, 3 clock sync
   /head/servo_target_rad  std_msgs/Float32 subscription; the servo releases after
                           command_timeout_s without a new finite command.
@@ -21,6 +24,11 @@ independent timeout after its first finite pitch command.
 The body IMU site is identity-aligned with the floating base, matching the policy's
 identity ``imu_to_body_rotation``. Noise and bias are optional Gaussian
 placeholders, not identified sensor characteristics.
+
+Head IMU parameters are prefixed (``head_imu_rate_hz``,
+``head_imu_gyro_noise_std_rad_s``, ``head_imu_accel_noise_std_m_s2``,
+``head_imu_gyro_bias_rad_s``, ``head_imu_frame_id``) so one ``/**`` block in a
+config file reaches both possible publishers (sim_head_mcu or sim_head_imu).
 """
 from __future__ import annotations
 
@@ -42,20 +50,60 @@ from .publish_sample import publish_sample
 
 # Placeholder covariances documented by the body firmware (roll/pitch 1e-3, yaw 1e6 rad^2).
 BODY_ORIENTATION_COVARIANCE = [0.001, 0.0, 0.0, 0.0, 0.001, 0.0, 0.0, 0.0, 1e6]
+HEAD_IMU_FRAME = 'head_imu_link'
+HEAD_IMU_PREFIX = 'head_imu_'
+
+
+def declare_head_imu(node: Node) -> tuple[float, str]:
+    """Head IMU publish rate and frame id (the noise has its own _ImuNoise)."""
+    node.declare_parameter(HEAD_IMU_PREFIX + 'rate_hz', 100.0)
+    node.declare_parameter(HEAD_IMU_PREFIX + 'frame_id', HEAD_IMU_FRAME)
+    rate = float(node.get_parameter(HEAD_IMU_PREFIX + 'rate_hz').value)
+    if not rate > 0.0:
+        raise ValueError('head_imu_rate_hz must be positive')
+    return rate, str(node.get_parameter(HEAD_IMU_PREFIX + 'frame_id').value)
+
+
+def head_imu_message(stamp_ns: int, frame_id: str, gyro, accel) -> Imu:
+    msg = Imu()
+    msg.header.stamp.sec, msg.header.stamp.nanosec = divmod(int(stamp_ns), 10**9)
+    msg.header.frame_id = frame_id
+    msg.orientation_covariance[0] = -1.0  # No fused orientation on the head IMU.
+    _fill_imu(msg, gyro, accel)
+    return msg
+
+
+class _RateGate:
+    """Pass each new physics sample at most once and no faster than ``rate_hz``.
+
+    Polling faster than the sample rate then publishes every sample when the
+    requested rate equals the physics rate, without duplicates.
+    """
+
+    def __init__(self, rate_hz: float) -> None:
+        # Half a millisecond of slack absorbs physics step jitter.
+        self._min_ns = max(0, int(1e9 / rate_hz) - 500_000)
+        self._last_ns = None
+
+    def accept(self, stamp_ns: int) -> bool:
+        if self._last_ns is not None and stamp_ns - self._last_ns < max(self._min_ns, 1):
+            return False
+        self._last_ns = stamp_ns
+        return True
 
 
 class _ImuNoise:
     """Additive white noise plus a constant gyro bias, all in sensor units."""
 
-    def __init__(self, node: Node, seed: int) -> None:
-        node.declare_parameter('gyro_noise_std_rad_s', 0.0)
-        node.declare_parameter('accel_noise_std_m_s2', 0.0)
-        node.declare_parameter('gyro_bias_rad_s', [0.0, 0.0, 0.0])
-        self.gyro_std = float(node.get_parameter('gyro_noise_std_rad_s').value)
-        self.accel_std = float(node.get_parameter('accel_noise_std_m_s2').value)
-        self.gyro_bias = np.asarray(node.get_parameter('gyro_bias_rad_s').value, dtype=float)
+    def __init__(self, node: Node, seed: int, prefix: str = '') -> None:
+        node.declare_parameter(prefix + 'gyro_noise_std_rad_s', 0.0)
+        node.declare_parameter(prefix + 'accel_noise_std_m_s2', 0.0)
+        node.declare_parameter(prefix + 'gyro_bias_rad_s', [0.0, 0.0, 0.0])
+        self.gyro_std = float(node.get_parameter(prefix + 'gyro_noise_std_rad_s').value)
+        self.accel_std = float(node.get_parameter(prefix + 'accel_noise_std_m_s2').value)
+        self.gyro_bias = np.asarray(node.get_parameter(prefix + 'gyro_bias_rad_s').value, dtype=float)
         if self.gyro_bias.shape != (3,):
-            raise ValueError('gyro_bias_rad_s must have three elements')
+            raise ValueError(prefix + 'gyro_bias_rad_s must have three elements')
         self._rng = np.random.default_rng(seed)
 
     def apply(self, sample: ImuSnapshot) -> tuple[np.ndarray, np.ndarray]:
@@ -230,24 +278,26 @@ class SimHeadMcuNode(Node):
     STATUS_SERVO_ENABLED = 1 << 2
     STATUS_CLOCK_SYNC = 1 << 3
 
-    def __init__(self, world: SimWorld) -> None:
+    def __init__(self, world: SimWorld, publish_imu: bool = True) -> None:
         super().__init__('sim_head_mcu')
-        self.declare_parameter('imu_rate_hz', 100.0)
-        self.declare_parameter('frame_id', 'head_imu_link')
         self.declare_parameter('command_timeout_s', 0.25)
         self.declare_parameter('seed', 2)
         self.world = world
-        self._frame_id = str(self.get_parameter('frame_id').value)
+        rate, self._frame_id = declare_head_imu(self)
         self._timeout = float(self.get_parameter('command_timeout_s').value)
-        self._noise = _ImuNoise(self, int(self.get_parameter('seed').value))
+        self._noise = _ImuNoise(self, int(self.get_parameter('seed').value), HEAD_IMU_PREFIX)
+        self._gate = _RateGate(rate)
         self._last_command = -math.inf
         self._last_pitch_command = None
-        self.imu_pub = self.create_publisher(Imu, '/head/imu', 2)
+        # With imu_split, sim_imu_publisher owns /head/imu (no GIL coupling).
+        self.imu_pub = self.create_publisher(Imu, '/head/imu', 2) if publish_imu else None
         self.status_pub = self.create_publisher(Int32, '/head/mcu_status', 2)
         self.create_subscription(Float32, '/head/servo_target_rad', self._command, 2)
         if world._pitch_joint >= 0:
             self.create_subscription(Float32, '/head/tilt_target_rad', self._pitch_command, 2)
-        self.create_timer(1.0 / float(self.get_parameter('imu_rate_hz').value), self._publish_imu)
+        if publish_imu:
+            # Polled at twice the rate; the gate passes each physics sample once.
+            self.create_timer(0.5 / rate, self._publish_imu)
         # Fast enough to release the servo within the timeout plus one period.
         self.create_timer(0.05, self._watchdog)
         self.create_timer(1.0, self._publish_status)
@@ -279,13 +329,13 @@ class SimHeadMcuNode(Node):
     def _publish_imu(self) -> None:
         if self.world.control_fault is not None:
             return
-        gyro, accel = self._noise.apply(self.world.head_imu())
-        msg = Imu()
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = self._frame_id
-        msg.orientation_covariance[0] = -1.0  # No fused orientation on the head IMU.
-        _fill_imu(msg, gyro, accel)
-        publish_sample(self, self.imu_pub, msg, '/head/imu')
+        sample = self.world.head_imu()
+        # Acquisition time, like the body IMU and the stereo pair (VIO pairs them).
+        if not self._gate.accept(sample.stamp_ns):
+            return
+        gyro, accel = self._noise.apply(sample)
+        publish_sample(self, self.imu_pub, head_imu_message(sample.stamp_ns, self._frame_id, gyro, accel),
+                       '/head/imu')
 
     def _publish_status(self) -> None:
         bits = self.STATUS_IMU | self.STATUS_PCA9685 | self.STATUS_CLOCK_SYNC

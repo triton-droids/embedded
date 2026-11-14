@@ -11,8 +11,7 @@ from humanoid_sim.motor_model import limits_from_registry
 REPO = Path(__file__).resolve().parents[3]
 
 
-@pytest.fixture
-def model():
+def _build(**extra):
     hybrid = REPO / 'humanoid_control/motor_control_hybrid'
     limits = limits_from_registry(yaml.safe_load((hybrid/'config/motors.yaml').read_text())['motor_control_node']['ros__parameters'])
     return mb.build_model(mb.WorldOptions(
@@ -20,7 +19,12 @@ def model():
         mesh_dir=str(REPO/'humanoid_leg_description/meshes/robot_meshes'),
         joint_torque_limits={name: lim.max_torque for name,lim in limits.items()},
         camera_resolution=(424,240), camera_fovy_deg=58,
-        scene_builder='humanoid_ball_chase.scene:build_scene'))
+        scene_builder='humanoid_ball_chase.scene:build_scene', **extra))
+
+
+@pytest.fixture
+def model():
+    return _build()
 
 
 def test_scene_has_cad_and_physical_ball(model):
@@ -158,3 +162,33 @@ def test_hard_scene_adds_only_visual_clutter():
     assert hard.nbody == clean.nbody and hard.nv == clean.nv and hard.nu == clean.nu
     assert np.allclose(hard.body_mass, clean.body_mass)
     assert hard.light('low_sun').castshadow
+
+
+def test_stereo_rig_to_head_imu_extrinsic_matches_kinematics():
+    """The static TF cuVSLAM fuses with: position and gyro axes at any head pose."""
+    from humanoid_sim.stereo_camera_node import (CAMERA_FROM_OPTICAL, RIG_FROM_OPTICAL,
+                                                 rig_from_head_imu)
+    model = _build(stereo_baseline_m=0.05)
+    translation, rotation = rig_from_head_imu(model)
+    # Board centre: 25 mm right of the left camera, 13 mm behind its optical centre
+    # (rig x forward, y left, z up), 22.8 mm above it.
+    assert translation == pytest.approx([-0.013, -0.025, 0.0228], abs=1e-6)
+    data = mujoco.MjData(model)
+    left = model.camera(mb.STEREO_CAMERAS[0]).id
+    yaw_dof = model.joint(mb.HEAD_JOINT).dofadr[0]
+    pitch_dof = model.joint('head_pitch_joint').dofadr[0]
+    for yaw, pitch in ((0, 0), (0.5, 0.3), (-0.5, -0.3)):
+        data.qpos[model.joint(mb.HEAD_JOINT).qposadr[0]] = yaw
+        data.qpos[model.joint('head_pitch_joint').qposadr[0]] = pitch
+        data.qvel[:] = 0
+        data.qvel[yaw_dof], data.qvel[pitch_dof] = 0.7, -0.4
+        mujoco.mj_forward(model, data)
+        world_from_rig = data.cam_xmat[left].reshape(3, 3) @ CAMERA_FROM_OPTICAL @ RIG_FROM_OPTICAL.T
+        site = data.site('head_imu')
+        assert site.xpos == pytest.approx(data.cam_xpos[left] + world_from_rig @ translation, abs=1e-9)
+        assert site.xmat.reshape(3, 3) == pytest.approx(world_from_rig @ rotation, abs=1e-9)
+        # The gyro (head_imu_link axes) rotated into the rig is the rig's own rate.
+        velocity = np.zeros(6)
+        mujoco.mj_objectVelocity(model, data, mujoco.mjtObj.mjOBJ_CAMERA, left, velocity, 1)
+        rig_rate = (CAMERA_FROM_OPTICAL @ RIG_FROM_OPTICAL.T).T @ velocity[:3]
+        assert rotation @ data.sensor(mb.HEAD_GYRO).data == pytest.approx(rig_rate, abs=1e-9)

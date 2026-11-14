@@ -1,11 +1,22 @@
 # cuVSLAM (isaac_ros_visual_slam, Isaac ROS 3.2) on the simulated passive stereo pair.
-# Pure stereo VO: the body IMU is fused downstream by vio_localizer, because the
-# camera moves with the head and cuVSLAM's IMU must be rigidly on the camera rig.
+# Stereo-inertial VO with the camera-carrier IMU (revL MPU9250, /head/imu), which
+# is rigid with the pair; the launch argument imu_fusion:=false gives pure stereo VO.
+# The body IMU (attitude) is still fused downstream by vio_localizer.
 visual_slam_node:
   ros__parameters:
     num_cameras: 2
     rectified_images: true          # Identical ideal pinholes, horizontal baseline.
-    enable_imu_fusion: false
+    enable_imu_fusion: true          # Overridden by the launch argument imu_fusion.
+    imu_frame: head_imu_link         # TF stereo_rig -> head_imu_link from sim_stereo_publisher.
+    # MPU9250 datasheet white noise (continuous-time densities): gyro 0.01 deg/s/sqrt(Hz),
+    # accel 300 ug/sqrt(Hz); the same values drive the simulated noise. Random walks
+    # are not in the datasheet: Isaac ROS defaults kept (the simulation has none).
+    gyro_noise_density: 1.745e-4     # rad/s/sqrt(Hz)
+    gyro_random_walk: 1.9393e-5      # rad/s^2/sqrt(Hz)
+    accel_noise_density: 2.942e-3    # m/s^2/sqrt(Hz)
+    accel_random_walk: 3.0e-3        # m/s^3/sqrt(Hz)
+    calibration_frequency: 200.0     # IMU rate: one sample per 5 ms physics step.
+    imu_jitter_threshold_ms: 10.0
     base_frame: stereo_rig          # Rig frame (x forward); its pose is the output.
     camera_optical_frames: [stereo_left_optical, stereo_right_optical]
     # vio_localizer owns the base pose: no TF from cuVSLAM (would reparent stereo_rig).

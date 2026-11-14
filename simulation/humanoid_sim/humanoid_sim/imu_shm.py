@@ -19,16 +19,19 @@ import tempfile
 import time
 
 MAGIC = b'HIMU'
-VERSION = 1
-SIZE = 4096  # one page: the record is ~120 bytes, the rest is slack
+VERSION = 2
+SIZE = 4096  # one page: the record is ~170 bytes, the rest is slack
 
-# magic, version, seq, stamp_ns, mono, gyro[3], accel[3], quat[4], flags
-_LAYOUT = '<4sIQ q d 3d 3d 4d I'
+# magic, version, seq, stamp_ns, mono, gyro[3], accel[3], quat[4], flags,
+# head_gyro[3], head_accel[3] (camera-rig IMU; valid only with FLAG_HEAD_VALID)
+_LAYOUT = '<4sIQ q d 3d 3d 4d I 3d 3d'
 _RECORD = struct.calcsize(_LAYOUT)
 assert _RECORD <= SIZE
 
 FLAG_CONTROL_FAULT = 1 << 0
 FLAG_VALID = 1 << 1
+FLAG_HEAD_VALID = 1 << 2
+_NO_HEAD = (0.0, 0.0, 0.0)
 
 
 def candidate_paths(path: str | None = None) -> list:
@@ -86,9 +89,14 @@ class ImuSnapshotWriter:
         finally:
             os.close(fd)
 
-    def write(self, stamp_ns: int, gyro, accel, quat, control_fault: bool) -> None:
+    def write(self, stamp_ns: int, gyro, accel, quat, control_fault: bool,
+              head_gyro=None, head_accel=None) -> None:
+        """One step's body IMU and, when the model has one, the head IMU."""
         if self._closed:
             return
+        head = head_gyro is not None and head_accel is not None
+        head_gyro = head_gyro if head else _NO_HEAD
+        head_accel = head_accel if head else _NO_HEAD
         # Odd sequence marks "write in progress"; readers retry instead of
         # returning a torn mix of two steps.
         self._seq += 1
@@ -98,7 +106,10 @@ class ImuSnapshotWriter:
             time.monotonic(), float(gyro[0]), float(gyro[1]), float(gyro[2]),
             float(accel[0]), float(accel[1]), float(accel[2]),
             float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]),
-            (FLAG_CONTROL_FAULT if control_fault else 0) | FLAG_VALID)
+            (FLAG_CONTROL_FAULT if control_fault else 0) | FLAG_VALID
+            | (FLAG_HEAD_VALID if head else 0),
+            float(head_gyro[0]), float(head_gyro[1]), float(head_gyro[2]),
+            float(head_accel[0]), float(head_accel[1]), float(head_accel[2]))
         self._seq += 1
         struct.pack_into('<Q', self._map, 8, self._seq)
 
@@ -163,12 +174,14 @@ class ImuSnapshotReader:
             magic, version, _seq, stamp_ns, mono, *rest = fields
             if magic != MAGIC or version != VERSION:
                 return None
-            flags = rest[-1]
+            flags = rest[10]
             return dict(
                 stamp_ns=stamp_ns, written_mono=mono,
                 gyro=rest[0:3], accel=rest[3:6], quat=rest[6:10],
                 control_fault=bool(flags & FLAG_CONTROL_FAULT),
                 valid=bool(flags & FLAG_VALID),
+                head_valid=bool(flags & FLAG_HEAD_VALID),
+                head_gyro=rest[11:14], head_accel=rest[14:17],
             )
         return None
 

@@ -24,6 +24,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import ComposableNodeContainer, LoadComposableNodes
 from launch_ros.descriptions import ComposableNode
+from launch_ros.parameter_descriptions import ParameterValue
 
 ASSETS = '/workspaces/humanoid/simulation/humanoid_ball_chase/assets'
 CUVSLAM_PARAMS = '/workspaces/humanoid/humanoid_control/humanoid_localization/config/cuvslam.yaml'
@@ -43,6 +44,8 @@ def generate_launch_description():
         DeclareLaunchArgument('input_image_height', default_value='240'),
         DeclareLaunchArgument('with_cuvslam', default_value='false',
                               description='Also run cuVSLAM on /stereo/* in this container'),
+        DeclareLaunchArgument('imu_fusion', default_value='true',
+                              description='with_cuvslam: fuse the camera-carrier IMU /head/imu'),
     ]
     container = ComposableNodeContainer(
         name='isaac_yolo_container', namespace='', package='rclcpp_components',
@@ -91,9 +94,12 @@ def generate_launch_description():
         target_container='isaac_yolo_container', condition=IfCondition(arg('with_cuvslam')),
         composable_node_descriptions=[ComposableNode(
             package='isaac_ros_visual_slam', plugin='nvidia::isaac_ros::visual_slam::VisualSlamNode',
-            name='visual_slam_node', parameters=[CUVSLAM_PARAMS],
+            name='visual_slam_node', parameters=[CUVSLAM_PARAMS, {
+                'enable_imu_fusion': ParameterValue(arg('imu_fusion'), value_type=bool)}],
+            # Same remappings as humanoid_localization/launch/cuvslam.launch.py.
             remappings=[('visual_slam/image_0', '/stereo/left/image_raw'),
                         ('visual_slam/camera_info_0', '/stereo/left/camera_info'),
                         ('visual_slam/image_1', '/stereo/right/image_raw'),
-                        ('visual_slam/camera_info_1', '/stereo/right/camera_info')])])
+                        ('visual_slam/camera_info_1', '/stereo/right/camera_info'),
+                        ('visual_slam/imu', '/head/imu')])])
     return LaunchDescription(args + [container, encoder, slam])

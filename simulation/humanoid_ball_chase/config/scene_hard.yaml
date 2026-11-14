@@ -31,3 +31,15 @@ sim_motor_backend:
   ros__parameters:
     telemetry_rate_hz: 5.0
     monitor_rate_hz: 10.0
+# Camera-rig IMU (MPU9250 on the revL camera carrier, magnetometer unused): every
+# 5 ms physics sample, white noise from the datasheet densities at 200 Hz
+# (gyro 0.01 deg/s/sqrt(Hz) -> 2.47e-3 rad/s, accel 300 ug/sqrt(Hz) -> 0.0416 m/s^2)
+# and a constant residual gyro bias (~0.1-0.2 deg/s after a startup calibration).
+# No bias random walk is simulated. cuVSLAM's matching settings: config/cuvslam.yaml
+# in humanoid_localization. Published by sim_head_imu (imu_split) or sim_head_mcu.
+/**:
+  ros__parameters:
+    head_imu_rate_hz: 200.0
+    head_imu_gyro_noise_std_rad_s: 0.00247
+    head_imu_accel_noise_std_m_s2: 0.0416
+    head_imu_gyro_bias_rad_s: [0.003, -0.002, 0.0015]

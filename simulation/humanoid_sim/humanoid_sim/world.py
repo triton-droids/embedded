@@ -204,13 +204,16 @@ class SimWorld:
         if self.imu_writer is None:
             return
         data = self.data
+        head = self.head is not None
         try:
             self.imu_writer.write(
                 self.sample_stamp_ns,
                 data.sensor(mb.IMU_GYRO).data,
                 data.sensor(mb.IMU_ACCEL).data,
                 data.sensor(mb.IMU_QUAT).data,
-                self.control_fault is not None)
+                self.control_fault is not None,
+                head_gyro=data.sensor(mb.HEAD_GYRO).data if head else None,
+                head_accel=data.sensor(mb.HEAD_ACCEL).data if head else None)
         except (ValueError, BufferError):
             # Segment closed during shutdown; the publisher stops on its own.
             pass

@@ -2,6 +2,7 @@
 # cuVSLAM stereo visual odometry for the simulation, in the Isaac ROS 3.2 container (Jetson, JetPack 6).
 #   scripts/run_cuvslam.sh build    # once: derived image with cuVSLAM + CycloneDDS
 #   scripts/run_cuvslam.sh          # run in the foreground (Ctrl+C stops the container)
+#   scripts/run_cuvslam.sh imu_fusion:=false   # pure stereo VO (default fuses /head/imu)
 # Needs the base image isaac_ros_dev-aarch64 (isaac_ros_common release-3.2:
 #   scripts/build_image_layers.sh --image_key aarch64.ros2_humble --image_name isaac_ros_dev-aarch64)
 # and a simulation started with enable_stereo:=true on the same ROS_DOMAIN_ID.

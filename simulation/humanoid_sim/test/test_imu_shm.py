@@ -95,3 +95,21 @@ def test_header_identifies_the_segment(tmp_path):
 def test_missing_segment_raises_instead_of_hanging(tmp_path):
     with pytest.raises(FileNotFoundError):
         ImuSnapshotReader(str(tmp_path / 'absent.bin'), timeout_s=0.2)
+
+
+def test_head_imu_round_trip_and_absence(tmp_path):
+    path = str(tmp_path / 'imu.bin')
+    writer = ImuSnapshotWriter(path)
+    reader = ImuSnapshotReader(path, timeout_s=1.0)
+    try:
+        _sample(writer)
+        assert reader.read()['head_valid'] is False
+        writer.write(5, (0, 0, 0), (0, 0, 9.81), (1, 0, 0, 0), False,
+                     head_gyro=(0.4, -0.5, 0.6), head_accel=(1.0, 2.0, 3.0))
+        record = reader.read()
+        assert record['head_valid'] is True and record['valid'] is True
+        assert record['head_gyro'] == pytest.approx((0.4, -0.5, 0.6))
+        assert record['head_accel'] == pytest.approx((1.0, 2.0, 3.0))
+    finally:
+        reader.close()
+        writer.close()

@@ -15,6 +15,8 @@ TF (all from the simulated pose, standing in for head forward kinematics):
   floating_base -> stereo_rig            dynamic, stamped with the image pair
   stereo_rig    -> stereo_left_optical   static
   stereo_rig    -> stereo_right_optical  static
+  stereo_rig    -> head_imu_link         static, when the head_imu site is on the
+                                         cameras' body (cuVSLAM IMU fusion extrinsic)
 
 ``stereo_rig`` sits on the left camera with ROS body axes (x forward along the
 optical axis, y left, z up), so a VO pose of the rig has the usual axis meaning.
@@ -35,6 +37,7 @@ from sensor_msgs.msg import CameraInfo, Image
 
 from . import model_builder as mb
 from .camera_node import pinhole_info
+from .imu_nodes import HEAD_IMU_FRAME
 from .world import SimWorld
 
 RIG_FRAME = 'stereo_rig'
@@ -59,6 +62,26 @@ def _quat_xyzw(rotation: np.ndarray) -> tuple[float, float, float, float]:
     quat = np.zeros(4)
     mujoco.mju_mat2Quat(quat, np.ascontiguousarray(rotation).reshape(-1))
     return float(quat[1]), float(quat[2]), float(quat[3]), float(quat[0])
+
+
+def rig_from_head_imu(model) -> tuple[np.ndarray, np.ndarray] | None:
+    """(translation, rotation) of the head_imu site in stereo_rig, or None.
+
+    Defined only when the site and the left camera are on the same body, i.e.
+    the IMU is rigid with the pair; otherwise there is no static extrinsic.
+    """
+    site = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, 'head_imu')
+    camera = model.camera(mb.STEREO_CAMERAS[0]).id
+    if site < 0 or model.site_bodyid[site] != model.cam_bodyid[camera]:
+        return None
+    def matrix(quat):
+        out = np.zeros(9)
+        mujoco.mju_quat2Mat(out, np.asarray(quat, dtype=float))
+        return out.reshape(3, 3)
+    body_from_rig = matrix(model.cam_quat[camera]) @ CAMERA_FROM_OPTICAL @ RIG_FROM_OPTICAL.T
+    body_from_imu = matrix(model.site_quat[site])
+    translation = body_from_rig.T @ (model.site_pos[site] - model.cam_pos[camera])
+    return translation, body_from_rig.T @ body_from_imu
 
 
 def _transform(stamp, parent: str, child: str, translation, rotation) -> TransformStamped:
@@ -110,10 +133,19 @@ class SimStereoCameraNode(Node):
         self._tf = TransformBroadcaster(self)
         self._static_tf = StaticTransformBroadcaster(self)
         now = self.get_clock().now().to_msg()
-        self._static_tf.sendTransform([
+        static = [
             _transform(now, RIG_FRAME, OPTICAL_FRAMES[0], (0., 0., 0.), RIG_FROM_OPTICAL),
             _transform(now, RIG_FRAME, OPTICAL_FRAMES[1], (0., -self.baseline_m, 0.), RIG_FROM_OPTICAL),
-        ])
+        ]
+        imu = rig_from_head_imu(model)
+        if imu is not None:
+            static.append(_transform(now, RIG_FRAME, HEAD_IMU_FRAME, *imu))
+            self.get_logger().info(
+                'Head IMU rigid with the stereo pair: stereo_rig -> head_imu_link '
+                f'[{imu[0][0]:.4f}, {imu[0][1]:.4f}, {imu[0][2]:.4f}] m')
+        else:
+            self.get_logger().warn('Head IMU is not rigid with the stereo pair; no IMU extrinsic published')
+        self._static_tf.sendTransform(static)
         self.frames = 0
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._render_loop, name='sim_stereo', daemon=True)

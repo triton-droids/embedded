@@ -375,7 +375,8 @@ def main(args=None) -> None:
         module, factory = scene_nodes.split(':', 1)
         nodes.extend(getattr(importlib.import_module(module), factory)(world))
     if world.head is not None:
-        nodes.append(SimHeadMcuNode(world))
+        # With imu_split the head IMU is published by sim_imu_publisher.
+        nodes.append(SimHeadMcuNode(world, publish_imu=not imu_split))
         if control.get_parameter('enable_camera').value:
             nodes.append(SimCameraNode(world))
         if (control.get_parameter('enable_stereo').value

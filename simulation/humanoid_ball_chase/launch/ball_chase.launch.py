@@ -37,7 +37,8 @@ def generate_launch_description():
                               description='Plan paths from external OccupancyGrid and PoseStamped goals'),
         DeclareLaunchArgument('enable_vio', default_value='false',
                               description='Render the passive stereo pair and run vio_localizer (body IMU + '
-                                          'cuVSLAM from scripts/run_cuvslam.sh); A* then uses /localization/odom'),
+                                          'cuVSLAM with /head/imu from scripts/run_cuvslam.sh); '
+                                          'A* then uses /localization/odom'),
         DeclareLaunchArgument('walk_slow_log_ms', default_value='0.0',
                               description='model_walk diagnostics: log cycles and cycle gaps longer than this (ms)'),
         DeclareLaunchArgument('share_state', default_value='false',

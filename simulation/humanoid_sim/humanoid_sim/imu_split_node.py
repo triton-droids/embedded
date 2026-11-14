@@ -10,6 +10,10 @@ segment (see :mod:`humanoid_sim.imu_shm`) and only ever writes its own topics.
 Acquisition still happens in the physics process, so a stall there still freezes
 the sample stamp.  This isolates publication, which is where the measured stall
 was.
+
+The same process publishes ``/head/imu`` (node ``sim_head_imu``) when the model
+has a head: the camera-rig IMU that cuVSLAM fuses needs every physics sample
+on time, which the simulator process cannot guarantee.
 """
 from __future__ import annotations
 
@@ -24,7 +28,8 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Imu
 from std_msgs.msg import String
 
-from .imu_nodes import BODY_ORIENTATION_COVARIANCE, _ImuNoise, _YawError, _fill_imu
+from .imu_nodes import (BODY_ORIENTATION_COVARIANCE, HEAD_IMU_PREFIX, _ImuNoise, _RateGate,
+                        _YawError, _fill_imu, declare_head_imu, head_imu_message)
 from .imu_shm import ImuSnapshotReader
 from .world import ImuSnapshot
 from .publish_sample import publish_sample
@@ -144,14 +149,57 @@ class SplitBodyImuNode(Node):
                                          time.monotonic() - begin)
 
 
+class SplitHeadImuNode(Node):
+    """Head (camera-rig) IMU from the same shared segment, every physics sample.
+
+    Polls at twice ``head_imu_rate_hz`` and publishes each new sample once, so at
+    the physics rate no sample is skipped or repeated. Publishes nothing while
+    the segment has no head data (headless model) or under a control fault.
+    """
+
+    def __init__(self, reader: ImuSnapshotReader) -> None:
+        super().__init__('sim_head_imu')
+        self.declare_parameter('seed', 2)
+        rate, self._frame_id = declare_head_imu(self)
+        self._noise = _ImuNoise(self, int(self.get_parameter('seed').value), HEAD_IMU_PREFIX)
+        self._gate = _RateGate(rate)
+        self.reader = reader
+        self.published = 0
+        self.imu_pub = self.create_publisher(Imu, '/head/imu', QoSProfile(
+            depth=10, reliability=ReliabilityPolicy.RELIABLE))
+        self.create_timer(0.5 / rate, self._publish)
+
+    def _publish(self) -> None:
+        record = self.reader.read()
+        if (record is None or not record['valid'] or not record['head_valid']
+                or record['control_fault'] or not self._gate.accept(record['stamp_ns'])):
+            return
+        sample = ImuSnapshot(gyro=np.asarray(record['head_gyro']),
+                             accel=np.asarray(record['head_accel']),
+                             quat_wxyz=None, stamp_ns=record['stamp_ns'])
+        gyro, accel = self._noise.apply(sample)
+        if not np.isfinite(gyro).all() or not np.isfinite(accel).all():
+            return
+        if publish_sample(self, self.imu_pub,
+                          head_imu_message(record['stamp_ns'], self._frame_id, gyro, accel),
+                          '/head/imu'):
+            self.published += 1
+
+
 def main(args=None) -> None:
+    from rclpy.executors import SingleThreadedExecutor
     rclpy.init(args=args)
     node = SplitBodyImuNode()
+    head = SplitHeadImuNode(node.reader)
+    executor = SingleThreadedExecutor()  # One thread: the two nodes share the reader.
+    executor.add_node(node)
+    executor.add_node(head)
     try:
-        rclpy.spin(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
+        head.destroy_node()
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
