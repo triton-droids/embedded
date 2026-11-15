@@ -43,7 +43,11 @@ sim_motor_backend:
     head_imu_gyro_noise_std_rad_s: 0.00247
     head_imu_accel_noise_std_m_s2: 0.0416
     head_imu_gyro_bias_rad_s: [0.003, -0.002, 0.0015]
-    # Start-up calibration (the MCU at power-on): mean rate over 2 s of stillness on
-    # the gantry is subtracted; /head/imu starts after it. Without it cuVSLAM did
-    # not absorb the bias above (Jetson, 0.3x: 0.3-0.4 m error vs <= 0.15 m with no bias).
+    # Start-up calibration (the MCU at power-on): mean rate over 2 s of stationary
+    # stillness (gyro_bias.py) is subtracted; /head/imu starts after it. 2 s, not 1:
+    # after the robot stops it settles at ~0.001-0.002 rad/s for ~1.5 s, which a 1 s
+    # window takes for bias (replayed sim data: max error 0.0087 vs 0.0014 rad/s). Without it
+    # cuVSLAM did not absorb the bias above (Jetson, 0.3x: 0.3-0.4 m error vs
+    # <= 0.15 m with no bias). On the route the robot stands until localization is
+    # initialized, which needs /head/imu, so a still window comes before walking.
     head_imu_bias_calibration_s: 2.0

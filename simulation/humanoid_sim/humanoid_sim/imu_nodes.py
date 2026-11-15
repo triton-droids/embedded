@@ -62,10 +62,12 @@ def head_imu_calibrator(node: Node):
     node.declare_parameter(HEAD_IMU_PREFIX + 'bias_calibration_s', 0.0)
     node.declare_parameter(HEAD_IMU_PREFIX + 'bias_still_rad_s', 0.05)
     node.declare_parameter(HEAD_IMU_PREFIX + 'bias_timeout_s', 30.0)
+    node.declare_parameter(HEAD_IMU_PREFIX + 'bias_drift_rad_s', 0.001)
     return GyroBiasCalibrator(
         float(node.get_parameter(HEAD_IMU_PREFIX + 'bias_calibration_s').value),
         float(node.get_parameter(HEAD_IMU_PREFIX + 'bias_still_rad_s').value),
-        float(node.get_parameter(HEAD_IMU_PREFIX + 'bias_timeout_s').value))
+        float(node.get_parameter(HEAD_IMU_PREFIX + 'bias_timeout_s').value),
+        float(node.get_parameter(HEAD_IMU_PREFIX + 'bias_drift_rad_s').value))
 
 
 def calibrated_head_sample(node, stamp_ns: int, gyro):
@@ -80,8 +82,9 @@ def calibrated_head_sample(node, stamp_ns: int, gyro):
                                    'publishing uncorrected rates')
         else:
             node.get_logger().warn(
-                'Head IMU gyro bias calibrated over %d samples: [%.5f, %.5f, %.5f] rad/s'
-                % (calibrator.samples, *calibrator.bias))
+                'Head IMU gyro bias calibrated over %d samples: [%.5f, %.5f, %.5f] rad/s '
+                '(%d windows rejected as drifting)'
+                % (calibrator.samples, *calibrator.bias, calibrator.rejected_drift))
     return calibrator.correct(gyro)
 
 

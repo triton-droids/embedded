@@ -99,8 +99,8 @@ def test_split_head_imu_follows_a_restarted_writer():
 def test_split_head_imu_withholds_samples_until_calibrated_then_subtracts_the_bias():
     samples = _samples(1, 1)
     node = _node(_record(), samples)
-    node._calibrator = GyroBiasCalibrator(0.02, still_rad_s=1.0)  # 4 steps of stillness.
-    for last in range(2, 40):
+    node._calibrator = GyroBiasCalibrator(0.1, still_rad_s=1.0)  # 20 steps of stillness.
+    for last in range(2, 80):
         samples.append(_samples(last, last)[0])
         SplitHeadImuNode._publish(node)
     calibrator = node._calibrator
