@@ -91,6 +91,9 @@ def generate_launch_description():
             'image_input_topic': arg('image_topic'),
             'camera_info_input_topic': arg('camera_info_topic'),
             'tensor_output_topic': '/isaac_yolo/input_tensor',
+            # Isaac ROS 4.6 names the encoder output 'output_tensor' by default;
+            # TensorRTNode above expects 'input_tensor'. Older releases ignore it.
+            'tensor_name': 'input_tensor',
         }.items())
     slam = LoadComposableNodes(
         target_container='isaac_yolo_container', condition=IfCondition(arg('with_cuvslam')),

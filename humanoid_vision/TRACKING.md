@@ -29,7 +29,7 @@ with `enable_depth:=true` on `humanoid_sim`, not on the tracking launch.
 
 Use `--show-args` to inspect gains, direction, angle/rate limits, target timeout,
 model path and topic overrides. `use_cuda:=false` selects CPU detection.
-A full detector build needs the configured OpenCV 4.5.x SDK; `TRACK_ONLY=ON`
+A full detector build needs the configured OpenCV 4.5.x or 4.6.x SDK; `TRACK_ONLY=ON`
 builds just the tracker and requires `start_detector:=false` at launch.
 
 The ROS fixture exercise is `algorithm/test/test_track_node.py`; it needs a

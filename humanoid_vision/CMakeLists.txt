@@ -46,8 +46,9 @@ if(EXISTS "${_opencv45_config}/OpenCVConfig.cmake")
   set(OpenCV_DIR "${_opencv45_config}" CACHE PATH "OpenCV 4.5 SDK" FORCE)
 endif()
 find_package(OpenCV 4.5 REQUIRED COMPONENTS core dnn highgui imgcodecs imgproc)
-if(NOT OpenCV_VERSION VERSION_LESS "4.6")
-  message(FATAL_ERROR "humanoid_vision requires OpenCV 4.5.x. Run scripts/setup_opencv45.sh or set OpenCV_DIR to a 4.5 SDK.")
+# 4.5.x (Humble / JetPack 6) or 4.6.x (Ubuntu 24.04 system OpenCV on Jazzy / JetPack 7).
+if(NOT OpenCV_VERSION VERSION_LESS "4.7")
+  message(FATAL_ERROR "humanoid_vision requires OpenCV 4.5.x or 4.6.x (found ${OpenCV_VERSION}). Run scripts/setup_opencv45.sh or set OpenCV_DIR.")
 endif()
 
 find_package(ament_index_cpp REQUIRED)
