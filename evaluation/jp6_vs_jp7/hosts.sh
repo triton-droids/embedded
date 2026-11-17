@@ -1,7 +1,8 @@
 # Sourced by run_one.sh and preflight.sh: where the WSL and Jetson commands run.
 # On the WSL host itself (it owns 192.168.50.1) WSL commands run locally and the
 # Jetson is reached over the direct link; elsewhere (the laptop) both go over SSH.
-SSH="ssh -o ConnectTimeout=10 -o ServerAliveInterval=15 -o BatchMode=yes"
+# accept-new: the first login over the link records the Jetson host key without a prompt.
+SSH="ssh -o ConnectTimeout=10 -o ServerAliveInterval=15 -o BatchMode=yes -o StrictHostKeyChecking=accept-new"
 if ip -4 -br addr 2>/dev/null | grep -q '192\.168\.50\.1/'; then
   WSL=${WSL:-local}; JET=${JET:-td@192.168.50.3}
 else
