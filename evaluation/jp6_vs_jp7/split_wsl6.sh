@@ -8,7 +8,11 @@ O=~/split_test/$TAG; mkdir -p $O
 cd "${REPO:-$HOME/ws/sim_experimental_cyclonedds}" || exit 1
 LOCAL=${LOCAL_IP:-192.168.50.1}; PEER=${PEER_IP:-192.168.50.3}
 export ROS_DISTRO=humble ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-12} DDS_LOCAL_IP=$LOCAL DDS_PEER_IP=$PEER
-{ date -Is; git log --oneline -1; echo "RTF=$RTF EXTRA=$EXTRA ROUTE=$ROUTE_ARGS SPLIT=$SPLIT CONTROL_CPUS=${CONTROL_CPUS:-} SIM_CPUS=${SIM_CPUS:-}"; } > $O/meta.txt
+# Render with Mesa llvmpipe like the Jazzy distro of the JetPack 7 batch. The
+# Humble distro's Mesa 23.2 picks d3d12 by default: 9 fps at 640x480 vs 61 fps
+# for llvmpipe, which left the stereo pair at 6.7 Hz instead of 15 Hz (sim time).
+export LIBGL_ALWAYS_SOFTWARE=${LIBGL_ALWAYS_SOFTWARE-1}
+{ date -Is; git log --oneline -1; echo "RTF=$RTF EXTRA=$EXTRA ROUTE=$ROUTE_ARGS SPLIT=$SPLIT CONTROL_CPUS=${CONTROL_CPUS:-} SIM_CPUS=${SIM_CPUS:-} LIBGL_ALWAYS_SOFTWARE=$LIBGL_ALWAYS_SOFTWARE"; } > $O/meta.txt
 setsid env CONTROL_CPUS=${CONTROL_CPUS:-} SIM_CPUS=${SIM_CPUS:-} ${LP_NUM_THREADS:+LP_NUM_THREADS=$LP_NUM_THREADS} bash scripts/ball_chase_split.sh $SPLIT $LOCAL $PEER scene:=hard enable_vio:=true \
   enable_astar:=true real_time_factor:=$RTF $EXTRA > $O/sim.log 2>&1 < /dev/null &
 SIM=$!

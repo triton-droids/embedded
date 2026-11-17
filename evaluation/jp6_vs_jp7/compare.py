@@ -11,13 +11,14 @@ JetPack 7 data: WSL Jazzy distro (port 2222) + Jetson 192.168.1.44, tags base01.
 JetPack 6 data: WSL Humble distro (port 22) + Jetson 100.71.186.19, tags j6_base01..
 """
 import json
+import os
 import statistics as st
 import subprocess
 import sys
 
 HOSTS = {
-    'JP7': dict(wsl=['-p', '2222', 'rcli@192.168.1.129'], jet='rcli@192.168.1.44', prefix=''),
-    'JP6': dict(wsl=['rcli@192.168.1.129'], jet='td@100.71.186.19', prefix='j6_'),
+    'JP7': dict(wsl=['-p', '2222', os.environ.get('WSL_HOST', 'rcli@192.168.1.129')], jet='rcli@192.168.1.44', prefix=''),
+    'JP6': dict(wsl=[os.environ.get('WSL_HOST', 'rcli@192.168.1.129')], jet='td@100.71.186.19', prefix='j6_'),
 }
 GROUPS = ['base', 'ab_vio', 'ab_vo', 'c_vio', 'c_vo']
 EXCLUDE = {'c_vio09'}  # JetPack 7: robot never moved (chase commands lost), not a localization result.
@@ -106,6 +107,11 @@ def main():
                     t = d.get('tegra') or {}
                     print(f"    {d['tag']:12} legs={d['legs']:>2} {d['end']:13} rtf={d['rtf']} "
                           f"vis={(d['est'] or {}).get('pct')} leg={(d['leg'] or {}).get('pct')} cpu={t.get('cpu', 0):.0f}")
+    if not data['JP7']:
+        import os
+        print('\nJP7 hosts unreachable; saved JP7 results (jp7_reference.txt):')
+        print(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'jp7_reference.txt')).read())
+        return
     print('vis%/leg%: median final error as % of path. fail: physics paused (fall), simulator died or stuck.')
     print('CPU%/peak/MHz/GPU%/RAM(MB)/mW: Jetson tegrastats means after the first fifth of each run.')
 

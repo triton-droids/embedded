@@ -1,0 +1,15 @@
+JetPack 7 reference (compare.py output, 2026-11-17 00:10, before the JP7 Jetson left the tailnet)
+Jetson 192.168.1.44, L4T R39.2.1, Isaac ROS 4.6; WSL Jazzy distro; all 0.5x, hard scene, 16 legs.
+c_vio09 excluded (robot never moved: chase commands lost).
+
+group   JP  runs done fail   RTF  vis%  leg%  CPU%  peak   MHz  GPU%   RAM    mW
+base    JP7   10   10    0 0.477     -  0.15    49    54  1342     3  3647  6028
+ab_vio  JP7   10    7    3 0.432  0.38  0.17    54    59  1553     5  3935  6510
+ab_vo   JP7   10   10    0 0.480  0.85  0.12    59    64  1673     6  3912  6978
+c_vio   JP7    9    9    0 0.495  0.45  0.12    43    51  1146     7  3580  5822
+c_vo    JP7   10    9    1 0.470  0.57  0.14    42    50  1092     7  3578  5650
+
+vis%/leg%: median final error as % of path. fail: physics paused (fall), simulator died or stuck.
+CPU%/peak/MHz/GPU%/RAM(MB)/mW: Jetson tegrastats means after the first fifth of each run.
+cuVSLAM frame-gap warnings ("Delta between current and previous frame ... above threshold") were not
+counted for JP7; its cuvslam.log files stay on that Jetson (~/split_test/<tag>/cuvslam.log).
