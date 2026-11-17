@@ -114,9 +114,16 @@ class MotorBank:
     """
 
     def __init__(self, limits: dict[str, JointLimits], command_timeout_s: float = 0.5,
-                 velocity_mode_kd: float = 2.0, allow_torque_only_motion: bool = False) -> None:
+                 velocity_mode_kd: float = 2.0, allow_torque_only_motion: bool = False,
+                 future_tolerance_s: float = 0.01) -> None:
         if command_timeout_s <= 0.0:
             raise ValueError('command_timeout_s must be positive')
+        if future_tolerance_s < 0.0:
+            raise ValueError('future_tolerance_s must be non-negative')
+        # How far a command stamp may lead this process's ROS clock. Under
+        # simulated time a commander on another host can receive /clock sooner
+        # than a loaded simulator process applies it to its own clock.
+        self.future_tolerance_s = float(future_tolerance_s)
         self.limits = dict(limits)
         self.joint_names = list(limits)
         self.command_timeout_s = float(command_timeout_s)
@@ -189,7 +196,7 @@ class MotorBank:
         if self.estop_active or not joint_names:
             return []
         age = now_ros_s - stamp_s
-        source_valid = stamp_s > 0 and -0.01 <= age < self.command_timeout_s
+        source_valid = stamp_s > 0 and -self.future_tolerance_s <= age < self.command_timeout_s
         deadline = now_mono_s + self.command_timeout_s - max(0.0, age)
         if valid_until_s != 0:
             source_valid = source_valid and valid_until_s > now_ros_s and valid_until_s > stamp_s

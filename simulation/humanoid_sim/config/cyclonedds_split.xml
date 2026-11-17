@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- CycloneDDS settings for a two-host simulation (scripts/ball_chase_split.sh):
+     the simulator on one host, the robot stack on the other, over a direct
+     wired link. CycloneDDS expands ${...} from the environment:
+       DDS_LOCAL_IP  this host's address on the link
+       DDS_PEER_IP   the other host's address on the link
+     Unicast only (multicast is unreliable through WSL2 and not needed for two
+     hosts). Raise net.core.rmem_max on both hosts so the 16 MB receive buffer
+     is granted; camera frames are many UDP fragments (see cyclonedds_sim.xml). -->
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain Id="any">
+    <General>
+      <Interfaces>
+        <NetworkInterface address="${DDS_LOCAL_IP}"/>
+      </Interfaces>
+      <AllowMulticast>false</AllowMulticast>
+    </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>40</MaxAutoParticipantIndex>
+      <Peers>
+        <Peer Address="${DDS_LOCAL_IP}"/>
+        <Peer Address="${DDS_PEER_IP}"/>
+      </Peers>
+    </Discovery>
+    <Internal>
+      <SocketReceiveBufferSize max="16MB"/>
+    </Internal>
+  </Domain>
+</CycloneDDS>

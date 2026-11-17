@@ -22,6 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import math
 import threading
+import sys
 import time
 
 import mujoco
@@ -152,7 +153,17 @@ class SimWorld:
         while not self._stop.is_set():
             now = time.monotonic()
             if now < next_step:
-                time.sleep(next_step - now)
+                if next_step - now > 1.0:
+                    # A deadline this far ahead is never a pacing decision (dt is
+                    # milliseconds); a stalled simulation clock here was seen under
+                    # WSL2. Log it and re-anchor the pacing to now.
+                    self.pacing_resets = getattr(self, 'pacing_resets', 0) + 1
+                    print(f'[mujoco_physics] pacing deadline {next_step - now:.3f} s ahead; '
+                          f're-anchoring (reset {self.pacing_resets})', file=sys.stderr, flush=True)
+                    next_step = now
+                    continue
+                # Bounded sleeps: a stuck sleep would otherwise stop the simulation silently.
+                time.sleep(min(next_step - now, 0.05))
                 continue
             diag.record('step_late_ms', (now - next_step) * 1e3)
             self.step(now)
@@ -180,7 +191,12 @@ class SimWorld:
             self.motors.expire(now_mono)
             if (self.pause_on_control_fault and not self.data.eq_active[self._weld]
                     and not self.motors.motion_ready(now_mono)):
-                self.control_fault = self.control_fault or ('Motor control lost: ' + self.motors.readiness_failure(now_mono))
+                if self.control_fault is None:
+                    self.control_fault = 'Motor control lost: ' + self.motors.readiness_failure(now_mono)
+                    # Report here: the backend's report runs on a simulated-time
+                    # timer, which never fires again once the clock stops.
+                    print(f'[mujoco_physics] Physics paused at sim {self.clock_ns * 1e-9:.3f} s: '
+                          f'{self.control_fault}', file=sys.stderr, flush=True)
             if self.control_fault is not None:
                 # A simulation diagnostic stop: preserve the exact failure pose.
                 # Never continue an expired target or automatically re-arm.

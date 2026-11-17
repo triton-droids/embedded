@@ -5,7 +5,7 @@ velocity commands. controller:=model_walk: the model-based walking controller
 follows /ball_chase/cmd_vel (forward speed and yaw rate, converted per step).
 """
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable
+from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription, SetEnvironmentVariable
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
@@ -96,6 +96,13 @@ def generate_launch_description():
                               description='true: track the ball in odom (coast through misses, chase a '
                                           'moving ball a little ahead, head looks at the prediction); '
                                           'false: stateless per-frame chase'),
+        DeclareLaunchArgument('stereo_shadows', default_value='true', choices=['true', 'false'],
+                              description='Shadows in the VIO stereo pair (false: ~4x faster under software GL)'),
+        DeclareLaunchArgument('role', default_value='all',
+                              choices=['all', 'sim', 'robot', 'sim_control', 'perception'],
+                              description='Two hosts (scripts/ball_chase_split.sh): sim = simulator only, '
+                                          'robot = everything else; or sim_control = simulator + 200 Hz '
+                                          'control, perception = vision, localization and planning'),
         DeclareLaunchArgument('sim_time', default_value='true', choices=['true', 'false'],
                               description='Every node on simulated time (/clock from mujoco_sim); '
                                           'host-clock safety timeouts off. false: wall clock, real time'),
@@ -132,42 +139,51 @@ def generate_launch_description():
                 'remote_viewer_rate_hz': arg('remote_viewer_rate_hz'),
                 'enable_stereo': arg('enable_vio'),
                 'sim_time': arg('sim_time'), 'real_time_factor': arg('real_time_factor'),
+                'role': arg('role'),
+                'stereo_shadows': arg('stereo_shadows'),
                 'share_state': arg('share_state'),
                 'walk_slow_log_ms': arg('walk_slow_log_ms'),
                 'imu_yaw_error_deg': arg('imu_yaw_error_deg'),
                 'imu_yaw_error_period_s': arg('imu_yaw_error_period_s'),
             }.items()),
-        # Start pose = the spawn placement (known, like a kickoff position), not ground truth.
-        Node(package='humanoid_localization', executable='vio_localizer', output='screen',
-             condition=IfCondition(arg('enable_vio')),
-             parameters=[{'initial_x': 0.0, 'initial_y': 0.0, 'initial_yaw': 0.0}]),
-        Node(package='humanoid_ball_chase', executable='ball_chase_vision', output='screen',
-             parameters=[{'target_timeout_s':ParameterValue(arg('vision_target_timeout_s'), value_type=float),
-                         'model_path':ParameterValue(arg('vision_model_path'), value_type=str),
-                         'device':ParameterValue(arg('vision_device'), value_type=str),
-                         'detector':ParameterValue(arg('vision_detector'), value_type=str),
-                         'target_class_id':ParameterValue(arg('vision_target_class'), value_type=int),
-                         'world_model':ParameterValue(arg('world_model'), value_type=bool),
-                         'kick':ParameterValue(arg('kick'), value_type=bool),
-                         'shoot':ParameterValue(arg('shoot'), value_type=bool),
-                         'shoot_goal_frame':ParameterValue(arg('shoot_goal_frame'), value_type=str),
-                         'shoot_goal_x_m':ParameterValue(arg('shoot_goal_x_m'), value_type=float),
-                         'shoot_goal_y_m':ParameterValue(arg('shoot_goal_y_m'), value_type=float),
-                         # Measured in this scene (2026-11-10): the MuJoCo ball's speed decays at
-                         # ~0.06/s, far less than turf (~0.4/s, the tracker default).
-                         'tracker.friction':0.06}]),
-        Node(package='walking_controller', executable='leg_odometry', prefix='python3', output='screen',
-             condition=IfCondition(PythonExpression(["'", arg('odometry'), "' == 'leg'"])),
-             parameters=[{'base_forward_axis': 'positive_y'}]),
-        Node(package='humanoid_ball_chase', executable='ball_chase_astar',
-             condition=IfCondition(arg('enable_astar')), output='screen',
-             parameters=[{'odom_topic': PythonExpression(["'/localization/odom' if '", arg('enable_vio'),
-                                                          "' == 'true' else '/sim/ground_truth/odom'"])}]),
-        Node(package='humanoid_vision', executable='track_node', name='pitch_tracker',
-             parameters=[{'axis':'pitch', 'command_topic':'/head/tilt_target_rad',
-                          'target_topic':head_target,
-                          'direction':1.0, 'initial_angle_rad':0.0,
-                          'target_timeout_s':ParameterValue(arg('vision_target_timeout_s'), value_type=float),
-                          'max_speed_rad_s':0.3,
-                          'max_accel_rad_s2':0.6}], output='screen'),
+        # Perception and planning (15-50 Hz): every role but the simulator-only hosts.
+        GroupAction(condition=IfCondition(PythonExpression(["'", arg('role'), "' not in ('sim', 'sim_control')"])), actions=[
+            # Start pose = the spawn placement (known, like a kickoff position), not ground truth.
+            Node(package='humanoid_localization', executable='vio_localizer', output='screen',
+                 condition=IfCondition(arg('enable_vio')),
+                 parameters=[{'initial_x': 0.0, 'initial_y': 0.0, 'initial_yaw': 0.0}]),
+            Node(package='humanoid_ball_chase', executable='ball_chase_vision', output='screen',
+                 parameters=[{'target_timeout_s':ParameterValue(arg('vision_target_timeout_s'), value_type=float),
+                             'model_path':ParameterValue(arg('vision_model_path'), value_type=str),
+                             'device':ParameterValue(arg('vision_device'), value_type=str),
+                             'detector':ParameterValue(arg('vision_detector'), value_type=str),
+                             'target_class_id':ParameterValue(arg('vision_target_class'), value_type=int),
+                             'world_model':ParameterValue(arg('world_model'), value_type=bool),
+                             'kick':ParameterValue(arg('kick'), value_type=bool),
+                             'shoot':ParameterValue(arg('shoot'), value_type=bool),
+                             'shoot_goal_frame':ParameterValue(arg('shoot_goal_frame'), value_type=str),
+                             'shoot_goal_x_m':ParameterValue(arg('shoot_goal_x_m'), value_type=float),
+                             'shoot_goal_y_m':ParameterValue(arg('shoot_goal_y_m'), value_type=float),
+                             # Measured in this scene (2026-11-10): the MuJoCo ball's speed decays at
+                             # ~0.06/s, far less than turf (~0.4/s, the tracker default).
+                             'tracker.friction':0.06}]),
+            Node(package='humanoid_ball_chase', executable='ball_chase_astar',
+                 condition=IfCondition(arg('enable_astar')), output='screen',
+                 parameters=[{'odom_topic': PythonExpression(["'/localization/odom' if '", arg('enable_vio'),
+                                                              "' == 'true' else '/sim/ground_truth/odom'"])}]),
+        ]),
+        # Robot-side nodes next to the control stack: every role but the simulator-only
+        # host and the perception host.
+        GroupAction(condition=IfCondition(PythonExpression(["'", arg('role'), "' not in ('sim', 'perception')"])), actions=[
+            Node(package='walking_controller', executable='leg_odometry', prefix='python3', output='screen',
+                 condition=IfCondition(PythonExpression(["'", arg('odometry'), "' == 'leg'"])),
+                 parameters=[{'base_forward_axis': 'positive_y'}]),
+            Node(package='humanoid_vision', executable='track_node', name='pitch_tracker',
+                 parameters=[{'axis':'pitch', 'command_topic':'/head/tilt_target_rad',
+                              'target_topic':head_target,
+                              'direction':1.0, 'initial_angle_rad':0.0,
+                              'target_timeout_s':ParameterValue(arg('vision_target_timeout_s'), value_type=float),
+                              'max_speed_rad_s':0.3,
+                              'max_accel_rad_s2':0.6}], output='screen'),
+        ]),
     ])

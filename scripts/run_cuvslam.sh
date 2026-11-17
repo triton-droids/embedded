@@ -36,7 +36,12 @@ if [[ "$mode" == build ]]; then
     "$repo_dir/humanoid_control/humanoid_localization/docker"
 fi
 docker image inspect "$image" >/dev/null 2>&1 || { echo "Run '$0 build' first" >&2; exit 1; }
-config=cyclonedds_sim.xml
+config=cyclonedds_sim.xml localhost_only=1 split_env=()
+if [[ -n "${DDS_PEER_IP:-}" ]]; then  # Two-host split (scripts/ball_chase_split.sh).
+  : "${DDS_LOCAL_IP:?Set DDS_LOCAL_IP with DDS_PEER_IP}"
+  config=cyclonedds_split.xml localhost_only=0
+  split_env=(-e DDS_LOCAL_IP="$DDS_LOCAL_IP" -e DDS_PEER_IP="$DDS_PEER_IP")
+fi
 name="${ISAAC_CONTAINER_NAME:-humanoid_cuvslam}"
 launch="${ISAAC_LAUNCH:-/workspaces/humanoid/humanoid_control/humanoid_localization/launch/cuvslam.launch.py}"
 cpuset=()
@@ -45,7 +50,7 @@ exec docker run --rm --name "$name" --runtime nvidia "${cpuset[@]}" \
   --network host --ipc host --pid host \
   -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=all \
   -v "$repo_dir":/workspaces/humanoid:ro \
-  -e ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}" -e ROS_LOCALHOST_ONLY=1 \
+  -e ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}" -e ROS_LOCALHOST_ONLY="$localhost_only" "${split_env[@]}" \
   -e RMW_IMPLEMENTATION=rmw_cyclonedds_cpp \
   -e CYCLONEDDS_URI="file:///workspaces/humanoid/simulation/humanoid_sim/config/$config" \
   --entrypoint /bin/bash "$image" -c \

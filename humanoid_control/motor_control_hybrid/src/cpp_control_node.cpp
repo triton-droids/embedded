@@ -47,6 +47,10 @@ public:
     // Parameters
     this->declare_parameter<double>("control_rate_hz", 50.0);
     this->declare_parameter<double>("state_timeout_s", 0.2);
+    // How far a source stamp may lead this node's ROS clock. Under simulated
+    // time /clock reaches each host with its own delay, so a fresh stamp from
+    // the simulator can lead a remote node's clock by more than the 10 ms default.
+    this->declare_parameter<double>("clock_future_tolerance_s", 0.01);
     this->declare_parameter<bool>("auto_append_new_joints", false);
     this->declare_parameter<double>("cmd_timeout_s", 0.5);
     this->declare_parameter<double>("supervisor_warning_timeout_s", 0.5);
@@ -63,6 +67,7 @@ public:
 
     control_rate_hz_ = this->get_parameter("control_rate_hz").as_double();
     state_timeout_s_ = this->get_parameter("state_timeout_s").as_double();
+    future_tolerance_s_ = std::max(0.0, this->get_parameter("clock_future_tolerance_s").as_double());
     auto_append_new_joints_ = this->get_parameter("auto_append_new_joints").as_bool();
     cmd_timeout_s_   = this->get_parameter("cmd_timeout_s").as_double();
     if (!std::isfinite(cmd_timeout_s_) || cmd_timeout_s_ <= 0.0) {
@@ -271,7 +276,7 @@ private:
           const double freshness = simulation_zero_ ? 0.2 : 0.1;
           if (!response->success || !f.available || !f.fresh || f.joint_name != name ||
               f.fault_bits || !std::isfinite(f.age_s) || f.age_s < 0 || f.age_s > freshness ||
-              age < -0.01 || age > freshness || (f.status_mode != 0 && f.status_mode != 2)) {
+              age < -future_tolerance_s_ || age > freshness || (f.status_mode != 0 && f.status_mode != 2)) {
             enabled_evidence_.erase(name); return;
           }
           enabled_evidence_[name] = {f.status_mode == 2, Steady::now() +
@@ -609,7 +614,7 @@ private:
     const double explicit_expiry = rclcpp::Time(expiry).seconds();
     const double end = explicit_expiry > 0 ?
       std::min(source + cmd_timeout_s_, explicit_expiry) : source + cmd_timeout_s_;
-    if (source <= 0 || source > now + 0.01 || end <= now) return false;
+    if (source <= 0 || source > now + future_tolerance_s_ || end <= now) return false;
     result = {source, end, std::chrono::steady_clock::now() +
       std::chrono::duration_cast<std::chrono::steady_clock::duration>(
         std::chrono::duration<double>(end - now))};
@@ -688,7 +693,7 @@ private:
     if (!msg || msg->header.stamp.sec < 0 || msg->header.stamp.nanosec >= 1000000000u) return;
     const double source = rclcpp::Time(msg->header.stamp).seconds();
     const double age = this->now().seconds() - source;
-    if (source <= 0 || age < -0.01 || age > supervisor_timeout_s_ ||
+    if (source <= 0 || age < -future_tolerance_s_ || age > supervisor_timeout_s_ ||
         source <= supervisor_source_stamp_) return;
     for (const auto& status : msg->status) {
       if (status.name != "humanoid_safety/supervisor") continue;
@@ -710,7 +715,7 @@ private:
     }
     const double source_age = this->now().seconds() - supervisor_source_stamp_;
     if (std::chrono::duration<double>(now - supervisor_received_).count() > supervisor_timeout_s_ ||
-        source_age < -0.01 || source_age > supervisor_timeout_s_) {
+        source_age < -future_tolerance_s_ || source_age > supervisor_timeout_s_) {
       return "supervisor heartbeat expired";
     }
     if (supervisor_level_ != diagnostic_msgs::msg::DiagnosticStatus::OK) {
@@ -775,7 +780,7 @@ private:
       const double receipt_age = std::chrono::duration<double>(steady_now - sample.received_at).count();
       const double source_age = ros_now - sample.source_stamp;
       if (sample.source_stamp <= 0.0 || receipt_age < 0.0 || receipt_age > state_timeout_s_ ||
-          source_age < -0.01 || source_age > state_timeout_s_) return false;
+          source_age < -future_tolerance_s_ || source_age > state_timeout_s_) return false;
     }
     return true;
   }
@@ -1100,6 +1105,7 @@ private:
   int diag_n_rx_{0}, diag_n_tx_{0};
   std::chrono::steady_clock::time_point diag_last_tick_{};
   double state_timeout_s_{0.2};
+  double future_tolerance_s_{0.01};
   bool auto_append_new_joints_{false};
   double cmd_timeout_s_{0.5};
 

@@ -182,6 +182,9 @@ def simulation_and_stack(context):
                 'scene_builder': arg('scene_builder').perform(context),
                 'command_timeout_s': (NO_TIMEOUT_S if sim_time
                                       else float(arg('can_command_timeout_s').perform(context))),
+                # Simulated time: /clock reaches a commander (another process or
+                # host) before this loaded process applies it; allow 100 ms lead.
+                'command_future_tolerance_s': 0.1 if sim_time else 0.01,
                 'real_time_factor': ParameterValue(arg('real_time_factor'), value_type=float),
                 'policy_commands_topic': '',
                 'gil_switch_interval_s': float(arg('gil_switch_interval_s').perform(context)),
@@ -212,7 +215,8 @@ def simulation_and_stack(context):
                 'stereo_split': stereo_split,
                 'share_state': flag(context, 'share_state'),
                 'stereo_baseline_m': 0.05 if flag(context, 'enable_stereo') else 0.0,
-                'stereo_rate_hz': ParameterValue(arg('stereo_rate_hz'), value_type=float)},
+                'stereo_rate_hz': ParameterValue(arg('stereo_rate_hz'), value_type=float),
+                'stereo_shadows': flag(context, 'stereo_shadows')},
                yaw_error],
         # Without the simulator every other node would only report stale inputs.
         on_exit=[EmitEvent(event=Shutdown(reason='mujoco_sim exited'))],
@@ -237,7 +241,8 @@ def simulation_and_stack(context):
             package='humanoid_sim', executable='sim_stereo_publisher',
             output='screen',
             ros_arguments=['--log-level', arg('log_level')],
-            parameters=[{'stereo_rate_hz': ParameterValue(arg('stereo_rate_hz'), value_type=float)}])
+            parameters=[{'stereo_rate_hz': ParameterValue(arg('stereo_rate_hz'), value_type=float),
+                         'stereo_shadows': flag(context, 'stereo_shadows')}])
 
     stack = []
     if not minimal:
@@ -262,6 +267,9 @@ def simulation_and_stack(context):
                     # Its command deadlines and state/supervisor freshness use the
                     # host steady clock, which a slowed simulation lags.
                     **({'cmd_timeout_s': NO_TIMEOUT_S, 'state_timeout_s': NO_TIMEOUT_S,
+                        # /clock reaches this node later than the simulator stamps
+                        # joint states (another process or host); allow 100 ms lead.
+                        'clock_future_tolerance_s': 0.1,
                         'supervisor_warning_timeout_s': NO_TIMEOUT_S} if sim_time else {}),
                 }],
                 remappings=[('/desired_motor_subset', command_topic)]
@@ -378,7 +386,22 @@ def simulation_and_stack(context):
         started.append(True)
         return stack
 
-    nodes = [simulator] + [n for n in (split_imu, split_stereo) if n is not None]
+    sim_nodes = [simulator] + [n for n in (split_imu, split_stereo) if n is not None]
+    # Two-host split: 'sim' runs only the simulator processes (they share state_shm);
+    # 'robot' runs only the stack, which waits on DDS inputs from the other host.
+    # 'sim_control' keeps the 200 Hz control stack next to the simulator (like 'all')
+    # and 'perception' runs none of this launch: only the perception and planning
+    # nodes of the including launch, which tolerate the link's latency.
+    role = arg('role').perform(context).strip().lower()
+    if role not in ('all', 'sim', 'robot', 'sim_control', 'perception'):
+        raise ValueError('role must be all, sim, robot, sim_control or perception')
+    if role == 'sim':
+        return sim_nodes
+    if role == 'robot':
+        return stack
+    if role == 'perception':
+        return []
+    nodes = sim_nodes
     nodes.append(RegisterEventHandler(OnProcessIO(
         target_action=simulator, on_stdout=start_stack_once, on_stderr=start_stack_once)))
     return nodes
@@ -439,6 +462,7 @@ def generate_launch_description():
         ('enable_depth', 'false', 'Render aligned depth for the detector 3D output'),
         ('enable_stereo', 'false', 'Render a passive 50 mm grayscale stereo pair on /stereo/* for visual odometry'),
         ('stereo_rate_hz', '15.0', 'With enable_stereo: stereo frame rate'),
+        ('stereo_shadows', 'true', 'With enable_stereo: render shadows (false: ~4x faster under software GL)'),
         ('stereo_split', 'true', 'With enable_stereo: render in sim_stereo_publisher, not in mujoco_sim'),
         ('share_state', 'false', 'Share qpos/mocap in shared memory (state_shm) for recorders'),
         ('walk_slow_log_ms', '0.0', 'model_walk diagnostics: log cycles and cycle gaps longer than this (0 = off)'),
@@ -461,6 +485,7 @@ def generate_launch_description():
          'Publish /imu/data_raw from a separate process reading a shared snapshot'),
         ('imu_snapshot_path', '', 'Shared IMU snapshot file; empty uses the node default'),
         ('localhost_only', '1', 'Confine DDS discovery to this host (1) or not (0)'),
+        ('role', 'all', 'all; sim / robot, or sim_control / perception, to split across two hosts'),
         ('gil_switch_interval_s', '0.0', 'mujoco_sim Python GIL switch interval; 0 keeps the default 5 ms'),
         ('ros_domain_id', EnvironmentVariable('ROS_DOMAIN_ID', default_value='0'), 'ROS domain'),
         ('web_port', '8080', 'Read-only motor Web monitor port'),

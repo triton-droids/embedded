@@ -81,6 +81,7 @@ class SimControlNode(Node):
             'settle_s': 2.0,
             'start_base_held': True,
             'command_timeout_s': 0.5,
+            'command_future_tolerance_s': 0.01,
             'pause_on_control_fault': True,
             'dedicated_command_executor': False,
             'velocity_mode_kd': 2.0,
@@ -136,7 +137,8 @@ class SimControlNode(Node):
         model = mb.build_model(options)
         motors = MotorBank(limits, command_timeout_s=float(p['command_timeout_s']),
                            velocity_mode_kd=float(p['velocity_mode_kd']),
-                           allow_torque_only_motion=bool(p['allow_torque_only_motion']))
+                           allow_torque_only_motion=bool(p['allow_torque_only_motion']),
+                           future_tolerance_s=float(p['command_future_tolerance_s']))
         self.world = SimWorld(
             model, motors,
             head=HeadServoConfig() if options.add_head else None,

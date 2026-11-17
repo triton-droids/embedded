@@ -111,6 +111,9 @@ class SimStereoCameraNode(Node):
         self.declare_parameter('stereo_rate_hz', 15.0)
         self.declare_parameter('stereo_noise_std', 0.0)  # Gaussian sensor noise, grey levels.
         self.declare_parameter('stereo_seed', 3)
+        # Shadow passes cost ~4x per frame under software GL (llvmpipe, e.g. WSL2,
+        # where Mesa's d3d12 readback is slower still); features do not need them.
+        self.declare_parameter('stereo_shadows', True)
         from tf2_ros import StaticTransformBroadcaster, TransformBroadcaster
         self.model, self.data, self._lock, self._sync = model, data, lock, sync
         try:
@@ -185,6 +188,7 @@ class SimStereoCameraNode(Node):
         # the state (a shared-memory copy when split), so poll at 200 Hz only.
         pacer = FramePacer(self._period, bool(self.get_parameter('use_sim_time').value), poll_s=0.005)
         last_stamp_ns = None
+        shadows = bool(self.get_parameter('stereo_shadows').value)
         while not self._stop.is_set():
             rig = None
             with self._lock:  # Both views and the rig pose from one state.
@@ -192,6 +196,8 @@ class SimStereoCameraNode(Node):
                 if stamp_ns is not None and stamp_ns != last_stamp_ns and pacer.due(stamp_ns):
                     for renderer, camera in zip(renderers, self._ids):
                         renderer.update_scene(self.data, camera=camera)
+                        if not shadows:
+                            renderer.scene.flags[mujoco.mjtRndFlag.mjRND_SHADOW] = 0
                     stamp = Time(nanoseconds=int(stamp_ns)).to_msg()
                     rig = self._rig_transform(stamp)
             if rig is not None:  # A paused simulation repeats its stamp: send nothing.
