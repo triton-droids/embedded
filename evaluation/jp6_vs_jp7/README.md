@@ -99,5 +99,7 @@ L4T 版本、功耗模式）。
 - 3.2 容器要挂载主机的 tegra 和 VPI 库，并且以 `--privileged` 运行（迁移前的做法）。
 - 仿真机：WSL 里的 Humble 和 Jazzy 是两个发行版，硬件相同，但 ROS 版本和 Python
   不同。在 WSL 上测得的 RTF 差异也可能来自这里。
+- 常驻监控：JP7 那批跑时 Jetson 上挂着一个 Python 监控程序，JP6 上开着 `jtop`
+  服务（约占 1.5–2 % 总 CPU）。两边都有，占用量级相近；CPU 和功耗相差 1–2 % 以内的不作解读。
 - JP6 的 rosenv 和 `.deps` 是链接到 `embedded-sim-experimental` 的旧环境，
   检测器 engine 从 `embedded-vio-imu` 复制（TensorRT 10.3，同一台设备上构建）。

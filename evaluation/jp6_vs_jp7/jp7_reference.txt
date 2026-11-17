@@ -13,3 +13,4 @@ vis%/leg%: median final error as % of path. fail: physics paused (fall), simulat
 CPU%/peak/MHz/GPU%/RAM(MB)/mW: Jetson tegrastats means after the first fifth of each run.
 cuVSLAM frame-gap warnings ("Delta between current and previous frame ... above threshold") were not
 counted for JP7; its cuvslam.log files stay on that Jetson (~/split_test/<tag>/cuvslam.log).
+A Python monitoring program was running on the JP7 Jetson during these batches (JP6: the jtop service).
