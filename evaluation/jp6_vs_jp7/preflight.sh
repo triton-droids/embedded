@@ -33,7 +33,7 @@ check "free memory" on_jet 'free -m | awk "/Mem:/ {print \$7\" MB available\"; e
 
 echo "== DDS across the link (5 s)"
 check "WSL participant seen from Jetson" on_jet 'cd ~/Documents/Github/embedded-jp6-split && export ROS_DISTRO=humble && source scripts/activate_rosenv.sh >/dev/null && export ROS_DOMAIN_ID=99 ROS_LOCALHOST_ONLY=0 RMW_IMPLEMENTATION=rmw_cyclonedds_cpp DDS_LOCAL_IP=192.168.50.3 DDS_PEER_IP=192.168.50.1 CYCLONEDDS_URI=file://$PWD/install/humanoid_sim/share/humanoid_sim/config/cyclonedds_split.xml && (timeout 25 ros2 topic pub -r 5 /jp6_preflight std_msgs/msg/String "{data: jet}" >/dev/null 2>&1 < /dev/null &) && sleep 1'
-check "  ...topic echoed on WSL" on_wsl 'cd ~/ws/sim_experimental_cyclonedds && export ROS_DISTRO=humble && source scripts/activate_rosenv.sh >/dev/null && export ROS_DOMAIN_ID=99 ROS_LOCALHOST_ONLY=0 RMW_IMPLEMENTATION=rmw_cyclonedds_cpp DDS_LOCAL_IP=192.168.50.1 DDS_PEER_IP=192.168.50.3 CYCLONEDDS_URI=file://$(ros2 pkg prefix humanoid_sim)/share/humanoid_sim/config/cyclonedds_split.xml && timeout 15 ros2 topic echo --once /jp6_preflight std_msgs/msg/String | head -1'
+check "  ...topic echoed on WSL" on_wsl 'cd ~/ws/sim_experimental_cyclonedds && export ROS_DISTRO=humble && source scripts/activate_rosenv.sh >/dev/null && export ROS_DOMAIN_ID=99 ROS_LOCALHOST_ONLY=0 RMW_IMPLEMENTATION=rmw_cyclonedds_cpp DDS_LOCAL_IP=192.168.50.1 DDS_PEER_IP=192.168.50.3 CYCLONEDDS_URI=file://$(ros2 pkg prefix humanoid_sim)/share/humanoid_sim/config/cyclonedds_split.xml && timeout 15 ros2 topic echo --no-daemon --once /jp6_preflight std_msgs/msg/String | head -1'
 
 [ $fail = 0 ] && echo "All checks passed." || echo "Some checks failed."
 exit $fail
