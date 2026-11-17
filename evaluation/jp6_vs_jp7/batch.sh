@@ -7,8 +7,8 @@
 #   c_vio   c_vio01-10   control on WSL (sim_control/perception), VIO -> j6_c_vio01..
 #   c_vo    c_vo01-10    control on WSL, VO                 -> j6_c_vo01..
 # Rounds are interleaved (one run of every group per round), so stopping early
-# still leaves a balanced comparison. About 12 min per run.
-#   bash batch.sh                    # 10 rounds, all groups (~10 h)
+# still leaves a balanced comparison. About 6.5 min per run (JetPack 7 batches).
+#   bash batch.sh                    # 10 rounds, all groups (~5.5 h)
 #   N=3 RUN_GROUPS="ab_vio ab_vo" bash batch.sh
 #   START=4 bash batch.sh            # resume from round 4
 # Stop after the current run: touch /tmp/jp6_batch.stop

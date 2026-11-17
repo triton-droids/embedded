@@ -24,7 +24,7 @@
 | `c_vio` | WSL（`sim_control`/`perception`，CPU 0–3） | VIO | 0/9（c_vio09 作废） |
 | `c_vo` | WSL | VO | 1/10 |
 
-每轮约 12 分钟，5 组 × 10 轮约 10 小时。`batch.sh` 按轮交错跑，中途停也能对比。
+每轮约 6.5 分钟（JP7 实测），5 组 × 10 轮约 5.5 小时；`N=5` 约 2.7 小时。`batch.sh` 按轮交错跑，中途停也能对比。
 
 ## 明天的步骤
 
@@ -48,7 +48,7 @@
    bash preflight.sh
    ```
 
-3. 先试一轮（约 12 分钟），看结果正常再跑全部：
+3. 先试一轮（约 7 分钟），看结果正常再跑全部：
 
    ```bash
    N=1 RUN_GROUPS=ab_vio bash batch.sh
