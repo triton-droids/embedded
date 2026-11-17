@@ -100,6 +100,7 @@ def generate_launch_description():
         composable_node_descriptions=[ComposableNode(
             package='isaac_ros_visual_slam', plugin='nvidia::isaac_ros::visual_slam::VisualSlamNode',
             name='visual_slam_node', parameters=[CUVSLAM_PARAMS, {
+                'enable_imu_fusion': ParameterValue(arg('imu_fusion'), value_type=bool),  # Isaac ROS 3.2
                 'tracking_mode': ParameterValue(PythonExpression(["1 if '", arg('imu_fusion'), "'.lower() == 'true' else 0"]), value_type=int),
                 'use_sim_time': ParameterValue(arg('use_sim_time'), value_type=bool)}],
             # Same remappings as humanoid_localization/launch/cuvslam.launch.py.

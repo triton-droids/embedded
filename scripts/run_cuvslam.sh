@@ -14,6 +14,10 @@ if [[ "$mode" != run && $# -gt 0 ]]; then
   echo "Launch arguments are only accepted in run mode." >&2
   exit 2
 fi
+# JetPack 6 (L4T R36): the Isaac ROS 3.2 baseline image, for comparison runs.
+if [[ "$mode" != build ]] && grep -Eq '^# R36 \(release\)' /etc/nv_tegra_release 2>/dev/null; then
+  exec "$repo_dir/scripts/run_cuvslam_jp6.sh" "$mode" "$@"
+fi
 # A new container cannot replace the host BSP, driver or firmware.
 if [[ "$(uname -m)" != aarch64 ]] ||
    ! grep -Eq '^# R39 \(release\), REVISION: 2\.' /etc/nv_tegra_release 2>/dev/null; then

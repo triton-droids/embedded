@@ -1,4 +1,4 @@
-# cuVSLAM (isaac_ros_visual_slam, Isaac ROS 4.6) on the simulated passive stereo pair.
+# cuVSLAM (isaac_ros_visual_slam, Isaac ROS 4.6; 3.2 on JetPack 6) on the simulated passive stereo pair.
 # Stereo-inertial VO with the camera-carrier IMU (revL MPU9250, /head/imu), which
 # is rigid with the pair; the launch argument imu_fusion:=false gives pure stereo VO.
 # The body IMU (attitude) is still fused downstream by vio_localizer.
@@ -7,6 +7,7 @@ visual_slam_node:
     num_cameras: 2
     rectified_images: true          # Identical ideal pinholes, horizontal baseline.
     tracking_mode: 1          # 4.6: VIO; launch imu_fusion:=false selects mode 0 (VO).
+    enable_imu_fusion: true          # 3.2 (JetPack 6) equivalent; also set by imu_fusion.
     imu_frame: head_imu_link         # TF stereo_rig -> head_imu_link from sim_stereo_publisher.
     # MPU9250 datasheet white noise (continuous-time densities): gyro 0.01 deg/s/sqrt(Hz),
     # accel 300 ug/sqrt(Hz); the same values drive the simulated noise. Random walks
