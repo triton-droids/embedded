@@ -39,12 +39,16 @@ if(TRACK_ONLY)
   return()
 endif()
 
-# Prefer the project-local Ubuntu 4.5 SDK when available. Select it before
-# cv_bridge, whose dependency lookup also calls find_package(OpenCV).
-set(_opencv45_config "${CMAKE_CURRENT_SOURCE_DIR}/../.deps/opencv45/usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}/cmake/opencv4")
-if(EXISTS "${_opencv45_config}/OpenCVConfig.cmake")
-  set(OpenCV_DIR "${_opencv45_config}" CACHE PATH "OpenCV 4.5 SDK" FORCE)
-endif()
+# Prefer the project-local Ubuntu SDK (scripts/setup_opencv45.sh) when available:
+# 4.5 on Ubuntu 22.04, 4.6 on 24.04. Select it before cv_bridge, whose dependency
+# lookup also calls find_package(OpenCV).
+foreach(_sdk opencv45 opencv46)
+  set(_opencv_config "${CMAKE_CURRENT_SOURCE_DIR}/../.deps/${_sdk}/usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}/cmake/opencv4")
+  if(EXISTS "${_opencv_config}/OpenCVConfig.cmake")
+    set(OpenCV_DIR "${_opencv_config}" CACHE PATH "Ubuntu OpenCV SDK" FORCE)
+    break()
+  endif()
+endforeach()
 find_package(OpenCV 4.5 REQUIRED COMPONENTS core dnn highgui imgcodecs imgproc)
 # 4.5.x (Humble / JetPack 6) or 4.6.x (Ubuntu 24.04 system OpenCV on Jazzy / JetPack 7).
 if(NOT OpenCV_VERSION VERSION_LESS "4.7")

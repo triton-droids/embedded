@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Extract Ubuntu's OpenCV 4.5 SDK locally, retaining Jetson's system SDK.
+# Extract Ubuntu's OpenCV SDK locally, retaining Jetson's system SDK: 4.5.4 on
+# Ubuntu 22.04 (Humble / JetPack 6) into .deps/opencv45, 4.6.0 on Ubuntu 24.04
+# (Jazzy / JetPack 7) into .deps/opencv46.
 set -euo pipefail
 export LC_ALL=C
 trap 'echo "OpenCV setup failed at line $LINENO. Fix the error above and rerun this script." >&2' ERR
@@ -10,10 +12,17 @@ for command in apt-cache apt-get dpkg-deb dpkg-architecture cmake; do
   fi
 done
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-sdk_root="$repo_root/.deps/opencv45"
+# shellcheck source=/dev/null
+codename="$(. /etc/os-release && echo "${VERSION_CODENAME:-}")"
+case "$codename" in
+  jammy) version=4.5.4+dfsg-9ubuntu4 so_version=4.5.4d runtime_suffix='4[.]5d' sdk_name=opencv45 ;;
+  noble) version=4.6.0+dfsg-13.1ubuntu1 so_version=4.6.0 runtime_suffix='406t64' sdk_name=opencv46 ;;
+  *) echo "Unsupported Ubuntu release: ${codename:-unknown} (expected jammy or noble)" >&2; exit 1 ;;
+esac
+cmake_version="${so_version%d}"
+sdk_root="$repo_root/.deps/$sdk_name"
 mkdir -p "$sdk_root/debs"
 cd "$sdk_root/debs"
-version=4.5.4+dfsg-9ubuntu4
 packages=(libopencv-dev)
 # Capture separately: failures inside process substitutions bypass set -e.
 dependencies="$(apt-cache depends "libopencv-dev=$version")"
@@ -27,7 +36,7 @@ fi
 # Include runtime files: OpenCVConfig validates all exported module targets.
 dependencies="$(apt-cache depends "${packages[@]/%/=$version}")"
 mapfile -t runtimes < <(printf '%s\n' "$dependencies" |
-  awk '/Depends: libopencv-.*4\.5d$/ {print $2}' | sort -u)
+  awk -v suffix="$runtime_suffix" '$1 ~ /Depends:/ && $2 ~ ("^libopencv-.*" suffix "$") {print $2}' | sort -u)
 if ((${#runtimes[@]} == 0)); then
   echo "Could not resolve OpenCV $version runtime packages." >&2
   exit 1
@@ -55,15 +64,15 @@ for archive in "${archives[@]}"; do
 done
 multiarch="$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
 test -f "$sdk_root/usr/include/opencv4/opencv2/core.hpp"
-test -f "$sdk_root/usr/lib/$multiarch/libopencv_core.so.4.5.4d"
+test -f "$sdk_root/usr/lib/$multiarch/libopencv_core.so.$so_version"
 # Exercise the same package lookup as humanoid_vision. This checks all exported
 # library targets, rather than declaring success when only opencv_core exists.
 validation_dir="$(mktemp -d)"
 trap 'rm -rf -- "$validation_dir"' EXIT
-cat > "$validation_dir/CMakeLists.txt" <<'CMAKE'
+cat > "$validation_dir/CMakeLists.txt" <<CMAKE
 cmake_minimum_required(VERSION 3.8)
-project(validate_opencv45 LANGUAGES CXX)
-find_package(OpenCV 4.5.4 EXACT REQUIRED COMPONENTS core dnn highgui imgcodecs imgproc)
+project(validate_opencv LANGUAGES CXX)
+find_package(OpenCV $cmake_version EXACT REQUIRED COMPONENTS core dnn highgui imgcodecs imgproc)
 CMAKE
 cmake -S "$validation_dir" -B "$validation_dir/build" \
   -DOpenCV_DIR="$sdk_root/usr/lib/$multiarch/cmake/opencv4"
