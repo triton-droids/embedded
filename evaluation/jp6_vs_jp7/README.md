@@ -82,9 +82,11 @@
 | `preflight.sh` | WSL 或笔记本 | 两台机器、链路、编译、镜像、跨机 DDS 检查 |
 | `run_one.sh` | WSL 或笔记本 | 跑一轮：先起 WSL 仿真，15 s 后起 Jetson，等结束 |
 | `batch.sh` | WSL 或笔记本 | 5 组 × N 轮 |
-| `split_wsl6.sh` | WSL `~/`（Humble） | 仿真 + route_driver + 两个 localization_eval + RTF |
-| `split_jet6.sh` | JP6 Jetson `~/` | 机器人栈 + cuVSLAM + tegrastats + disable_probe |
-| `compare.py` | 笔记本 | JP6/JP7 对比表 |
+| `split_wsl6.sh` | WSL 仓库内（Humble） | 仿真 + route_driver + 两个 localization_eval + RTF |
+| `split_jet6.sh` | JP6 Jetson 仓库内 | 机器人栈 + cuVSLAM + tegrastats + disable_probe |
+| `compare.py` | 笔记本 | JP6/JP7 对比表（连不上 JP7 时用 `jp7_reference.txt`） |
+| `progress.py` | WSL | 实时进度：`watch -n 15 python3 progress.py` |
+| `stamp_probe.py`、`diag_run.sh` | WSL | 跑一轮时在两端统计双目/IMU 时间戳间隔 |
 
 `split_wsl6.sh`、`split_jet6.sh` 和 JP7 用的 `~/split_wsl.sh`、`~/split_jet.sh`
 逻辑一样，只换了仓库路径、ROS 版本和链路 IP。每轮多写一个 `meta.txt`（提交、参数、

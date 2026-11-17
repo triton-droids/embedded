@@ -14,8 +14,8 @@ check "reachable" on_wsl 'hostname'
 check "eth1 192.168.50.1" on_wsl 'ip -4 -br addr | grep -q "192.168.50.1/24"'
 check "ping Jetson 192.168.50.3" on_wsl 'ping -c 3 -W 2 192.168.50.3 | tail -1'
 check "rmem_max >= 32 MB" on_wsl '(( $(cat /proc/sys/net/core/rmem_max) >= 33554432 ))'
-check "checkout" on_wsl 'cd ~/ws/sim_experimental_cyclonedds && git log --oneline -1 && ls install/humanoid_sim/share/humanoid_sim/config/cyclonedds_split.xml >/dev/null'
-check "runner files" on_wsl 'ls ~/split_wsl6.sh ~/split_summary.py ~/rtf_test/clk.py >/dev/null'
+check "checkout" on_wsl 'cd ~/ws/sim_experimental_cyclonedds && grep -q LIBGL_ALWAYS_SOFTWARE evaluation/jp6_vs_jp7/split_wsl6.sh && git log --oneline -1 && ls install/humanoid_sim/share/humanoid_sim/config/cyclonedds_split.xml >/dev/null'
+check "runner files" on_wsl 'ls ~/split_summary.py ~/rtf_test/clk.py >/dev/null'
 check "no simulator running" on_wsl '! pgrep -fa "[m]ujoco_sim|[r]os2 launch"'
 
 echo "== Jetson ($JET, JetPack 6)"
@@ -27,7 +27,7 @@ check "rmem_max >= 32 MB" on_jet '(( $(cat /proc/sys/net/core/rmem_max) >= 33554
 check "build finished" on_jet 'grep -q "^EXIT=0" ~/jp6_build.log'
 check "cuVSLAM 3.2 image" on_jet 'cd ~/Documents/Github/embedded-jp6-split && scripts/run_cuvslam.sh check'
 check "detector engines" on_jet 'ls ~/Documents/Github/embedded-jp6-split/simulation/humanoid_ball_chase/assets/td-perception-fp16.engine >/dev/null'
-check "runner files" on_jet 'ls ~/split_jet6.sh ~/disable_probe.py >/dev/null'
+check "runner files" on_jet 'ls ~/disable_probe.py >/dev/null'
 check "nothing running" on_jet '! pgrep -fa "[r]os2 launch|[m]ujoco_sim" && ! docker ps -q --filter name=humanoid_ | grep -q .'
 check "free memory" on_jet 'free -m | awk "/Mem:/ {print \$7\" MB available\"; exit !(\$7 > 4000)}"'
 
