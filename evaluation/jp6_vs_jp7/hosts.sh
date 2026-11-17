@@ -1,0 +1,11 @@
+# Sourced by run_one.sh and preflight.sh: where the WSL and Jetson commands run.
+# On the WSL host itself (it owns 192.168.50.1) WSL commands run locally and the
+# Jetson is reached over the direct link; elsewhere (the laptop) both go over SSH.
+SSH="ssh -o ConnectTimeout=10 -o ServerAliveInterval=15 -o BatchMode=yes"
+if ip -4 -br addr 2>/dev/null | grep -q '192\.168\.50\.1/'; then
+  WSL=${WSL:-local}; JET=${JET:-td@192.168.50.3}
+else
+  WSL=${WSL:-rcli@192.168.1.129}; JET=${JET:-td@100.71.186.19}
+fi
+on_wsl() { if [ "$WSL" = local ]; then bash -c "$1"; else $SSH $WSL "$1"; fi; }
+on_jet() { $SSH $JET "$1"; }

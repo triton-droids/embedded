@@ -38,30 +38,35 @@
    Tailscale 不受影响。撤销：`sudo bash ~/jetson_link_setup.sh remove`。
    WSL 一侧的 192.168.50.1 是 Windows 网卡上的设置，不用改。
 
-2. 在笔记本上检查：
+2. 调度在 WSL 上跑（Humble 发行版，`ssh rcli@192.168.1.129`），笔记本可以合上。
+   WSL 的公钥已加到 JP6 的 `td`，经直连链路 `td@192.168.50.3` 登录
+   （WSL 访问不到 Tailscale 地址）。`hosts.sh` 检测到本机有 192.168.50.1 时自动用本地模式；
+   在笔记本上运行时还是走 ssh（`WSL=rcli@192.168.1.129 JET=td@100.71.186.19`）。
 
    ```bash
-   bash evaluation/jp6_vs_jp7/preflight.sh
+   cd ~/ws/sim_experimental_cyclonedds/evaluation/jp6_vs_jp7
+   bash preflight.sh
    ```
 
 3. 先试一轮（约 12 分钟），看结果正常再跑全部：
 
    ```bash
-   N=1 RUN_GROUPS=ab_vio bash evaluation/jp6_vs_jp7/batch.sh
+   N=1 RUN_GROUPS=ab_vio bash batch.sh
    ```
 
    试跑占用了 `j6_ab_vio01`，正式批量从第 2 轮开始或者先删掉它
    （WSL 和 Jetson 的 `~/split_test/j6_ab_vio01`）。
 
-4. 正式批量（笔记本要一直开着、能连到两台机器）：
+4. 正式批量：
 
    ```bash
-   nohup bash evaluation/jp6_vs_jp7/batch.sh > /tmp/jp6_batch.log 2>&1 &
+   setsid nohup bash batch.sh > ~/jp6_batch.log 2>&1 < /dev/null &
    ```
 
    跑完当前这轮后停：`touch /tmp/jp6_batch.stop`；续跑：`START=4 bash batch.sh`。
+   WSL 不能关，Windows 也不能睡眠。
 
-5. 对比：
+5. 对比（在笔记本上，要读 JP7 Jetson 192.168.1.44 的数据）：
 
    ```bash
    python3 evaluation/jp6_vs_jp7/compare.py          # 每组汇总
@@ -73,9 +78,10 @@
 | 文件 | 在哪跑 | 作用 |
 |---|---|---|
 | `jetson_link_setup.sh` | JP6 Jetson，sudo | 链路 IP 和 rmem_max |
-| `preflight.sh` | 笔记本 | 两台机器、链路、编译、镜像、跨机 DDS 检查 |
-| `run_one.sh` | 笔记本 | 跑一轮：先起 WSL 仿真，15 s 后起 Jetson，等结束 |
-| `batch.sh` | 笔记本 | 5 组 × N 轮 |
+| `hosts.sh` | — | 判断在 WSL 本地还是笔记本上运行 |
+| `preflight.sh` | WSL 或笔记本 | 两台机器、链路、编译、镜像、跨机 DDS 检查 |
+| `run_one.sh` | WSL 或笔记本 | 跑一轮：先起 WSL 仿真，15 s 后起 Jetson，等结束 |
+| `batch.sh` | WSL 或笔记本 | 5 组 × N 轮 |
 | `split_wsl6.sh` | WSL `~/`（Humble） | 仿真 + route_driver + 两个 localization_eval + RTF |
 | `split_jet6.sh` | JP6 Jetson `~/` | 机器人栈 + cuVSLAM + tegrastats + disable_probe |
 | `compare.py` | 笔记本 | JP6/JP7 对比表 |
