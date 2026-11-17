@@ -7,5 +7,6 @@ if ip -4 -br addr 2>/dev/null | grep -q '192\.168\.50\.1/'; then
 else
   WSL=${WSL:-rcli@192.168.1.129}; JET=${JET:-td@100.71.186.19}
 fi
-on_wsl() { if [ "$WSL" = local ]; then bash -c "$1"; else $SSH $WSL "$1"; fi; }
-on_jet() { $SSH $JET "$1"; }
+# pipefail: a check such as "ping ... | tail -1" must fail when ping fails.
+on_wsl() { if [ "$WSL" = local ]; then bash -o pipefail -c "$1"; else $SSH $WSL "set -o pipefail; $1"; fi; }
+on_jet() { $SSH $JET "set -o pipefail; $1"; }
