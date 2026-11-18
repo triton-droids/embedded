@@ -1,3 +1,5 @@
+**Note: The main branch is depreciated. Further update to be added.**
+
 # Humanoid ROS 2 Control Stack
 
 ROS 2 workspace for humanoid leg policy inference, RobStride CAN communication,
