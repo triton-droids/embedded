@@ -1,92 +1,105 @@
 digraph Nodes {
-  graph [rankdir=TB, bgcolor="#f7f9fc", pad="0.35", nodesep="0.38", ranksep="0.8", fontname="DejaVu Sans", fontsize=23, labelloc=t, label="Current Robot Node Topology\nRepository wiring and optional launch paths — not a live process graph", compound=true];
+  graph [rankdir=TB, bgcolor="#f7f9fc", pad="0.35", nodesep="0.38", ranksep="0.75", fontname="DejaVu Sans", fontsize=23, labelloc=t, label="Robot Node Topology\nRepository wiring and launch options — not a live process graph · not verified on the physical robot", compound=true, newrank=true];
   node [shape=box, style="rounded,filled", fillcolor=white, color="#94a3b8", fontname="DejaVu Sans", fontsize=13, margin="0.16,0.12"];
   edge [fontname="DejaVu Sans", fontsize=10, color="#64748b", arrowsize=0.75];
 
   subgraph cluster_inputs {
     label="SENSORS / HARDWARE"; color="#cbd5e1"; style="rounded"; fontsize=16;
-    imu [label="External body IMU producer\nmicro-ROS Agent / external module\nIntegration owned externally", fillcolor="#e0f2fe"];
-    motors [label="10 RobStride motors\nMIT mode / CAN feedback", shape=cylinder, fillcolor="#e0f2fe"];
-    camera [label="realsense2_camera_node\nColor / aligned depth / CameraInfo", fillcolor="#e0f2fe"];
+    bodyimu [label="body_imu_mcu (ESP32-S3 + BNO085)\nmicro-ROS via micro_ros_agent\n/imu/data_raw 100 Hz · /imu/status", fillcolor="#e0f2fe"];
+    motors [label="10 RobStride motors on can1\nMIT mode · status / fault frames", shape=cylinder, fillcolor="#e0f2fe"];
+    camera [label="realsense2_camera_node\ncolor / aligned depth / CameraInfo", fillcolor="#e0f2fe"];
   }
-  subgraph cluster_control {
-    label="ROS 2 CONTROL — PC / JETSON HOST PLACEMENT IS DEPLOYMENT-SPECIFIC"; color="#93c5fd"; style="rounded"; fontsize=16;
-    onnx [label="tracking_policy_node\nONNX inference worker · 50 Hz\nModel PD + trained angle bounds", fillcolor="#dbeafe"];
-    torch [label="policy_bridge_node\nOptional Torch adapter\nSeparate model contract", fillcolor="#f1f5f9"];
-    cpp [label="cpp_control_node\ncontrol_core · 50 Hz by default\nCommand / state freshness\nSupervisor warnings; no registered SafetyFeature", fillcolor="#dbeafe"];
-    can [label="python_can_node\nIndependent TX + per-bus RX\nPer-joint deadlines / async enable ACK\nHardware registry guard", fillcolor="#dbeafe"];
-    fake [label="fake_motor_node\nOptional CAN replacement\nIsolated bench feedback", fillcolor="#f1f5f9"];
-    feedback [label="Selected JointState stream\n/joint_states: hybrid / hardware\n/policy/joint_states: ONNX bench", shape=note, fillcolor="#ecfdf5"];
-    bench [label="/policy/motor_commands\nONNX launch output is isolated\nNo CAN or auto-enable in that launch", shape=note, fillcolor="#fef3c7"];
-    safety [label="safety_node\nLatched supervisor · 100 Hz\nExternal attitude-input integration pending", fillcolor="#ffedd5"];
-    stop [label="/safety/estop\nExplicit stop signal", shape=note, fillcolor="#fee2e2"];
-  }
-  subgraph cluster_monitors {
-    label="SAFETY PACKAGE MONITOR MODES — ROS DDS / SAME ROS_DOMAIN_ID"; style="rounded"; color="#86efac"; fontsize=16;
-    web [label="motor_web_node\nRead-only ROS telemetry cache\nHTTP status + freshness", fillcolor="#dcfce7"];
-    browser [label="Web browser\nGET /api/status", fillcolor="#dcfce7"];
-    relay [label="joint_state_monitor_node\nSource-age / numeric validation\nPreserve source timestamps", fillcolor="#dcfce7"];
-    rsp [label="robot_state_publisher\nURDF joint transforms\nStart once per robot / domain", fillcolor="#dcfce7"];
-    rviz [label="rviz2\nRobotModel / TF / local visual meshes\nBase fixed in world", fillcolor="#dcfce7"];
-  }
-  subgraph cluster_vision {
-    label="INDEPENDENT VISION / HEAD BRANCH"; style="rounded"; color="#c4b5fd"; fontsize=16;
-    detect [label="ball_detection_node\nYOLO / aligned depth", fillcolor="#ede9fe"];
-    tracker [label="track_node\nVisual target → limited servo angle", fillcolor="#ede9fe"];
-    head [label="Head micro-ROS Agent / MCU\nPCA9685 servo command + watchdog\n/head/imu is not the body IMU", fillcolor="#ede9fe"];
-  }
-  subgraph cluster_sdk {
-    label="LEGACY / DEPRECATED — APPLICATION SDK PATHS\nStill in repository; SDK gateway is opt-in (default OFF)";
-    style="rounded,dashed"; penwidth=2.4; color="#dc2626"; fontcolor="#991b1b"; fontsize=16;
-    sdkui [label="legacy/sdk_prototype/webui\nMotorGrpcClient / SDK clients", fillcolor="#fff1f2", color="#f87171"];
-    gateway [label="motor_sdk_gateway_node\ngRPC server → direct ROS commands\nBypasses cpp_control_node", fillcolor="#fff1f2", color="#f87171"];
-    directui [label="legacy/sdk_prototype/robstride_webui\nLegacy direct-CAN gain tuner\nBypasses ROS control", fillcolor="#fff1f2", color="#f87171"];
-  }
-  demo [label="double_pendulum_websocket_node\nOptional legacy demo UI\nDistinct from read-only safety Web UI", fillcolor="#f1f5f9"];
 
-  imu -> onnx [label="Imu · configured imu_topic"];
-  imu -> torch [label="Imu · optional adapter"];
-  imu -> safety [label="Configured Imu input\nQoS / orientation contract pending", color="#d97706"];
-  feedback -> onnx [label="Real-feedback mode only\nDefault ONNX bench uses zero feedback", constraint=false];
-  feedback -> torch [label="JointState", constraint=false];
+  subgraph cluster_control {
+    label="CONTROL — motor_control_hybrid"; color="#93c5fd"; style="rounded"; fontsize=16;
+    onnx [label="tracking_policy_node\nONNX policy · 50 Hz\nmodel PD gains + trained joint bounds", fillcolor="#dbeafe"];
+    cpp [label="cpp_control_node\ncontrol_core · 50 Hz\ncommand / feedback freshness, estop", fillcolor="#dbeafe"];
+    subgraph cluster_backends {
+      label="CAN BACKEND — exactly one (hybrid_control.launch.py can_backend:=)"; style="rounded,dashed"; color="#60a5fa"; fontsize=13;
+      pycan [label="python_can_node (default)\nTX thread + per-bus RX threads\nper-joint deadlines / async enable ACK", fillcolor="#dbeafe"];
+      cppcan [label="robstride_can_node (C++)\nsame contract, raw SocketCAN\nframe-identical to Python on vcan", fillcolor="#dbeafe"];
+      fake [label="fake_motor_node\nenable_fake_motor:=true\nbench feedback, no dynamics", fillcolor="#f1f5f9"];
+    }
+    encos [label="encos_can_node\nENCOS actuators (not RobStride)\nskeleton, never run on motors", fillcolor="#f1f5f9", color="#cbd5e1"];
+    feedback [label="JointState feedback\n/joint_states (hybrid / hardware)\n/policy/joint_states (ONNX bench)", shape=note, fillcolor="#ecfdf5"];
+    bench [label="/policy/motor_commands\nONNX launch output stays isolated\nno CAN, no auto-enable", shape=note, fillcolor="#fef3c7"];
+  }
+
+  subgraph cluster_safety {
+    label="SAFETY — humanoid_safety"; color="#fdba74"; style="rounded"; fontsize=16;
+    safety [label="safety_node · 100 Hz\nfall detection, IMU freshness / stuck\nlatched estop · /safety/reset", fillcolor="#ffedd5"];
+    stop [label="/safety/estop\nreliable · transient-local", shape=note, fillcolor="#fee2e2"];
+    fallp [label="fall_predictor_node (opt-in)\nlearned 300 / 600 ms CNN, ONNX\nadvisory only — never trips estop", fillcolor="#ffedd5"];
+    coll [label="self_collision_monitor_node\nmeasured / target / path clearance\nadvisory only", fillcolor="#ffedd5"];
+  }
+
+  subgraph cluster_monitors {
+    label="READ-ONLY MONITORING — same ROS_DOMAIN_ID"; style="rounded"; color="#86efac"; fontsize=16;
+    web [label="motor_web_node\nHTTP status, default 127.0.0.1:8080", fillcolor="#dcfce7"];
+    browser [label="Web browser\nGET /api/status", fillcolor="#dcfce7"];
+    relay [label="joint_state_monitor_node\nvalidate + relay, keep source stamps", fillcolor="#dcfce7"];
+    rsp [label="robot_state_publisher", fillcolor="#dcfce7"];
+    rviz [label="rviz2", fillcolor="#dcfce7"];
+  }
+
+  subgraph cluster_vision {
+    label="VISION / HEAD — independent of the leg control path"; style="rounded"; color="#c4b5fd"; fontsize=16;
+    detect [label="ball_detection_node\nYOLO + optional depth projection", fillcolor="#ede9fe"];
+    tracker [label="track_node\npixel error → limited servo angle", fillcolor="#ede9fe"];
+    head [label="head_mcu (ESP32-S3 + PCA9685)\nservo PWM + command watchdog\n/head/imu is not the body IMU", fillcolor="#ede9fe"];
+  }
+
+  subgraph cluster_legacy {
+    label="LEGACY — retained, opt-in, bypass the C++ scheduler"; style="rounded,dashed"; penwidth=2.2; color="#dc2626"; fontcolor="#991b1b"; fontsize=15;
+    torch [label="policy_bridge_node\nTorch adapter, separate contract", fillcolor="#fff1f2", color="#f87171"];
+    gateway [label="motor_sdk_gateway_node\ngRPC → /motor_commands", fillcolor="#fff1f2", color="#f87171"];
+    demo [label="double_pendulum_websocket_node\nWebSocket demo → /motor_commands", fillcolor="#fff1f2", color="#f87171"];
+    serialimu [label="imu_reader_node\nserial IMU reader (alternative producer)", fillcolor="#fff1f2", color="#f87171"];
+  }
+
+  bodyimu -> onnx [label="/imu/data_raw"];
+  bodyimu -> safety [label="/imu/data_raw"];
+  bodyimu -> fallp [label="/imu/data_raw"];
+  feedback -> onnx [label="joint_feedback_mode:=joint_states", constraint=false];
   feedback -> cpp [label="JointState", constraint=false];
-  onnx -> cpp [label="/policy/desired_motor_subset\nOptional C++ bench instance"];
-  torch -> cpp [label="/desired_motor_subset\nHybrid path"];
-  cpp -> can [label="/motor_commands\nHybrid instance only"];
+  onnx -> cpp [label="/policy/desired_motor_subset\n(remapped bench instance)"];
+  cpp -> pycan [label="/motor_commands"];
+  cpp -> cppcan [label="/motor_commands"];
+  cpp -> fake [label="/motor_commands"];
   cpp -> bench [label="ONNX launch remap"];
-  bench -> fake [label="If policy fake node is enabled"];
-  cpp -> fake [label="/motor_commands\nHybrid fake mode"];
-  can -> motors [label="Nonblocking MIT command frames"];
-  motors -> can [label="CAN status / fault frames", constraint=false];
-  can -> feedback [label="JointState"];
+  bench -> fake [label="policy fake backend"];
+  pycan -> motors [label="MIT / enable / disable / parameter frames"];
+  cppcan -> motors [label="identical frames"];
+  motors -> pycan [label="status / fault frames", constraint=false];
+  motors -> cppcan [constraint=false];
+  pycan -> feedback [label="JointState"];
+  cppcan -> feedback [label="JointState"];
   fake -> feedback [label="JointState"];
   safety -> stop [label="Bool · latched"];
-  safety -> cpp [label="/safety/status · diagnostics\nLost / unhealthy → warning only", color="#d97706"];
+  safety -> cpp [label="/safety/status · warning only", color="#d97706"];
   stop -> cpp [color="#dc2626", constraint=false];
-  stop -> can [color="#dc2626", constraint=false];
+  stop -> pycan [color="#dc2626", constraint=false];
+  stop -> cppcan [color="#dc2626", constraint=false];
   stop -> onnx [color="#dc2626", constraint=false];
   stop -> fake [color="#dc2626", constraint=false];
-  feedback -> web [label="Selectable source_topic"];
-  can -> web [label="/motor_status\nOptional temperature telemetry"];
-  stop -> web [label="Read-only last reported status", color="#dc2626", constraint=false];
-  web -> browser [label="HTTP · localhost by default\nDDS is between ROS nodes, not browsers"];
-  feedback -> relay [label="Selectable source_topic"];
+  stop -> fallp [label="gates windows", color="#dc2626", constraint=false];
+  feedback -> coll [label="/joint_states"];
+  onnx -> coll [label="/policy/target_angles"];
+  feedback -> web [label="source_topic"];
+  pycan -> web [label="/motor_telemetry"];
+  web -> browser [label="HTTP"];
+  feedback -> relay [label="source_topic"];
   relay -> rsp [label="/safety/visualization/joint_states"];
-  rsp -> rviz [label="/tf + /tf_static + /robot_description"];
-  camera -> detect [label="Images + CameraInfo"];
+  rsp -> rviz [label="/tf · /robot_description"];
+  camera -> detect [label="images + CameraInfo"];
   camera -> tracker [label="CameraInfo"];
   detect -> tracker [label="/vision/target_center"];
   tracker -> head [label="/head/servo_target_rad"];
-  sdkui -> gateway [label="gRPC", color="#dc2626"];
-  gateway -> can [label="/motor_commands\nLegacy bypass", color="#dc2626", constraint=false];
-  feedback -> gateway [label="/joint_states", color="#dc2626", constraint=false];
-  directui -> motors [label="Legacy direct CAN", color="#dc2626", constraint=false];
-  demo -> can [label="/motor_commands · optional demo", color="#94a3b8", constraint=false];
+  torch -> cpp [label="/desired_motor_subset", color="#dc2626"];
+  gateway -> pycan [label="/motor_commands", color="#dc2626", constraint=false];
+  demo -> pycan [label="/motor_commands", color="#dc2626", constraint=false];
+  serialimu -> onnx [label="/imu/data_raw (instead of MCU)", color="#dc2626", style=dashed, constraint=false];
 
-  legend [label="READING NOTES\nBoxes: ROS nodes / named components. Notes: topics or launch constraints.\nAll cross-host ROS participants require matching domain / DDS network settings.\nONNX bench and hybrid hardware paths are alternatives, not one default launch.\nDashed red enclosure: deprecated application SDK paths (not the active MIT codec).\nFK / collision checks and new speed / torque / tracking-error thresholds are NOT implemented.", shape=note, fillcolor="#ffffff", fontsize=12];
-  feedback -> demo [label="JointState · demo feedback", constraint=false];
-  can -> gateway [label="/motor_status", color="#dc2626", constraint=false];
-  cpp -> sdkui [style=invis];
+  legend [label="READING NOTES\nBoxes: ROS nodes / devices. Notes: topics or launch constraints.\nThe ONNX bench and the hybrid hardware path are separate launches; they are not composed automatically.\nOnly one CAN backend may own can1 at a time. The shipped motor registry is hardware_verified: false.\nAdvisory nodes (fall predictor, self-collision) publish warnings only; safety_node is the only estop authority.\nNot implemented: actual-speed / total-torque / tracking-error threshold checks.", shape=note, fillcolor="#ffffff", fontsize=12];
   rviz -> legend [style=invis];
-  head -> demo [style=invis];
 }

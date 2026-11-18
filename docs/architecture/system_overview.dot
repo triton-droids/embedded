@@ -1,0 +1,68 @@
+digraph System {
+  graph [rankdir=TB, bgcolor="#f7f9fc", pad="0.35", nodesep="0.3", ranksep="0.55", newrank=true, fontname="DejaVu Sans", fontsize=24, labelloc=t, label="Humanoid ROS 2 Stack — Deployment Overview\nNOT VERIFIED ON THE PHYSICAL ROBOT: software, vcan and bench tests only", compound=true];
+  node [shape=box, style="rounded,filled", fillcolor=white, color="#94a3b8", fontname="DejaVu Sans", fontsize=13, margin="0.16,0.1"];
+  edge [fontname="DejaVu Sans", fontsize=11, color="#64748b", arrowsize=0.75];
+
+  subgraph cluster_hw {
+    label="ROBOT HARDWARE"; style="rounded"; color="#7dd3fc"; fontsize=17;
+    motors [label="10 × RobStride RS02 / RS03 / RS04\nMIT mode · 1 Mbit/s CAN\nlegs: hip1, hip2, thigh, knee, ankle (four-bar) ×2", shape=cylinder, fillcolor="#e0f2fe"];
+    canusb [label="USB-CAN adapter (gs_usb)\nSocketCAN can1\nJP7 kernel: gs_usb built out of tree", fillcolor="#e0f2fe"];
+    bodymcu [label="Body MCU (ESP32-S3 + BNO085)\nmicro-ROS over USB UART · /imu/data_raw 100 Hz\ngame rotation vector, no magnetometer", fillcolor="#e0f2fe"];
+    headmcu [label="Head MCU (ESP32-S3 + PCA9685)\nmicro-ROS · servo PWM ch. 8\n/head/imu raw, no orientation", fillcolor="#e0f2fe"];
+    cam [label="Intel RealSense D435\ncolor + aligned depth\n(no IMU)", fillcolor="#e0f2fe"];
+    motors -> canusb [dir=both, label="CAN"];
+  }
+
+  subgraph cluster_jetson {
+    label="JETSON ORIN · JetPack 7.2 (L4T R39.2) · Ubuntu 24.04 · ROS 2 Jazzy · CycloneDDS"; style="rounded"; color="#93c5fd"; fontsize=17;
+    agent [label="micro_ros_agent\nserial transport per MCU", fillcolor="#dbeafe"];
+    subgraph cluster_ctrl {
+      label="motor_control_hybrid"; style="rounded,dashed"; color="#60a5fa"; fontsize=14;
+      policy [label="tracking_policy_node\nONNX policy · 50 Hz", fillcolor="#dbeafe"];
+      cppc [label="cpp_control_node\ncommand scheduler · 50 Hz", fillcolor="#dbeafe"];
+      canbe [label="CAN backend (can_backend:=)\npython_can_node  — default\nrobstride_can_node — C++, vcan-verified", fillcolor="#dbeafe"];
+      fake [label="fake_motor_node\nbench replacement for CAN", fillcolor="#f1f5f9"];
+    }
+    subgraph cluster_safety {
+      label="humanoid_safety"; style="rounded,dashed"; color="#fb923c"; fontsize=14;
+      sup [label="safety_node\nlatched /safety/estop", fillcolor="#ffedd5"];
+      fallp [label="fall_predictor_node\nadvisory · /safety/fall_warning", fillcolor="#ffedd5"];
+      coll [label="self_collision_monitor_node\nadvisory · /safety/self_collision", fillcolor="#ffedd5"];
+      mon [label="motor_web_node · joint_state_monitor_node\nread-only HTTP / JointState relay", fillcolor="#dcfce7"];
+    }
+    subgraph cluster_vision {
+      label="humanoid_vision"; style="rounded,dashed"; color="#a78bfa"; fontsize=14;
+      rs [label="realsense2_camera_node", fillcolor="#ede9fe"];
+      det [label="ball_detection_node\nYOLO (TensorRT / OpenCV DNN)", fillcolor="#ede9fe"];
+      trk [label="track_node\nsingle-axis head servo angle", fillcolor="#ede9fe"];
+    }
+  }
+
+  subgraph cluster_pc {
+    label="OPERATOR PC (same ROS_DOMAIN_ID)"; style="rounded"; color="#86efac"; fontsize=17;
+    rviz [label="robot_state_publisher + RViz\nleg URDF display", fillcolor="#dcfce7"];
+    browser [label="Web browser\nmotor telemetry page", fillcolor="#dcfce7"];
+  }
+
+  canusb -> canbe [dir=both, label="SocketCAN frames"];
+  bodymcu -> agent [label="USB serial"];
+  headmcu -> agent [dir=both, label="USB serial"];
+  cam -> rs [label="USB 3"];
+  agent -> policy [label="/imu/data_raw"];
+  agent -> sup [label="/imu/data_raw"];
+  agent -> fallp [label="/imu/data_raw"];
+  policy -> cppc [label="desired MotorCommand"];
+  cppc -> canbe [label="/motor_commands"];
+  cppc -> fake [label="/motor_commands (bench)", style=dashed];
+  canbe -> cppc [label="/joint_states", constraint=false];
+  sup -> canbe [label="/safety/estop", color="#dc2626"];
+  sup -> cppc [label="/safety/estop", color="#dc2626", constraint=false];
+  rs -> det [label="images"];
+  det -> trk [label="/vision/target_center"];
+  trk -> agent [label="/head/servo_target_rad"];
+  canbe -> mon [label="/joint_states, /motor_telemetry"];
+  mon -> rviz [label="DDS · JointState relay"];
+  mon -> browser [label="HTTP :8080"];
+  canbe -> coll [label="/joint_states"];
+  policy -> coll [label="/policy/target_angles"];
+}
