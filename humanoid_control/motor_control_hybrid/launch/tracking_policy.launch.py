@@ -1,5 +1,6 @@
 """IMU -> ONNX tracking -> monitor topics, with an optional isolated C++ bench."""
 from pathlib import Path
+from typing import List
 import yaml
 
 from ament_index_python.packages import get_package_share_directory
@@ -19,6 +20,8 @@ def generate_launch_description():
     defaults = {
         'model_path': str(Path(get_package_share_directory('motor_control_hybrid')) /
                           'models/20260914_170827/20260914_170827.onnx'),
+        # YAML list of extra models to preload for /policy/switch_model.
+        'model_paths': '[]',
         'port': '/dev/ttyACM0', 'baud': '460800', 'input_format': 'json',
         'start_imu_reader': 'false', 'imu_topic': '/imu/data_raw',
         'joint_states_topic': '/policy/joint_states',
@@ -45,7 +48,9 @@ def generate_launch_description():
     policy = Node(
         package='motor_control_hybrid', executable='tracking_policy_node', output='screen',
         parameters=[{
-            'model_path': cfg('model_path'), 'control_rate_hz': contract['control_hz'],
+            'model_path': cfg('model_path'),
+            'model_paths': ParameterValue(cfg('model_paths'), value_type=List[str]),
+            'control_rate_hz': contract['control_hz'],
             'motor_config_file': str(registry_path),
             'imu_topic': cfg('imu_topic'), 'joint_states_topic': cfg('joint_states_topic'),
             'joint_feedback_mode': cfg('joint_feedback_mode'),

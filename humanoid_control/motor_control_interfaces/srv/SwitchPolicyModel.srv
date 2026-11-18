@@ -1,0 +1,13 @@
+# Switch tracking_policy_node to a model preloaded at startup (see its
+# model_path/model_paths parameters). model_name is the ONNX file stem.
+# The switch applies from the next control tick: a tick already in progress
+# finishes and publishes on the previous model, so no output period is lost.
+string model_name
+# true: play the new model's embedded reference from frame 0.
+# false: keep the reference clock; the frame index holds/loops in the new export.
+bool restart_reference
+---
+bool success
+string message
+string active_model
+string[] available_models

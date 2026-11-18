@@ -17,10 +17,12 @@ from rclpy._rclpy_pybind11 import RCLError
 from ament_index_python.packages import get_package_share_directory
 from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
+from rclpy.parameter import Parameter
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Imu, JointState
 from std_msgs.msg import Bool, Float64MultiArray, String
 from motor_control_interfaces.msg import MotorCommand
+from motor_control_interfaces.srv import SwitchPolicyModel
 
 from motor_control_hybrid.tracking_onnx import (
     GravityEstimator, TrackingPolicy, fresh, joint_feedback, validate_tracking_registry, apply_runtime_policy)
@@ -55,6 +57,8 @@ class TrackingPolicyNode(Node):
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
+        # Extra switchable models; unset or [] means only model_path is loaded.
+        self.declare_parameter('model_paths', Parameter.Type.STRING_ARRAY)
         param = lambda name: self.get_parameter(name).value
         self.rate = float(param('control_rate_hz'))
         self.timeout = float(param('input_timeout_s'))
@@ -82,27 +86,52 @@ class TrackingPolicyNode(Node):
         if (not np.allclose(self.rotation @ self.rotation.T, np.eye(3), atol=1e-6)
                 or not np.isclose(np.linalg.det(self.rotation), 1.0)):
             raise ValueError('imu_to_body_rotation must be a proper orthonormal rotation')
+        # Every switchable model is loaded, validated and warmed up here so a
+        # switch is only a reference swap; nothing is loaded while running.
         model = Path(str(param('model_path'))).expanduser()
-        self.policy = TrackingPolicy(model)
-        self.model_sha256 = hashlib.sha256(model.read_bytes()).hexdigest()
+        model_paths = [model] + [Path(path).expanduser()
+                                 for path in self.get_parameter_or('model_paths').value or []]
         registry_path = str(param('motor_config_file'))
-        if registry_path:
-            params = yaml.safe_load(Path(registry_path).read_text())['motor_control_node']['ros__parameters']
-            validate_tracking_registry(self.policy, params, self.model_sha256)
-            apply_runtime_policy(self.policy, params)
+        registry = (yaml.safe_load(Path(registry_path).read_text())['motor_control_node']['ros__parameters']
+                    if registry_path else None)
+        self.policies, self.model_sha256s, model_files = {}, {}, {}
+        for path in model_paths:
+            if path.stem in self.policies:
+                if path.resolve() == model_files[path.stem]:
+                    continue
+                raise ValueError(f'Two switchable models share the name {path.stem}')
+            policy = TrackingPolicy(path)
+            sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
+            if self.policies and policy.names != self.policy.names:
+                raise ValueError(f'{path.stem}: joint order differs from {model.stem}')
+            if registry is not None:
+                # Only model_path is pinned by hash; alternates must match the
+                # same joint contract, gains and limits as the motor registry.
+                validate_tracking_registry(policy, registry, sha256,
+                                           check_sha256=not self.policies)
+                apply_runtime_policy(policy, registry)
+            dummy_previous = np.zeros(10, dtype=np.float32)
+            for frame in range(30):
+                obs = policy.observation(frame % policy.frames, np.zeros(3),
+                                         np.array([0, 0, -1]), policy.offset,
+                                         np.zeros(10), dummy_previous)
+                policy.run(obs, frame % policy.frames)
+            self.policies[path.stem] = policy
+            self.model_sha256s[path.stem] = sha256
+            model_files[path.stem] = path.resolve()
+            if len(self.policies) == 1:
+                self.policy = policy
+        self.model_name = model.stem
+        self.model_sha256 = self.model_sha256s[self.model_name]
         self.previous = np.zeros(10, dtype=np.float32)
-        for frame in range(30):
-            obs = self.policy.observation(frame % self.policy.frames, np.zeros(3),
-                                          np.array([0, 0, -1]), self.policy.offset,
-                                          np.zeros(10), self.previous)
-            self.policy.run(obs, frame % self.policy.frames)
         self.reference_end_behavior = str(param('reference_end_behavior'))
         self.loop_start = int(param('reference_loop_start_frame'))
         self.loop_end = int(param('reference_loop_end_frame'))
         if self.reference_end_behavior not in ('hold_last_frame', 'loop'):
             raise ValueError('reference_end_behavior must be hold_last_frame or loop')
-        if self.reference_end_behavior == 'loop' and not 0 <= self.loop_start < self.loop_end <= self.policy.frames:
-            raise ValueError('Reference loop must fit the exported reference frames')
+        if self.reference_end_behavior == 'loop' and not all(
+                0 <= self.loop_start < self.loop_end <= policy.frames for policy in self.policies.values()):
+            raise ValueError('Reference loop must fit the exported reference frames of every model')
         self.reference_cycles = 0
         self.wait_for_sim_release = bool(param('wait_for_sim_release'))
         self.reference_started = None
@@ -131,6 +160,7 @@ class TrackingPolicyNode(Node):
         # The launch never forwards this to a hardware motor topic.
         self.command_pub = self.create_publisher(MotorCommand, '/policy/desired_motor_subset', stream_qos)
         self.status_pub = self.create_publisher(String, '/policy/status', stream_qos)
+        self.create_service(SwitchPolicyModel, '/policy/switch_model', self.on_switch_model)
         self.create_subscription(Imu, str(param('imu_topic')), self.on_imu,
                                  QoSProfile(depth=2, reliability=ReliabilityPolicy.BEST_EFFORT))
         self.create_subscription(JointState, str(param('joint_states_topic')),
@@ -148,6 +178,7 @@ class TrackingPolicyNode(Node):
         self.get_logger().info(
             f'ONNX tracking: 50 Hz, feedback={self.feedback_mode}, orientation={self.orientation_source}, '
             f'reference={"hold_first_frame" if self.hold_first_frame else "play"}, '
+            f'model={self.model_name} of {sorted(self.policies)}, '
             'outputs=/policy/*; no SDK, CAN or motor enable commands. '
             'Keep the IMU stationary during calibration.')
 
@@ -159,6 +190,34 @@ class TrackingPolicyNode(Node):
             return
         if status.get('base_held') is False and self.reference_started is None:
             self.reference_started = time.monotonic()
+
+    @synchronized
+    def on_switch_model(self, request, response):
+        # Only swaps the reference used by the next tick. A tick in progress
+        # keeps its own snapshot, so no period is skipped or run twice.
+        response.available_models = sorted(self.policies)
+        if request.model_name not in self.policies:
+            response.success = False
+            response.message = f'Unknown model {request.model_name!r}'
+        else:
+            self.policy = self.policies[request.model_name]
+            self.model_name = request.model_name
+            self.model_sha256 = self.model_sha256s[request.model_name]
+            if request.restart_reference:
+                # Ticks are at most one period apart, so the next one is frame 0.
+                # Before sim release there is no reference clock to restart.
+                if self.wait_for_sim_release:
+                    if self.reference_started is not None:
+                        self.reference_started = time.monotonic()
+                elif self.started is not None:
+                    self.started = time.monotonic()
+            # The previous action is kept: zeroing it would step the next observation.
+            response.success = True
+            response.message = f'Switched to {request.model_name}'
+            self.get_logger().info(
+                f'{response.message} (restart_reference={request.restart_reference})')
+        response.active_model = self.model_name
+        return response
 
     def reference_frame(self, index):
         if self.hold_first_frame:
@@ -295,6 +354,8 @@ class TrackingPolicyNode(Node):
             waiting_for_release = self.wait_for_sim_release and self.reference_started is None
             now_ros = self.ros_seconds()
             imu = self.imu  # Callbacks replace tuples and never mutate their arrays.
+            # A model switch replaces self.policy; this tick finishes on its snapshot.
+            policy = self.policy
             joints = self.joints if self.feedback_mode == 'joint_states' else None
             if not fresh(*imu[:2], begin, now_ros, self.timeout):
                 if waiting_for_release:
@@ -317,7 +378,7 @@ class TrackingPolicyNode(Node):
                     return
                 q, dq = joints[2:]
             else:
-                q, dq = self.policy.offset, np.zeros(10, dtype=np.float32)
+                q, dq = policy.offset, np.zeros(10, dtype=np.float32)
             if self.started is None and not waiting_for_release:
                 self.started = begin
             origin = self.reference_started if self.wait_for_sim_release else self.started
@@ -328,9 +389,9 @@ class TrackingPolicyNode(Node):
             previous = (np.zeros_like(self.previous) if self.wait_for_sim_release and self.reference_started is None
                         else self.previous.copy())
         try:
-            obs = self.policy.observation(frame, *imu[2:], q, dq, previous)
+            obs = policy.observation(frame, *imu[2:], q, dq, previous)
             start_inference = time.monotonic()
-            actions, targets = self.policy.run(obs, frame)
+            actions, targets = policy.run(obs, frame)
             finished = time.monotonic()
             with self.state_lock:
                 lock_acquired = time.monotonic()
@@ -372,19 +433,19 @@ class TrackingPolicyNode(Node):
                 angles = JointState()
                 angles.header.stamp = self.time_message(source_stamp)
                 angles.header.frame_id = 'policy_body'
-                angles.name = self.policy.names
+                angles.name = policy.names
                 angles.position = targets.astype(float).tolist()
                 command = MotorCommand()
                 command.header = angles.header
                 command.valid_until = self.time_message(valid_until)
-                command.joint_name = self.policy.names
+                command.joint_name = policy.names
                 command.mode = [MotorCommand.MODE_MOTION] * 10
                 command.position = angles.position
                 command.velocity = [0.0] * 10
                 command.acceleration = [0.0] * 10
                 command.torque = [0.0] * 10
-                command.kp = self.policy.kp.astype(float).tolist()
-                command.kd = self.policy.kd.astype(float).tolist()
+                command.kp = policy.kp.astype(float).tolist()
+                command.kd = policy.kd.astype(float).tolist()
                 self.command_pub.publish(command)
                 self.angles_pub.publish(angles)
                 self.actions_pub.publish(Float64MultiArray(data=actions.astype(float).tolist()))
@@ -431,6 +492,7 @@ class TrackingPolicyNode(Node):
                 'joint_feedback': self.feedback_mode, 'hardware_output': False,
                 'imu_age_since_receipt_ms': None if self.imu is None else (now - self.imu[0]) * 1000,
                 'gyro_bias_rad_s': self.bias.tolist(), 'model_sha256': self.model_sha256,
+                'active_model': self.model_name, 'available_models': sorted(self.policies),
                 'rejected_imu_timestamps': self.rejected_imu_timestamps,
                 'inference_ms': None,
                 'control_callback_ms': None,

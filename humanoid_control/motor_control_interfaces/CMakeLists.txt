@@ -20,6 +20,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/GetMotorFeedback.srv"
   "srv/ExecuteMotorOperation.srv"
   "srv/SubmitAbstractCommand.srv"
+  "srv/SwitchPolicyModel.srv"
   DEPENDENCIES std_msgs builtin_interfaces
 )
 
