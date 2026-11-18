@@ -9,7 +9,9 @@ plus a USB-stick bundle that installs it on the Pi from the console, without SSH
   instead of 3.6.1 built from source, and without backward-cpp. Two patches to stella_vslam_ros are applied at build
   time (duplicate ament env hook; `cv_bridge.h` -> `cv_bridge.hpp`), see the `Dockerfile`.
 
-## Verified so far (Mac, Apple Silicon, 2026-11-03 and 2026-11-14)
+## Verified so far
+
+### Mac, Apple Silicon (2026-11-03 and 2026-11-14)
 
 | Check | Result |
 |---|---|
@@ -19,10 +21,26 @@ plus a USB-stick bundle that installs it on the Pi from the console, without SSH
 | Robot stack (`robot/compose.yaml`) with a TUM image publisher in place of the camera | Viewer connects; SLAM initializes; `docker compose stop` saves the map, trajectories and track times |
 | Localization mode against that saved map | Map loads; poses on `/run_slam/camera_pose` at about 23 Hz |
 
-**Not verified:** anything on the Pi (Pi 4 speed, `install.sh`, the systemd unit, the real camera through
-`v4l2_camera`), the fisheye config with real calibration, and `make_usb_bundle.sh` end to end
-(only its Docker .deb lookup was tested). Accuracy has only been measured on TUM, a handheld Kinect over a textured desk,
-not on the ELP fisheye or a moving base.
+### AlohaMini2 Pi 4 (`tdroids-desktop`, 4 GB, Ubuntu 24.04.4; 2026-11-17)
+
+| Check | Result |
+|---|---|
+| `make_usb_bundle.sh ... --with-docker-debs` to a folder, copied to the Pi with `scp` | Works |
+| `install.sh` | Docker installed, both images loaded, systemd unit installed |
+| TUM freiburg1_xyz, offline ([Pi benchmark](#pi-4-benchmark-offline)) | 793 / 798 frames tracked, 21 keyframes, **keyframe APE RMSE 9.9 mm** (same as the Mac) |
+| Tracking time per frame, TUM, 30 fps input | **median 43.9 ms**, p90 51.5, p99 60.5. 96% of frames are over the 33 ms budget for 30 fps |
+| Same with `--frame-skip 2` (simulates 15 fps) | 398 / 399 frames tracked, median 43.4 ms, inside the 66 ms budget for 15 fps |
+| Thermal or power throttling during the runs | None: `vcgencmd get_throttled` = `0x0` before and after, 51 °C peak |
+| Camera detected | `32e4:9320 HD USB Camera` (UVC, the ELP) at `/dev/v4l/by-id/usb-HD_USB_Camera_HD_USB_Camera_2020032001-video-index0` |
+| Live camera -> `v4l2_camera` -> SLAM (systemd service, YUYV 640x480 30 fps) | Frames reach SLAM, median 41.7 ms each, so it keeps up with about 22-24 of the 30 fps. Clean `systemctl stop` saves the map and track times |
+
+The Pi 4 is about 5.5x slower than the Mac. At default settings it can't keep up with 30 fps, but it fits 15 fps.
+Accuracy doesn't depend on the machine.
+
+**Not verified:** live **tracking**. In the live run the camera didn't move, so SLAM never initialized, and the config
+still has placeholder intrinsics. Also not verified: the fisheye config with real calibration, the browser viewer on
+the Pi, booting with `--enable`, and installing from a USB stick (the bundle was copied over the network). Accuracy
+has only been measured on TUM, a handheld Kinect over a textured desk, not on the ELP fisheye or a moving base.
 - Browser viewer (`Dockerfile.viewer`, stella-cv/socket_viewer on node 18): open `http://<host>:3001`
 - License: stella_vslam is BSD-2-Clause; g2o is linked dynamically (ros-jazzy-libg2o) because of its LGPL part.
 
@@ -72,18 +90,37 @@ cd data
 ~/evo-venv/bin/evo_ape tum rgbd_dataset_freiburg1_xyz/groundtruth.txt out_orb/KeyFrameTrajectory.txt -as
 ```
 
-Results on 2026-11-14 (camera path about 9 m):
+Results (camera path about 9 m):
 
-| System | Keyframes | APE RMSE | APE max |
-|---|---|---|---|
-| stella_vslam | 20-22 | 10.4-10.8 mm (3 runs) | 18-24 mm |
-| ORB-SLAM3 | 51 | 8.6 mm (1 run) | 25 mm |
+| System | Where | Keyframes | APE RMSE | APE max |
+|---|---|---|---|---|
+| stella_vslam | Mac, 2026-11-14 | 20-22 | 10.4-10.8 mm (3 runs) | 18-24 mm |
+| ORB-SLAM3 | Mac, 2026-11-14 | 51 | 8.6 mm (1 run) | 25 mm |
+| stella_vslam | Pi 4, 2026-11-17 | 21 | 9.9 mm (1 run) | 23 mm |
 
 The 2 mm difference is within run-to-run variation and comes from different keyframe sets, so the two are equivalent
 here. `-as` applies a Sim(3) alignment (rotation, translation and scale) before measuring, because monocular SLAM has no
 metric scale. These numbers measure trajectory shape, not scale. Keyframe counts are not a quality measure: the two
 systems choose keyframes differently. Per-frame poses (`frame_trajectory.txt`) score worse (about 34 mm RMSE) because
 they are not refined by bundle adjustment.
+
+### Pi 4 benchmark (offline)
+
+Same sequence on the Pi, after `install.sh`. Copy `data/rgbd_dataset_freiburg1_xyz` into the bundle folder
+(`~/pi-bundle` here), then on the Pi:
+
+```bash
+mkdir -p ~/tum_out
+sudo docker run --rm -v ~/pi-bundle:/stick -v ~/tum_out:/out stella-vslam:arm64 \
+  /opt/stella_vslam_examples/build/run_tum_rgbd_slam \
+  -v /opt/vocab/orb_vocab.fbow -c /opt/stella_vslam/example/tum_rgbd/TUM_RGBD_mono_1.yaml \
+  -d /stick/rgbd_dataset_freiburg1_xyz --no-sleep --auto-term --viewer none --eval-log-dir /out
+sort -n ~/tum_out/track_times.txt | awk '{a[NR]=$1} END {printf "median %.1f ms\n", a[int(NR/2)+1]*1000}'
+sudo vcgencmd get_throttled     # 0x0 = no throttling; anything else makes the timing pessimistic
+```
+
+Add `--frame-skip 2` to simulate a 15 fps camera. Copy `~/tum_out` back to `data/out_pi` and score it with
+`evo_ape` as above.
 
 ## 2. Calibrate the ELP (Mac, camera plugged in by USB)
 
@@ -137,23 +174,25 @@ The map is saved only on a clean stop. Pulling power or a dead battery loses tha
 
 ## Assumptions
 
-Checked against the Pi inventory of 2026-11-09 where possible (see `../pi-replica/README.md`).
+Checked against the Pi inventory of 2026-11-09 and on the Pi on 2026-11-17 (see `../pi-replica/README.md`).
 
 | Assumption | Status | Where to change it |
 |---|---|---|
 | Pi runs Ubuntu 24.04 arm64 | **Confirmed** (24.04.4, Pi 4, 3.7 GiB RAM, 43 GB free) | `DOCKER_DEB_DIST` in `make_usb_bundle.sh` |
-| Docker must be installed by `install.sh` | **Confirmed**: not installed. The Pi is on Tailscale, so it likely has internet and needs no `--with-docker-debs` | |
-| Camera at `/dev/am_camera_forward` | **Wrong for now**: no `/dev/am_*` udev rules exist. `install.sh` falls back to `/dev/v4l/by-id/*-video-index0` | `slam.env` `CAMERA_DEVICE` |
-| Camera path and formats | Unknown: the Pi was not connected to the robot at inventory time. Connect it before `install.sh` | |
+| Docker must be installed by `install.sh` | **Confirmed and done**: `install.sh` installed it on 2026-11-17 | |
+| Camera at `/dev/am_camera_forward` | **Wrong**: no `/dev/am_*` udev rules exist. `install.sh` falls back to `/dev/v4l/by-id/*-video-index0`, but only if the camera is plugged in at install time. On the robot Pi it is set by hand to `/dev/v4l/by-id/usb-HD_USB_Camera_HD_USB_Camera_2020032001-video-index0` | `slam.env` `CAMERA_DEVICE` |
+| Camera formats | **Confirmed** with `v4l2-ctl --list-formats-ext` (2026-11-17): YUYV 640x480 at **30 fps only** (also 320x240@30, 800x600@20, 1280x720@10, 1280x960@9). MJPG offers 15 or 30 fps at 320x240 up to 1280x960 | |
+| 640x480, YUYV, 30 fps | **Supported**, but the Pi 4 processes about 22-24 fps, so frames are dropped. For an even 15 fps the camera would need MJPG, which costs a decode on the Pi and is untested with `v4l2_camera` | `slam.env`, and `cols/rows/fps` in the config |
 | The LeRobot host is not running while SLAM runs | No LeRobot install was found on the Pi, so nothing else should hold the camera | |
-| 640x480, YUYV, 30 fps | Unconfirmed (no camera attached, no `v4l2-ctl`) | `slam.env`, and `cols/rows/fps` in the config |
 | ~170 degree equidistant fisheye, f around 240 px | Unconfirmed until calibrated | `config/elp_fisheye.yaml` |
 
 ## Notes
 
 - Monocular: the map has no metric scale. stella_vslam has no IMU input.
 - There is no `max_num_keypoints` option in stella_vslam 0.7. To reduce CPU, lower `Feature.num_levels`
-  or the resolution, or set `VIEWER=none`.
+  or the resolution, or set `VIEWER=none`. On the Pi 4 this matters: about 44 ms per frame at default settings.
+- The Pi's clock and `journalctl` use local time, but `maps/run_*` and `map_*` names are UTC. Use local time with
+  `journalctl --since`.
 - Docker Desktop on macOS cannot pass USB cameras into containers. Live camera use is Pi-only (or Linux).
 - `PUBLISH_TF=false` by default: publishing map -> odom TF needs a camera -> base_link -> odom TF chain on the robot,
   which does not exist yet. Poses are still published on `/run_slam/camera_pose`.

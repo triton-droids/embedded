@@ -1,0 +1,17 @@
+[Unit]
+Description=AlohaMini stella_vslam (camera + SLAM + browser viewer)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/alohamini-slam
+ExecStart=/usr/bin/docker compose --env-file slam.env up
+# 'stop' sends SIGINT to run_slam (see compose.yaml) so the map is saved before exit.
+ExecStop=/usr/bin/docker compose --env-file slam.env stop -t 120
+TimeoutStopSec=150
+Restart=no
+
+[Install]
+WantedBy=multi-user.target

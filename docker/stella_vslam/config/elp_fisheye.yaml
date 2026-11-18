@@ -1,0 +1,63 @@
+# ELP ~170 degree USB fisheye on the AlohaMini2, monocular.
+#
+# PLACEHOLDER INTRINSICS. fx/fy/cx/cy/k1-k4 below are a best guess, not a calibration:
+#   equidistant fisheye, 640x480, ~170 deg across the width -> f ~= 320 px / 1.48 rad ~= 216-240 px.
+# Tracking with these values will be poor or fail. Replace them with the output of
+# calibrate_fisheye.py (cv2.fisheye model = stella_vslam "fisheye" model, same k1-k4).
+# install.sh warns while the word PLACEHOLDER is still in this file; delete this header after calibrating.
+#
+# Resolution/format guesses (unconfirmed until v4l2-ctl --list-formats-ext is run on the Pi):
+#   640x480 at 30 fps, matching LeRobot's default camera config. Calibrate at the same resolution.
+
+Camera:
+  name: "ELP 170deg fisheye 640x480"
+  setup: "monocular"
+  model: "fisheye"
+
+  fx: 240.0
+  fy: 240.0
+  cx: 320.0
+  cy: 240.0
+
+  k1: 0.0
+  k2: 0.0
+  k3: 0.0
+  k4: 0.0
+
+  fps: 30.0
+  cols: 640
+  rows: 480
+
+  # v4l2_camera publishes rgb8
+  color_order: "RGB"
+
+Preprocessing:
+  min_size: 800
+  num_grid_cols: 32
+  num_grid_rows: 24
+
+Feature:
+  name: "default ORB feature extraction setting"
+  scale_factor: 1.2
+  # 8 is the upstream default. Lower (e.g. 6) is cheaper on the Pi 4 at some cost in robustness.
+  num_levels: 8
+  ini_fast_threshold: 20
+  min_fast_threshold: 7
+
+Initializer:
+  scaling_factor: 5.0
+
+Mapping:
+  baseline_dist_thr_ratio: 0.02
+  redundant_obs_ratio_thr: 0.9
+  num_covisibilities_for_landmark_generation: 20
+  num_covisibilities_for_landmark_fusion: 20
+
+System:
+  map_format: "msgpack"
+
+SocketPublisher:
+  # The viewer container runs on the same host (network_mode: host).
+  server_uri: "http://127.0.0.1:3000"
+  # Lower JPEG quality = less CPU/bandwidth for the live image in the browser.
+  image_quality: 20

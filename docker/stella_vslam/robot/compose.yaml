@@ -1,0 +1,49 @@
+# SLAM stack on the Pi: camera driver -> stella_vslam -> browser viewer.
+# Started by alohamini-slam.service; by hand: docker compose --env-file slam.env up
+#
+# The camera service opens the camera. The LeRobot host must NOT be running at the same time
+# (only one process can open the device).
+
+services:
+  viewer:
+    image: stella-viewer:arm64
+    network_mode: host          # ports 3000 (SLAM -> viewer) and 3001 (browser)
+    restart: "no"
+
+  camera:
+    image: stella-vslam:arm64
+    network_mode: host          # ROS2 DDS discovery
+    ipc: host
+    devices:
+      - "${CAMERA_DEVICE}:/dev/video_slam"
+    command: >
+      ros2 run v4l2_camera v4l2_camera_node --ros-args
+      -p video_device:=/dev/video_slam
+      -p image_size:=[${IMAGE_WIDTH},${IMAGE_HEIGHT}]
+      -p pixel_format:=${PIXEL_FORMAT}
+      -p output_encoding:=rgb8
+      -r image_raw:=/camera/image_raw
+      -r camera_info:=/camera/camera_info
+    restart: "no"
+
+  slam:
+    image: stella-vslam:arm64
+    network_mode: host
+    ipc: host
+    depends_on: [camera, viewer]
+    environment:
+      - MODE=${MODE}
+      - MAP_IN=${MAP_IN}
+      - VIEWER=${VIEWER}
+      - CONFIG=${CONFIG}
+      - PUBLISH_TF=${PUBLISH_TF:-false}
+    volumes:
+      - ./config:/config:ro
+      - ./maps:/maps
+      - ./run_slam.sh:/robot/run_slam.sh:ro
+    command: ["bash", "/robot/run_slam.sh"]
+    init: true                  # tini as PID 1 forwards SIGINT to run_slam
+    # SIGINT makes run_slam shut down cleanly and save the map; give it time to do so.
+    stop_signal: SIGINT
+    stop_grace_period: 120s
+    restart: "no"
