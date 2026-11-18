@@ -1,11 +1,3 @@
-robstride-dynamics
-grpcio
-protobuf
-websockets
+# Full legacy runtime; the shared rosenv installer makes torch opt-in.
+-r requirements-runtime.txt
 torch
-
-pyyaml
-typeguard
-empy==3.3.4
-lark
-catkin_pkg

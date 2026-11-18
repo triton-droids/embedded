@@ -1,0 +1,42 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 100
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    left_leg_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    right_leg_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+left_leg_controller:
+  ros__parameters:
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    joints:
+      - left_hip1_joint
+      - left_hip2_joint
+      - left_thigh_joint
+      - left_knee_joint
+      - left_ankle_joint
+    allow_nonzero_velocity_at_trajectory_end: true
+
+right_leg_controller:
+  ros__parameters:
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    joints:
+      - right_hip1_joint
+      - right_hip2_joint
+      - right_thigh_joint
+      - right_knee_joint
+      - right_ankle_joint
+    allow_nonzero_velocity_at_trajectory_end: true

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Motor Web UI · Feedback & Calibration</title><link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div><h1>Motor Web UI</h1><p id="subtitle">Waiting for ROS feedback…</p></div>
+    <div class="connection" id="connection"><span class="dot"></span><span id="connectionText">Waiting</span></div>
+  </header>
+  <p class="notice" id="safety">Safety status: unknown</p>
+  <p class="notice" id="configStatus" role="status">Configuration: waiting for server…</p>
+  <main class="layout">
+    <section class="panel motors-panel" aria-labelledby="motorsTitle">
+      <div class="panel-head"><div><h2 id="motorsTitle">Motor feedback</h2><p id="summary">0 motors</p></div><span class="muted">Select a joint to inspect</span></div>
+      <div class="table-wrap"><table><thead><tr>
+        <th scope="col">Joint</th><th scope="col">CAN</th><th scope="col">ID</th><th scope="col">Model</th><th scope="col">Position rad</th><th scope="col">Velocity rad/s</th>
+        <th scope="col">Torque Nm</th><th scope="col">Temp °C</th><th scope="col">Source age ms</th><th scope="col">State</th>
+      </tr></thead><tbody id="motorRows"></tbody></table></div>
+      <p class="muted table-note">Position is the ROS joint coordinate. Raw motor position and calibration verification are not available in this feed.</p>
+    </section>
+    <aside class="controls">
+      <section class="panel" aria-labelledby="jointTitle">
+        <h2 id="jointTitle">Selected joint</h2>
+        <label for="jointSelect">Joint</label><select id="jointSelect"><option value="">Select a joint…</option></select>
+        <p id="jointIdentity" class="muted detail">No joint selected</p>
+        <dl class="readings">
+          <div><dt>Position · rad</dt><dd id="jointPosition">—</dd></div>
+          <div><dt>Velocity · rad/s</dt><dd id="jointVelocity">—</dd></div>
+          <div><dt>Torque · Nm</dt><dd id="jointTorque">—</dd></div>
+          <div><dt>Feedback</dt><dd id="jointFreshness">Unknown</dd></div>
+        </dl>
+      </section>
+      <section class="panel" aria-labelledby="actionsTitle">
+        <div class="panel-head"><h2 id="actionsTitle">Motor control</h2><span class="badge">ROS admission</span></div>
+        <p id="backendStatus" class="backend-status" role="status">Checking ROS control service…</p>
+        <div class="action"><button id="enableButton" disabled>Selected motor · Enable</button><button id="disableButton" class="danger" disabled>Selected motor · Disable</button></div>
+        <div class="action"><button id="allEnableButton" disabled>All motors · Enable</button><button id="allDisableButton" class="danger" disabled>All motors · Disable</button></div>
+        <div class="action"><button id="allHomeButton" disabled>All motors · Go Home</button></div>
+        <div class="action"><button id="allZeroButton" class="danger" disabled>All motors · Set Zero</button></div>
+        <div class="action"><button id="homeButton" disabled>Home · review</button><p>Move the selected joint to its current coordinate zero (0 rad) using a limited trajectory.</p></div>
+        <div class="action"><button id="zeroButton" class="danger" disabled>Set Zero · review</button><p>Make the current physical position the motor's mechanical zero. This changes the coordinate reference.</p></div>
+        <p class="muted">Set Zero requests are submitted to control_core for admission. Home moves to the current coordinate zero (0 rad), without changing encoder zero or enabling motors.</p>
+      </section>
+      <section class="panel" aria-labelledby="statusTitle"><h2 id="statusTitle">Action status</h2><p class="detail" id="actionStatus" role="status">No action sent.</p><ul id="actionResults"></ul><p class="muted">Action results show the last verified state. Continuous enable/calibration telemetry is unavailable.</p></section>
+    </aside>
+    <section class="panel config-panel" aria-labelledby="configTitle">
+      <div class="panel-head"><div><h2 id="configTitle">Motor configuration</h2><p class="muted">All configured joints and fields · updates from the server's selected YAML file</p></div></div>
+      <div class="table-wrap"><table><thead id="configHead"></thead><tbody id="configRows"></tbody></table></div>
+      <p class="muted table-note">Configuration is read-only. Changes shown here do not reconfigure a running motor backend. A configured torque limit is not proof of a hardware torque limit.</p>
+    </section>
+    <section class="panel config-panel" aria-labelledby="parametersTitle">
+      <h2 id="parametersTitle">Global & model parameters</h2>
+      <div class="table-wrap table-note"><table class="parameter-table"><thead><tr><th scope="col">Parameter</th><th scope="col">Configured value</th></tr></thead><tbody id="parameterRows"></tbody></table></div>
+    </section>
+  </main>
+  <p class="notice footer">Stale values remain visible and are marked offline. Offline does not confirm that a motor has stopped. Base pose is not estimated.</p>
+  <dialog id="actionDialog" aria-labelledby="reviewTitle" aria-describedby="reviewDescription">
+    <form method="dialog">
+      <div class="panel-head"><h2 id="reviewTitle">Review action</h2><button aria-label="Close review" value="close">Close</button></div>
+      <p id="reviewJoint" class="detail"></p><p id="reviewDescription"></p>
+      <ol id="reviewSteps"></ol>
+      <p id="reviewFeedback" class="muted"></p>
+      <p id="executionStatus" class="backend-status">Waiting for control service.</p>
+      <div class="dialog-actions"><button value="cancel">Back</button><button id="executeButton" type="button" disabled>Submit to ROS</button></div>
+    </form>
+  </dialog>
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,9 +1,57 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, LogInfo
-from launch.conditions import IfCondition, UnlessCondition
+from launch.actions import DeclareLaunchArgument, LogInfo, OpaqueFunction
+from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
+import yaml
+
+
+def registry_joint_names(context):
+    """Read the selected registry's complete order, including custom bench files."""
+    with open(LaunchConfiguration('motor_config_file').perform(context)) as stream:
+        registry = yaml.safe_load(stream)
+    params = registry.get('motor_control_node', {}).get('ros__parameters', registry)
+    return list(params['motors'])
+
+
+def make_cpp_control(context):
+    """Configure the control watchdog with the full expected robot."""
+    with open(LaunchConfiguration('motor_config_file').perform(context)) as stream:
+        registry = yaml.safe_load(stream)
+    params = registry.get('motor_control_node', {}).get('ros__parameters', registry)
+    motors = params['motors']
+    return [Node(
+        package='motor_control_hybrid', executable='cpp_control_node',
+        name='cpp_control_node', output='screen',
+        condition=IfCondition(LaunchConfiguration('enable_cpp_control')),
+        parameters=[{
+            'joint_names': registry_joint_names(context),
+            'simulation_zero_enabled': LaunchConfiguration('enable_fake_motor').perform(context).lower() == 'true',
+            'home_joint_lower': [float(cfg.get('min_position', float('nan'))) for cfg in motors.values()],
+            'home_joint_upper': [float(cfg.get('max_position', float('nan'))) for cfg in motors.values()],
+            'control_rate_hz': float(LaunchConfiguration('control_rate_hz').perform(context)),
+            'cmd_timeout_s': float(LaunchConfiguration('cmd_timeout_s').perform(context)),
+            'control_rt_enabled': ParameterValue(LaunchConfiguration('control_rt_enabled'), value_type=bool),
+            'control_rt_priority': ParameterValue(LaunchConfiguration('control_rt_priority'), value_type=int),
+            'enable_rl': LaunchConfiguration('enable_rl'),
+            'rl_model_path': LaunchConfiguration('rl_model_path'),
+        }],
+    )]
+
+
+def make_fake_motor(context):
+    """Keep fake feedback consistent with the controller's expected joints."""
+    return [Node(
+        package='motor_control_hybrid', executable='fake_motor_node',
+        name='fake_motor_node', output='screen',
+        condition=IfCondition(LaunchConfiguration('enable_fake_motor')),
+        parameters=[{
+            'joint_names': registry_joint_names(context),
+            'publish_rate_hz': float(LaunchConfiguration('control_rate_hz').perform(context)),
+        }],
+    )]
 
 
 def generate_launch_description():
@@ -27,13 +75,34 @@ def generate_launch_description():
     feedback_poll_rate_arg = DeclareLaunchArgument(
         'feedback_poll_hz',
         default_value='50.0',
-        description='CAN feedback polling rate for idle motors'
+        description='Legacy compatibility parameter; CAN RX now runs continuously'
     )
 
     cmd_timeout_arg = DeclareLaunchArgument(
         'cmd_timeout_s',
         default_value='0.5',
         description='Command timeout in seconds. 0.0 holds the last command indefinitely.'
+    )
+
+    can_cmd_timeout_arg = DeclareLaunchArgument(
+        'can_command_timeout_s', default_value='0.5',
+        description='Positive CAN-local command lifetime; expiry requires explicit re-enable'
+    )
+
+    enable_safety_arg = DeclareLaunchArgument(
+        'enable_safety',
+        default_value='true',
+        description='Start the latched humanoid safety supervisor'
+    )
+
+    safety_config_arg = DeclareLaunchArgument(
+        'safety_config_file',
+        default_value=PathJoinSubstitution([
+            FindPackageShare('humanoid_safety'),
+            'config',
+            'safety.yaml'
+        ]),
+        description='Path to safety supervisor YAML config'
     )
 
     enable_rl_arg = DeclareLaunchArgument(
@@ -48,15 +117,9 @@ def generate_launch_description():
         description='Start C++ control node'
     )
 
-    enable_gateway_arg = DeclareLaunchArgument(
-        'enable_gateway',
-        default_value='false',
-        description='Start HTTP gateway node'
-    )
-
     enable_sdk_gateway_arg = DeclareLaunchArgument(
         'enable_sdk_gateway',
-        default_value='true',
+        default_value='false',
         description='Start gRPC SDK motor gateway node'
     )
 
@@ -94,42 +157,6 @@ def generate_launch_description():
         description='Path to RL model/policy file'
     )
 
-    gateway_host_arg = DeclareLaunchArgument(
-        'gateway_host',
-        default_value='127.0.0.1',
-        description='HTTP gateway host'
-    )
-
-    gateway_port_arg = DeclareLaunchArgument(
-        'gateway_port',
-        default_value='8080',
-        description='HTTP gateway port'
-    )
-
-    gateway_default_kp_arg = DeclareLaunchArgument(
-        'gateway_default_kp',
-        default_value='10.0',
-        description='Default KP used by gateway when request does not provide kp'
-    )
-
-    gateway_default_kd_arg = DeclareLaunchArgument(
-        'gateway_default_kd',
-        default_value='0.2',
-        description='Default KD used by gateway when request does not provide kd'
-    )
-
-    gateway_default_mode_arg = DeclareLaunchArgument(
-        'gateway_default_mode',
-        default_value='motion',
-        description='Default mode for gateway: velocity/position/motion/enable/disable'
-    )
-
-    gateway_repeat_publish_hz_arg = DeclareLaunchArgument(
-        'gateway_repeat_publish_hz',
-        default_value='50.0',
-        description='Gateway repeat rate for the last published desired command. 0 disables repeat.'
-    )
-
     sdk_grpc_addr_arg = DeclareLaunchArgument(
         'sdk_grpc_addr',
         default_value='127.0.0.1:50052',
@@ -150,71 +177,48 @@ def generate_launch_description():
 
     imu_topic_arg = DeclareLaunchArgument(
         'imu_topic',
-        default_value='/imu',
-        description='sensor_msgs/Imu topic used by policy bridge'
+        default_value='/imu/data_raw',
+        description='sensor_msgs/Imu topic used by policy bridge; must match the body IMU producer'
+    )
+
+    # -------------------- Safety supervisor --------------------
+    safety_node = Node(
+        package='humanoid_safety',
+        executable='safety_node',
+        name='safety_node',
+        condition=IfCondition(LaunchConfiguration('enable_safety')),
+        output='screen',
+        parameters=[LaunchConfiguration('safety_config_file')],
     )
 
     # -------------------- Fake motor node --------------------
-    fake_motor_node = Node(
-        package='motor_control_hybrid',
-        executable='fake_motor_node',
-        name='fake_motor_node',
-        condition=IfCondition(LaunchConfiguration('enable_fake_motor')),
-        output='screen',
-        parameters=[
-            {'joint_names': ['test_joint', 'test_joint2']},
-            {'publish_rate_hz': LaunchConfiguration('control_rate_hz')},
-        ],
-    )
+    fake_motor_node = OpaqueFunction(function=make_fake_motor)
 
-    # -------------------- Python CAN node --------------------
-    real_python_can_node = Node(
+    # -------------------- RobStride CAN node (Python or C++ backend) --------------------
+    # Both backends share the topic/service contract and parameters; the C++ one
+    # (robstride_can_node) is frame-identical on vcan but not yet bench-verified.
+    real_python_can_node = OpaqueFunction(function=lambda context: [] if (
+        LaunchConfiguration('enable_fake_motor').perform(context).lower() == 'true') else [Node(
         package='motor_control_hybrid',
-        executable='python_can_node',
-        name='python_can_node',
-        condition=UnlessCondition(LaunchConfiguration('enable_fake_motor')),
+        executable={'python': 'python_can_node', 'cpp': 'robstride_can_node'}[
+            LaunchConfiguration('can_backend').perform(context)],
+        name={'python': 'python_can_node', 'cpp': 'robstride_can_node'}[
+            LaunchConfiguration('can_backend').perform(context)],
         output='screen',
         parameters=[
             {'motor_config_file': LaunchConfiguration('motor_config_file')},
             {'publish_rate_hz': LaunchConfiguration('control_rate_hz')},
             {'feedback_poll_hz': LaunchConfiguration('feedback_poll_hz')},
             {'feedback_poll_when_idle': True},
+            {'command_timeout_s': LaunchConfiguration('can_command_timeout_s')},
+            {'can_rt_enabled': ParameterValue(LaunchConfiguration('can_rt_enabled'), value_type=bool)},
+            {'can_tx_rt_priority': ParameterValue(LaunchConfiguration('can_tx_rt_priority'), value_type=int)},
+            {'can_rx_rt_priority': ParameterValue(LaunchConfiguration('can_rx_rt_priority'), value_type=int)},
         ],
-    )
+    )])
 
     # -------------------- C++ Control node --------------------
-    cpp_control_node = Node(
-        package='motor_control_hybrid',
-        executable='cpp_control_node',
-        name='cpp_control_node',
-        condition=IfCondition(LaunchConfiguration('enable_cpp_control')),
-        output='screen',
-        parameters=[
-            {'control_rate_hz': LaunchConfiguration('control_rate_hz')},
-            {'cmd_timeout_s': LaunchConfiguration('cmd_timeout_s')},
-            {'enable_rl': LaunchConfiguration('enable_rl')},
-            {'rl_model_path': LaunchConfiguration('rl_model_path')},
-        ],
-    )
-
-    # -------------------- HTTP Gateway node --------------------
-    gateway_node = Node(
-        package='motor_control_hybrid',
-        executable='target_gateway_node',
-        name='target_gateway_node',
-        condition=IfCondition(LaunchConfiguration('enable_gateway')),
-        output='screen',
-        parameters=[
-            {'host': LaunchConfiguration('gateway_host')},
-            {'port': LaunchConfiguration('gateway_port')},
-            {'topic_out': 'motor_commands'},
-            {'default_kp': LaunchConfiguration('gateway_default_kp')},
-            {'default_kd': LaunchConfiguration('gateway_default_kd')},
-            {'default_mode': LaunchConfiguration('gateway_default_mode')},
-            {'repeat_publish_hz': LaunchConfiguration('gateway_repeat_publish_hz')},
-            {'repeat_topics': ['/desired_motor_subset']},
-        ],
-    )
+    cpp_control_node = OpaqueFunction(function=make_cpp_control)
 
     # -------------------- SDK gRPC Gateway node --------------------
     sdk_gateway_node = Node(
@@ -260,46 +264,48 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        DeclareLaunchArgument('can_backend', default_value='python', choices=['python', 'cpp'],
+                              description='RobStride CAN backend: python_can_node or robstride_can_node'),
+        DeclareLaunchArgument('can_rt_enabled', default_value='false'),
+        DeclareLaunchArgument('can_tx_rt_priority', default_value='20'),
+        DeclareLaunchArgument('can_rx_rt_priority', default_value='21'),
+        DeclareLaunchArgument('control_rt_enabled', default_value='false'),
+        DeclareLaunchArgument('control_rt_priority', default_value='10'),
         motor_config_arg,
         control_rate_arg,
         feedback_poll_rate_arg,
         cmd_timeout_arg,
+        can_cmd_timeout_arg,
+        enable_safety_arg,
+        safety_config_arg,
         enable_rl_arg,
         enable_cpp_control_arg,
-        enable_gateway_arg,
         enable_sdk_gateway_arg,
         enable_fake_motor_arg,
         enable_websocket_ui_arg,
         enable_policy_bridge_arg,
         policy_config_path_arg,
         rl_model_path_arg,
-        gateway_host_arg,
-        gateway_port_arg,
-        gateway_default_kp_arg,
-        gateway_default_kd_arg,
-        gateway_default_mode_arg,
-        gateway_repeat_publish_hz_arg,
         sdk_grpc_addr_arg,
         websocket_host_arg,
         websocket_port_arg,
         imu_topic_arg,
+        safety_node,
         fake_motor_node,
         real_python_can_node,
         cpp_control_node,
-        gateway_node,
         sdk_gateway_node,
         websocket_ui_node,
         policy_bridge_node,
         LogInfo(msg=[
             'Hybrid control system launched:\n',
+            '  - Safety supervisor enabled: ', LaunchConfiguration('enable_safety'), '\n',
             '  - Python CAN node: handles CAN communication\n',
-            '  - C++ Control node: handles control and RL inference\n',
-            '  - HTTP Gateway node: accepts POST /target and publishes to motor_commands\n',
-            '  - SDK gRPC gateway: ', LaunchConfiguration('sdk_grpc_addr'), '\n',
+            '  - C++ Control node: schedules /motor_commands (no RL inference inside)\n',
+            '  - SDK gRPC gateway (legacy, opt-in): ', LaunchConfiguration('sdk_grpc_addr'), '\n',
             '  - Policy bridge enabled: ', LaunchConfiguration('enable_policy_bridge'), '\n',
             '  - Double-pendulum UI: http://', LaunchConfiguration('websocket_host'), ':', LaunchConfiguration('websocket_port'), '\n',
             '  - Control rate: ', LaunchConfiguration('control_rate_hz'), ' Hz\n',
-            '  - Gateway: http://', LaunchConfiguration('gateway_host'), ':', LaunchConfiguration('gateway_port'), '\n',
             '  - Legacy debug node can still run separately if needed\n',
         ]),
     ])

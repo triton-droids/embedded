@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import math
+import time
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +11,9 @@ import numpy as np
 import rclpy
 from motor_control_interfaces.msg import MotorCommand
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Imu, JointState
+from std_msgs.msg import Bool
 
 
 def require_key(cfg: dict[str, Any], key: str, context: str = "config") -> Any:
@@ -259,15 +262,24 @@ class PolicyBridgeNode(Node):
     def __init__(self) -> None:
         super().__init__("policy_bridge_node")
 
+        # Fail closed: the safety supervisor is the only latch that can stop a
+        # policy stream, so this node must never publish before hearing from it.
+        self.estop = False
+        self.estop_warned = False
+
         self.declare_parameter("config_path", "")
         self.declare_parameter("policy_path", "")
         self.declare_parameter("joint_states_topic", "/joint_states")
-        self.declare_parameter("imu_topic", "/imu")
+        self.declare_parameter("imu_topic", "/imu/data_raw")
+        self.declare_parameter("estop_topic", "/safety/estop")
         self.declare_parameter("output_topic", "/desired_motor_subset")
         self.declare_parameter("control_rate_hz", 0.0)
         self.declare_parameter("joint_state_timeout_s", 0.25)
         self.declare_parameter("imu_timeout_s", 0.25)
         self.declare_parameter("publish_mode", "motion")
+        timeout = float(self.get_parameter("joint_state_timeout_s").value)
+        if not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError('joint_state_timeout_s must be finite and positive')
 
         config_path_param = str(self.get_parameter("config_path").value)
         if not config_path_param:
@@ -336,7 +348,7 @@ class PolicyBridgeNode(Node):
         self.joint_vel_by_name: dict[str, float] = {}
         self.ang_vel_body: np.ndarray | None = None
         self.up_body: np.ndarray | None = None
-        self.last_joint_state_time = None
+        self.joint_sample_times: dict[str, tuple[float, float]] = {}
         self.last_imu_time = None
         self.obs_initialized = False
         self.warned_waiting = False
@@ -366,6 +378,18 @@ class PolicyBridgeNode(Node):
             self._imu_callback,
             10,
         )
+        # Latched supervisor state: a bridge started after an estop inherits it.
+        estop_qos = QoSProfile(
+            depth=1,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            reliability=ReliabilityPolicy.RELIABLE,
+        )
+        self.estop_sub = self.create_subscription(
+            Bool,
+            str(self.get_parameter("estop_topic").value),
+            self._estop_callback,
+            estop_qos,
+        )
         self.timer = self.create_timer(self.dt, self._tick)
 
         self.get_logger().info(
@@ -388,12 +412,21 @@ class PolicyBridgeNode(Node):
         return path
 
     def _joint_state_callback(self, msg: JointState) -> None:
-        self.last_joint_state_time = self.get_clock().now()
+        # Only complete finite position/velocity pairs renew a joint. Partial
+        # messages may update individual joints, but cannot refresh missing ones.
+        if (len(set(msg.name)) != len(msg.name)
+                or len(msg.position) != len(msg.name)
+                or len(msg.velocity) != len(msg.name)
+                or not np.isfinite(msg.position).all()
+                or not np.isfinite(msg.velocity).all()):
+            self.joint_sample_times.clear()
+            return
+        received_at = time.monotonic()
+        stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         for index, name in enumerate(msg.name):
-            if index < len(msg.position):
-                self.joint_pos_by_name[name] = float(msg.position[index])
-            if index < len(msg.velocity):
-                self.joint_vel_by_name[name] = float(msg.velocity[index])
+            self.joint_pos_by_name[name] = float(msg.position[index])
+            self.joint_vel_by_name[name] = float(msg.velocity[index])
+            self.joint_sample_times[name] = (received_at, stamp)
 
     def _imu_callback(self, msg: Imu) -> None:
         self.last_imu_time = self.get_clock().now()
@@ -420,7 +453,33 @@ class PolicyBridgeNode(Node):
             q = q / np.linalg.norm(q)
             self.up_body = quat_inverse_rotate(q, np.asarray([0.0, 0.0, 1.0], dtype=float))
 
+    def _estop_callback(self, msg: Bool) -> None:
+        """Suspend or resume the policy stream on the latched supervisor state.
+
+        Publishing simply stops while the latch is set; the C++ control node and
+        the CAN node then expire their own command lifetimes and disable motors.
+        No new command is synthesised here, so a cleared latch never restarts
+        motion by itself.
+        """
+        was_active = self.estop
+        self.estop = bool(msg.data)
+        if self.estop == was_active:
+            return
+        self.estop_warned = False
+        if self.estop:
+            self.get_logger().error(
+                "Safety estop asserted: policy output suspended, no motor commands published")
+        else:
+            self.get_logger().warn(
+                "Safety estop cleared: policy output resumes on the next fresh inputs")
+
     def _tick(self) -> None:
+        if self.estop:
+            if not self.estop_warned:
+                self.get_logger().error(
+                    "Safety estop still latched: policy output suspended")
+                self.estop_warned = True
+            return
         if not self._inputs_ready():
             return
 
@@ -473,15 +532,23 @@ class PolicyBridgeNode(Node):
             if name not in self.joint_pos_by_name
         ]
         if missing:
-            self._warn_waiting(f"waiting for /joint_states joints: {', '.join(missing)}")
+            self._warn_waiting(
+                f"waiting for {self.get_parameter('joint_states_topic').value} joints: "
+                f"{', '.join(missing)}")
             return False
         if self.ang_vel_body is None or self.up_body is None:
-            self._warn_waiting("waiting for /imu")
+            self._warn_waiting(
+                f"waiting for {self.get_parameter('imu_topic').value}")
             return False
-        if self.last_joint_state_time is not None:
-            timeout = float(self.get_parameter("joint_state_timeout_s").value)
-            if timeout > 0.0 and (now - self.last_joint_state_time).nanoseconds * 1e-9 > timeout:
-                self._warn_waiting("joint state timeout")
+        timeout = float(self.get_parameter("joint_state_timeout_s").value)
+        now_mono = time.monotonic()
+        now_ros = now.nanoseconds * 1e-9
+        for name in self.obs_builder.real_joint_order:
+            sample = self.joint_sample_times.get(name)
+            if (sample is None or sample[1] <= 0
+                    or not 0 <= now_mono - sample[0] <= timeout
+                    or not -0.01 <= now_ros - sample[1] <= timeout):
+                self._warn_waiting(f'joint state timeout or invalid timestamp: {name}')
                 return False
         if self.last_imu_time is not None:
             timeout = float(self.get_parameter("imu_timeout_s").value)

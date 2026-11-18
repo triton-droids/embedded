@@ -1,0 +1,24 @@
+{
+  "name": "dual_v2_20261107_trial03",
+  "model_file": "dual_v2_trial03.onnx",
+  "model_sha256": "ed01f97817bba223d3e8867aaebb3f48bc2e4ed0f9dbd3abdf56c751f8da8757",
+  "input_name": "imu_window",
+  "output_name": "logits",
+  "history": 20,
+  "features": ["roll_rad", "pitch_rad", "gyro_x", "gyro_y", "gyro_z", "accel_x", "accel_y", "accel_z"],
+  "min_gap_s": 0.005,
+  "max_gap_s": 0.02,
+  "reset_gap_s": 1.0,
+  "heads": [
+    {"name": "300ms", "horizon_s": 0.3, "threshold": 0.6019949167966843, "confirm_frames": 3},
+    {"name": "600ms", "horizon_s": 0.6, "threshold": 0.99, "confirm_frames": 5}
+  ],
+  "provenance": {
+    "source": "evaluation/fall_predictor/results/dual_v2_20261107/training/trial_03/model_torchscript.pt (branch sim-experimental-cyclonedds)",
+    "source_sha256": "4141274121083899ddfe0df45050b8019642d0118f4bbeed503044eac30c8bf8",
+    "export": "torch.onnx.export (TorchScript exporter, opset 17); max |logit| difference 4.6e-05 on 1600 random windows",
+    "thresholds": "validation_policies in training/best.json",
+    "training_data": "MuJoCo simulation, old RL tracking-policy control path; no real-robot data",
+    "scores": "uncalibrated sigmoid of logits; not a fall probability"
+  }
+}

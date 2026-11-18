@@ -1,0 +1,43 @@
+import os
+from glob import glob
+
+from setuptools import find_packages, setup
+
+
+package_name = "humanoid_safety"
+
+setup(
+    name=package_name,
+    version="0.1.0",
+    packages=find_packages(exclude=["test"]),
+    data_files=[
+        (
+            "share/ament_index/resource_index/packages",
+            ["resource/" + package_name],
+        ),
+        ("share/" + package_name, ["package.xml"]),
+        (os.path.join("share", package_name, "config"), glob("config/*.yaml")),
+        (os.path.join("share", package_name, "launch"), glob("launch/*.launch.py")),
+        (os.path.join("share", package_name, "web_ui"), glob("web_ui/*")),
+        (os.path.join("share", package_name, "rviz"), glob("rviz/*.rviz")),
+        (os.path.join("share", package_name, "models", "fall_predictor"),
+         glob("models/fall_predictor/*")),
+    ],
+    install_requires=["setuptools"],
+    zip_safe=True,
+    maintainer="rcli",
+    maintainer_email="rul039@ucsd.edu",
+    description="Extensible, latched humanoid safety supervisor",
+    license="MIT",
+    extras_require={"test": ["pytest"]},
+    entry_points={
+        "console_scripts": [
+            "safety_node = humanoid_safety.safety_node:main",
+            "fall_predictor_node = humanoid_safety.fall_predictor.node:main",
+            "motor_web_node = humanoid_safety.motor_web_node:main",
+            "joint_state_monitor_node = humanoid_safety.joint_state_monitor_node:main",
+            "self_collision_monitor_node = humanoid_safety.self_collision.monitor_node:main",
+            "benchmark_self_collision = humanoid_safety.self_collision.benchmark:main",
+        ],
+    },
+)

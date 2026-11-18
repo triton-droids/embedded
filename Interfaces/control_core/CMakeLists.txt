@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library(control_core SHARED
   src/api.cpp
+  src/operation.cpp
 )
 # ---- Python bindings (pybind11) ----
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Module)

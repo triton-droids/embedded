@@ -1,0 +1,32 @@
+{
+  "checked_on": "2026-10-21",
+  "repository": "https://github.com/RobStride/Product_Information",
+  "tree_sha": "384cc561e1ff079c22f68b19908526094430febd",
+  "scope": "Latest CAN2.0 manuals present in the official tree for configured RS02, RS03 and RS04; not installed-firmware verification.",
+  "manuals": [
+    {
+      "path": "产品资料/CAN2.0/RS02/RS02使用说明书261009.pdf",
+      "url": "https://raw.githubusercontent.com/RobStride/Product_Information/384cc561e1ff079c22f68b19908526094430febd/%E4%BA%A7%E5%93%81%E8%B5%84%E6%96%99/CAN2.0/RS02/RS02%E4%BD%BF%E7%94%A8%E8%AF%B4%E6%98%8E%E4%B9%A6261009.pdf",
+      "sha256": "1cf47e3c973ca0f711a25f248350cdc6dc3269254b474bba5b9436da362a41a9",
+      "bytes": 2013107
+    },
+    {
+      "path": "产品资料/CAN2.0/RS03/RS03使用说明书261013.pdf",
+      "url": "https://raw.githubusercontent.com/RobStride/Product_Information/384cc561e1ff079c22f68b19908526094430febd/%E4%BA%A7%E5%93%81%E8%B5%84%E6%96%99/CAN2.0/RS03/RS03%E4%BD%BF%E7%94%A8%E8%AF%B4%E6%98%8E%E4%B9%A6261013.pdf",
+      "sha256": "acfa4261f0406cf39498d5bf5619365bf58dc3df1ceec56d2fd71abf43b187fb",
+      "bytes": 1868633
+    },
+    {
+      "path": "产品资料/CAN2.0/RS04/RS04使用说明书261009.pdf",
+      "url": "https://raw.githubusercontent.com/RobStride/Product_Information/384cc561e1ff079c22f68b19908526094430febd/%E4%BA%A7%E5%93%81%E8%B5%84%E6%96%99/CAN2.0/RS04/RS04%E4%BD%BF%E7%94%A8%E8%AF%B4%E6%98%8E%E4%B9%A6261009.pdf",
+      "sha256": "7c141d846ddae162827cfc53ed8b10bd8ec3c2ffadea16604a9ab36e0ef73e0d",
+      "bytes": 1936973
+    },
+    {
+      "path": "Product Literature/CAN2.0/RS03/RS03User Manual261013.pdf",
+      "url": "https://raw.githubusercontent.com/RobStride/Product_Information/384cc561e1ff079c22f68b19908526094430febd/Product%20Literature/CAN2.0/RS03/RS03User%20Manual261013.pdf",
+      "sha256": "53fca37a717b0717d059e7227b53d7d6d2ab9a32fea790ce0c1896527347a1ff",
+      "bytes": 2006454
+    }
+  ]
+}

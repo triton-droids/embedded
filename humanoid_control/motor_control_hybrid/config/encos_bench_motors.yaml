@@ -1,0 +1,26 @@
+# Single-motor ENCOS bring-up registry for encos_can_node.
+# Same layout as motors.yaml; ENCOS has no master_id.
+# model must be an exact encos::MotorModel name: EC_A2806_P2, EC_A4310_P2,
+# EC_A6408_P2 or EC_A6416_P2.
+# hardware_verified must be set to true by hand after checking the CAN ID,
+# model, direction and offset on the bench; the node refuses to start otherwise.
+motor_control_node:
+  ros__parameters:
+    hardware_verified: false
+    default_can_interface: "can0"
+    KP: 10.0
+    KD: 0.2
+    MAX_VEL_RAD_S: 4.5
+
+    motors:
+      test_joint:
+        can_interface: "can0"
+        motor_id: 1
+        model: "EC_A4310_P2"
+        direction: 1
+        encoder_offset_rad: 0.0
+        max_torque_nm: 5.0
+        min_position: -1.57
+        max_position: 1.57
+        kp: 10.0
+        kd: 0.2

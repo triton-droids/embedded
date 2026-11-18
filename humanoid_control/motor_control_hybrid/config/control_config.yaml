@@ -1,12 +1,17 @@
 motor_control_node:
   ros__parameters:
-    default_can_interface: "can0"
+    default_can_interface: "can1"
     default_master_id: 255
 
     FREQ_HZ: 0.8
     KP: 10.0
     KD: 0.2
     MAX_VEL_RAD_S: 4.5
+
+   # TODO
+    ### Warning! The motor model is not set correctely! Using this configuration could cause error during deployment.
+
+
 
     # The fake motor node and SDK demos only need joint names.
     # Replace motor_id values with the real hardware CAN IDs before deploying
@@ -15,7 +20,7 @@ motor_control_node:
 
     motors:
       base_to_shoulder_joint:
-        can_interface: "can0"
+        can_interface: "can1"
         master_id: 255
         motor_id: 21
         actuator_type: 2
@@ -26,7 +31,7 @@ motor_control_node:
         kp: 40.0
         kd: 1.5
       shoulder_to_upper_arm_joint:
-        can_interface: "can0"
+        can_interface: "can1"
         master_id: 255
         motor_id: 22
         actuator_type: 2
@@ -37,7 +42,7 @@ motor_control_node:
         kp: 40.0
         kd: 1.5
       upper_arm_to_lower_arm_joint:
-        can_interface: "can0"
+        can_interface: "can1"
         master_id: 255
         motor_id: 23
         actuator_type: 2
@@ -48,7 +53,7 @@ motor_control_node:
         kp: 40.0
         kd: 1.5
       lower_arm_to_wrist_joint:
-        can_interface: "can0"
+        can_interface: "can1"
         master_id: 255
         motor_id: 24
         actuator_type: 2

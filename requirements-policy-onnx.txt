@@ -1,0 +1,10 @@
+# ROS 2 Humble's native Python modules require NumPy 1.x.
+numpy>=1.24,<2
+onnx>=1.16,<2
+onnxruntime>=1.18,<2
+pyserial>=3.5,<4
+# Python build helpers used by ament/rosidl inside a fresh virtual environment.
+catkin_pkg
+empy==3.3.4
+lark
+pyyaml

@@ -21,11 +21,27 @@
   <build_depend>motor_control_interfaces</build_depend>
   <build_export_depend>motor_control_interfaces</build_export_depend>
   <exec_depend>motor_control_interfaces</exec_depend>
+  <exec_depend>humanoid_safety</exec_depend>
+  <exec_depend>attitude_sensing_pkg</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
 
   <!-- C++ dependencies -->
   <depend>rclcpp</depend>
+  <depend>diagnostic_msgs</depend>
+  <!-- encos_driver is fetched by CMake when no installed package is available. -->
+  <build_depend>git</build_depend>
+  <depend>yaml-cpp</depend>
+  <depend>spdlog</depend>
+  <depend>fmt</depend>
+  <depend>libzstd-dev</depend>
+  <depend>libcap-dev</depend>
 
   <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_cmake_pytest</test_depend>
+  <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>python3-pytest</test_depend>
   <test_depend>ament_lint_common</test_depend>
 
   <export>

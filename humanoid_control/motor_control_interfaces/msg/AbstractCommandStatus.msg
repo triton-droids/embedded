@@ -1,0 +1,17 @@
+uint8 IDLE=0
+uint8 DECELERATING=1
+uint8 SETTLING=2
+uint8 WAITING_BACKEND=3
+uint8 WAITING_REBIND=4
+uint8 RESUMING=5
+uint8 COMPLETED=6
+uint8 FAILED=7
+uint8 CANCELLED=8
+uint8 REJECTED=9
+std_msgs/Header header
+string request_id
+string joint_name
+uint8 stage
+string message
+bool zero_may_have_changed
+uint64 calibration_epoch

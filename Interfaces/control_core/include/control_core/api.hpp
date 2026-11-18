@@ -51,6 +51,7 @@ using CommandSubset = std::unordered_map<std::string, Command>;
 struct Output {
   std::vector<std::string> joint_name;
   std::vector<Command> commands;  // same length as joint_name
+  std::vector<std::string> warnings;  // Advisory plugin failures; never change commands.
 };
 
 // Safety plugin interface (optional, you said "leave blank" for now)
@@ -80,7 +81,7 @@ public:
   // Main step:
   // - Start from hold-last commands
   // - Override only joints in desired_subset
-  // - Safety failure => return hold-last unchanged (as placeholder)
+  // - Optional safety failure => report warning and continue normal command selection
   Output step(const State& state, const CommandSubset& desired_subset, double dt);
 
 private:

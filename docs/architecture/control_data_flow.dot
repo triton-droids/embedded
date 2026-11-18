@@ -1,0 +1,40 @@
+digraph Flow {
+ graph [rankdir=TB, bgcolor="#f7f9fc", pad="0.35", nodesep="0.4", ranksep="0.42", fontname="DejaVu Sans", fontsize=23, labelloc=t, label="Control Data Flow\nImplemented checks, timing ownership and command lifetime · not verified on the physical robot"];
+ node [shape=box, style="rounded,filled", fillcolor=white, color="#94a3b8", fontname="DejaVu Sans", fontsize=14, margin="0.2,0.12"];
+ edge [fontname="DejaVu Sans", fontsize=11, color="#64748b", arrowsize=.8];
+ imu [label="IMU sample (body MCU, BNO085)\nmicro-ROS epoch stamp at read time\nnot a sensor hardware trigger", fillcolor="#e0f2fe"];
+ joints [label="Joint feedback\nCAN RX → calibrated joint coordinates (direction, offset, ankle four-bar)\nJointState stamp = oldest included receive time", fillcolor="#e0f2fe"];
+ snapshot [label="tracking_policy_node: immutable input snapshot\nfinite / complete q and dq; source + receipt ages ≤ 100 ms\nIMU / JointState stamp skew ≤ 20 ms in real-feedback mode", fillcolor="#dbeafe"];
+ policy [label="Single ONNX worker · 50 Hz\nlatest input only; no inference FIFO or catch-up bursts", fillcolor="#dbeafe"];
+ post [label="Post-inference validity check\nsnapshot still fresh; work ≤ 20 ms; finite output; no fault / estop\nexpired result discarded; policy fault latches", fillcolor="#dbeafe"];
+ command [label="Joint-space MotorCommand\ntraining angle bounds + model Kp / Kd\ndesired velocity = 0; feedforward torque = 0\nheader.stamp = oldest input source time · valid_until = source + timeout", fillcolor="#dcfce7"];
+ cpp [label="cpp_control_node → control_core\nper-joint state and held-command deadlines\nmissing feedback / expired command / estop → disable all", fillcolor="#dbeafe"];
+ split [label="Launch-dependent output", shape=diamond, fillcolor="#ffffff"];
+ bench [label="ONNX bench: /policy/motor_commands\nmonitor or optional fake_motor_node\nno hardware CAN / automatic enable", fillcolor="#fef3c7"];
+ can [label="Hybrid hardware: /motor_commands → CAN backend\npython_can_node (default) or robstride_can_node (C++)\nbounded latest-command mailbox · per-joint monotonic deadline\nfresh explicit ENABLE + asynchronous healthy status ACK required", fillcolor="#dbeafe"];
+ map [label="Final backend validation and conversion\nfinite command / nonnegative gains; joint bounds; velocity / torque clamp\ndirection, offset and ankle four-bar mapping", fillcolor="#dbeafe"];
+ tx [label="CAN TX owner\nrecheck expiry before sending · zero-wait SocketCAN submit\naudited RS02 / RS03 / RS04 MIT encoding · independent RX threads", fillcolor="#dbeafe"];
+ motor [label="RobStride internal controller + physical robot\nposition error and Kp / Kd generate actuator effort", fillcolor="#e0f2fe"];
+ imu -> snapshot; joints -> snapshot;
+ snapshot -> policy -> post -> command -> cpp -> split;
+ split -> bench [label="isolated topic remap"];
+ split -> can [label="hardware registry must be verified"];
+ can -> map -> tx -> motor;
+ motor -> joints [label="CAN status frames", color="#0284c7", constraint=false];
+
+ supervisor [label="safety_node (independent)\nIMU fall / freshness / stuck checks → latched /safety/estop\n/safety/status heartbeat: warning only in C++", fillcolor="#ffedd5"];
+ advisory [label="Advisory monitors — never stop motors\nfall_predictor_node → /safety/fall_warning (opt-in)\nself_collision_monitor_node → /safety/self_collision", fillcolor="#fff7ed"];
+ imu -> supervisor [color="#d97706"];
+ imu -> advisory [color="#d97706", style=dashed];
+ supervisor -> cpp [label="diagnostics + explicit estop", color="#d97706"];
+ supervisor -> can [label="explicit estop", color="#dc2626"];
+ lifetime [label="LIFETIME RULE\nC++ relay and CAN retransmission never renew source time or expiry.\nInvalid / stale control state and expired commands keep their disable behavior.\nLimits shown are configuration, not measured hardware guarantees.", shape=note, fillcolor=white, fontsize=13];
+ planned [label="NOT IMPLEMENTED / NOT VERIFIED\nactual-speed / total-torque / tracking-error threshold checks\nphysical-robot validation of every path in this diagram", shape=note, fillcolor="#f1f5f9", fontsize=13];
+ motor -> lifetime [style=invis];
+ lifetime -> planned [style=invis];
+ subgraph cluster_sdk {
+  label="LEGACY SDK / WEBSOCKET BYPASS"; style="rounded,dashed"; color="#dc2626"; penwidth=2.4; fontcolor="#991b1b"; fontsize=17;
+  old [label="SDK gateway / WebSocket demo\ndirect /motor_commands publication", fillcolor="#fff1f2"];
+ }
+ old -> can [label="bypasses policy / C++ stage\nstill subject to CAN backend gates", color="#dc2626"];
+}

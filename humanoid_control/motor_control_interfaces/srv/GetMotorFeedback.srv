@@ -1,0 +1,6 @@
+# Return a cached type-2 sample. Does not transmit CAN or wait for feedback.
+string joint_name
+---
+bool success
+string message
+motor_control_interfaces/MotorFeedback feedback

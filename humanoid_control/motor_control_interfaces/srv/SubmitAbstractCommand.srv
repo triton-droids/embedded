@@ -1,0 +1,5 @@
+motor_control_interfaces/AbstractCommand command
+---
+bool accepted
+string message
+motor_control_interfaces/AbstractCommandStatus status

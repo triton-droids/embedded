@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<robot name="ch_robot">
+  <group name="left_leg">
+    <chain base_link="torso" tip_link="left_foot" />
+  </group>
+
+  <group name="right_leg">
+    <chain base_link="torso" tip_link="right_foot" />
+  </group>
+
+  <group_state name="left_zero" group="left_leg">
+    <joint name="left_hip1_joint" value="0" />
+    <joint name="left_hip2_joint" value="0" />
+    <joint name="left_thigh_joint" value="0" />
+    <joint name="left_knee_joint" value="0" />
+    <joint name="left_ankle_joint" value="0" />
+  </group_state>
+
+  <group_state name="right_zero" group="right_leg">
+    <joint name="right_hip1_joint" value="0" />
+    <joint name="right_hip2_joint" value="0" />
+    <joint name="right_thigh_joint" value="0" />
+    <joint name="right_knee_joint" value="0" />
+    <joint name="right_ankle_joint" value="0" />
+  </group_state>
+
+  <disable_collisions link1="torso" link2="hip" reason="Adjacent" />
+  <disable_collisions link1="hip" link2="left_leg1" reason="Adjacent" />
+  <disable_collisions link1="left_leg1" link2="left_leg2" reason="Adjacent" />
+  <disable_collisions link1="left_leg2" link2="left_leg3" reason="Adjacent" />
+  <disable_collisions link1="left_leg3" link2="left_leg4" reason="Adjacent" />
+  <disable_collisions link1="left_leg4" link2="left_foot" reason="Adjacent" />
+  <disable_collisions link1="hip" link2="right_leg1" reason="Adjacent" />
+  <disable_collisions link1="right_leg1" link2="right_leg2" reason="Adjacent" />
+  <disable_collisions link1="right_leg2" link2="right_leg3" reason="Adjacent" />
+  <disable_collisions link1="right_leg3" link2="right_leg4" reason="Adjacent" />
+  <disable_collisions link1="right_leg4" link2="right_foot" reason="Adjacent" />
+</robot>
