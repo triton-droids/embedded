@@ -1,6 +1,6 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, LogInfo, OpaqueFunction
-from launch.conditions import IfCondition, UnlessCondition
+from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
@@ -194,12 +194,16 @@ def generate_launch_description():
     # -------------------- Fake motor node --------------------
     fake_motor_node = OpaqueFunction(function=make_fake_motor)
 
-    # -------------------- Python CAN node --------------------
-    real_python_can_node = Node(
+    # -------------------- RobStride CAN node (Python or C++ backend) --------------------
+    # Both backends share the topic/service contract and parameters; the C++ one
+    # (robstride_can_node) is frame-identical on vcan but not yet bench-verified.
+    real_python_can_node = OpaqueFunction(function=lambda context: [] if (
+        LaunchConfiguration('enable_fake_motor').perform(context).lower() == 'true') else [Node(
         package='motor_control_hybrid',
-        executable='python_can_node',
-        name='python_can_node',
-        condition=UnlessCondition(LaunchConfiguration('enable_fake_motor')),
+        executable={'python': 'python_can_node', 'cpp': 'robstride_can_node'}[
+            LaunchConfiguration('can_backend').perform(context)],
+        name={'python': 'python_can_node', 'cpp': 'robstride_can_node'}[
+            LaunchConfiguration('can_backend').perform(context)],
         output='screen',
         parameters=[
             {'motor_config_file': LaunchConfiguration('motor_config_file')},
@@ -211,7 +215,7 @@ def generate_launch_description():
             {'can_tx_rt_priority': ParameterValue(LaunchConfiguration('can_tx_rt_priority'), value_type=int)},
             {'can_rx_rt_priority': ParameterValue(LaunchConfiguration('can_rx_rt_priority'), value_type=int)},
         ],
-    )
+    )])
 
     # -------------------- C++ Control node --------------------
     cpp_control_node = OpaqueFunction(function=make_cpp_control)
@@ -260,6 +264,8 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        DeclareLaunchArgument('can_backend', default_value='python', choices=['python', 'cpp'],
+                              description='RobStride CAN backend: python_can_node or robstride_can_node'),
         DeclareLaunchArgument('can_rt_enabled', default_value='false'),
         DeclareLaunchArgument('can_tx_rt_priority', default_value='20'),
         DeclareLaunchArgument('can_rx_rt_priority', default_value='21'),

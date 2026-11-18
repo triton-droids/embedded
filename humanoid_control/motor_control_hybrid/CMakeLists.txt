@@ -66,6 +66,21 @@ target_include_directories(cpp_control_node PUBLIC
 )
 
 # =========================
+# RobStride CAN backend in C++ (drop-in for python_can_node; SocketCAN, no SDK).
+# =========================
+find_package(yaml-cpp REQUIRED)
+add_executable(robstride_can_node src/robstride_can_node.cpp)
+target_include_directories(robstride_can_node PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+ament_target_dependencies(robstride_can_node
+  rclcpp
+  sensor_msgs
+  std_msgs
+  motor_control_interfaces
+)
+target_link_libraries(robstride_can_node yaml-cpp)
+install(TARGETS robstride_can_node DESTINATION lib/${PROJECT_NAME})
+
+# =========================
 # ENCOS motor node: prefer an installed driver, otherwise fetch a pinned revision.
 # =========================
 option(MOTOR_CONTROL_BUILD_ENCOS "Build the ENCOS CAN backend" ON)
@@ -135,6 +150,14 @@ if(BUILD_TESTING)
   target_link_libraries(cpp_state_watchdog_test control_core)
   ament_add_gtest(core_operation_test test/test_core_operation.cpp)
   target_link_libraries(core_operation_test control_core)
+  # C++ RobStride codec vs vectors generated from the Python reference modules.
+  find_package(yaml-cpp REQUIRED)
+  ament_add_gtest(robstride_codec_test test/test_robstride_codec.cpp)
+  target_include_directories(robstride_codec_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+  target_link_libraries(robstride_codec_test yaml-cpp)
+  target_compile_definitions(robstride_codec_test PRIVATE
+    TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/data"
+    CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config")
   set_tests_properties(cpp_state_watchdog_test PROPERTIES
     ENVIRONMENT "ROS_DOMAIN_ID=179;ROS_LOCALHOST_ONLY=1;ROS_LOG_DIR=/tmp/cpp-state-watchdog-logs")
 endif()
