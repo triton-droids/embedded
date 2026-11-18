@@ -1,0 +1,12 @@
+# Browser viewer for stella_vslam (stella-cv/socket_viewer).
+# SLAM connects to port 3000; open http://<host>:3001 in a browser.
+# Upstream uses node:8 (no longer maintained); node 18 is multi-arch and runs its dependencies (ejs is listed as a dev dependency but app.js needs it, so install all).
+FROM node:18-alpine
+ARG SOCKET_VIEWER_COMMIT=4a34768652edde5f9074802ae61571b051544520
+RUN apk add --no-cache git \
+    && git clone https://github.com/stella-cv/socket_viewer.git /viewer \
+    && cd /viewer && git checkout ${SOCKET_VIEWER_COMMIT} && npm install \
+    && apk del git
+WORKDIR /viewer
+EXPOSE 3000 3001
+ENTRYPOINT ["node", "/viewer/app.js"]

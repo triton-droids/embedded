@@ -26,17 +26,35 @@ run 'v4l2-ctl --list-devices'
 run 'ls -l /dev/video* /dev/ttyACM* /dev/ttyUSB* /dev/serial/by-id/ 2>/dev/null'
 run 'groups'
 
-# Python / conda
+# Camera naming and modes (needed for the SLAM camera config).
+# v4l2-ctl is not installed on the Pi, so read names from sysfs too. /dev/video10-31 are the Pi's own
+# codec/ISP nodes; a USB camera shows up as a lower number with a USB name.
+run 'ls -l /dev/am_* /dev/v4l/by-id/ /dev/v4l/by-path/ 2>/dev/null'
+run 'for d in /sys/class/video4linux/*; do echo "$(basename $d): $(cat $d/name)"; done'
+run 'ls -l /etc/udev/rules.d/'
+# Only hand-written rules; the snap-generated ones are long and irrelevant
+run 'for f in /etc/udev/rules.d/*.rules; do case "$f" in */70-snap.*) ;; *) echo "--- $f"; cat "$f";; esac; done'
+if command -v v4l2-ctl >/dev/null; then
+  for v in /dev/video*; do
+    [ -e "$v" ] && run "v4l2-ctl -d $v --list-formats-ext"
+  done
+fi
+
+# Docker (for running SLAM on the Pi)
+run 'docker --version; docker compose version'
+
+# Python / conda: every env, not just "lerobot"
 run 'which python python3 conda; python3 --version'
 run 'conda env list'
-run 'conda env export -n lerobot --no-builds'
-run 'conda run -n lerobot python --version'
-run 'conda run -n lerobot pip freeze'
+for env in $(conda env list 2>/dev/null | awk '!/^#/ && NF {print $1}'); do
+  run "conda run -n $env python --version"
+  run "conda run -n $env pip freeze"
+done
 
-# LeRobot checkouts (search common locations)
-sec 'lerobot checkouts'
-for d in "$HOME"/lerobot* "$HOME"/*/lerobot* "$HOME"/AlohaMini* "$HOME"/*/AlohaMini*; do
-  [ -d "$d/.git" ] || continue
+# LeRobot / AlohaMini checkouts anywhere under $HOME (4 levels deep)
+sec 'lerobot / aloha checkouts'
+find "$HOME" -maxdepth 4 -type d -name .git 2>/dev/null | grep -iE 'lerobot|aloha' | while read -r g; do
+  d=$(dirname "$g")
   echo "--- $d" >> "$OUT"
   git -C "$d" remote -v 2>&1 | sed -E 's#(https?://)[^/@]+@#\1<redacted>@#' >> "$OUT"
   git -C "$d" rev-parse HEAD >> "$OUT" 2>&1
@@ -44,6 +62,10 @@ for d in "$HOME"/lerobot* "$HOME"/*/lerobot* "$HOME"/AlohaMini* "$HOME"/*/AlohaM
   git -C "$d" status --short | head -20 >> "$OUT" 2>&1
   git -C "$d" diff --stat | tail -20 >> "$OUT" 2>&1
 done
+run 'ls -la "$HOME"'
+
+# What is serving on the Pi (ALOHA_WEB_PORT=8000 in .bashrc suggests a web service)
+run 'ss -ltnp'
 
 # ROS2
 run 'ls /opt/ros 2>/dev/null'
