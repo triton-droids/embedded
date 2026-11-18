@@ -1,67 +1,92 @@
-**Note: The main branch is depreciated. Further update to be added.**
-
 # Humanoid ROS 2 Control Stack
 
-ROS 2 workspace for humanoid leg policy inference, RobStride CAN communication,
-safety supervision, telemetry, and single-axis visual head tracking. Robot
-descriptions are provided for display; retained MoveIt and serial IMU sources
-are documented under [Legacy](#legacy).
+> [!WARNING]
+> **UNTESTED ON THE PHYSICAL ROBOT.** Nothing in this repository has been
+> validated on the assembled robot with motors powered. What *has* been run is
+> listed per feature in [Features and how to test them](#features-and-how-to-test-them):
+> unit and ROS integration tests, virtual-CAN (vcan) tests, fake-motor and
+> synthetic-IMU benches. The shipped motor registry is deliberately
+> `hardware_verified: false`, so real CAN startup is refused until motor IDs,
+> zero, polarity, limits and stop behaviour are commissioned on hardware.
+> Treat every launch that can reach motors as a first bring-up, with the robot
+> supported and a physical power cut-off within reach.
 
-The current leg policy produces joint-position targets at 50 Hz. The C++
-control node schedules commands and checks their execution conditions; the
-Python CAN node communicates with the motors. Head tracking is a separate
-camera-to-servo path.
+ROS 2 workspace for a ten-joint humanoid leg: ONNX tracking-policy inference,
+a C++ command scheduler, RobStride CAN backends (Python and C++), a latched
+IMU safety supervisor with advisory fall prediction and self-collision
+monitoring, read-only telemetry and visualization, and an independent visual
+head-tracking path. Targets JetPack 7 (Ubuntu 24.04, ROS 2 Jazzy) on a Jetson
+Orin; Humble / JetPack 6 still builds through the dev container.
 
-This `Humanoid_ros2` branch contains the hardware stack. The MuJoCo runtime and
-its tests are maintained on the
-[`humanoid_ros2_simulation` branch](https://github.com/triton-droids/embedded/tree/humanoid_ros2_simulation).
-Hardware test doubles and deployment model metadata remain here for validation.
+The MuJoCo simulator and its sim-only tests live on the
+[`humanoid_ros2_simulation`](https://github.com/triton-droids/embedded/tree/humanoid_ros2_simulation)
+and [`sim-experimental-cyclonedds`](https://github.com/triton-droids/embedded/tree/sim-experimental-cyclonedds)
+branches; this branch is the hardware stack.
 
 ## Contents
 
-- [Workspace layout](#workspace-layout)
+- [Repository structure](#repository-structure)
 - [Architecture](#architecture)
-  - [Node topology](#node-topology)
-  - [Control data flow](#control-data-flow)
-- [Nodes and ROS interfaces](#nodes-and-ros-interfaces)
-  - [Control and policy nodes](#control-and-policy-nodes)
-  - [Safety and monitoring nodes](#safety-and-monitoring-nodes)
-  - [Vision, IMU, and MCU nodes](#vision-imu-and-mcu-nodes)
-- [External nodes used by active launch files](#external-nodes-used-by-active-launch-files)
-- [Published targets and commands](#published-targets-and-commands)
-- [Tracking model inputs and outputs](#tracking-model-inputs-and-outputs)
-  - [Input tensors](#input-tensors)
-  - [Output and decoding parameters](#output-and-decoding-parameters)
-  - [Runtime input and timing parameters](#runtime-input-and-timing-parameters)
-- [MotorCommand contract](#motorcommand-contract)
-- [Published feedback and diagnostics](#published-feedback-and-diagnostics)
+- [Features and how to test them](#features-and-how-to-test-them)
+  - [Test status summary](#test-status-summary)
+  - [Common setup for tests](#common-setup-for-tests)
+  - [Per-feature tests](#per-feature-tests)
 - [Setup and build](#setup-and-build)
 - [Launch entry points](#launch-entry-points)
+- [Nodes and ROS interfaces](#nodes-and-ros-interfaces)
+- [Published targets and commands](#published-targets-and-commands)
+- [Tracking model inputs and outputs](#tracking-model-inputs-and-outputs)
+- [MotorCommand contract](#motorcommand-contract)
+- [Published feedback and diagnostics](#published-feedback-and-diagnostics)
 - [Detailed guides](#detailed-guides)
 - [Legacy](#legacy)
-  - [Packages](#packages)
-  - [Nodes and adapters](#nodes-and-adapters)
-  - [External nodes in legacy launches](#external-nodes-in-legacy-launches)
 
-## Workspace layout
+## Repository structure
 
 | Path | Purpose |
 |---|---|
-| [`humanoid_control/motor_control_interfaces`](humanoid_control/motor_control_interfaces) | Shared `MotorCommand` message definition. |
-| [`humanoid_control/motor_control_hybrid`](humanoid_control/motor_control_hybrid) | ONNX policy, C++ command scheduler, CAN transport, and fake motors. |
+| [`humanoid_control/motor_control_interfaces`](humanoid_control/motor_control_interfaces) | `MotorCommand`, `MotorFeedback` and abstract-command messages/services shared by every node. |
+| [`humanoid_control/motor_control_hybrid`](humanoid_control/motor_control_hybrid) | ONNX tracking policy, C++ command scheduler (`cpp_control_node`), RobStride CAN backends (`python_can_node`, C++ `robstride_can_node`), ENCOS skeleton backend, fake motors, motor registry and deployed model. |
 | [`Interfaces/control_core`](Interfaces/control_core) | ROS-independent per-joint command selection and hold-last storage used by the scheduler. |
-| [`humanoid_control/humanoid_safety`](humanoid_control/humanoid_safety) | Latched safety supervisor, read-only Web/ROS monitoring, and advisory self-collision checks. |
-| [`humanoid_vision`](humanoid_vision) | Detection, optional depth projection, image viewing, and host-side head tracking. |
-| [`imu_process`](imu_process) | Body/head MCU firmware, serial IMU package, fusion utilities, fall detector, and acceptance probe. |
-| [`humanoid_leg_description`](humanoid_leg_description), [`humanoid_arm_description`](humanoid_arm_description) | URDFs, meshes, and display launch files. |
-| [`launch`](launch) | Workspace-level system, head-tracking, and display entry points. |
-| [`legacy`](legacy) | Retained arm/leg MoveIt packages and application SDK prototype/examples. |
+| [`humanoid_control/humanoid_safety`](humanoid_control/humanoid_safety) | Latched safety supervisor, advisory fall predictor and self-collision monitor, read-only Web / JointState monitoring. |
+| [`humanoid_vision`](humanoid_vision) | YOLO detection, optional depth projection, image viewer and single-axis head tracking. |
+| [`imu_process`](imu_process) | Body IMU (ESP32-S3 + BNO085) and head MCU micro-ROS firmware, acceptance probe, retained serial IMU package and fusion utilities. |
+| [`humanoid_leg_description`](humanoid_leg_description), [`humanoid_arm_description`](humanoid_arm_description) | URDFs, meshes and display launch files. |
+| [`launch`](launch) | Workspace-level unified system, head-tracking and display entry points. |
+| [`scripts`](scripts) | Environment setup (`setup_rosenv.sh`, `activate_rosenv.sh`), OpenCV SDK extraction, vcan wire check, tracking-policy build helper. |
+| [`docs`](docs) | Architecture diagrams (Graphviz sources), protocol audits, watchdog and policy contracts. |
+| [`legacy`](legacy) | Retained arm/leg MoveIt packages and the application SDK prototype. |
+
+```text
+humanoid_control/
+  motor_control_hybrid/
+    motor_control_hybrid/      Python nodes: tracking_policy_node, python_can_node, fake_motor_node, ...
+    src/                       C++ nodes: cpp_control_node, robstride_can_node, encos_can_node
+    include/motor_control_hybrid/  robstride_codec.hpp, robstride_registry.hpp (C++ CAN codec)
+    config/motors.yaml         ten-joint RobStride registry (hardware_verified: false)
+    models/20260914_170827/    deployed ONNX tracking policy + model XML
+    launch/                    hybrid_control, control_test, tracking_policy, joint_state_monitor
+    test/                      pytest, gtest, vcan differential test
+  humanoid_safety/
+    humanoid_safety/           safety_node, fall_predictor/, self_collision/, motor_web_node, relay
+    models/fall_predictor/     dual-horizon fall CNN (ONNX) + thresholds
+    launch/                    safety, self_collision, self_collision_rviz
+```
 
 ## Architecture
 
-These existing diagrams show repository wiring and optional launch paths, not
-a live process graph. The node and interface tables below describe the current
-implementation and distinguish active components from legacy sources.
+The diagrams show repository wiring and launch options, not a measured live
+process graph. Sources are Graphviz files; regenerate with
+`dot -Tsvg docs/architecture/<name>.dot -o docs/architecture/<name>.svg`
+(and `-Tpng` for the PNG copies).
+
+### Deployment overview
+
+![Deployment overview](docs/architecture/system_overview.svg)
+
+[Open SVG](docs/architecture/system_overview.svg) ·
+[Graphviz source](docs/architecture/system_overview.dot) ·
+also exported as [`system.struct.png`](system.struct.png)
 
 ### Node topology
 
@@ -77,177 +102,370 @@ implementation and distinguish active components from legacy sources.
 [Open SVG](docs/architecture/control_data_flow.svg) ·
 [Graphviz source](docs/architecture/control_data_flow.dot)
 
-The policy launch does not start CAN or send motor-enable commands. The unified
-system launch starts control, safety, vision, and display, but does not start the
-ONNX policy. These launch paths require deliberate composition for hardware
-policy execution. They are not connected automatically.
+The tracking-policy launch does not start CAN or send enable commands. The
+hybrid launch starts the scheduler, safety and a CAN (or fake) backend but not
+the policy. Composing policy and hardware is a deliberate, manual step.
+
+## Features and how to test them
+
+### Test status summary
+
+Software results below were produced on 2026-11-18 on a Jetson Orin Nano 8 GB
+(JetPack 7.2.1 / L4T R39.2.1, Ubuntu 24.04, ROS 2 Jazzy, CycloneDDS) from this
+branch. **"Robot" means the assembled robot with powered motors; no feature has
+been validated there.**
+
+| Feature | Software / bench verification (this branch) | Robot |
+|---|---|---|
+| Environment, build (`rosenv`, colcon, OpenCV 4.6 SDK) | Full workspace builds on JetPack 7 / Jazzy | not tested |
+| ONNX tracking policy (`tracking_policy_node`) | Model, node, deadline and settings tests pass (29); policy runs at 50 Hz on a synthetic-IMU / fake-feedback bench | not tested |
+| C++ scheduler (`cpp_control_node`, `control_core`) | gtests pass (12 + 9); deadline relay smoke passes; **unified fake-stack integration test fails (pre-existing, see below)** | not tested |
+| RobStride CAN, Python (`python_can_node`) | Watchdog/transport/service tests pass; vcan wire check matches independent RS02/03/04 vectors | not tested |
+| RobStride CAN, C++ (`robstride_can_node`) | Codec bit-identical to Python (6 gtests); vcan differential test against Python passes 3/3 | not tested |
+| ENCOS CAN (`encos_can_node`) | Builds only; skeleton, never run | not tested |
+| Fake motors (`fake_motor_node`) | Fake-operation tests pass | n/a |
+| Safety supervisor (`safety_node`) | Unit tests pass (whole `humanoid_safety` suite: 120 passed, 2 skipped); ROS IMU time-contract and monitor integration tests pass (16) | not tested |
+| Fall predictor (`fall_predictor_node`, advisory) | Replays 134 k recorded sim samples identically to the validated TorchScript model; unit tests include a recorded fall; one end-to-end ROS replay on the Orin | not tested; trained on simulation only |
+| Self-collision monitor (advisory) | Checker, marker and Pinocchio backend tests pass (31); MoveIt backend test skipped (MoveIt not installed) | not tested |
+| Read-only monitoring (Web, relay, RViz) | Monitor unit + ROS/HTTP integration tests pass | not tested |
+| Body IMU firmware (BNO085) | Host-side math test passes | not tested on this branch |
+| Head tracking (`track_node`, detector) | Tracker ROS test passes; YOLO CPU fixture passes | not tested |
+
+Known test issues (both also occur on the code before the latest changes):
+
+- `test_control_stack_integration.py` fails: it expects the zero abstract
+  command to be rejected in fake-motor mode, but `control_test.launch.py`
+  enables simulation zero for fake motors, so it is accepted.
+- `test_motor_monitor.py::test_config_hot_reload_keeps_all_motors_and_clears_changed_identity`
+  fails intermittently (about 1 run in 7).
+
+### Common setup for tests
+
+Run from the repository root after [building](#setup-and-build):
+
+```bash
+source scripts/activate_rosenv.sh          # ROS + rosenv + install/setup.bash
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp ROS_LOCALHOST_ONLY=1
+export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1    # required, see below
+```
+
+`PYTEST_DISABLE_PLUGIN_AUTOLOAD=1` matters: with the ROS pytest plugins
+auto-loaded (ament lint / launch_testing, installed with ROS Jazzy), the
+self-collision tests under `humanoid_safety/test/self_collision` are silently
+not collected — pytest reports one skip and no failure.
+
+Use a private `ROS_DOMAIN_ID` (non-zero) for every ROS integration test so it
+cannot reach a running robot. CAN tests use a virtual interface only and refuse
+physical CAN:
+
+```bash
+sudo modprobe vcan
+sudo ip link add vcan0 type vcan && sudo ip link set vcan0 up
+```
+
+### Per-feature tests
+
+#### 1. Environment and build
+
+```bash
+ROS_DISTRO=jazzy source scripts/setup_rosenv.sh
+bash scripts/setup_opencv45.sh             # .deps/opencv46 on 24.04, .deps/opencv45 on 22.04
+colcon build --symlink-install --cmake-args -DBUILD_TESTING=ON
+```
+
+Pass: every package builds; `install/` contains `python_can_node`,
+`robstride_can_node`, `cpp_control_node`, `fall_predictor_node`, `track_node`.
+
+#### 2. ONNX tracking policy
+
+```bash
+PYTHONPATH=humanoid_control/motor_control_hybrid:$PYTHONPATH python -m pytest -q \
+  humanoid_control/motor_control_hybrid/test/test_tracking_onnx.py \
+  humanoid_control/motor_control_hybrid/test/test_tracking_node.py \
+  humanoid_control/motor_control_hybrid/test/test_inference_deadlines.py \
+  humanoid_control/motor_control_hybrid/test/test_model_control_settings.py
+```
+
+Bench (no CAN, fake feedback, needs an IMU on `/imu/data_raw`):
+
+```bash
+ros2 launch motor_control_hybrid tracking_policy.launch.py start_imu_reader:=false \
+  orientation_source:=message use_fake_joint_states:=true \
+  joint_feedback_mode:=joint_states run_cpp_control:=true
+ros2 topic hz /policy/desired_motor_subset    # expect ~50 Hz
+ros2 topic echo /policy/status --once
+```
+
+#### 3. C++ command scheduler and control_core
+
+```bash
+build/motor_control_hybrid/cpp_state_watchdog_test
+build/motor_control_hybrid/core_operation_test
+ROS_DOMAIN_ID=181 python humanoid_control/motor_control_hybrid/test/ros_deadline_relay_smoke.py
+ROS_DOMAIN_ID=182 RUN_ROS_INTEGRATION=1 PYTHONPATH=humanoid_control/motor_control_hybrid:$PYTHONPATH \
+  python -m pytest -q humanoid_control/motor_control_hybrid/test/test_pose_monitor_integration.py \
+  humanoid_control/motor_control_hybrid/test/test_control_stack_integration.py   # second file: known failure
+```
+
+#### 4. RobStride CAN backends (Python and C++)
+
+```bash
+PYTHONPATH=humanoid_control/motor_control_hybrid:$PYTHONPATH python -m pytest -q \
+  humanoid_control/motor_control_hybrid/test/test_control_watchdogs.py \
+  humanoid_control/motor_control_hybrid/test/test_can_transport.py \
+  humanoid_control/motor_control_hybrid/test/test_motor_services.py \
+  humanoid_control/motor_control_hybrid/test/test_motor_configuration.py
+build/motor_control_hybrid/robstride_codec_test          # C++ frames vs Python vectors, bit for bit
+python scripts/check_can_wire.py --channel vcan0         # SocketCAN encode/decode vs independent vectors
+ROS_DOMAIN_ID=183 python humanoid_control/motor_control_hybrid/test/can_backend_diff.py \
+  --registry humanoid_control/motor_control_hybrid/config/motors.yaml --channel vcan0
+```
+
+The differential test runs each backend against a fake RobStride responder on
+vcan through disable, enable, MIT motion, position, velocity, watchdog timeout,
+re-enable and estop, then compares the frames per motor. Regenerate the codec
+vectors after changing `can_transport.py`, `motor_configuration.py` or
+`ankle_mapping.py`:
+`PYTHONPATH=humanoid_control/motor_control_hybrid python3 humanoid_control/motor_control_hybrid/test/gen_robstride_vectors.py`.
+
+On JetPack 7 the USB-CAN adapter needs the `gs_usb` kernel module, which the
+stock kernel does not build: compile it out of tree against the installed
+headers (`/lib/modules/$(uname -r)/build`) from the matching kernel.org source,
+and rebuild it after every `nvidia-l4t-kernel` update.
+
+#### 5. Fake motors
+
+```bash
+PYTHONPATH=humanoid_control/motor_control_hybrid:$PYTHONPATH python -m pytest -q \
+  humanoid_control/motor_control_hybrid/test/test_fake_operations.py
+ros2 launch motor_control_hybrid hybrid_control.launch.py enable_fake_motor:=true \
+  enable_sdk_gateway:=false enable_websocket_ui:=false enable_policy_bridge:=false
+```
+
+#### 6. Safety supervisor
+
+```bash
+python -m pytest -q humanoid_control/humanoid_safety/test \
+  --ignore=humanoid_control/humanoid_safety/test/test_motor_monitor_integration.py
+ROS_DOMAIN_ID=184 RUN_ROS_INTEGRATION=1 python -m pytest -q \
+  humanoid_control/humanoid_safety/test/test_imu_time_contract.py \
+  humanoid_control/humanoid_safety/test/test_motor_monitor_integration.py
+```
+
+Live check: `ros2 launch humanoid_safety safety.launch.py mode:=supervisor`,
+then `ros2 topic echo /safety/estop` — it latches `true` when the body IMU stops
+or reports a fall; `ros2 service call /safety/reset std_srvs/srv/Trigger` clears
+it only when every check is healthy, and never enables motors.
+
+#### 7. Fall predictor (advisory)
+
+```bash
+python -m pytest -q humanoid_control/humanoid_safety/test/test_fall_predictor.py
+ros2 launch humanoid_safety safety.launch.py fall_predictor:=true \
+  fall_predictor_log:=/tmp/fall_shadow.jsonl
+ros2 topic echo /safety/fall_warning
+```
+
+It reads `/imu/data_raw` and `/safety/estop` only and never publishes the
+estop. The model was trained in MuJoCo on the old RL tracking path; run it in
+shadow (log only) on the robot before anything reacts to its warning.
+
+#### 8. Self-collision monitor (advisory)
+
+```bash
+python -m pytest -q humanoid_control/humanoid_safety/test/self_collision
+ros2 launch humanoid_safety self_collision.launch.py
+ros2 topic echo /safety/self_collision --once
+```
+
+#### 9. Read-only monitoring (Web, relay, RViz)
+
+```bash
+ros2 launch humanoid_safety safety.launch.py mode:=monitor source_topic:=/joint_states
+curl http://127.0.0.1:8080/api/status
+```
+
+#### 10. Body IMU firmware
+
+```bash
+g++ -std=c++17 -Wall -Wextra -Werror \
+  imu_process/policy_imu/policy_imu_microros/test/body_imu_math_test.cpp -o /tmp/body-imu-math-test
+/tmp/body-imu-math-test
+# With the MCU flashed and the micro-ROS Agent running:
+python3 imu_process/policy_imu/policy_imu_microros/check_body_imu.py
+```
+
+#### 11. Head tracking and vision
+
+```bash
+/usr/bin/python3 humanoid_vision/algorithm/test/test_track_node.py
+(cd build/humanoid_vision && ctest --output-on-failure -R yolo_face_cpu)
+```
+
+Live: `ros2 launch launch/head_tracking.launch.py` (camera, detector, tracker,
+micro-ROS Agent); see [TRACKING.md](humanoid_vision/TRACKING.md).
+
+## Setup and build
+
+Use the ROS distribution that matches the host OS. JetPack 7 / Ubuntu 24.04 uses
+Jazzy and Python 3.12; on other distributions use the Humble
+[dev container](docs/devcontainer.md). Recreate `rosenv/` on each host.
+
+```bash
+sudo apt install ros-jazzy-desktop ros-jazzy-rmw-cyclonedds-cpp ros-dev-tools \
+  libyaml-cpp-dev libspdlog-dev libfmt-dev libzstd-dev libcap-dev
+rosdep install --from-paths . --ignore-src -r -y --rosdistro jazzy
+ROS_DISTRO=jazzy source scripts/setup_rosenv.sh   # control, ONNX, test dependencies
+bash scripts/setup_opencv45.sh                     # vision: Ubuntu OpenCV SDK into .deps/
+colcon build --symlink-install
+source scripts/activate_rosenv.sh                  # every new terminal
+```
+
+`setup_rosenv.sh` installs [`requirements-rosenv.txt`](requirements-rosenv.txt)
+into `rosenv/`, checks the Python version against the host ROS interpreter and
+refreshes when a requirements file changes (`ROSENV_FORCE_INSTALL=1` forces it).
+The ONNX policy does not need PyTorch; `INSTALL_TORCH=1` adds CPU PyTorch for the
+legacy Torch bridge. If `setuptools` is missing from `rosenv` on Python 3.12,
+install `setuptools==68.1.2` (newer releases break `--symlink-install` for
+ament_python packages).
+
+The vision package builds against the Ubuntu OpenCV SDK that
+`setup_opencv45.sh` extracts (4.5.4 on 22.04, 4.6.0 on 24.04) so it matches
+`cv_bridge`, not JetPack's OpenCV 4.8 development package. TensorRT/CUDA and
+librealsense are optional build features. For tracking without the detector,
+build `humanoid_vision` with `--cmake-args -DTRACK_ONLY=ON`.
+
+`motor_control_hybrid` also builds `encos_can_node`: CMake uses an installed
+`encos_driver >= 4.0` or downloads the pinned revision
+`5ae8c3a92f6387369b674bfe7563bc053a460075`. Use
+`-DMOTOR_CONTROL_FETCH_ENCOS=OFF` to forbid the download or
+`-DMOTOR_CONTROL_BUILD_ENCOS=OFF` to skip it; offline builds can point
+`-DFETCHCONTENT_SOURCE_DIR_ENCOS_DRIVER=/path/to/encos_driver` at a checkout.
+
+## Launch entry points
+
+Run from the repository root after `source scripts/activate_rosenv.sh`.
+Processes on different hosts must share `ROS_DOMAIN_ID` and DDS settings.
+
+| Task | Command | Behaviour |
+|---|---|---|
+| Body control, safety, Web and RViz | `ros2 launch motor_control_hybrid control_test.launch.py` | Real CAN, C++ core, safety supervisor, WebUI, joint relay, model TF and RViz. No startup enable / home / zero. `enable_fake_motor:=true` replaces CAN; `use_rviz:=false` for headless. |
+| Control stack, fake motors | `ros2 launch motor_control_hybrid hybrid_control.launch.py enable_fake_motor:=true enable_sdk_gateway:=false enable_websocket_ui:=false enable_policy_bridge:=false` | Fake motors, C++ scheduler and safety. No automatic enable; without a body IMU, safety latches after its startup grace. |
+| Control stack, real CAN (Python backend) | `ros2 launch motor_control_hybrid hybrid_control.launch.py` | `python_can_node` on the registry's interfaces. Refused while the registry is `hardware_verified: false`. |
+| Control stack, real CAN (C++ backend) | `ros2 launch motor_control_hybrid hybrid_control.launch.py can_backend:=cpp` | `robstride_can_node` instead of `python_can_node`; same topics, services and parameters. vcan-verified only. |
+| ONNX policy | `ros2 launch motor_control_hybrid tracking_policy.launch.py` | External IMU, zero joint feedback by default, `/policy/*` outputs. No CAN, safety or enable. |
+| Policy bench | `ros2 launch motor_control_hybrid tracking_policy.launch.py use_fake_joint_states:=true run_cpp_control:=true joint_feedback_mode:=joint_states` | Adds fake feedback and the remapped scheduler. Fake motors stay disabled until explicitly enabled. |
+| Safety supervisor | `ros2 launch humanoid_safety safety.launch.py mode:=supervisor` | IMU checks, latched estop, diagnostics and reset service. |
+| Safety + fall predictor | `ros2 launch humanoid_safety safety.launch.py fall_predictor:=true` | Adds the advisory `fall_predictor_node` (`fall_predictor_log:=` for a shadow log). |
+| Read-only monitoring | `ros2 launch humanoid_safety safety.launch.py mode:=monitor` | HTTP telemetry and JointState relay/display; no supervisor. |
+| Self-collision monitor | `ros2 launch humanoid_safety self_collision.launch.py` | Advisory geometry checker (Pinocchio backend). |
+| Head tracking | `ros2 launch launch/head_tracking.launch.py` | Camera, detector, tracker and serial micro-ROS Agent. `enable_depth:=true` for 3D output. |
+| Leg display | `ros2 launch launch/display.launch.py use_joint_state_gui:=false` | Displays the selected joint-state stream. |
+| Unified system | `ros2 launch launch/system.launch.py` | Real CAN, C++ scheduler, safety, head tracking, leg state publisher and RViz. No policy. |
+
+The unified launch requests SCHED_RR priorities 20 (CAN TX), 21 (CAN RX) and 10
+(C++ executor); `enable_rt:=false` disables them and permission failures only
+warn. Inspect switches with `ros2 launch <package> <file> --show-args`.
 
 ## Nodes and ROS interfaces
 
-The tables list application topics from the repository sources. Standard ROS
-logging, parameter services, and `/parameter_events` are omitted. Topics shown
-with a leading `/` are the names used at the root namespace. CAN, fake-motor,
-SDK, and WebSocket nodes use relative motor topic names, so a namespace changes
-those names. Parameter overrides and launch remappings can change the defaults.
-
-Message abbreviations below: `MotorCommand` =
+Standard ROS logging, parameter services and `/parameter_events` are omitted.
+CAN, fake-motor, SDK and WebSocket nodes use relative motor topic names, so a
+namespace changes them. Abbreviations: `MotorCommand` =
 `motor_control_interfaces/msg/MotorCommand`, `JointState` =
 `sensor_msgs/msg/JointState`, `Imu` = `sensor_msgs/msg/Imu`, `PointStamped` =
-`geometry_msgs/msg/PointStamped`, and `DiagnosticArray` =
+`geometry_msgs/msg/PointStamped`, `DiagnosticArray` =
 `diagnostic_msgs/msg/DiagnosticArray`.
 
 ### Control and policy nodes
 
 | Node | Responsibility | Publishes | Subscribes |
 |---|---|---|---|
-| [`tracking_policy_node`](humanoid_control/motor_control_hybrid/motor_control_hybrid/tracking_policy_node.py) | Runs the ten-joint ONNX policy at 50 Hz; calibrates the gyro and checks input freshness, input skew, inference deadlines, and estop. | `/policy/actions`, `/policy/target_angles`, `/policy/desired_motor_subset`, `/policy/status` | Configurable IMU and joint-state inputs; `/safety/estop` |
-| [`cpp_control_node`](humanoid_control/motor_control_hybrid/src/cpp_control_node.cpp) | Schedules per-joint commands at 50 Hz. Enforces deadlines/estop and hosts the default-disabled zero stop/wait state machine with async backend clients. | `/motor_commands`, `/control_core/abstract_command_status` | `/joint_states`, `/desired_motor_subset`, `/desired_velocity_subset`, `/control_core/abstract_command`, `/safety/estop`, `/safety/status` |
-| [`python_can_node`](humanoid_control/motor_control_hybrid/motor_control_hybrid/python_can_node.py) | Owns RobStride CAN I/O with independent TX and per-interface RX threads. Checks commands, tracks enable acknowledgements, enforces local deadlines, and publishes feedback. | `/joint_states`, `/motor_status`, `/motor_telemetry`, `/can_timing` | `/motor_commands`, `/safety/estop` |
-| [`fake_motor_node`](humanoid_control/motor_control_hybrid/motor_control_hybrid/fake_motor_node.py) | Provides simple simulated joint motion and status without CAN hardware. It is a testing backend, not a dynamics-equivalent motor model. | `/joint_states`, `/motor_status` | `/motor_commands`, `/safety/estop` |
+| [`tracking_policy_node`](humanoid_control/motor_control_hybrid/motor_control_hybrid/tracking_policy_node.py) | Ten-joint ONNX policy at 50 Hz; gyro calibration, input freshness / skew, inference deadlines, estop. | `/policy/actions`, `/policy/target_angles`, `/policy/desired_motor_subset`, `/policy/status` | IMU and joint-state inputs; `/safety/estop` |
+| [`cpp_control_node`](humanoid_control/motor_control_hybrid/src/cpp_control_node.cpp) | Schedules per-joint commands at 50 Hz; deadlines / estop; default-disabled zero state machine. | `/motor_commands`, `/control_core/abstract_command_status` | `/joint_states`, `/desired_motor_subset`, `/desired_velocity_subset`, `/control_core/abstract_command`, `/safety/estop`, `/safety/status` |
+| [`python_can_node`](humanoid_control/motor_control_hybrid/motor_control_hybrid/python_can_node.py) | Default RobStride backend: independent TX and per-bus RX threads, command checks, enable ACK, local deadlines, feedback. | `/joint_states`, `/motor_status`, `/motor_telemetry`, `/can_timing` | `/motor_commands`, `/safety/estop` |
+| [`robstride_can_node`](humanoid_control/motor_control_hybrid/src/robstride_can_node.cpp) | C++ RobStride backend (`can_backend:=cpp`), same contract on raw SocketCAN; codec in [`robstride_codec.hpp`](humanoid_control/motor_control_hybrid/include/motor_control_hybrid/robstride_codec.hpp). | same as `python_can_node` | same as `python_can_node` |
+| [`encos_can_node`](humanoid_control/motor_control_hybrid/src/encos_can_node.cpp) | Skeleton backend for ENCOS actuators with the same contract; never run on motors. | same topic contract | same topic contract |
+| [`fake_motor_node`](humanoid_control/motor_control_hybrid/motor_control_hybrid/fake_motor_node.py) | Simple simulated joint motion and status without CAN; not a dynamics model. | `/joint_states`, `/motor_status` | `/motor_commands`, `/safety/estop` |
 
-The real CAN node also serves `/motor_backend/get_feedback`
-(`motor_control_interfaces/srv/GetMotorFeedback`) for cached raw motor-coordinate
-feedback, and `/motor_backend/execute_operation`
-(`motor_control_interfaces/srv/ExecuteMotorOperation`) as a management admission
-endpoint. Set Zero requests are currently rejected as not ready; no service
-sends a calibration frame. Home admission and trajectory generation remain
-unimplemented in control_core. See the
+The CAN backends also serve `motor_backend/get_feedback`
+(`GetMotorFeedback`, cached raw motor-coordinate feedback) and
+`motor_backend/execute_operation` (`ExecuteMotorOperation`); Set Zero is
+currently always rejected and no service sends a calibration frame. The C++
+scheduler also serves `/control_core/submit_abstract_command`; zero processing
+is disabled by default. See the
 [backend service contract](docs/robstride_abstract_command_design.md#initial-backend-services).
-Both service names are relative in code and follow the node namespace.
-The C++ adapter also serves `/control_core/submit_abstract_command` for the same
-admission path as its abstract-command topic. Zero processing is disabled by
-default; backend acceptance alone cannot complete calibration or resume control.
 
-The policy node's standalone joint-state default is `/joint_states`; the
-tracking launch selects `/policy/joint_states`. Its default
-`joint_feedback_mode:=zero` supplies zero joint feedback internally. Select
-`joint_feedback_mode:=joint_states` to require actual JointState inputs.
-
-Ordinary C++ command forwarding does not run inference, calculate PD torque or
-perform inverse dynamics. The separate zero transaction can generate bounded
-deceleration targets when explicitly commissioned. Its normal control core updates commanded
-joints and holds the previous commands for other joints, subject to command
-expiry. Missing/stale feedback from any configured joint, an expired tracked
-command, or an asserted estop causes all configured joints to be disabled and
-cached commands to be cleared. Default feedback and command timeouts are
-0.2 s and 0.5 s. A missing or unhealthy `/safety/status` heartbeat produces a
-warning; it does not independently trip the estop. No `SafetyFeature` plugin is
-currently registered in the production scheduler.
+The policy's default `joint_feedback_mode:=zero` supplies zero joint feedback;
+`joint_states` requires real JointState input (`/policy/joint_states` in the
+tracking launch). The scheduler forwards gains and targets; it does not run
+inference or compute PD torque. Missing / stale feedback from any configured
+joint, an expired command or an asserted estop disables all joints and clears
+cached commands (default feedback / command timeouts 0.2 s / 0.5 s). A missing
+`/safety/status` heartbeat only warns.
 
 ### Safety and monitoring nodes
 
 | Node | Responsibility | Publishes | Subscribes |
 |---|---|---|---|
-| [`safety_node`](humanoid_control/humanoid_safety/humanoid_safety/safety_node.py) | Checks IMU orientation and source/receipt freshness on a steady-clock timer; latches estop on a confirmed fall or IMU timeout. Provides `/safety/reset` (`std_srvs/srv/Trigger`). | `/safety/estop`, `/safety/status` | `/imu/data_raw` |
-| [`motor_web_node`](humanoid_control/humanoid_safety/humanoid_safety/motor_web_node.py) | Serves read-only motor telemetry over HTTP, default `127.0.0.1:8080`. Tracks state age, temperature, estop, and supervisor health. | No application topics | `/joint_states`, `/motor_telemetry`, `/safety/estop`, `/safety/status` |
-| [`joint_state_monitor_node`](humanoid_control/humanoid_safety/humanoid_safety/joint_state_monitor_node.py) | Validates and relays JointState messages while preserving source timestamps. | Configurable `output_topic` | Configurable `source_topic` |
-| [`self_collision_monitor_node`](humanoid_control/humanoid_safety/humanoid_safety/self_collision/monitor_node.py) | Checks measured poses, target poses, and a sampled path between them; publishes advisory distances/collisions at 20 Hz by default. | `/safety/self_collision`, optional `/safety/self_collision/markers` | `/joint_states`, `/policy/target_angles` |
+| [`safety_node`](humanoid_control/humanoid_safety/humanoid_safety/safety_node.py) | IMU orientation, freshness and stuck checks on a steady-clock timer; latches estop; `/safety/reset` (`std_srvs/srv/Trigger`). The only estop authority. | `/safety/estop`, `/safety/status` | `/imu/data_raw` |
+| [`fall_predictor_node`](humanoid_control/humanoid_safety/humanoid_safety/fall_predictor/node.py) | Advisory learned fall predictor (300 / 600 ms heads, ONNX); never publishes the estop. | `/safety/fall_warning`, `/safety/fall_prediction` | `/imu/data_raw`, `/safety/estop` |
+| [`self_collision_monitor_node`](humanoid_control/humanoid_safety/humanoid_safety/self_collision/monitor_node.py) | Measured, target and sampled-path clearance at 20 Hz; advisory only. | `/safety/self_collision`, optional `/safety/self_collision/markers` | `/joint_states`, `/policy/target_angles` |
+| [`motor_web_node`](humanoid_control/humanoid_safety/humanoid_safety/motor_web_node.py) | Read-only HTTP telemetry, default `127.0.0.1:8080`. | none | `/joint_states`, `/motor_telemetry`, `/safety/estop`, `/safety/status` |
+| [`joint_state_monitor_node`](humanoid_control/humanoid_safety/humanoid_safety/joint_state_monitor_node.py) | Validates and relays JointState, preserving source stamps. | configurable `output_topic` | configurable `source_topic` |
 
-The relay's standalone defaults are `/policy/joint_states` to `/joint_states`.
-The safety launch instead defaults to `/joint_states` to
-`/safety/visualization/joint_states`. The
-[`motor_control_hybrid` relay entry](humanoid_control/motor_control_hybrid/motor_control_hybrid/joint_state_monitor_node.py)
-is a compatibility alias for this same implementation, not another processing
-stage. `benchmark_self_collision` is a non-ROS CLI helper, not a node.
-
-Self-collision monitoring requires its selected geometry backend and is
-warning-only: it does not publish motor commands or estop. Resetting the safety
-latch does not itself enable motors.
-
-### Vision, IMU, and MCU nodes
+### Vision, IMU and MCU nodes
 
 | Node | Responsibility | Publishes | Subscribes |
 |---|---|---|---|
-| [`ball_detection_node`](humanoid_vision/src/ball_detection_node.cpp) | Runs YOLO, selects the highest-confidence detection, and publishes its pixel center plus an optional depth-derived 3D point. The bundled model detects faces. | `/vision/target_center`, `/vision/ball_3d_position` | `/camera/camera/color/image_raw`, `/camera/camera/aligned_depth_to_color/image_raw`, `/camera/camera/color/camera_info` |
-| [`track_node`](humanoid_vision/src/track_node.cpp) | Converts pixel-center error and camera intrinsics into a single yaw or pitch angle command. Applies deadband, speed/acceleration limits, angle limits, and freshness checks. | `/head/servo_target_rad` | `/vision/target_center`, `/camera/camera/color/camera_info` |
-| [`image_viewer_node`](humanoid_vision/src/image_viewer_node.cpp) | Displays cached color and aligned-depth images for camera diagnostics. | No application topics | Configurable color/depth topics, defaulting to the camera image topics above |
-| [`body_imu_mcu`](imu_process/policy_imu/policy_imu_microros/policy_imu_microros.ino) | Body BNO085 micro-ROS firmware; publishes IMU samples on a 10 ms timer and status on a 1 s timer. | `/imu/data_raw`, `/imu/status` | No application topics |
-| [`head_mcu`](imu_process/head_mcu/humanoid_vision_microros/humanoid_vision_microros.ino) | Head micro-ROS firmware; publishes raw IMU telemetry and maps servo angles to PCA9685 channel 8 PWM. Releases PWM on command timeout. | `/head/imu`, `/head/mcu_status` | `/head/servo_target_rad` |
-| [`body_imu_probe`](imu_process/policy_imu/policy_imu_microros/check_body_imu.py) | Read-only acceptance helper for IMU timing, units, orientation validity, and optional stationary/upright checks. | No application topics | Configurable IMU topic, default `/imu/data_raw`; `/imu/status` |
+| [`ball_detection_node`](humanoid_vision/src/ball_detection_node.cpp) | YOLO; highest-confidence detection center plus optional depth 3D point. The bundled model detects faces. | `/vision/target_center`, `/vision/ball_3d_position` | color, aligned depth and CameraInfo under `/camera/camera/` |
+| [`track_node`](humanoid_vision/src/track_node.cpp) | Pixel error → single yaw or pitch angle with deadband, rate / angle limits and freshness checks. | `/head/servo_target_rad` | `/vision/target_center`, CameraInfo |
+| [`image_viewer_node`](humanoid_vision/src/image_viewer_node.cpp) | Displays color / depth images for diagnostics. | none | configurable image topics |
+| [`body_imu_mcu`](imu_process/policy_imu/policy_imu_microros/policy_imu_microros.ino) | ESP32-S3 + BNO085 micro-ROS firmware; IMU at 100 Hz, status at 1 Hz. | `/imu/data_raw`, `/imu/status` | none |
+| [`head_mcu`](imu_process/head_mcu/humanoid_vision_microros/humanoid_vision_microros.ino) | ESP32-S3 head firmware; raw IMU and PCA9685 channel-8 servo PWM with command timeout. | `/head/imu`, `/head/mcu_status` | `/head/servo_target_rad` |
+| [`body_imu_probe`](imu_process/policy_imu/policy_imu_microros/check_body_imu.py) | Read-only acceptance check for IMU timing, units and orientation. | none | `/imu/data_raw`, `/imu/status` |
 
-The body MCU is the current body IMU producer. The retained serial reader is
-documented under [Legacy](#legacy). The head IMU reports no fused orientation and is not
-a substitute for the body IMU. The head branch does not consume the body's
-`/safety/estop`; it has its own command-loss watchdog.
-
-## External nodes used by active launch files
-
-These nodes come from ROS packages rather than implementations in this repository.
-Their complete interfaces depend on the installed version and loaded plugins.
-
-| Node/process | Role and relevant interfaces |
-|---|---|
-| `realsense2_camera_node` | Publishes color images and CameraInfo; publishes aligned depth when enabled. Head launch uses namespace/name `camera/camera`. |
-| `micro_ros_agent` | Connects MCU micro-ROS entities to DDS over the configured transport. Head launch defaults to a native Agent; Docker mode is optional. |
-| `robot_state_publisher` | Consumes selected joint states and publishes `/tf`, `/tf_static`, and `/robot_description` for the chosen URDF. |
-| `joint_state_publisher_gui` | Generates manual `/joint_states` for display/testing; these are not hardware measurements. |
-| `rviz2` | Displays robot transforms, models, and configured diagnostics/markers. |
-
-Temporary nodes created inside tests are test fixtures, not additional runtime
-components. The arm description display entry currently forwards to the shared
-leg display; the arm MoveIt demo uses the arm model.
+External nodes used by active launches: `realsense2_camera_node`,
+`micro_ros_agent`, `robot_state_publisher`, `joint_state_publisher_gui` and
+`rviz2`.
 
 ## Published targets and commands
 
-Targets describe requested behavior. Feedback describes measured or simulated
-state. A topic named `JointState` can carry either, so its topic and producer
-matter.
-
-| Topic and type | Producer -> consumer | Meaning and purpose |
+| Topic and type | Producer → consumer | Meaning |
 |---|---|---|
-| `/policy/actions` — `std_msgs/msg/Float64MultiArray` | ONNX policy -> inspection/logging | Ten raw policy actions in model joint order. These are action values, not angles, velocities, or torques; the runtime does not clamp them to `[-1, 1]`. |
-| `/policy/target_angles` — `JointState` | ONNX policy -> collision monitor, optional visualization | Ten decoded and limited joint-position targets in `position`, in radians. They are commanded poses, not measured feedback. |
-| `/policy/desired_motor_subset` — `MotorCommand` | ONNX policy -> optional remapped C++ scheduler | Executable policy target envelope: MIT motion mode, decoded angles, zero desired velocity, zero feedforward torque, model PD gains, source timestamp, and expiry. It remains isolated from hardware by default. |
-| `/desired_motor_subset` — `MotorCommand` | Upstream controller or Torch adapter -> C++ scheduler | Requested commands for named joints. Can carry mode, position, velocity, acceleration, feedforward torque, and gains. This is the scheduler's normal unremapped input. |
-| `/desired_velocity_subset` — `JointState` | External producer -> C++ scheduler | Compatibility input using `name` and `velocity` (rad/s) to request per-joint velocity commands. The repository does not launch a dedicated producer. |
-| `/motor_commands` — `MotorCommand` | C++ scheduler or direct adapter -> real/fake motor backend | Commands actually submitted to the backend, including enable/disable. The real backend validates them and converts them into CAN frames. |
-| `/policy/motor_commands` — `MotorCommand` | Optional remapped C++ scheduler -> namespaced fake backend | Bench counterpart of `/motor_commands`; the tracking launch does not route it to real CAN or automatically enable fake motors. |
-| `/vision/target_center` — `PointStamped` | Detector -> head tracker | `x=u`, `y=v` in color-image pixels, `z=0`, with the original color-image header. It identifies where to center the camera, not a 3D position. No message is sent when no target is detected. |
-| `/vision/ball_3d_position` — `PointStamped` | Detector -> external consumers | Optional target center in camera optical coordinates, in meters. Despite the topic name, the bundled detector currently detects faces. No repository controller currently subscribes to this output. |
-| `/head/servo_target_rad` — `std_msgs/msg/Float32` | Head tracker -> head MCU | Absolute single-axis servo angle command in radians, mapped to PWM on channel 8. It is a command estimate, not encoder feedback. |
-
-All topic names in this table are defaults or the explicit tracking-launch
-remappings. The detector's 2D center does not require depth. Its 3D path uses
-cached aligned depth and CameraInfo without timestamp synchronization; 3D output
-must not be treated as a synchronized body/world position. The tracker uses only
-the pixel center and CameraInfo, not the 3D point or head IMU.
+| `/policy/actions` — `std_msgs/msg/Float64MultiArray` | ONNX policy → logging | Ten raw policy actions in model joint order; not angles. |
+| `/policy/target_angles` — `JointState` | ONNX policy → collision monitor, visualization | Decoded, limited joint-position targets (rad); commands, not feedback. |
+| `/policy/desired_motor_subset` — `MotorCommand` | ONNX policy → remapped scheduler | MIT target envelope with model gains, source stamp and expiry; isolated from hardware by default. |
+| `/desired_motor_subset` — `MotorCommand` | upstream controller → scheduler | The scheduler's normal input. |
+| `/desired_velocity_subset` — `JointState` | external producer → scheduler | Per-joint velocity requests (compatibility input). |
+| `/motor_commands` — `MotorCommand` | scheduler or direct adapter → CAN / fake backend | Commands actually submitted, including enable / disable. |
+| `/policy/motor_commands` — `MotorCommand` | remapped scheduler → namespaced fake backend | Bench counterpart; never routed to real CAN by the tracking launch. |
+| `/vision/target_center` — `PointStamped` | detector → head tracker | Pixel center (`x=u`, `y=v`, `z=0`) with the image header. |
+| `/vision/ball_3d_position` — `PointStamped` | detector → external | Optional camera-frame point (m); unsynchronized depth. |
+| `/head/servo_target_rad` — `std_msgs/msg/Float32` | head tracker → head MCU | Absolute servo angle command (rad). |
 
 ## Tracking model inputs and outputs
 
-The deployed tracking export is
+The deployed export is
 [`20260914_170827.onnx`](humanoid_control/motor_control_hybrid/models/20260914_170827/20260914_170827.onnx):
-56 observation values, ten actions, and a 50 Hz policy period. The runtime uses
-CPU ONNX Runtime. This contract belongs to the tracking export; the retained
-Torch bridge and vision detector have separate input/output contracts.
-
-### Input tensors
+56 observation values, ten actions, 50 Hz, CPU ONNX Runtime.
 
 | ONNX input | Type and shape | Meaning |
 |---|---|---|
-| `obs` | `float32 [1, 56]` | One observation assembled in the exact order below. |
-| `time_step` | `float32 [1, 1]` | Integer-valued reference-frame index, passed as `[[frame]]`; not elapsed seconds or the integration step. |
+| `obs` | `float32 [1, 56]` | One observation in the order below. |
+| `time_step` | `float32 [1, 1]` | Integer reference-frame index, not seconds. |
 
-Observation slices use zero-based, end-exclusive indexing:
+| Slice of `obs[0]` | Size | Content |
+|---|---:|---|
+| `[0:10]` | 10 | Reference joint angles (rad). |
+| `[10:20]` | 10 | Reference joint velocities (rad/s). |
+| `[20:23]` | 3 | Body angular velocity after mounting rotation and gyro bias (rad/s). |
+| `[23:33]` | 10 | Joint positions minus `q_default` (rad). |
+| `[33:43]` | 10 | Joint velocities (rad/s). |
+| `[43:53]` | 10 | Previous raw actions. |
+| `[53:56]` | 3 | Unit gravity in body frame; upright is `[0, 0, -1]`. |
 
-| Slice in `obs[0]` | Size | Parameter | Source and units |
-|---|---:|---|---|
-| `[0:10]` | 10 | `q_reference` | Joint angles from the current embedded reference frame, rad. |
-| `[10:20]` | 10 | `dq_reference` | Joint velocities from the same reference frame, rad/s. |
-| `[20:23]` | 3 | `base_ang_vel` | Body-frame IMU angular velocity after mounting rotation and gyro-bias subtraction, rad/s. |
-| `[23:33]` | 10 | `joint_pos` | Current joint positions minus `q_default`, rad. |
-| `[33:43]` | 10 | `joint_vel` | Current joint velocities, rad/s. |
-| `[43:53]` | 10 | `previous_actions` | Last accepted raw policy actions, dimensionless; initially zero. These are not the clipped target angles. |
-| `[53:56]` | 3 | `gravity` | Unit world-down vector expressed in body coordinates, dimensionless; upright is `[0, 0, -1]`. |
-
-The first 20 values form the model's `command` observation: a reference motion
-to follow, not a joystick speed command. The export contains 299 reference
-frames. The runtime selects `min(int(elapsed_seconds * 50), 298)` after policy
-execution begins and holds the final reference frame instead of looping.
-Reference velocities in `obs` describe that motion; they are not copied into
-the published motor target velocity.
-
-All ten-joint input and output vectors follow this exact order. Incoming
-JointState messages are reordered by name, not assumed to arrive in this order:
+Joint order for every ten-joint vector:
 
 ```text
 left_hip1_joint, left_hip2_joint, left_thigh_joint, left_knee_joint,
@@ -255,337 +473,72 @@ left_ankle_joint, right_hip1_joint, right_hip2_joint, right_thigh_joint,
 right_knee_joint, right_ankle_joint
 ```
 
-With `joint_feedback_mode:=joint_states`, positions and velocities must be
-complete and finite for all ten joints. With the default `zero` mode, both
-position is set to `q_default` and velocity to zero regardless of received
-feedback, so the centered position observation is zero. This is a bench
-setting, not measured robot state. IMU linear acceleration is used to estimate gravity
-but is not a separate raw acceleration input in the 56-element observation.
-
-### Output and decoding parameters
-
-The runtime requests the ONNX output named `actions`, expects one batch of ten
-finite values, and removes the batch dimension to obtain a `(10,)` vector.
-These values are dimensionless position actions, not physical angles or torque.
-The runtime does not request any auxiliary outputs from the export.
-
-| Parameter | Current value/source | Effect |
-|---|---|---|
-| `q_default` | Model metadata `default_joint_pos`; ten zeros | Joint offsets for both observation centering and target decoding, rad. |
-| `action_scale` | Model metadata; `0.2` for every joint | Converts each action into a position offset in radians. |
-| `joint_lower`, `joint_upper` | Joint ranges in the saved `chrobot_16kg_candidate.xml` beside the model | Limits decoded targets; independent of raw action magnitude. |
-| `Kp`, `Kd` | Model metadata `joint_stiffness`, `joint_damping` | Fixed execution gains copied into every policy MotorCommand; not predicted outputs. |
-
-```text
-q_target = clip(q_default + action_scale * action, joint_lower, joint_upper)
-```
-
-Current model metadata specifies zero default positions and an action scale of
-0.2 for all ten joints. For example, action `1.5` becomes `0.3 rad` before joint
-limits are applied. The runtime publishes target velocity and feedforward torque
-as zero, and copies fixed gains from the model metadata:
-
-| Joint, on each side | Kp | Kd |
-|---|---:|---:|
-| Hip1, hip2, thigh | 100 | 1 |
-| Knee | 80 | 1 |
-| Ankle | 20 | 1 |
-
-The policy predicts actions, not gains or torque. These are the deployed model's
-settings, not evidence of physical actuator calibration. See
-[`tracking_onnx.py`](humanoid_control/motor_control_hybrid/motor_control_hybrid/tracking_onnx.py)
-and the [motor registry](humanoid_control/motor_control_hybrid/config/motors.yaml).
-
-For MIT motion mode, the intended actuator relation is:
-
-\[\tau = K_p \cdot (q_{target} - q) + K_d \cdot (\dot{q}_{target} - \dot{q}) + \tau_{ff}\]
-
-The current node sets `dq_target = 0`, `tau_ff = 0`, and the message's
-acceleration field to zero. Motor feedback supplies `q` and `dq` for actuator
-execution. The C++ scheduler forwards the gains/targets rather than evaluating
-this PD equation. Dynamic desired velocity or feedforward torque is not a model
-output in the current deployment and would change its execution behavior.
-
-### Runtime input and timing parameters
-
-These are ROS node parameters, not additional ONNX input tensors:
-
-| Parameter | Default | Meaning |
-|---|---|---|
-| `model_path` | Installed `models/20260914_170827/20260914_170827.onnx` | Export to load; the tracking launch also validates it against the motor registry. |
-| `control_rate_hz` | `50.0` | Required policy rate; this export rejects other configured rates. |
-| `imu_topic` | `/imu/data_raw` | Body IMU source. |
-| `imu_frame` | `imu_link` | Required incoming IMU frame ID. |
-| `imu_to_body_rotation` | Identity 3x3 matrix, row-major | Proper rotation mapping sensor acceleration/gyro into body coordinates; identity assumes aligned mounting. |
-| `orientation_source` | `complementary` | Estimates gravity using gyro and acceleration; `message` instead uses valid IMU orientation. |
-| `calibration_seconds` | `2.0` | Stationary startup sampling to estimate gyro bias. |
-| `joint_states_topic` | `/joint_states` standalone; `/policy/joint_states` in tracking launch | Joint feedback source when real feedback mode is selected. |
-| `joint_feedback_mode` | `zero` | `zero` for bench inputs or `joint_states` for validated position/velocity feedback. |
-| `input_timeout_s` | `0.1` | Maximum source and receipt age of inputs. |
-| `max_input_skew_s` | `0.02` | Maximum IMU/joint-state source-time difference when joint feedback is used. |
-| `max_inference_s` | `0.02` | Maximum snapshot-to-result processing time, including inference. |
-
-Stale inputs, invalid data, expired inference results, or estop latch a policy
-fault and stop target publication. Restart the policy node after resolving the
-fault; clearing estop alone does not reset its fault. Published command timing
-comes from the oldest selected input, with expiry at that source time plus
-`input_timeout_s`, rather than from inference completion time.
+The output `actions` (ten values) decodes as
+`q_target = clip(q_default + action_scale * action, joint_lower, joint_upper)`
+with `q_default = 0`, `action_scale = 0.2` and limits from the model XML. Target
+velocity and feedforward torque are zero; gains come from the model metadata
+(Kp 100 hip1 / hip2 / thigh, 80 knee, 20 ankle; Kd 1). The reference motion has
+299 frames and holds the last one. See
+[`tracking_policy_ros2.md`](docs/tracking_policy_ros2.md) for the runtime
+parameters (`input_timeout_s`, `max_input_skew_s`, `max_inference_s`, IMU
+mounting rotation, gyro calibration) and fault behaviour.
 
 ## MotorCommand contract
 
-The authoritative definition is
-[`MotorCommand.msg`](humanoid_control/motor_control_interfaces/msg/MotorCommand.msg).
-`joint_name[i]` identifies the joint for the corresponding field entries;
-`mode` can contain one broadcast value or one value per joint. Modes are velocity
-(`0`), position (`1`), MIT motion (`2`), enable (`3`), and disable (`4`). Position
-and velocity are in radians and radians/second; feedforward torque is in Nm at
-the joint-command interface, with hardware mapping handled by the backend.
-Velocity fields have mode-dependent meaning; they are not always trajectory
-velocity references. Acceleration is carried in the message but the C++
-scheduler does not generate an acceleration-limited trajectory from it.
-
-`header.stamp` preserves the originating command/observation time;
-`valid_until` supplies an absolute ROS deadline. Zero expiry falls back to the
-source-stamp watchdog. Forwarding must not renew an old command's lifetime.
-Disable requests remain admissible even when their timestamps are invalid.
+[`MotorCommand.msg`](humanoid_control/motor_control_interfaces/msg/MotorCommand.msg):
+`joint_name[i]` names each entry; `mode` is broadcast (one value) or per joint:
+velocity `0`, position `1`, MIT motion `2`, enable `3`, disable `4`. Positions in
+rad, velocities in rad/s, feedforward torque in Nm at the joint interface.
+`header.stamp` keeps the originating source time and `valid_until` an absolute
+deadline; forwarding never renews a command's lifetime. Disable is admissible
+even with an invalid stamp.
 
 ## Published feedback and diagnostics
 
 | Topic and type | Producer | Purpose |
 |---|---|---|
-| `/joint_states` — `JointState` | CAN or fake backend | Joint position, velocity, and effort for the scheduler and visualization. Simulated feedback is not physical measurement. |
-| `/policy/joint_states` — `JointState` | Namespaced fake backend or selected external source | Feedback for the isolated policy bench. |
-| `/safety/visualization/joint_states` — `JointState` | Safety relay in default monitoring launch | Validated display stream preserving source timestamps. Its content depends on the selected source. |
-| `/motor_status` — `std_msgs/msg/String` | CAN or fake backend | JSON indexed motor temperatures and torque for retained adapter clients. |
-| `/motor_telemetry` — `std_msgs/msg/String` | CAN backend | Versioned JSON with joint/bus/motor identity, source time, and temperature for the read-only Web monitor. |
-| `/can_timing` — `std_msgs/msg/String` | CAN backend | Transport timing/counter JSON for diagnosing CAN scheduling and errors. |
-| `/policy/status` — `std_msgs/msg/String` | ONNX policy | Policy state, faults, input rejection, and timing metrics. |
-| `/imu/data_raw` — `Imu` | Body MCU or serial reader | Body angular velocity (rad/s), acceleration (m/s^2), and available orientation for policy/safety. |
-| `/imu/status` — `std_msgs/msg/String` | Body MCU | JSON sensor, timing, and connection diagnostics. |
-| `/head/imu` — `Imu` | Head MCU | Raw head acceleration and angular velocity; orientation is unavailable. |
-| `/head/mcu_status` — `std_msgs/msg/Int32` | Head MCU | Bit flags for IMU, PCA9685, servo-enabled, and clock-sync state. |
-| `/odom` — `nav_msgs/msg/Odometry` | Optional serial reader integration | IMU dead-reckoned odometry; not an independently measured robot position. |
-| `/safety/estop` — `std_msgs/msg/Bool` | Safety supervisor | Reliable, transient-local emergency-stop state. `true` requests motor disable; a reset does not issue enable commands. |
-| `/safety/status` — `DiagnosticArray` | Safety supervisor | Check health, latch state, and reason. |
-| `/safety/self_collision` — `DiagnosticArray` | Collision monitor | Measured/target/path clearance or collision reports; advisory only. |
-| `/safety/self_collision/markers` — `visualization_msgs/msg/MarkerArray` | Collision monitor when enabled | RViz shapes highlighting the selected check's closest/colliding links. |
-
-## Setup and build
-
-Use the ROS distribution matching the host OS. The setup examples below target
-ROS 2 Jazzy on Ubuntu 24.04 / Python 3.12. Recreate `rosenv/` on each host; do not
-copy it across Python or ROS distributions.
-
-On other Linux distributions, or to avoid a native ROS install, use the Humble
-[dev container](docs/devcontainer.md).
-
-Install the shared control, ONNX and test dependencies into `rosenv`:
-
-```bash
-ROS_DISTRO=jazzy source scripts/setup_rosenv.sh
-```
-
-The installer uses [`requirements-rosenv.txt`](requirements-rosenv.txt), checks
-the Python version against the host ROS interpreter, and refreshes dependencies
-when any included requirements file changes. `ROSENV_FORCE_INSTALL=1` forces a
-dependency check. Only a successful install updates the cache. The default ONNX
-policy does not need PyTorch; use `INSTALL_TORCH=1 source scripts/setup_rosenv.sh`
-to add CPU PyTorch for the legacy policy bridge.
-
-In every new terminal, load ROS, the virtualenv and the built workspace together:
-
-```bash
-source scripts/activate_rosenv.sh
-```
-
-Setup also adds a managed hook to `rosenv/bin/activate` so ROS executables using
-system Python can find the virtualenv packages. The package path is determined
-from the interpreter, without hardcoding Python 3.10 or 3.12.
-
-To install the same environment and build the selected control, safety and
-serial IMU packages:
-
-```bash
-ROS_DISTRO=jazzy bash scripts/setup_tracking_policy.sh
-source scripts/activate_rosenv.sh
-```
-
-C++/ROS dependencies (including OpenCV, camera drivers and micro-ROS Agent)
-remain system dependencies installed through ROS/rosdep, not pip packages in
-`rosenv`.
-
-### ENCOS backend dependency
-
-`motor_control_hybrid` builds `encos_can_node` by default. CMake first searches
-for an installed `encos_driver >= 4.0`; if none is found, it downloads official
-revision `5ae8c3a92f6387369b674bfe7563bc053a460075` (4.0.0) into the build
-directory. The downloaded driver includes only the CAN adapter and is linked
-statically into the node, so no separate ENCOS shared library or CAN plugin
-installation is required. The first configuration needs Git and network access;
-subsequent builds reuse the downloaded source.
-
-Install the system development dependencies through rosdep or, on Ubuntu:
-
-```bash
-sudo apt install libyaml-cpp-dev libspdlog-dev libfmt-dev libzstd-dev libcap-dev
-```
-
-CMake downloads the driver source; it does not install OS packages. For an
-offline build, point `-DFETCHCONTENT_SOURCE_DIR_ENCOS_DRIVER=/absolute/path/to/encos_driver`
-at a local checkout of the pinned revision, or provide an installed package
-through `-Dencos_driver_DIR=/prefix/lib/cmake/encos_driver`. Set
-`-DMOTOR_CONTROL_FETCH_ENCOS=OFF` to prohibit downloads (a missing driver then
-fails configuration), or `-DMOTOR_CONTROL_BUILD_ENCOS=OFF` to omit this backend.
-Pass these options after `colcon build --cmake-args`.
-
-#### Updating to the latest upstream source
-
-The default download is pinned; it does not automatically follow upstream
-updates. To try the latest commit on the official repository's default branch,
-clone it separately and override the FetchContent source directory:
-
-```bash
-mkdir -p "$HOME/src"
-git clone https://github.com/EncosTech/encos_driver.git "$HOME/src/encos_driver"
-git -C "$HOME/src/encos_driver" rev-parse HEAD
-CMAKE_BUILD_PARALLEL_LEVEL=1 MAKEFLAGS=-j1 colcon build \
-  --packages-select motor_control_interfaces motor_control_hybrid \
-  --executor sequential --cmake-args \
-  -DCMAKE_DISABLE_FIND_PACKAGE_encos_driver=TRUE \
-  -DFETCHCONTENT_SOURCE_DIR_ENCOS_DRIVER="$HOME/src/encos_driver"
-```
-
-For subsequent updates, run `git -C "$HOME/src/encos_driver" pull --ff-only`
-and repeat the build. Disabling package discovery ensures an installed driver
-does not take precedence over this checkout. This selects the latest development
-source, which may differ from the latest release and has not been validated by
-this repository. After reviewing and testing an update, replace `GIT_TAG` in
-`humanoid_control/motor_control_hybrid/cmake/EncosDriver.cmake` with the full
-tested commit hash and update the documented version. Remove the local override
-with `--cmake-clean-cache` when returning to the default pinned build.
-
-Building does not access CAN, grant capabilities, or enable motors. The bundled
-static adapter requires SocketCAN permissions on the final executable before
-hardware use; grant them separately on the deployment host as described in the
-[upstream permission guide](https://github.com/EncosTech/encos_driver#权限问题).
-Existing launch files still select the RobStride backend. The ENCOS bench
-registry remains `hardware_verified: false` pending physical commissioning.
-
-The full vision package requires OpenCV **4.5.x**, Eigen, `cv_bridge`, and the
-ROS dependencies in its manifest. An `opencv-python` wheel does not supply the
-C++ SDK. TensorRT/CUDA and librealsense support are optional build features.
-Once those dependencies are available, build the full workspace:
-
-```bash
-colcon build --symlink-install --cmake-args -DTRACK_ONLY=OFF
-source install/setup.bash
-```
-
-For tracking without the detector SDKs, build only the tracker in a separate
-overlay. This does not build the detector or image viewer:
-
-```bash
-source /opt/ros/jazzy/setup.bash
-colcon --log-base /tmp/head_track_logs build --base-paths humanoid_vision \
-  --build-base /tmp/head_track_build --install-base /tmp/head_track_install \
-  --cmake-args -DTRACK_ONLY=ON
-source /tmp/head_track_install/setup.bash
-```
-
-## Launch entry points
-
-Run workspace-level launch files from the repository root after sourcing the
-appropriate workspace. Processes on different hosts must share the intended
-`ROS_DOMAIN_ID` and compatible DDS settings.
-
-| Task | Command | Behavior |
-|---|---|---|
-| Body control, safety, Web and RViz | `ros2 launch motor_control_hybrid control_test.launch.py` | Starts real CAN, C++ core, one safety supervisor, WebUI, safety-owned joint relay, model TF and RViz. No startup enable/home/zero. Add `enable_fake_motor:=true` to replace CAN, or `use_rviz:=false` for headless TF. |
-| Control smoke test | `ros2 launch motor_control_hybrid hybrid_control.launch.py enable_fake_motor:=true enable_sdk_gateway:=false enable_websocket_ui:=false enable_policy_bridge:=false` | Starts fake motors, C++ scheduler, and safety. Joint names come from the selected registry. No automatic enable; without body IMU, safety latches after its startup grace. |
-| ONNX policy | `ros2 launch motor_control_hybrid tracking_policy.launch.py` | Uses an external IMU, zero joint feedback by default, and `/policy/*` outputs. No CAN, safety supervisor, or automatic enable is started by this launch. |
-| Optional policy bench | `ros2 launch motor_control_hybrid tracking_policy.launch.py use_fake_joint_states:=true run_cpp_control:=true joint_feedback_mode:=joint_states` | Adds fake feedback and the remapped scheduler. Fake motors remain disabled until explicitly enabled. |
-| Read-only monitoring | `ros2 launch humanoid_safety safety.launch.py mode:=monitor` | Starts HTTP telemetry and the JointState relay/display. Does not start the supervisor. |
-| Safety supervisor | `ros2 launch humanoid_safety safety.launch.py mode:=supervisor` | Starts the IMU checks, latched estop, diagnostics, and reset service. |
-| Self-collision monitor | `ros2 launch humanoid_safety self_collision.launch.py` | Starts the advisory geometry checker; requires its configured backend. |
-| Head tracking | `ros2 launch launch/head_tracking.launch.py` | Starts camera, detector, tracker, and native serial Agent. Depth defaults off; `enable_depth:=true` enables optional 3D output. |
-| Leg display | `ros2 launch launch/display.launch.py use_joint_state_gui:=false` | Displays the selected joint-state stream without publishing manual joint states. |
-| Unified system | `ros2 launch launch/system.launch.py` | Starts real CAN, C++ scheduler, safety, head tracking, leg state publisher, and RViz. Policy, legacy adapters, Web monitoring, and MoveIt are not started. |
-
-The shipped motor registry has `hardware_verified: false`; real CAN startup is
-intentionally blocked before opening a bus. Keep this guard until motor identity,
-zero, polarity, limits, and physical behavior are verified. The unified launch
-also requires installed camera and Agent packages plus the connected devices.
-A successful build alone does not establish hardware readiness.
-
-For a tracker-only build, disable the detector with `start_detector:=false`.
-Camera and Agent still start unless `start_camera:=false start_agent:=false` is
-also supplied. The head tracker publishes to a real servo command topic when
-valid inputs arrive. Its command estimate and PWM mapping need physical
-calibration. Reuse an existing Agent rather than opening the same serial port
-from two processes.
-
-The unified launch requests RR priorities 20 for CAN TX, 21 for CAN RX, and 10
-for the C++ executor. `enable_rt:=false` disables these requests; permission
-failures warn and continue. These settings are not measured timing guarantees.
-
-Use `ros2 launch <package> <file> --show-args` to inspect available switches.
-Retained MoveIt entry points are listed under [Legacy](#legacy).
+| `/joint_states` — `JointState` | CAN or fake backend | Joint position, velocity, effort (fake feedback is not measurement). |
+| `/policy/joint_states` — `JointState` | namespaced fake backend / external | Policy-bench feedback. |
+| `/safety/visualization/joint_states` — `JointState` | safety relay | Validated display stream. |
+| `/motor_status`, `/motor_telemetry`, `/can_timing` — `std_msgs/msg/String` | CAN backend | Temperature / torque JSON, versioned telemetry JSON, TX/RX timing counters. |
+| `/policy/status` — `std_msgs/msg/String` | ONNX policy | State, faults, rejection and timing. |
+| `/imu/data_raw` — `Imu`, `/imu/status` | body MCU | Body IMU and its diagnostics. |
+| `/head/imu`, `/head/mcu_status` | head MCU | Raw head IMU (no orientation) and status flags. |
+| `/safety/estop` — `std_msgs/msg/Bool` | safety supervisor | Reliable, transient-local estop; reset never enables motors. |
+| `/safety/status` — `DiagnosticArray` | safety supervisor | Check health, latch state and reason. |
+| `/safety/fall_warning` — `std_msgs/msg/Bool` | fall predictor | Latched advisory warning (600 ms head by default). |
+| `/safety/fall_prediction` — `std_msgs/msg/String` | fall predictor | Per-sample scores, alarms and eligibility (JSON). |
+| `/safety/self_collision` — `DiagnosticArray` | collision monitor | Advisory clearance / collision reports. |
 
 ## Detailed guides
 
 - [Workspace launch options](launch/README.md)
-- [ONNX observation, action, and timing contract](docs/tracking_policy_ros2.md)
+- [ONNX observation, action and timing contract](docs/tracking_policy_ros2.md)
 - [Policy and visualization workflow](docs/activate_tracking_system.md)
 - [Control watchdogs](docs/control_watchdogs.md)
+- [RobStride CAN protocol audit](docs/can_protocol_audit.md)
 - [RobStride manual review and abstract-command design](docs/robstride_abstract_command_design.md)
-- [Safety supervisor and read-only monitoring](humanoid_control/humanoid_safety/README.md)
+- [Safety supervisor, fall predictor and monitoring](humanoid_control/humanoid_safety/README.md)
 - [Self-collision monitoring](docs/self_collision_monitor.md)
 - [Head tracking controls and tests](humanoid_vision/TRACKING.md)
 - [Head MCU interface](imu_process/head_mcu/README.md)
 - [Body IMU firmware and acceptance checks](imu_process/policy_imu/policy_imu_microros/README.md)
-- [IMU source layout and shared helpers](imu_process/README.md)
+- [IMU source layout](imu_process/README.md)
 
 ## Legacy
 
-The two MoveIt packages and application SDK prototype are stored under
-`legacy/`. The retained serial IMU package lives under `imu_process/` alongside
-the other IMU implementations.
-These packages and adapters are retained for reference and explicit opt-in use.
-They are outside the active policy/CAN/head system composition; marking them as
-legacy here does not disable their existing standalone launch files. ROS package
-names are unchanged; colcon still discovers packages under `legacy/`. Existing
-MoveIt build caches need reconfiguration after the directory move; use
-`colcon build --packages-select humanoid_leg_moveit_config humanoid_arm_moveit_config --cmake-clean-cache`
-when rebuilding these packages in an existing workspace.
+Retained for reference and explicit opt-in use, outside the active
+policy / CAN / head composition. ROS package names are unchanged and colcon
+still discovers them.
 
-### Packages
-
-| Path | Retained functionality |
+| Path / node | Retained functionality |
 |---|---|
-| [`humanoid_leg_moveit_config`](legacy/humanoid_leg_moveit_config) | Leg MoveIt planning and ros2_control demo configuration. Standalone entry: `ros2 launch humanoid_leg_moveit_config demo.launch.py`. |
-| [`humanoid_arm_moveit_config`](legacy/humanoid_arm_moveit_config) | Arm MoveIt planning and ros2_control demo configuration. Standalone entry: `ros2 launch humanoid_arm_moveit_config demo.launch.py`. |
-| [`sdk_prototype`](legacy/sdk_prototype) | Application SDK, generated gRPC client, browser tools, and examples. Python imports use `legacy.sdk_prototype`; see its README for entry points. |
-| [`Attitude_Sensing`](<imu_process/Attitude_Sensing(Depreciated)>) | Serial JSON/BNO085 CSV IMU reader and optional Madgwick filter pipeline. The filter launch is disabled by default; the tracking launch retains an opt-in serial-reader switch. |
+| [`humanoid_leg_moveit_config`](legacy/humanoid_leg_moveit_config), [`humanoid_arm_moveit_config`](legacy/humanoid_arm_moveit_config) | MoveIt planning and ros2_control demos (`ros2 launch <pkg> demo.launch.py`). |
+| [`sdk_prototype`](legacy/sdk_prototype) | Application SDK, gRPC client, browser tools and examples. |
+| [`Attitude_Sensing`](<imu_process/Attitude_Sensing(Depreciated)>) / `imu_reader_node` | Serial IMU reader; alternative `/imu/data_raw` producer (use one producer, not both). |
+| [`policy_bridge_node`](humanoid_control/motor_control_hybrid/motor_control_hybrid/policy_bridge_node.py) | Torch adapter with a separate model contract, publishing `/desired_motor_subset`. |
+| [`motor_sdk_gateway_node`](humanoid_control/motor_control_hybrid/motor_control_hybrid/motor_sdk_gateway_node.py) | gRPC command / status gateway, default `127.0.0.1:50052`. |
+| [`double_pendulum_websocket_node`](humanoid_control/motor_control_hybrid/motor_control_hybrid/double_pendulum_websocket_node.py) | Browser WebSocket demo bridge (hybrid launch: `0.0.0.0:8765`). |
 
-### Nodes and adapters
-
-| Node | Current role | Publishes | Subscribes |
-|---|---|---|---|
-| [`imu_reader_node`](<imu_process/Attitude_Sensing(Depreciated)/src/attitude_sensing_pkg/attitude_sensing_pkg/imu_reader_node.py>) | Legacy serial IMU reader with SI-unit conversion and optional dead reckoning. Select this or the body MCU as the producer for an IMU topic, not both. | `/imu/data_raw`, optional `/odom` | No application topics |
-| [`policy_bridge_node`](humanoid_control/motor_control_hybrid/motor_control_hybrid/policy_bridge_node.py) | Legacy Torch adapter with a separate model/config contract; generates joint targets and gates output on received estop state. It is not the ONNX tracking node. | Configurable output, default `/desired_motor_subset` | Configurable `/joint_states`, `/imu/data_raw`, `/safety/estop` |
-| [`motor_sdk_gateway_node`](humanoid_control/motor_control_hybrid/motor_control_hybrid/motor_sdk_gateway_node.py) | Legacy gRPC motor-command/status gateway, default `127.0.0.1:50052`. | `/motor_commands` | `/joint_states`, `/motor_status` |
-| [`double_pendulum_websocket_node`](humanoid_control/motor_control_hybrid/motor_control_hybrid/double_pendulum_websocket_node.py) | Browser/WebSocket demo command bridge. Standalone host default is `127.0.0.1`; hybrid launch selects `0.0.0.0:8765`. | `/motor_commands` | `/joint_states` |
-
-The SDK and WebSocket bridges publish directly to the motor-command topic,
-bypassing the C++ scheduler. CAN-local command checks and estop still apply.
-The Torch bridge currently starts with its local estop gate open and resumes
-policy processing when a received estop state becomes false.
-
-### External nodes in legacy launches
-
-| Node/process | Role and relevant interfaces |
-|---|---|
-| `imu_filter_madgwick_node` | Legacy IMU filtering path, consuming `/imu/data_raw` and publishing `/imu/data`; its launch is disabled by default. |
-| `move_group` | Provides MoveIt planning and execution interfaces for the selected arm/leg demo. |
-| `ros2_control_node` / controller spawners | Manage demo controllers. The joint-state broadcaster publishes feedback; trajectory controllers accept goals through configured action interfaces. |
-| `static_transform_publisher` | Publishes the arm demo's fixed world-to-root transform on `/tf_static`. |
+The SDK and WebSocket bridges publish `/motor_commands` directly, bypassing the
+C++ scheduler; CAN-backend checks and the estop still apply.
