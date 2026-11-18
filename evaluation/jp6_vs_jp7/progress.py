@@ -79,7 +79,7 @@ if groups:
         rs = groups.get(g, [])
         if rs:
             vs = sorted(v for s, v in rs if v is not None)
-            med = f'{vs[len(vs) // 2]:.2f}' if vs else '-'
+            med = f'{(vs[(len(vs) - 1) // 2] + vs[len(vs) // 2]) / 2:.2f}' if vs else '-'
             print(f"{g:7} {len(rs):>4} {sum(s == 'OK' for s, _ in rs):>3} "
                   f"{sum(s in ('paused', 'sim_died', 'stuck') for s, _ in rs):>5}  {med}")
     left = 10 * len(GROUPS) - sum(len(v) for v in groups.values())
