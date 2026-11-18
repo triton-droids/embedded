@@ -96,6 +96,8 @@ class PythonCanNode(Node):
         self.inhibited_since = {joint: float('-inf') for joint in self.motor_name_by_joint}
         self.pending_disable = set()
         self.enable_pending = {}
+        # Last submitted state per joint ('enable', 'disable', 'active'), for logging only.
+        self.submitted_state = {}
         self.enable_reports = {}
         self.enable_report_lock = threading.Lock()
         self._awaiting_enable_ack = threading.Event()
@@ -485,6 +487,20 @@ class PythonCanNode(Node):
             self._estop_disable_pending.clear()
             self.get_logger().fatal('ESTOP disable requests submitted; verify physical stop via feedback')
 
+    def _log_submission(self, joint_name, state):
+        """INFO once per state change; repeats go to DEBUG.
+
+        While motors are idle the controller re-sends DISABLE for every joint
+        each cycle (10 joints x 50 Hz). Logging each one at INFO cost most of a
+        core and stalled this TX thread for up to ~100-180 ms per cycle on the
+        Jetson, because the write goes through stdout and the launch relay.
+        """
+        if self.submitted_state.get(joint_name) == state:
+            self.get_logger().debug(f'{state.capitalize()} resubmitted for {joint_name}')
+            return
+        self.submitted_state[joint_name] = state
+        self.get_logger().info(f'{state.capitalize()} submitted for {joint_name}')
+
     def _drain_command_queue(self):
         # Bound work even when producers continuously update targets.
         for _ in range(2 * len(self.motor_name_by_joint)):
@@ -535,7 +551,7 @@ class PythonCanNode(Node):
                         self.current_mode_by_joint[joint_name] = None
                     self.pending_disable.discard(joint_name)
                     self.command_deadlines[joint_name] = cmd['deadline']
-                    self.get_logger().info(f'Enable submitted for {joint_name}')
+                    self._log_submission(joint_name, 'enable')
                     continue
 
                 if mode == MotorCommand.MODE_DISABLE:
@@ -549,9 +565,10 @@ class PythonCanNode(Node):
                         bus.disable(self.motor_name_by_joint[joint_name])
                         self.current_mode_by_joint[joint_name] = None
                     self.pending_disable.discard(joint_name)
-                    self.get_logger().info(f'Disable submitted for {joint_name}')
+                    self._log_submission(joint_name, 'disable')
                     continue
 
+                self.submitted_state[joint_name] = 'active'
                 with self.active_command_lock:
                     previous_cmd = self.active_commands.get(joint_name)
                     self.active_commands[joint_name] = cmd

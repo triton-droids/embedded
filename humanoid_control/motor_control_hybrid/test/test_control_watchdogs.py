@@ -52,6 +52,7 @@ def can_node():
     node.inhibited_since = {'a': float('-inf'), 'b': float('-inf')}
     node.pending_disable = set()
     node.enable_pending = {}
+    node.submitted_state = {}
     node.enable_reports = {}
     node.enable_report_lock = threading.Lock()
     node._awaiting_enable_ack = threading.Event()
@@ -60,7 +61,8 @@ def can_node():
     node._tx_wakeup = threading.Event()
     node.timing = {'tx_errors': 0}
     node.get_clock = lambda: ros_clock(100)
-    node.get_logger = lambda: Mock()
+    node.logger = Mock()
+    node.get_logger = lambda: node.logger
     node._set_mode_raw = Mock()
     node._try_read_feedback = Mock()
     return node
@@ -93,6 +95,31 @@ def test_can_timeout_disables_once_and_requires_new_enable(can_node):
         command(node, MotorCommand.MODE_ENABLE)
         command(node, MotorCommand.MODE_MOTION)
         assert 'a' in node.active_commands
+
+
+def test_repeated_disable_is_sent_every_time_but_logged_at_info_once(can_node):
+    node = can_node
+    bus = node.bus_by_joint['a']
+
+    def info_lines():
+        return [c.args[0] for c in node.logger.info.call_args_list]
+
+    with patch('motor_control_hybrid.python_can_node.time.monotonic', return_value=10), \
+            patch('motor_control_hybrid.python_can_node.time.sleep'):
+        for _ in range(50):  # one second of idle controller output
+            command(node, MotorCommand.MODE_DISABLE)
+        assert bus.disable.call_count == 50
+        assert info_lines() == ['Disable submitted for a']
+        assert node.logger.debug.call_count == 49
+    with patch('motor_control_hybrid.python_can_node.time.monotonic', return_value=11), \
+            patch('motor_control_hybrid.python_can_node.time.sleep'):
+        command(node, MotorCommand.MODE_ENABLE)
+        command(node, MotorCommand.MODE_MOTION)
+        command(node, MotorCommand.MODE_DISABLE)
+        command(node, MotorCommand.MODE_DISABLE)
+    assert info_lines() == ['Disable submitted for a', 'Enable submitted for a',
+                            'Disable submitted for a']
+    assert bus.disable.call_count == 52
 
 
 def test_other_joint_commands_do_not_refresh_expired_joint(can_node):
