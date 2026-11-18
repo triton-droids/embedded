@@ -23,10 +23,11 @@ class Capture:
 
 @pytest.fixture
 def node(monkeypatch):
-    model = (Path.home() / 'Github/simulation/logs/legs_tracking/'
-             '20260914_170827/20260914_170827.onnx')
+    # The node loads its default (installed) model; this is the same export
+    # shipped in the repository, so gate on that copy rather than a developer path.
+    model = (Path(__file__).resolve().parents[1] / 'models/20260914_170827/20260914_170827.onnx')
     if not model.exists():
-        pytest.skip('LFS policy export absent')
+        pytest.skip('Deployed policy export absent')
     rclpy.init(args=['--ros-args', '-p', 'calibration_seconds:=0.0'])
     monkeypatch.setattr(TrackingPolicyNode, "run_worker", lambda self: None)
     policy_node = TrackingPolicyNode()
