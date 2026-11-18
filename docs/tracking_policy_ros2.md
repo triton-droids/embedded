@@ -174,10 +174,19 @@ reference clock, so the new export's frames hold or loop as usual. An unknown
 name returns `success: false` and leaves the active model as it was.
 `/policy/status` reports `active_model` and `available_models`.
 
-All models must use the same joint order. With `motor_config_file` set, every
-alternate model must match the registry's metadata, gains and joint limits, as
-`model_path` does. Only `model_path` is pinned to the registry's
-`model_sha256`.
+All models must use the same joint order. With `motor_config_file` set, the
+registry must approve every model's SHA-256 in
+`model_contract.allowed_model_sha256s`. Each model must also match the
+registry's metadata, gains and joint limits. To approve another export without
+changing the contract:
+
+```bash
+python scripts/sync_tracking_motor_config.py --approve-model /path/to/other/other.onnx
+```
+
+This refuses any export whose contract, gains or limits differ, and it resets
+`hardware_verified: false`. A normal `--model` resync keeps existing approvals
+only if the contract is unchanged.
 
 ## IMU, frames, and input faults
 
@@ -236,9 +245,9 @@ No guessed mappings or SDK implementation are added by this integration.
 `motor_control_hybrid/config/motors.yaml` now stores the ten joints in the active
 tracking export's order, its Kp/Kd, zero default positions, action scale 0.2,
 50 Hz contract, and simulation joint limits. The launch reads this order for
-fake feedback. On startup the policy checks the registry against the model's
-SHA256 and metadata, including the motor gain entries; configuration drift
-requires resynchronization.
+fake feedback. On startup the policy checks that the model's SHA256 is listed
+in `allowed_model_sha256s`. It also checks the model's metadata, including the
+motor gain entries; configuration drift requires resynchronization.
 
 ```bash
 source rosenv/bin/activate

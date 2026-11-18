@@ -106,16 +106,9 @@ def test_original_action_and_observation_contract_are_preserved():
     np.testing.assert_array_equal(obs[0, 43:53], raw)
 
 
-def test_sync_restores_model_pd_and_preserves_polarity(monkeypatch, tmp_path):
-    """Test the real sync script using metadata fixtures, without ONNX Runtime."""
-    params = settings()
-    original = copy.deepcopy(params)
-    for motor in params['motors'].values():
-        motor.update(kp=300, kd=20)
-    params['runtime_policy'] = {'action_scale': 1, 'policy_action_clip': 1}
-    output = tmp_path / 'motors.yaml'
-    output.write_text(yaml.safe_dump({'motor_control_node': {'ros__parameters': params}}))
-    contract = params['model_contract']
+def run_sync(monkeypatch, *argv):
+    """Run the real sync script with ONNX metadata taken from the registry contract."""
+    contract = settings()['model_contract']
     metadata = {key: ','.join(map(str, contract[key])) for key in (
         'default_joint_pos', 'action_scale', 'joint_stiffness', 'joint_damping')}
     metadata.update(joint_names=','.join(contract['joint_order']),
@@ -126,8 +119,81 @@ def test_sync_restores_model_pd_and_preserves_polarity(monkeypatch, tmp_path):
     spec = importlib.util.spec_from_file_location('model_pd_sync_test', script)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    monkeypatch.setattr(sys, 'argv', [str(script), '--model', str(MODEL), '--output', str(output)])
+    monkeypatch.setattr(sys, 'argv', [str(script), *map(str, argv)])
     module.main()
-    updated = yaml.safe_load(output.read_text())['motor_control_node']['ros__parameters']
+
+
+def read_registry(path):
+    return yaml.safe_load(path.read_text())['motor_control_node']['ros__parameters']
+
+
+def sha256(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def alternate_export(tmp_path, candidate_xml=None):
+    """Different bytes (so a different hash) beside the same saved training XML."""
+    directory = tmp_path / 'alternate'
+    directory.mkdir()
+    (directory / 'alternate.onnx').write_bytes(MODEL.read_bytes() + b'alternate')
+    (directory / 'chrobot_16kg_actuated.xml').write_bytes(
+        (MODEL.parent / 'chrobot_16kg_actuated.xml').read_bytes())
+    (directory / 'chrobot_16kg_candidate.xml').write_text(
+        candidate_xml or (MODEL.parent / 'chrobot_16kg_candidate.xml').read_text())
+    return directory / 'alternate.onnx'
+
+
+def test_sync_restores_model_pd_and_preserves_polarity(monkeypatch, tmp_path):
+    """Test the real sync script using metadata fixtures, without ONNX Runtime."""
+    params = settings()
+    original = copy.deepcopy(params)
+    for motor in params['motors'].values():
+        motor.update(kp=300, kd=20)
+    params['runtime_policy'] = {'action_scale': 1, 'policy_action_clip': 1}
+    output = tmp_path / 'motors.yaml'
+    output.write_text(yaml.safe_dump({'motor_control_node': {'ros__parameters': params}}))
+    run_sync(monkeypatch, '--model', MODEL, '--output', output)
+    updated = read_registry(output)
     assert updated['motors'] == original['motors']
     assert 'runtime_policy' not in updated
+    # The gain drift changed the contract, so no earlier approval survives.
+    assert updated['model_contract']['allowed_model_sha256s'] == [sha256(MODEL)]
+
+
+def test_registry_rejects_unapproved_export():
+    params = settings()
+    policy = policy_from_contract(params)
+    with pytest.raises(ValueError, match='not approved'):
+        validate_tracking_registry(policy, params, '0' * 64)
+    del params['model_contract']['allowed_model_sha256s']
+    params['model_contract']['model_sha256'] = sha256(MODEL)
+    with pytest.raises(ValueError, match='resync'):
+        validate_tracking_registry(policy, params, sha256(MODEL))
+
+
+def test_approve_adds_matching_export_and_resync_keeps_it(monkeypatch, tmp_path):
+    output = tmp_path / 'motors.yaml'
+    output.write_text((PACKAGE / 'config/motors.yaml').read_text())
+    alternate = alternate_export(tmp_path)
+    run_sync(monkeypatch, '--approve-model', alternate, '--output', output)
+    approved = read_registry(output)
+    assert approved['model_contract']['allowed_model_sha256s'] == [sha256(MODEL), sha256(alternate)]
+    assert approved['motors'] == settings()['motors']
+    run_sync(monkeypatch, '--approve-model', alternate, '--output', output)
+    assert read_registry(output) == approved
+    run_sync(monkeypatch, '--model', MODEL, '--output', output)
+    assert read_registry(output)['model_contract']['allowed_model_sha256s'] == [
+        sha256(MODEL), sha256(alternate)]
+
+
+def test_approve_rejects_export_with_different_limits(monkeypatch, tmp_path):
+    output = tmp_path / 'motors.yaml'
+    output.write_text((PACKAGE / 'config/motors.yaml').read_text())
+    root = ET.parse(MODEL.parent / 'chrobot_16kg_candidate.xml').getroot()
+    joint = next(j for j in root.iter('joint') if j.get('name') == settings()['model_contract']['joint_order'][0])
+    low, high = map(float, joint.get('range').split())
+    joint.set('range', f'{low} {high - 0.1}')
+    alternate = alternate_export(tmp_path, ET.tostring(root, encoding='unicode'))
+    with pytest.raises(ValueError, match='does not match the registry'):
+        run_sync(monkeypatch, '--approve-model', alternate, '--output', output)
+    assert output.read_text() == (PACKAGE / 'config/motors.yaml').read_text()

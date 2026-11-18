@@ -309,3 +309,38 @@ def test_restart_reference_plays_new_model_from_first_frame(switchable):
     switchable.on_imu(imu_sample(switchable))
     switchable.tick()
     assert switchable.frame == 0
+
+
+def test_registry_must_approve_every_switchable_model(monkeypatch, tmp_path):
+    import hashlib
+    import shutil
+    import onnx
+    import yaml
+    package = Path(__file__).resolve().parents[1]
+    source = package / 'models/20260914_170827'
+    if not (source / '20260914_170827.onnx').exists():
+        pytest.skip('LFS policy export absent')
+    # Same contract and weights, but a different file hash.
+    exported = onnx.load(source / '20260914_170827.onnx')
+    exported.metadata_props.add(key='note', value='alternate')
+    onnx.save(exported, tmp_path / 'alternate.onnx')
+    shutil.copy(source / 'chrobot_16kg_candidate.xml', tmp_path)
+    registry = yaml.safe_load((package / 'config/motors.yaml').read_text())
+    registry_path = tmp_path / 'motors.yaml'
+    monkeypatch.setattr(TrackingPolicyNode, "run_worker", lambda self: None)
+
+    def start():
+        registry_path.write_text(yaml.safe_dump(registry, sort_keys=False))
+        rclpy.init(args=['--ros-args', '-p', 'calibration_seconds:=0.0',
+                         '-p', f'motor_config_file:={registry_path}',
+                         '-p', f'model_paths:=["{tmp_path / "alternate.onnx"}"]'])
+        try:
+            TrackingPolicyNode().destroy_node()
+        finally:
+            rclpy.shutdown()
+
+    with pytest.raises(ValueError, match='not approved'):
+        start()
+    registry['motor_control_node']['ros__parameters']['model_contract']['allowed_model_sha256s'].append(
+        hashlib.sha256((tmp_path / 'alternate.onnx').read_bytes()).hexdigest())
+    start()

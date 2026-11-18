@@ -6,7 +6,8 @@ motor_control_node:
     hardware_verified: false
     model_contract:
       format: tracking_onnx
-      model_sha256: 90fc691abbf43b89a55956493da6ab19c59105f9167f29f8f93fc317b68c9309
+      allowed_model_sha256s:
+      - 90fc691abbf43b89a55956493da6ab19c59105f9167f29f8f93fc317b68c9309
       control_hz: 50.0
       joint_order:
       - left_hip1_joint

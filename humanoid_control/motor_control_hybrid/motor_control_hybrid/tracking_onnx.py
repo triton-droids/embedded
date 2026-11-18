@@ -141,15 +141,19 @@ def joint_feedback(names, positions, velocities, policy_names):
     return q, dq
 
 
-def validate_tracking_registry(policy, params, model_sha256, check_sha256=True):
+def validate_tracking_registry(policy, params, model_sha256):
     """Reject drift between the embedded registry and the loaded model.
 
-    check_sha256=False is for switchable alternates: they must still match the
-    registry's joint order, metadata, gains and limits, but not its pinned hash.
+    The model must be one of the exports approved by the sync script; every
+    approved export shares the same joint contract, gains and limits.
     """
     contract = params['model_contract']
+    if 'allowed_model_sha256s' not in contract:
+        raise ValueError('Motor registry has no allowed_model_sha256s; resync it')
+    if model_sha256 not in contract['allowed_model_sha256s']:
+        raise ValueError('Tracking ONNX export is not approved in the motor registry; '
+                         'add it with sync_tracking_motor_config.py --approve-model')
     if (contract['format'] != 'tracking_onnx' or contract['control_hz'] != 50.0
-            or (check_sha256 and contract['model_sha256'] != model_sha256)
             or contract['joint_order'] != policy.names
             or list(params['motors']) != policy.names):
         raise ValueError('Motor registry does not match the tracking ONNX export; resync it')

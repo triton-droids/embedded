@@ -105,10 +105,7 @@ class TrackingPolicyNode(Node):
             if self.policies and policy.names != self.policy.names:
                 raise ValueError(f'{path.stem}: joint order differs from {model.stem}')
             if registry is not None:
-                # Only model_path is pinned by hash; alternates must match the
-                # same joint contract, gains and limits as the motor registry.
-                validate_tracking_registry(policy, registry, sha256,
-                                           check_sha256=not self.policies)
+                validate_tracking_registry(policy, registry, sha256)
                 apply_runtime_policy(policy, registry)
             dummy_previous = np.zeros(10, dtype=np.float32)
             for frame in range(30):

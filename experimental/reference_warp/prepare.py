@@ -78,7 +78,8 @@ def prepare(scale, output):
     params = registry['motor_control_node']['ros__parameters']
     if params.get('hardware_verified') is not False:
         raise ValueError('Experiment requires hardware_verified=false')
-    params['model_contract']['model_sha256'] = digest(model_path)
+    params['model_contract'].pop('model_sha256', None)
+    params['model_contract']['allowed_model_sha256s'] = [digest(model_path)]
     registry_path = output/'motors.yaml'
     registry_path.write_text(yaml.safe_dump(registry, sort_keys=False))
     modified = TrackingPolicy(model_path)
