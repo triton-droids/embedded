@@ -195,6 +195,45 @@ ROS_DOMAIN_ID=84 RUN_ROS_INTEGRATION=1 \
   humanoid_control/humanoid_safety/test/test_imu_time_contract.py
 ```
 
+## Advisory fall predictor
+
+`fall_predictor_node` scores the body IMU (`/imu/data_raw`, 100 Hz) with a small
+learned model and publishes an early warning. It is **advisory only**: it reads
+`/safety/estop` but never publishes it, calls no services and commands no motors.
+`safety_node` and its deterministic fall detection remain the only estop authority.
+
+```bash
+ros2 launch humanoid_safety safety.launch.py fall_predictor:=true \
+  fall_predictor_log:=/tmp/fall_shadow.jsonl   # log is optional
+```
+
+| Topic | Type | Meaning |
+|---|---|---|
+| `/safety/fall_warning` | `std_msgs/Bool`, latched | True while the `warning_head` (default `600ms`) is in alarm |
+| `/safety/fall_prediction` | `std_msgs/String` JSON | Per-sample scores, per-head alarms and eligibility (`prediction_topic:=''` disables) |
+
+Model: `models/fall_predictor/dual_v2_trial03.{onnx,json}`, a dual-horizon CNN
+(300/600 ms) over the last 20 IMU samples (roll, pitch, gyro, accel including
+gravity). It is the `dual_v2_20261107` trial 03 TorchScript model from
+`evaluation/fall_predictor` on the simulation branch, exported to ONNX (runs on
+the rosenv `onnxruntime`, no PyTorch). Each head alarms after `confirm_frames`
+consecutive scores at or above its threshold (`300ms` 0.602 x 3, `600ms` 0.99 x 5),
+taken from validation. A window is not eligible while it contains an estop sample
+or a stamp gap outside 5–20 ms; a stamp jump of 1 s or more, a reordered stamp or
+an invalid quaternion restarts the 20-sample history.
+
+**Limits:** trained only in MuJoCo on the old RL tracking-policy path; there is no
+real-robot data and scores are uncalibrated, not probabilities. In simulation the
+600 ms head warned about 250 ms before the deterministic estop with few false
+alarms. The simulation gantry gate is not available on hardware, so lifting or
+carrying the robot can raise warnings. Run it in shadow (`fall_predictor_log`)
+before letting anything react to `/safety/fall_warning`; the log uses the
+evaluation shadow-log format.
+
+`test/test_fall_predictor.py` replays a recorded fall from the simulation shadow
+test: ONNX scores match the online TorchScript scores within 1e-4 and the
+600 ms alarm starts on the same sample.
+
 ## Unified control, safety and model display
 
 The existing `joint_state_monitor_node` is the pose display relay; no second

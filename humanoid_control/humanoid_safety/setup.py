@@ -20,6 +20,8 @@ setup(
         (os.path.join("share", package_name, "launch"), glob("launch/*.launch.py")),
         (os.path.join("share", package_name, "web_ui"), glob("web_ui/*")),
         (os.path.join("share", package_name, "rviz"), glob("rviz/*.rviz")),
+        (os.path.join("share", package_name, "models", "fall_predictor"),
+         glob("models/fall_predictor/*")),
     ],
     install_requires=["setuptools"],
     zip_safe=True,
@@ -31,6 +33,7 @@ setup(
     entry_points={
         "console_scripts": [
             "safety_node = humanoid_safety.safety_node:main",
+            "fall_predictor_node = humanoid_safety.fall_predictor.node:main",
             "motor_web_node = humanoid_safety.motor_web_node:main",
             "joint_state_monitor_node = humanoid_safety.joint_state_monitor_node:main",
             "self_collision_monitor_node = humanoid_safety.self_collision.monitor_node:main",

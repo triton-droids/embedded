@@ -19,6 +19,12 @@ def mode_nodes(context):
         nodes.append(Node(package='humanoid_safety', executable='safety_node',
             name='safety_node', output='screen',
             parameters=[LaunchConfiguration('safety_config'), overrides]))
+        if LaunchConfiguration('fall_predictor').perform(context).lower() == 'true':
+            # Advisory only: publishes /safety/fall_warning, never trips the estop.
+            nodes.append(Node(package='humanoid_safety', executable='fall_predictor_node',
+                name='fall_predictor', output='screen', parameters=[{
+                    'log_path': LaunchConfiguration('fall_predictor_log'),
+                }]))
     if mode in ('web', 'monitor', 'all'):
         parameters = {
             'source_topic': LaunchConfiguration('source_topic'),
@@ -73,6 +79,10 @@ def generate_launch_description():
                              description='Override YAML fall detection; empty preserves configuration'),
         DeclareLaunchArgument('trip_on_imu_timeout', default_value='', choices=['', 'true', 'false'],
                              description='Override YAML IMU timeout trip; empty preserves configuration'),
+        DeclareLaunchArgument('fall_predictor', default_value='false', choices=['true', 'false'],
+                             description='Advisory learned fall predictor next to the supervisor'),
+        DeclareLaunchArgument('fall_predictor_log', default_value='',
+                             description='Optional JSONL shadow log path for the fall predictor'),
         DeclareLaunchArgument('safety_config', default_value=PathJoinSubstitution(
             [FindPackageShare('humanoid_safety'), 'config', 'safety.yaml'])),
         OpaqueFunction(function=mode_nodes),
