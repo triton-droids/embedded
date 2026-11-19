@@ -19,7 +19,9 @@ _activate_workspace_rosenv() {
   if [[ -f "$repo/install/setup.bash" ]]; then
     source "$repo/install/setup.bash" || return 1
   fi
-  source "$repo/scripts/rosenv_paths.sh"
+  source "$repo/scripts/rosenv_paths.sh" || return 1
+  # CycloneDDS with the robot-local profile unless DDS_PROFILE says otherwise.
+  source "$repo/scripts/dds_env.sh"
 }
 _activate_workspace_rosenv
 _activate_rosenv_result=$?

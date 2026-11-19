@@ -32,14 +32,15 @@ colcon build --symlink-install --base-paths humanoid_control humanoid_leg_descri
 source install/setup.bash
 ```
 
-Both computers must use the same ROS domain, and network discovery must be
-enabled. The commands below use domain 0 (the ROS default). Set these variables
-before starting the policy, monitor or RViz. Use the same ROS distribution and
-RMW implementation on both machines; synchronize their system clocks.
+Both computers must use the same ROS domain and the **LAN CycloneDDS profile**:
+the default `local` profile keeps the robot on loopback, invisible to other
+hosts (see the README, *DDS middleware*). Start every robot process that RViz
+should see from a shell activated with `DDS_PROFILE=lan`; synchronize the
+system clocks.
 
 ```bash
 export ROS_DOMAIN_ID=0
-export ROS_LOCALHOST_ONLY=0
+DDS_PROFILE=lan source scripts/activate_rosenv.sh   # DDS_INTERFACE=<iface> if needed
 ros2 launch motor_control_hybrid joint_state_monitor.launch.py \
   source_topic:=/policy/target_angles
 ```
@@ -54,12 +55,14 @@ Copy/checkout this repository so the meshes are available locally. Build the
 description package, then start its display with the manual joint GUI disabled:
 
 ```bash
-source /opt/ros/humble/setup.bash
-export ROS_DOMAIN_ID=0
-export ROS_LOCALHOST_ONLY=0
+source /opt/ros/jazzy/setup.bash
 colcon build --symlink-install --base-paths humanoid_leg_description \
   --packages-select humanoid_leg_description
 source install/setup.bash
+export ROS_DOMAIN_ID=0
+# Same CycloneDDS LAN profile as the robot (from this checkout):
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp DDS_INTERFACE=<this PC's LAN interface>
+export CYCLONEDDS_URI="file://$PWD/config/dds/cyclonedds_lan.xml"
 ros2 topic echo /joint_states sensor_msgs/msg/JointState --once
 ros2 launch humanoid_leg_description display.launch.py \
   use_joint_state_gui:=false joint_states_topic:=/joint_states
@@ -71,11 +74,12 @@ robot-description subscription. Only run one robot state publisher in this
 domain for this robot. For a headless TF check, append `use_rviz:=false`.
 
 ROS 2 DDS carries the joint messages across the network; no websocket is needed.
-Both computers need a reachable LAN with multicast discovery and DDS UDP traffic
-permitted. If the topic is absent, compare `ROS_DOMAIN_ID`, `ROS_LOCALHOST_ONLY`
-and `RMW_IMPLEMENTATION`, restart `ros2 daemon` after changing them, and check
-network/firewall settings. Discovery across routed VPNs may require explicit DDS
-peer configuration.
+Both computers need a reachable LAN with multicast and DDS UDP traffic
+permitted. If the topic is absent, compare `ROS_DOMAIN_ID`, `RMW_IMPLEMENTATION`,
+`CYCLONEDDS_URI` and `DDS_INTERFACE` on both hosts, restart `ros2 daemon` after
+changing them, and check network/firewall settings. Where multicast is blocked
+or the hosts are on routed networks, set `DDS_PEER_IP` to the other host's
+address on both sides.
 
 References: [ROS 2 environment settings](https://github.com/ros2/ros2_documentation/blob/humble/source/Tutorials/Beginner-CLI-Tools/Configuring-ROS2-Environment.rst),
 [robot_state_publisher](https://github.com/ros/robot_state_publisher/tree/humble).

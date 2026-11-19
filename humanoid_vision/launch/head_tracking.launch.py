@@ -55,11 +55,19 @@ def setup(context):
             # Device mapping also accepts a stable host /dev/serial/by-id path.
             # Host IPC lets Fast DDS share memory with host-side ROS processes.
             # Pass an argv list: no shell quoting or interactive sudo is involved.
+            # The Agent embeds Fast DDS. With the workspace's local CycloneDDS
+            # profile it must use the same loopback-only Fast DDS profile
+            # (scripts/dds_env.sh), or neither side discovers the other.
+            fastdds_profile = os.environ.get('FASTRTPS_DEFAULT_PROFILES_FILE', '')
+            profile_args = (['--volume', f'{fastdds_profile}:/humanoid_fastdds.xml:ro',
+                             '--env', 'FASTRTPS_DEFAULT_PROFILES_FILE=/humanoid_fastdds.xml']
+                            if fastdds_profile else [])
             actions.append(ExecuteProcess(
                 cmd=['docker', 'run', '--rm', '--init',
                      '--name', 'head-tracking-agent', '--network', 'host',
                      '--ipc', 'host', '--device', f'{port}:/dev/head_mcu',
                      '--env', f'ROS_DOMAIN_ID={os.environ.get("ROS_DOMAIN_ID", "0")}',
+                     *profile_args,
                      value('agent_image'), 'serial', '--dev', '/dev/head_mcu',
                      '-b', baud, '-v4'],
                 output='screen', on_exit=stop_with('micro-ROS Agent')))
