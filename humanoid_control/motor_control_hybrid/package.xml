@@ -23,6 +23,8 @@
   <exec_depend>motor_control_interfaces</exec_depend>
   <exec_depend>humanoid_safety</exec_depend>
   <exec_depend>attitude_sensing_pkg</exec_depend>
+  <!-- The workspace runs on CycloneDDS (scripts/dds_env.sh). -->
+  <exec_depend>rmw_cyclonedds_cpp</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
   <exec_depend>ament_index_python</exec_depend>

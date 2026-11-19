@@ -118,6 +118,7 @@ been validated there.**
 | Feature | Software / bench verification (this branch) | Robot |
 |---|---|---|
 | Environment, build (`rosenv`, colcon, OpenCV 4.6 SDK) | Full workspace builds on JetPack 7 / Jazzy | not tested |
+| DDS middleware (CycloneDDS `local` / `lan` profiles) | All tests below run on the `local` profile; Fast DDS (Agent stand-in) interop and Orin ↔ laptop `lan` checks pass | not tested with a real micro-ROS Agent |
 | ONNX tracking policy (`tracking_policy_node`) | Model, node, deadline and settings tests pass (29); policy runs at 50 Hz on a synthetic-IMU / fake-feedback bench | not tested |
 | C++ scheduler (`cpp_control_node`, `control_core`) | gtests pass (12 + 9); deadline relay smoke passes; **unified fake-stack integration test fails (pre-existing, see below)** | not tested |
 | RobStride CAN, Python (`python_can_node`) | Watchdog/transport/service tests pass; vcan wire check matches independent RS02/03/04 vectors | not tested |
@@ -144,10 +145,12 @@ Known test issues (both also occur on the code before the latest changes):
 Run from the repository root after [building](#setup-and-build):
 
 ```bash
-source scripts/activate_rosenv.sh          # ROS + rosenv + install/setup.bash
-export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp ROS_LOCALHOST_ONLY=1
+source scripts/activate_rosenv.sh          # ROS + rosenv + install + CycloneDDS (local profile)
 export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1    # required, see below
 ```
+
+The local DDS profile keeps every test on loopback (see
+[DDS middleware](#dds-middleware-cyclonedds)).
 
 `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1` matters: with the ROS pytest plugins
 auto-loaded (ament lint / launch_testing, installed with ROS Jazzy), the
@@ -342,10 +345,58 @@ build `humanoid_vision` with `--cmake-args -DTRACK_ONLY=ON`.
 `-DMOTOR_CONTROL_BUILD_ENCOS=OFF` to skip it; offline builds can point
 `-DFETCHCONTENT_SOURCE_DIR_ENCOS_DRIVER=/path/to/encos_driver` at a checkout.
 
+### DDS middleware (CycloneDDS)
+
+The workspace runs on CycloneDDS (`rmw_cyclonedds_cpp`), not the Jazzy default
+Fast DDS. `source scripts/activate_rosenv.sh` selects it through
+[`scripts/dds_env.sh`](scripts/dds_env.sh); every process of one ROS graph must
+use the same profile, so start every robot process from an activated shell.
+
+| `DDS_PROFILE` | Config | Use |
+|---|---|---|
+| `local` (default) | [`cyclonedds_local.xml`](config/dds/cyclonedds_local.xml) + [`fastdds_localhost.xml`](config/dds/fastdds_localhost.xml) | Everything on the robot. Loopback only, unicast discovery: the control path never depends on Wi-Fi, VPN or container bridges. |
+| `lan` | [`cyclonedds_lan.xml`](config/dds/cyclonedds_lan.xml) | Robot and an operator PC (RViz, `ros2` CLI). Multicast discovery on `DDS_INTERFACE` (default: the default-route interface; pin it, e.g. `DDS_INTERFACE=wlP1p1s0`, when a VPN owns the default route). `DDS_PEER_IP=<other host>` adds a unicast peer where multicast is blocked. |
+| `none` | — | Leave `RMW_IMPLEMENTATION` / `CYCLONEDDS_URI` untouched. |
+
+```bash
+source scripts/activate_rosenv.sh                       # local profile
+DDS_PROFILE=lan source scripts/activate_rosenv.sh       # robot and operator PC, same ROS_DOMAIN_ID
+```
+
+The micro-ROS Agents (body IMU, head MCU) embed **Fast DDS** whatever
+`RMW_IMPLEMENTATION` says. Default Fast DDS discovers by multicast and
+advertises only external addresses, so it never meets the loopback-only
+CycloneDDS graph. The local profile therefore also exports
+`FASTRTPS_DEFAULT_PROFILES_FILE` pointing at a loopback-only Fast DDS profile,
+which Fast DDS loads at start-up: start the Agent from an activated shell
+(`head_tracking.launch.py agent_mode:=docker` passes the profile into the
+container). With `lan`, both sides use plain multicast discovery and the Fast
+DDS profile is not set.
+
+After changing `DDS_PROFILE` or `RMW_IMPLEMENTATION`, run `ros2 daemon stop`: a
+daemon started under other settings keeps answering `ros2 node list` /
+`ros2 topic list` with an empty graph.
+
+Verified on the Orin (2026-11-18), with Fast DDS ROS nodes standing in for the
+Agent: `local` — 100 Hz `Imu` Fast DDS ↔ CycloneDDS in both directions, a
+latched reliable estop reaches a late Fast DDS subscriber, and the full
+control stack (C++ CAN backend, policy, safety, fall predictor) runs at its
+nominal rates; `lan` — Orin ↔ laptop in both directions, Fast DDS ↔ CycloneDDS
+at 100 Hz, and a `local` publisher stays invisible to the other host. Not yet
+verified with a real micro-ROS Agent and MCU.
+
+The profiles request a 16 MB socket receive buffer, capped by the kernel limit:
+
+```bash
+echo 'net.core.rmem_max=33554432' | sudo tee /etc/sysctl.d/60-cyclonedds.conf
+sudo sysctl -p /etc/sysctl.d/60-cyclonedds.conf
+```
+
 ## Launch entry points
 
 Run from the repository root after `source scripts/activate_rosenv.sh`.
-Processes on different hosts must share `ROS_DOMAIN_ID` and DDS settings.
+Processes on different hosts must share `ROS_DOMAIN_ID` and use
+`DDS_PROFILE=lan` (see [DDS middleware](#dds-middleware-cyclonedds)).
 
 | Task | Command | Behaviour |
 |---|---|---|
