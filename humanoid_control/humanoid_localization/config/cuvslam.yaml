@@ -1,0 +1,33 @@
+# cuVSLAM (isaac_ros_visual_slam, Isaac ROS 4.6, JetPack 7.2) on the D435 infrared pair,
+# projector off. realsense2_camera publishes the rectified pair and the TF
+# camera_link -> camera_infra{1,2}_optical_frame.
+#
+# Default is pure stereo VO (tracking_mode 0). The head IMU (/head/imu, ESP32 head
+# MCU) is not fused yet: its extrinsic to the camera has not been measured and it
+# does not share a clock with the D435. cuVSLAM rejects IMU jitter over
+# imu_jitter_threshold_ms. Launch imu_fusion:=true only after both are fixed.
+visual_slam_node:
+  ros__parameters:
+    num_cameras: 2
+    rectified_images: true          # infra{1,2}/image_rect_raw: rectified, same intrinsics.
+    tracking_mode: 0                # VO; the launch argument imu_fusion overrides it.
+    enable_imu_fusion: false
+    imu_frame: head_imu_link        # Needs a measured TF camera_link -> head_imu_link.
+    # MPU-family datasheet white noise; random walks are Isaac ROS defaults.
+    gyro_noise_density: 1.745e-4    # rad/s/sqrt(Hz)
+    gyro_random_walk: 1.9393e-5     # rad/s^2/sqrt(Hz)
+    accel_noise_density: 2.942e-3   # m/s^2/sqrt(Hz)
+    accel_random_walk: 3.0e-3       # m/s^3/sqrt(Hz)
+    calibration_frequency: 100.0    # The head MCU publishes /head/imu at 100 Hz.
+    imu_jitter_threshold_ms: 10.0
+    base_frame: camera_link         # Rig frame; its pose is the output.
+    camera_optical_frames: [camera_infra1_optical_frame, camera_infra2_optical_frame]
+    # vio_localizer owns the base pose: no TF from cuVSLAM.
+    publish_odom_to_base_tf: false
+    publish_map_to_odom_tf: false
+    enable_localization_n_mapping: false
+    enable_slam_visualization: false
+    enable_landmarks_view: false
+    enable_observations_view: false
+    # 30 Hz input: one frame period plus margin.
+    image_jitter_threshold_ms: 50.0

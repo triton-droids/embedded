@@ -1,0 +1,18 @@
+# Supply an Isaac ROS 4.6 JetPack 7.2 / Jazzy development image.
+# No default: an old locally cached Humble image must not be silently reused.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+USER root
+RUN grep -qx 'VERSION_ID="24.04"' /etc/os-release \
+    && test -f /opt/ros/jazzy/setup.bash
+# The official 4.6 development base must already configure its signed repository.
+# Reject older/latest repositories instead of combining conflicting signing keys.
+RUN grep -R -E 'isaac-ros/release-4\.6[[:space:]]+noble-jetpack' /etc/apt/sources.list.d/ \
+    && ! grep -R -E 'isaac-ros/release-(3|5|4[[:space:]])' /etc/apt/sources.list.d/
+# The CLI-built base can carry a stale, nearly empty Isaac index in its apt
+# lists that apt-get update does not replace; start from clean lists.
+RUN rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends \
+        ros-jazzy-isaac-ros-visual-slam ros-jazzy-rmw-cyclonedds-cpp \
+        ros-jazzy-isaac-ros-dnn-image-encoder ros-jazzy-isaac-ros-tensor-rt \
+        ros-jazzy-isaac-ros-yolov8 \
+    && rm -rf /var/lib/apt/lists/*
