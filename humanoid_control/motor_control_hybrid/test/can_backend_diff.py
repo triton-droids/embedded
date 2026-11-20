@@ -169,14 +169,19 @@ def run_backend(executable, registry_path, channel, joints, devices):
 
 
 def collapse(trace):
+    """Per motor, consecutive repeats (50 Hz retransmissions) collapsed."""
     per_motor = {}
     for _, frame_id, data in trace:
-        device = frame_id & 0xFF
-        seq = per_motor.setdefault(device, [])
-        item = (f'{frame_id:08x}', data)
-        if not seq or seq[-1] != item:
-            seq.append(item)
-    return per_motor
+        per_motor.setdefault(frame_id & 0xFF, []).append((f'{frame_id:08x}', data))
+    return {device: collapse_items(items) for device, items in per_motor.items()}
+
+
+def collapse_items(items):
+    out = []
+    for item in items:
+        if not out or out[-1] != item:
+            out.append(item)
+    return out
 
 
 def main():
@@ -206,22 +211,38 @@ def main():
         print(f'{backend}: {len(results[backend]["trace"])} frames, '
               f'{len(results[backend]["states"])} joint_states, timing={results[backend]["timing"]}')
 
+    # Lifecycle and parameter frames (enable, disable, run-mode / velocity
+    # parameters) must form the identical ordered sequence. Motion frames
+    # (type 1) may legitimately differ by a superseded target: both backends
+    # keep only the latest command per joint, so a target replaced before the
+    # TX thread drains it is never sent. An encoding error would instead make
+    # almost every motion frame differ, so require >= 95 % overlap.
     py, cc = (collapse(results[b]['trace']) for b in ('python_can_node', 'robstride_can_node'))
     mismatches = 0
     for device in sorted(set(py) | set(cc)):
         a, b = py.get(device, []), cc.get(device, [])
-        if a != b:
-            mismatches += 1
-            first = next((i for i, (x, y) in enumerate(zip(a, b)) if x != y), min(len(a), len(b)))
-            print(f'motor {device}: python {len(a)} vs cpp {len(b)} distinct frames; first '
-                  f'difference at {first}: {a[first:first + 3]} vs {b[first:first + 3]}')
-        else:
-            kinds = sorted({int(x[0], 16) >> 24 for x in a})
-            print(f'motor {device}: identical, {len(a)} distinct frames, types {kinds}')
+        life_a = collapse_items(x for x in a if int(x[0], 16) >> 24 != 1)
+        life_b = collapse_items(x for x in b if int(x[0], 16) >> 24 != 1)
+        motion_a = {x for x in a if int(x[0], 16) >> 24 == 1}
+        motion_b = {x for x in b if int(x[0], 16) >> 24 == 1}
+        union = motion_a | motion_b
+        overlap = len(motion_a & motion_b) / len(union) if union else 1.0
+        ok = life_a == life_b and overlap >= 0.95 and len(life_a) > 0
+        mismatches += not ok
+        kinds = sorted({int(x[0], 16) >> 24 for x in a + b})
+        print(f'motor {device}: {"OK  " if ok else "DIFF"} lifecycle/parameter frames '
+              f'{len(life_a)} vs {len(life_b)} {"identical" if life_a == life_b else "DIFFER"}; '
+              f'motion frames {len(motion_a)} vs {len(motion_b)}, overlap {overlap:.1%}; types {kinds}')
+        if life_a != life_b:
+            first = next((i for i, (x, y) in enumerate(zip(life_a, life_b)) if x != y),
+                         min(len(life_a), len(life_b)))
+            print(f'    first lifecycle difference at {first}: {life_a[first:first + 3]} vs '
+                  f'{life_b[first:first + 3]}')
 
     def last_state(states):
+        # Last message with every joint fresh; partial messages depend on timing.
         for msg in reversed(states):
-            if msg.name:
+            if len(msg.name) == len(joints):
                 return dict(zip(msg.name, zip(msg.position, msg.velocity, msg.effort)))
         return {}
 
