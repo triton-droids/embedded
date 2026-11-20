@@ -24,11 +24,19 @@ with `enable_depth:=true` on `humanoid_sim`, not on the tracking launch.
 |---|---|
 | `/camera/camera/color/image_raw` | Simulated color image for detection. |
 | `/camera/camera/color/camera_info` | Camera intrinsics. |
-| `/vision/target_center` | Target pixel center. |
+| `/vision/target_center` | Target pixel center (smoothed while `track_target:=true`). |
+| `/vision/target_track` | Tracked box: center, width/height, track id (`vision_msgs/Detection2D`). |
+| `/vision/target_velocity` | Target center velocity, px/s in the image plane. |
 | `/head/servo_target_rad` | Rate-limited head target consumed by `sim_head_mcu`. |
 
 Use `--show-args` to inspect gains, direction, angle/rate limits, target timeout,
 model path and topic overrides. `use_cuda:=false` selects CPU detection.
+The detector locks on to one target across frames by default: a new target is
+published after two consecutive detections, other balls are ignored while it is
+tracked, and gaps up to 0.1 s are bridged by prediction. `track_target:=false`
+restores per-frame highest-confidence selection; `target_class_id:=0` keeps only
+the ball class of the td-perception model. See the
+[vision guide](../docs/humanoid_vision_instructions.md) for tracker parameters.
 A full detector build needs the configured OpenCV 4.5.x or 4.6.x SDK; `TRACK_ONLY=ON`
 builds just the tracker and requires `start_detector:=false` at launch.
 

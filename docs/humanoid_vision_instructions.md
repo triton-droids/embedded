@@ -54,8 +54,9 @@ humanoid_vision/
 └── package.xml
 ```
 
-`depth_sampler`, `deprojection`, `target_filter`, and `target_tracker` are
-currently placeholders. The implemented detection and 3D-estimation code is in
+`depth_sampler` and `deprojection` are currently placeholders.
+`target_tracker` (single-target association) and `target_filter`
+(alpha-beta smoothing) implement the detector's frame-to-frame lock-on. The implemented detection and 3D-estimation code is in
 `detection_postprocess` and `target_3d_estimator`.
 
 ## Environment
@@ -190,13 +191,28 @@ The node parameters are:
 | `nms_threshold` | `0.45` | NMS overlap threshold |
 | `use_cuda` | `true` on CUDA builds | TensorRT FP16 engine; false selects OpenCV CPU |
 | `show_image` | `false` | Display the annotated frame |
+| `target_class_id` | `-1` | Keep only this class; `-1` any (face model), `0` ball (td-perception) |
+| `track_target` | `true` | Frame-to-frame lock-on; `false` selects each frame's best box unfiltered |
+| `tracker.alpha` / `tracker.beta` | `0.5` / `0.1` | Alpha-beta position/velocity gains |
+| `tracker.size_alpha` | `0.3` | Box-size smoothing gain |
+| `tracker.gate_min_px` / `tracker.gate_size_factor` | `40` / `1.5` | Association radius `max(min, factor * box size)` around the prediction |
+| `tracker.confirm_frames` | `2` | Consecutive matches before a new target is published |
+| `tracker.max_coast_s` | `0.1` | Longest detection gap bridged by prediction |
 
-The node selects the highest-confidence detection and publishes:
+With `track_target:=true` the node keeps one target: a new target starts from
+the highest-confidence detection; afterwards only detections near the predicted
+center update it, so a second ball or a one-frame false positive elsewhere is
+ignored. The node publishes, stamped with the color image:
 
-```text
-/vision/ball_3d_position
-geometry_msgs/msg/PointStamped
-```
+| Topic | Type | Content |
+| --- | --- | --- |
+| `/vision/target_center` | `geometry_msgs/msg/PointStamped` | Smoothed target center, pixels |
+| `/vision/target_track` | `vision_msgs/msg/Detection2D` | Center and `size_x`/`size_y` px; `id` = track id; score 0 means predicted (not detected this frame) |
+| `/vision/target_velocity` | `geometry_msgs/msg/Vector3Stamped` | Center velocity px/s in the image plane (includes head rotation) |
+| `/vision/ball_3d_position` | `geometry_msgs/msg/PointStamped` | 3D point from aligned depth, only for measured frames |
+
+`algorithm/test/test_target_tracker.cpp` (ctest `target_tracker`) checks the
+association, smoothing, coasting, and hand-over rules without ROS or a camera.
 
 The topic name describes the future ball interface even though the current
 model detects faces.
@@ -278,6 +294,22 @@ model. CUDA runtime and TensorRT development packages must already be installed.
 The backend accepts a fixed FP32 input `[1,3,640,640]` and FP32 YOLO output;
 TensorRT uses FP16 internally.
 
+It also accepts a uint8 input `[1,640,640,3]`: the letterboxed BGR image is
+uploaded as is and normalized on the GPU, skipping `blobFromImage` on the CPU.
+Prepend that preprocessing to a static-shape ONNX and build its engine with:
+
+```bash
+python3 scripts/make_u8_input_onnx.py model.onnx model-u8.onnx
+trtexec --onnx=model-u8.onnx --fp16 --builderOptimizationLevel=3 \
+  --saveEngine=.deps/tensorrt/model-u8-fp16.engine
+```
+
+On the Orin Nano Super (JP7, TensorRT 10.16) with the td-perception ball model
+this gave the same detection as the FP32-input engine (class 0, confidence
+0.828937, same box) and reduced detection time from 10.3 to 7.3 ms per frame.
+TensorRT 10.16 failed an internal assertion at optimization level 0 for this
+model; level 3 worked.
+
 With the camera driver running, start the detector:
 
 ```bash
@@ -339,6 +371,5 @@ These rewrites accommodate OpenCV 4.5's importer and broadcasting behavior.
 The regression checks both confidence and box coordinates on the bundled
 reference image, rather than merely checking that a face was found.
 
-RGB/depth time synchronization, TF conversion, filtering, and tracking are
-not implemented yet. The current model detects faces for pipeline testing;
+RGB/depth time synchronization and TF conversion are not implemented yet. The current model detects faces for pipeline testing;
 the 3D output retains the future ball interface name.

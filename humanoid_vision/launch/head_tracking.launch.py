@@ -101,6 +101,8 @@ def setup(context):
             parameters['model_path'] = value('model_path')
         if value('use_cuda') != 'auto':
             parameters['use_cuda'] = boolean('use_cuda')
+        parameters['target_class_id'] = int(value('target_class_id'))
+        parameters['track_target'] = boolean('track_target')
         actions.append(Node(
             package='humanoid_vision', executable='ball_detection_node',
             ros_arguments=['--log-level', value('log_level')],
@@ -149,7 +151,10 @@ def generate_launch_description():
         ('command_topic', '/head/servo_target_rad', 'MCU target radians'),
         ('show_image', 'false', 'Display box and image centers (requires GUI)'),
         ('use_cuda', 'auto', 'auto uses detector build default; or true/false'),
+        ('target_class_id', '-1', 'Only this class becomes the target; -1 any (face), 0 ball (td-perception)'),
         ('model_path', '', 'Optional override of detector model'),
+        ('track_target', 'true',
+         'Lock on to one target across frames (gating, smoothing, short coasting)'),
         ('axis', 'yaw', 'yaw or pitch; one servo only'),
         ('direction', '-1.0', 'Reverse to 1.0 if error grows'),
         ('kp', '1.0', 'Visual P gain'),
