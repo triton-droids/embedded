@@ -49,11 +49,12 @@ branches; this branch is the hardware stack.
 | [`humanoid_control/motor_control_hybrid`](humanoid_control/motor_control_hybrid) | ONNX tracking policy, C++ command scheduler (`cpp_control_node`), RobStride CAN backends (`python_can_node`, C++ `robstride_can_node`), ENCOS skeleton backend, fake motors, motor registry and deployed model. |
 | [`Interfaces/control_core`](Interfaces/control_core) | ROS-independent per-joint command selection and hold-last storage used by the scheduler. |
 | [`humanoid_control/humanoid_safety`](humanoid_control/humanoid_safety) | Latched safety supervisor, advisory fall predictor and self-collision monitor, read-only Web / JointState monitoring. |
-| [`humanoid_vision`](humanoid_vision) | YOLO detection, optional depth projection, image viewer and single-axis head tracking. |
+| [`humanoid_control/humanoid_localization`](humanoid_control/humanoid_localization) | Base pose from cuVSLAM stereo VO on the D435 infrared pair (`vio_localizer`), cuVSLAM container launch and image. |
+| [`humanoid_vision`](humanoid_vision) | YOLO detection with frame-to-frame target lock-on, optional depth projection, image viewer and single-axis head tracking. |
 | [`imu_process`](imu_process) | Body IMU (ESP32-S3 + BNO085) and head MCU micro-ROS firmware, acceptance probe, retained serial IMU package and fusion utilities. |
 | [`humanoid_leg_description`](humanoid_leg_description), [`humanoid_arm_description`](humanoid_arm_description) | URDFs, meshes and display launch files. |
 | [`launch`](launch) | Workspace-level unified system, head-tracking and display entry points. |
-| [`scripts`](scripts) | Environment setup (`setup_rosenv.sh`, `activate_rosenv.sh`), OpenCV SDK extraction, vcan wire check, tracking-policy build helper. |
+| [`scripts`](scripts) | Environment setup (`setup_rosenv.sh`, `activate_rosenv.sh`), OpenCV SDK extraction, vcan wire check, tracking-policy build helper, cuVSLAM container (`run_cuvslam.sh`), uint8-input ONNX for the detector (`make_u8_input_onnx.py`). |
 | [`docs`](docs) | Architecture diagrams (Graphviz sources), protocol audits, watchdog and policy contracts. |
 | [`legacy`](legacy) | Retained arm/leg MoveIt packages and the application SDK prototype. |
 
@@ -130,7 +131,8 @@ been validated there.**
 | Self-collision monitor (advisory) | Checker, marker and Pinocchio backend tests pass (31); MoveIt backend test skipped (MoveIt not installed) | not tested |
 | Read-only monitoring (Web, relay, RViz) | Monitor unit + ROS/HTTP integration tests pass | not tested |
 | Body IMU firmware (BNO085) | Host-side math test passes | not tested on this branch |
-| Head tracking (`track_node`, detector) | Tracker ROS test passes; YOLO CPU fixture passes | not tested |
+| Head tracking (`track_node`, detector) | Tracker ROS test passes; YOLO CPU fixture and target-tracker tests pass; 2026-11-19: detector with the td-perception ball model (uint8 GPU-preprocessed engine) at 59.5 FPS, 7.9 ms per frame on a live D435, with the control stack running | not tested; not yet run with a real ball |
+| Localization (`vio_localizer`, cuVSLAM) | 2026-11-19: fusion tests pass (7); live D435 infrared pair with cuVSLAM, camera stationary: odometry 30 Hz, no position drift over 60 s | not tested; not run while moving |
 
 Known test issues (both also occur on the code before the latest changes):
 
@@ -308,6 +310,18 @@ python3 imu_process/policy_imu/policy_imu_microros/check_body_imu.py
 Live: `ros2 launch launch/head_tracking.launch.py` (camera, detector, tracker,
 micro-ROS Agent); see [TRACKING.md](humanoid_vision/TRACKING.md).
 
+#### 12. Localization (stereo VO)
+
+```bash
+python3 -m pytest humanoid_control/humanoid_localization/test
+```
+
+Live (Jetson, cuVSLAM image built, camera mount measured): terminal 1
+`ros2 launch humanoid_localization vio_d435.launch.py camera_x:=... camera_yaw:=...`,
+terminal 2 `scripts/run_cuvslam.sh`; check `/visual_slam/tracking/odometry` and
+`/localization/status`. See the
+[package README](humanoid_control/humanoid_localization/README.md).
+
 ## Setup and build
 
 Use the ROS distribution that matches the host OS. JetPack 7 / Ubuntu 24.04 uses
@@ -469,9 +483,10 @@ cached commands (default feedback / command timeouts 0.2 s / 0.5 s). A missing
 
 | Node | Responsibility | Publishes | Subscribes |
 |---|---|---|---|
-| [`ball_detection_node`](humanoid_vision/src/ball_detection_node.cpp) | YOLO; highest-confidence detection center plus optional depth 3D point. The bundled model detects faces. | `/vision/target_center`, `/vision/ball_3d_position` | color, aligned depth and CameraInfo under `/camera/camera/` |
+| [`ball_detection_node`](humanoid_vision/src/ball_detection_node.cpp) | YOLO with optional class filter (`target_class_id`) and single-target lock-on (`track_target`); smoothed center, box and velocity, plus optional depth 3D point. The bundled model detects faces. | `/vision/target_center`, `/vision/target_track`, `/vision/target_velocity`, `/vision/ball_3d_position` | color, aligned depth and CameraInfo under `/camera/camera/` |
 | [`track_node`](humanoid_vision/src/track_node.cpp) | Pixel error → single yaw or pitch angle with deadband, rate / angle limits and freshness checks. | `/head/servo_target_rad` | `/vision/target_center`, CameraInfo |
 | [`image_viewer_node`](humanoid_vision/src/image_viewer_node.cpp) | Displays color / depth images for diagnostics. | none | configurable image topics |
+| [`vio_localizer`](humanoid_control/humanoid_localization/humanoid_localization/node.py) | Base pose from cuVSLAM VO steps and the camera mount TF; attitude from VO or the body IMU quaternion; step-speed gate. | `/localization/odom`, `/localization/status` | `/visual_slam/tracking/odometry`, TF, `/imu/data_raw` (`attitude_source:=imu`) |
 | [`body_imu_mcu`](imu_process/policy_imu/policy_imu_microros/policy_imu_microros.ino) | ESP32-S3 + BNO085 micro-ROS firmware; IMU at 100 Hz, status at 1 Hz. | `/imu/data_raw`, `/imu/status` | none |
 | [`head_mcu`](imu_process/head_mcu/humanoid_vision_microros/humanoid_vision_microros.ino) | ESP32-S3 head firmware; raw IMU and PCA9685 channel-8 servo PWM with command timeout. | `/head/imu`, `/head/mcu_status` | `/head/servo_target_rad` |
 | [`body_imu_probe`](imu_process/policy_imu/policy_imu_microros/check_body_imu.py) | Read-only acceptance check for IMU timing, units and orientation. | none | `/imu/data_raw`, `/imu/status` |
