@@ -57,6 +57,7 @@ struct TensorRtInference::Impl {
   Stream stream;
   std::unique_ptr<nvinfer1::IExecutionContext> context;
   std::vector<int> input_shape;
+  bool input_u8 = false;
   cv::Mat host_output;
   size_t input_bytes = 0;
   size_t output_bytes = 0;
@@ -85,23 +86,34 @@ TensorRtInference::TensorRtInference(const std::string &engine_path,
   for (int i = 0; i < state.engine->getNbIOTensors(); ++i) {
     const char *name = state.engine->getIOTensorName(i);
     const auto shape = state.engine->getTensorShape(name);
-    // Internal engine layers may use FP16, but external buffers are FP32.
-    if (state.engine->getTensorDataType(name) != nvinfer1::DataType::kFLOAT ||
-        state.engine->getTensorLocation(name) != nvinfer1::TensorLocation::kDEVICE) {
-      throw std::runtime_error("TensorRT IO must use FP32 device tensors");
+    // Internal engine layers may use FP16. The output buffer is FP32; the input is
+    // FP32 NCHW or, with in-graph preprocessing, uint8 NHWC BGR.
+    const auto type = state.engine->getTensorDataType(name);
+    const bool is_input =
+        state.engine->getTensorIOMode(name) == nvinfer1::TensorIOMode::kINPUT;
+    if (state.engine->getTensorLocation(name) != nvinfer1::TensorLocation::kDEVICE ||
+        !(type == nvinfer1::DataType::kFLOAT ||
+          (is_input && type == nvinfer1::DataType::kUINT8))) {
+      throw std::runtime_error("TensorRT IO must be FP32 (or uint8 input) device tensors");
     }
     std::vector<int> dims;
     for (int j = 0; j < shape.nbDims; ++j) {
       if (shape.d[j] <= 0) throw std::runtime_error("Dynamic TensorRT shapes are unsupported");
       dims.push_back(shape.d[j]);
     }
-    if (state.engine->getTensorIOMode(name) == nvinfer1::TensorIOMode::kINPUT) {
-      if (found_input || dims != std::vector<int>{1, 3, height, width}) {
-        throw std::runtime_error("TensorRT input must match [1,3,height,width]");
+    if (is_input) {
+      const bool u8 = type == nvinfer1::DataType::kUINT8;
+      const std::vector<int> expected = u8 ? std::vector<int>{1, height, width, 3}
+                                           : std::vector<int>{1, 3, height, width};
+      if (found_input || dims != expected) {
+        throw std::runtime_error(u8 ? "TensorRT uint8 input must match [1,height,width,3]"
+                                    : "TensorRT input must match [1,3,height,width]");
       }
       found_input = true;
+      state.input_u8 = u8;
       state.input_shape = dims;
-      state.input_bytes = static_cast<size_t>(3) * height * width * sizeof(float);
+      state.input_bytes = static_cast<size_t>(3) * height * width *
+                          (u8 ? sizeof(uint8_t) : sizeof(float));
       checkCuda(cudaMalloc(&state.input.data, state.input_bytes));
       if (!state.context->setTensorAddress(name, state.input.data)) {
         throw std::runtime_error("Cannot bind TensorRT input");
@@ -127,11 +139,20 @@ TensorRtInference::TensorRtInference(const std::string &engine_path,
 /** @brief Let Impl synchronize and release resources via RAII. */
 TensorRtInference::~TensorRtInference() = default;
 
+/** @brief Report whether forward() expects the letterboxed BGR uint8 image. */
+bool TensorRtInference::takes_bgr_u8() const { return impl_->input_u8; }
+
 /** @brief Copy input, enqueue inference, copy output, and wait on the same stream. */
 cv::Mat TensorRtInference::forward(const cv::Mat &blob) {
   auto &state = *impl_;
-  if (blob.type() != CV_32F || !blob.isContinuous() || blob.dims != 4 ||
-      std::vector<int>(blob.size.p, blob.size.p + blob.dims) != state.input_shape) {
+  if (state.input_u8) {
+    // [1,H,W,3] uint8 is exactly one continuous H x W CV_8UC3 image.
+    if (blob.type() != CV_8UC3 || !blob.isContinuous() ||
+        blob.rows != state.input_shape[1] || blob.cols != state.input_shape[2]) {
+      throw std::runtime_error("Invalid TensorRT uint8 input image");
+    }
+  } else if (blob.type() != CV_32F || !blob.isContinuous() || blob.dims != 4 ||
+             std::vector<int>(blob.size.p, blob.size.p + blob.dims) != state.input_shape) {
     throw std::runtime_error("Invalid TensorRT input blob");
   }
   // Stream ordering guarantees that inference sees the input and the CPU sees
@@ -158,6 +179,7 @@ TensorRtInference::TensorRtInference(const std::string &, int, int) {
   throw std::runtime_error("TensorRT support is unavailable");
 }
 TensorRtInference::~TensorRtInference() = default;
+bool TensorRtInference::takes_bgr_u8() const { return false; }
 cv::Mat TensorRtInference::forward(const cv::Mat &) {
   throw std::runtime_error("TensorRT support is unavailable");
 }
