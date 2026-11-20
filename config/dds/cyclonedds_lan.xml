@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- LAN CycloneDDS profile (DDS_PROFILE=lan): the robot plus an operator PC
+     (RViz, ros2 CLI) on the same network. Use the same profile on both hosts.
+
+     CycloneDDS expands ${DDS_INTERFACE} from the environment;
+     scripts/dds_env.sh sets it to the interface of the default route unless it
+     is already set (for example DDS_INTERFACE=wlP1p1s0). Pin it when the
+     default route goes through a VPN (tailscale0) or a container bridge.
+
+     Discovery uses multicast on the LAN interface and unicast to 127.0.0.1, so
+     participants on the same host still find each other. Optional extra
+     unicast peers (multicast blocked, routed networks): set DDS_PEER_IP to the
+     other host's address on both sides.
+
+     Local traffic may use the LAN address in this profile; prefer the default
+     local profile whenever no other computer needs the robot's topics. -->
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain Id="any">
+    <General>
+      <Interfaces>
+        <NetworkInterface name="${DDS_INTERFACE}"/>
+      </Interfaces>
+      <AllowMulticast>spdp</AllowMulticast>
+    </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>40</MaxAutoParticipantIndex>
+      <Peers>
+        <Peer Address="127.0.0.1"/>
+        <Peer Address="${DDS_PEER_IP:-127.0.0.1}"/>
+      </Peers>
+    </Discovery>
+    <Internal>
+      <SocketReceiveBufferSize max="16MB"/>
+    </Internal>
+  </Domain>
+</CycloneDDS>

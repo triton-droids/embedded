@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Robot-local CycloneDDS profile (DDS_PROFILE=local, the default selected by
+     scripts/activate_rosenv.sh).
+
+     Every participant on the robot talks over loopback only, so the control
+     path (IMU -> safety / policy -> scheduler -> CAN) never depends on Wi-Fi,
+     docker / l4tbr0 bridges or a VPN interface, and loss of the LAN cannot
+     break local discovery. Use DDS_PROFILE=lan for an operator PC.
+
+     Unicast discovery to 127.0.0.1 over automatic participant indices: the
+     default range (0..9) is too small for the full stack plus ros2 CLI tools,
+     so 40 indices. The micro-ROS Agent embeds Fast DDS; it is found through
+     the same unicast probing (see README, DDS middleware).
+
+     16 MB receive buffer for multi-fragment messages (camera images); the
+     request is capped by net.core.rmem_max, so raise that on the host.
+     Every process of one ROS graph must use the same profile. -->
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain Id="any">
+    <General>
+      <Interfaces>
+        <NetworkInterface name="lo"/>
+      </Interfaces>
+      <AllowMulticast>false</AllowMulticast>
+    </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>40</MaxAutoParticipantIndex>
+      <Peers><Peer Address="127.0.0.1"/></Peers>
+    </Discovery>
+    <Internal>
+      <SocketReceiveBufferSize max="16MB"/>
+    </Internal>
+  </Domain>
+</CycloneDDS>
