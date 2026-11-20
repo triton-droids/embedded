@@ -47,6 +47,9 @@ class TrackingPolicyNode(Node):
             'calibration_seconds': 2.0, 'imu_frame': 'imu_link',
             'max_input_skew_s': 0.02, 'max_inference_s': 0.02,
             'orientation_source': 'complementary',
+            # latch: any acceleration norm outside (0.1, 100) m/s^2 latches a fault.
+            # skip: drop such samples; latch only if they persist for input_timeout_s.
+            'imu_accel_outlier': 'latch',
             'imu_to_body_rotation': [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
         }
         for name, value in defaults.items():
@@ -72,6 +75,11 @@ class TrackingPolicyNode(Node):
         self.orientation_source = str(param('orientation_source'))
         if self.orientation_source not in ('complementary', 'message'):
             raise ValueError('orientation_source must be complementary or message')
+        self.imu_accel_outlier = str(param('imu_accel_outlier'))
+        if self.imu_accel_outlier not in ('latch', 'skip'):
+            raise ValueError('imu_accel_outlier must be latch or skip')
+        self.imu_accel_outliers = 0
+        self.accel_outlier_since = None
         self.imu_frame = str(param('imu_frame'))
         self.rotation = np.asarray(param('imu_to_body_rotation')).reshape(3, 3)
         if (not np.allclose(self.rotation @ self.rotation.T, np.eye(3), atol=1e-6)
@@ -187,7 +195,19 @@ class TrackingPolicyNode(Node):
             if not np.isfinite(acc).all() or not np.isfinite(gyro).all():
                 raise ValueError('Non-finite IMU sample')
             if not 0.1 < np.linalg.norm(acc) < 100:
-                raise ValueError('Invalid IMU acceleration')
+                if self.imu_accel_outlier == 'latch':
+                    raise ValueError('Invalid IMU acceleration')
+                # A dropped sample is not stored, so the IMU-timeout watchdog still
+                # stops inference if no valid sample follows within input_timeout_s.
+                self.imu_accel_outliers += 1
+                if self.accel_outlier_since is None:
+                    self.accel_outlier_since = now
+                if now - self.accel_outlier_since > self.timeout:
+                    raise ValueError('Invalid IMU acceleration persisted')
+                if not self.calibrated or self.orientation_source != 'message':
+                    return  # the complementary filter and calibration use acceleration directly
+            else:
+                self.accel_outlier_since = None
             if not self.calibrated:
                 if self.calibration_start is None:
                     self.calibration_start = now
@@ -352,6 +372,8 @@ class TrackingPolicyNode(Node):
             'imu_age_since_receipt_ms': None if self.imu is None else (now - self.imu[0]) * 1000,
             'gyro_bias_rad_s': self.bias.tolist(), 'model_sha256': self.model_sha256,
             'rejected_imu_timestamps': self.rejected_imu_timestamps,
+            'imu_accel_outlier': self.imu_accel_outlier,
+            'imu_accel_outliers': self.imu_accel_outliers,
             'inference_ms': self.statistics(self.inference_ms),
             'control_callback_ms': self.statistics(self.work_ms),
             'tick_interval_ms': self.statistics(self.intervals),

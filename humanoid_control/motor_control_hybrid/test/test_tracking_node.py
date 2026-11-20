@@ -126,3 +126,36 @@ def test_unavailable_attitude_quaternion_is_rejected(node):
     node.tick()
     assert node.fault == 'IMU orientation is unavailable or invalid'
     assert not node.angles_pub.messages
+
+
+def spike(node, accel=110.0):
+    msg = imu_sample(node)
+    msg.linear_acceleration.z = accel
+    return msg
+
+
+def test_acceleration_outlier_latches_by_default(node):
+    assert node.imu_accel_outlier == 'latch'
+    node.on_imu(spike(node))
+    assert node.fault == 'Invalid IMU acceleration'
+
+
+def test_skip_mode_drops_an_isolated_acceleration_spike(node):
+    node.imu_accel_outlier = 'skip'
+    node.on_imu(imu_sample(node))
+    previous = node.imu
+    node.on_imu(spike(node))
+    # Complementary attitude uses acceleration, so the spike is dropped, not fused.
+    assert node.fault is None and node.imu_accel_outliers == 1 and node.imu is previous
+    node.tick()  # the last valid sample is still fresh
+    assert len(node.angles_pub.messages) == 1
+    node.on_imu(imu_sample(node))
+    assert node.accel_outlier_since is None
+
+
+def test_skip_mode_latches_persistent_acceleration_outliers(node):
+    node.imu_accel_outlier = 'skip'
+    node.on_imu(spike(node))
+    node.accel_outlier_since = time.monotonic() - 0.2  # outliers for longer than input_timeout_s
+    node.on_imu(spike(node))
+    assert node.fault == 'Invalid IMU acceleration persisted'
