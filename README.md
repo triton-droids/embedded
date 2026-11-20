@@ -109,6 +109,9 @@ the policy. Composing policy and hardware is a deliberate, manual step.
 
 ## Features and how to test them
 
+Open test items for the ported features and pending hardware choices, with
+commands and pass criteria, are in [test.md](test.md) (Chinese and English).
+
 ### Test status summary
 
 Software results below were produced on 2026-11-18 on a Jetson Orin Nano 8 GB
