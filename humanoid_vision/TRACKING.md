@@ -1,11 +1,37 @@
 # Single-axis head tracking
 
-`ball_detection_node` selects the highest-confidence box and publishes its
-pixel center as `geometry_msgs/msg/PointStamped` on `/vision/target_center`.
+`ball_detection_node` publishes one target's pixel center as
+`geometry_msgs/msg/PointStamped` on `/vision/target_center`.
 `point.x=u`, `point.y=v`, `point.z=0`; the header is copied from the color image.
-No message is published when there is no detection. This path does not need
-depth. The current detector still uses the face model, so it tracks a face
-until a ball model is configured.
+No message is published when there is no target. This path does not need
+depth. The default model is still the face model; for the ball use
+`model_path:=<td-perception engine> target_class_id:=0`.
+
+### Target lock-on (`track_target`, default `true`)
+
+The detector keeps one track across frames (`algorithm/src/target_tracker.cpp`):
+
+- A new target is the highest-confidence detection, reported only after
+  `tracker.confirm_frames` (2) consecutive matches, so a one-frame false
+  positive never reaches the servo.
+- While tracking, only a detection within
+  `max(tracker.gate_min_px, tracker.gate_size_factor * box size)` of the
+  predicted center updates the track; a second ball elsewhere is ignored.
+- Center, velocity and box size are smoothed by an alpha-beta filter
+  (`tracker.alpha` 0.5, `tracker.beta` 0.1, `tracker.size_alpha` 0.3).
+- Missed frames are bridged by prediction for up to `tracker.max_coast_s`
+  (0.1 s); after that the track is dropped and a new one may start.
+
+Extra outputs, stamped with the color image:
+
+| Topic | Type | Content |
+| --- | --- | --- |
+| `/vision/target_track` | `vision_msgs/msg/Detection2D` | center, `size_x`/`size_y` px; `id` = track id; `results[0]` class id and score (0 = predicted, not detected this frame) |
+| `/vision/target_velocity` | `geometry_msgs/msg/Vector3Stamped` | center velocity px/s; image-plane, so it includes head rotation |
+
+`track_target:=false` restores per-frame highest-confidence selection without
+filtering. Box width gives a monocular range estimate without depth:
+`Z = fx * ball_diameter / width_px`.
 
 `track_node` consumes that center and the color `CameraInfo`. For the selected
 axis it computes the angular offset from the image center using the focal
