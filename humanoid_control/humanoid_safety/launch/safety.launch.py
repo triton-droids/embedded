@@ -8,6 +8,30 @@ from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 
+
+def node_scoped(context, node, values):
+    """A parameter file with ``values`` under ``node:``.
+
+    A launch dictionary becomes a ``/**`` section, and on Humble a node's own
+    section in an earlier file (safety.yaml's ``safety_node:``) beats a wildcard
+    regardless of order, so dictionary overrides of keys in safety.yaml were
+    silently ignored. A node-scoped file given last does override them.
+    """
+    import tempfile
+    import yaml
+    resolved = {}
+    for key, value in values.items():
+        if isinstance(value, ParameterValue):
+            value = value.evaluate(context)
+        elif hasattr(value, 'perform'):
+            value = yaml.safe_load(value.perform(context))
+        resolved[key] = value
+    with tempfile.NamedTemporaryFile('w', prefix=f'{node}_overrides_', suffix='.yaml',
+                                     delete=False) as stream:
+        yaml.safe_dump({node: {'ros__parameters': resolved}}, stream)
+    return stream.name
+
+
 def mode_nodes(context):
     mode = LaunchConfiguration('mode').perform(context)
     nodes = []
@@ -18,7 +42,8 @@ def mode_nodes(context):
                 overrides[name] = ParameterValue(LaunchConfiguration(name), value_type=bool)
         nodes.append(Node(package='humanoid_safety', executable='safety_node',
             name='safety_node', output='screen',
-            parameters=[LaunchConfiguration('safety_config'), overrides]))
+            parameters=[LaunchConfiguration('safety_config')] +
+                       ([node_scoped(context, 'safety_node', overrides)] if overrides else [])))
         if LaunchConfiguration('fall_predictor').perform(context).lower() == 'true':
             # Advisory only: publishes /safety/fall_warning, never trips the estop.
             nodes.append(Node(package='humanoid_safety', executable='fall_predictor_node',
