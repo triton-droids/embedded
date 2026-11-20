@@ -58,6 +58,7 @@ endif()
 find_package(ament_index_cpp REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(vision_msgs REQUIRED)
 find_package(realsense2 QUIET)
 
 # Shared library keeps inference and projection reusable outside the detector node.
@@ -134,6 +135,7 @@ ament_target_dependencies(ball_detection_node
   geometry_msgs
   rclcpp
   sensor_msgs
+  vision_msgs
 )
 
 add_executable(image_viewer_node src/image_viewer_node.cpp)
@@ -185,6 +187,9 @@ if(BUILD_TESTING)
     ${CMAKE_CURRENT_BINARY_DIR}/face_test_result.jpg
     --reference-face
   )
+  add_executable(test_target_tracker algorithm/test/test_target_tracker.cpp)
+  target_link_libraries(test_target_tracker ${PROJECT_NAME}_algorithm)
+  add_test(NAME target_tracker COMMAND test_target_tracker)
 endif()
 
 ament_package()

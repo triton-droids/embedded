@@ -85,20 +85,23 @@ std::vector<Detection2D> YoloDetector::detect(const cv::Mat &bgr_image) {
 
   const LetterboxResult input = letterbox(bgr_image);
 
-  // swapRB=true converts BGR to RGB; blobFromImage produces normalized NCHW FP32.
-  const cv::Mat blob = cv::dnn::blobFromImage(
-      input.image, 1.0 / 255.0,
-      cv::Size(config_.input_width, config_.input_height), cv::Scalar(), true,
-      false);
-
   std::vector<cv::Mat> outputs;
-  if (tensorrt_) {
-#ifdef HUMANOID_VISION_HAS_TENSORRT
-    outputs.push_back(tensorrt_->forward(blob));
-#endif
+  if (tensorrt_ && tensorrt_->takes_bgr_u8()) {
+    // The engine normalizes on the GPU (BGR->RGB, /255, HWC->CHW); copyMakeBorder
+    // already produced one continuous input-sized image, so it is passed as is.
+    outputs.push_back(tensorrt_->forward(input.image));
   } else {
-    net_.setInput(blob);
-    net_.forward(outputs, net_.getUnconnectedOutLayersNames());
+    // swapRB=true converts BGR to RGB; blobFromImage produces normalized NCHW FP32.
+    const cv::Mat blob = cv::dnn::blobFromImage(
+        input.image, 1.0 / 255.0,
+        cv::Size(config_.input_width, config_.input_height), cv::Scalar(), true,
+        false);
+    if (tensorrt_) {
+      outputs.push_back(tensorrt_->forward(blob));
+    } else {
+      net_.setInput(blob);
+      net_.forward(outputs, net_.getUnconnectedOutLayersNames());
+    }
   }
 
   if (outputs.empty()) {
