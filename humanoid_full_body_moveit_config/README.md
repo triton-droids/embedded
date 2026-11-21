@@ -25,7 +25,7 @@ and Goal State to `preview`, then click **Plan**.
 
 | Argument | Default | Meaning |
 |---|---|---|
-| `model` | `simplified` | `simplified` = one decimated visual and one per-part convex collision mesh per link; `detailed` = the original 1,086 CAD part meshes (several GB per process) |
+| `model` | `simplified` | `simplified` = light meshes (about 1 GB for the stack); `detailed` = the original 1,086 CAD part meshes (several GB). Comparison: [MODELS.md](../humanoid_full_body_description/MODELS.md) |
 | `geometry` | `auto` | `cad` = the link meshes (fails if any are missing); `skeleton` = spheres and cylinders at the joint frames, with no collision geometry; `auto` = CAD when every mesh is present |
 | `joint_sliders` | `true` | `joint_state_publisher_gui` sliders; `false` = plain `joint_state_publisher` |
 | `backend` | `fake` | `fake` = joint sliders, plan only; `mujoco` = MuJoCo publishes `/joint_states` and executes plans |

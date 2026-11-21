@@ -57,7 +57,7 @@ the GPU detector, `scripts/run_cuvslam.sh` + `enable_vio:=true` for localization
 | Safety, Web monitoring | [humanoid_control/humanoid_safety](humanoid_control/humanoid_safety/README.md) |
 | C++ command core | [libraries/control_core](libraries/control_core/README.md) |
 | Leg URDF and meshes | [humanoid_leg_description](humanoid_leg_description/README.md) |
-| Full-body URDF, MoveIt 2 + RViz2 inspection | [humanoid_full_body_moveit_config](humanoid_full_body_moveit_config/README.md) |
+| Full-body URDF, MoveIt 2 + RViz2 inspection | [humanoid_full_body_moveit_config](humanoid_full_body_moveit_config/README.md); simplified vs detailed model: [MODELS.md](humanoid_full_body_description/MODELS.md) |
 | Evaluations | [VIO and Isaac trials](evaluation/vio_isaac_trials/README.md), [fall predictor](evaluation/fall_predictor/README.md) |
 | Documentation index, architecture, build boundaries | [docs](docs/README.md) |
 | Physical robot (archived) and legacy code | [hardware](hardware/README.md), [legacy](legacy/README.md) |

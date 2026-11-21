@@ -3,6 +3,9 @@
 Full-body humanoid URDF: the upper body plus the articulated lower body at the nominal five-hole pelvis mount.
 22 links, 20 actuated joints. Fixed base at `torso_link`.
 
+Two variants with identical kinematics and inertials, a light **simplified** model (default) and the original
+**detailed** CAD meshes. See [MODELS.md](MODELS.md) for the comparison and when to use which.
+
 ## Layout
 
 | Path | What |
@@ -26,8 +29,9 @@ needs about 2 GB for move_group and about 2.5 GB for MuJoCo.
 Regenerate the meshes after a CAD change. These tools are offline only, not runtime dependencies:
 
 ```bash
-python3 -m venv /tmp/meshenv && /tmp/meshenv/bin/pip install trimesh==4.4.9 fast-simplification==0.1.9 scipy
-cd humanoid_full_body_description && /tmp/meshenv/bin/python scripts/simplify_meshes.py
+python3 -m venv /tmp/meshenv
+/tmp/meshenv/bin/pip install trimesh==4.4.9 fast-simplification==0.1.9 rtree==1.3.0 coacd==1.0.14 scipy
+cd humanoid_full_body_description && OMP_NUM_THREADS=1 /tmp/meshenv/bin/python scripts/simplify_meshes.py
 ```
 
 Then regenerate the MoveIt self-collision matrix (see the MoveIt config README), because the collision shapes changed.
