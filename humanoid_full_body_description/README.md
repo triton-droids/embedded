@@ -164,6 +164,16 @@ Still different from the policy MJCF:
 - The two feet are the same, unmirrored part, so the left sole is 1.1 cm outboard of its ankle and the right one 1.4 cm inboard.
   The policy MJCF has both about 1 cm inboard.
 
-**The test above predates the foot fix and has not been rerun.** Which CAD matches the built robot has to be checked on the hardware.
+Rerun after the foot fix (same policy and launch; runs where startup tripped `imu_freshness` were retried):
+
+| Robot | Walking reference | Holding frame 0 (standing) |
+|---|---|---|
+| `legs` | no fall in 38 s, 14.6 m | – |
+| `full_body` (31.9 kg) | fell after 2.0 / 2.2 / 2.5 s, 0.35–0.59 m, always rolling to +41° | fell after 1.7 / 1.7 s |
+| `full_body` with near-massless torso and arms (16.3 kg) | fell after 3.1 / 3.1 / 4.1 s, 1.5–1.7 m | fell after 2.4 s |
+
+The foot fix helps a little (+0.5–1 s), but the policy still does not carry over, even at 16 kg, and even when holding still.
+The ankle sits 2–3 cm further out than in the policy MJCF (about 3° of hip roll per leg). That is the largest remaining
+geometric difference and the next thing to check. Which CAD matches the built robot has to be checked on the hardware.
 The SRDF collision matrix was regenerated after the fix: 21 adjacent pairs and 170 never colliding (the leg ranges exclude
 more poses now).
