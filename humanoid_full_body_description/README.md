@@ -79,8 +79,8 @@ the `rpy` of the 10 leg joint origins, so that the old pose equals the new joint
 
 | Joint | Old pose in new coordinates (deg) |
 |---|---|
-| left hip1 / hip2 / thigh / knee / ankle | 19.7 / 0.0 / 32.5 / −29.5 / 5.7 |
-| right hip1 / hip2 / thigh / knee / ankle | −1.9 / 7.8 / −0.9 / 29.2 / 2.5 |
+| left hip1 / hip2 / thigh / knee / ankle | 22.1 / −1.5 / 32.5 / −31.8 / 5.5 |
+| right hip1 / hip2 / thigh / knee / ankle | −2.1 / 8.8 / −0.9 / 29.7 / 2.2 |
 
 Link geometry and joint positions are unchanged. Only the child frames are rotated about each joint axis.
 The arm joints were already at a sensible zero (hanging down), so they were not changed.
@@ -173,7 +173,22 @@ Rerun after the foot fix (same policy and launch; runs where startup tripped `im
 | `full_body` with near-massless torso and arms (16.3 kg) | fell after 3.1 / 3.1 / 4.1 s, 1.5–1.7 m | fell after 2.4 s |
 
 The foot fix helps a little (+0.5–1 s), but the policy still does not carry over, even at 16 kg, and even when holding still.
-The ankle sits 2–3 cm further out than in the policy MJCF (about 3° of hip roll per leg). That is the largest remaining
-geometric difference and the next thing to check. Which CAD matches the built robot has to be checked on the hardware.
+The ankle sat 2–3 cm further out than in the policy MJCF.
+
+**Leg zero matched to the policy MJCF.** The leg joint zeros were then shifted by at most 2.4° (left hip1 −2.4°, hip2 +1.5°,
+knee +2.3°; right hip2 −1.0°, the rest under 0.5°), so that at q = 0 the ankle sits where the policy MJCF puts it, while the
+sole stays nearly flat (tilt 1.5° / 0.95°). Without an ankle roll joint, both cannot hold exactly. The ankle is now 8.6–9.4 cm
+out from hip1 (policy 7.8 cm), and its fore-aft offset dropped from 1.2 cm to under 1 mm. Retest:
+
+| Robot | Walking reference | Holding frame 0 (standing) |
+|---|---|---|
+| `full_body` (31.9 kg) | fell after 2.1 / 2.3 / 2.5 s, 0.6–0.7 m; now pitching (−44°), no longer always rolling to one side | fell after 1.8 / 1.9 s |
+| `full_body`, 16.3 kg variant | fell after 2.7 / 3.1 / 3.4 s, 1.3–1.7 m | fell after 3.2 s |
+
+Matching the zero removed the one-sided roll but not the falls, so the leg zero was not the cause. What still differs from the
+policy MJCF: each leg link's mass and inertia distribution, a 13% smaller sole (box half-sizes 3.5 × 9.6 cm against 4.0 × 10.5 cm),
+the joint positions along the chain (for example, hip2 sits 1 cm further out), and, at full weight, the 15.6 kg upper body.
+**The existing tracking policy does not run this robot; it needs a policy trained on this model.** Which CAD matches the built
+robot still has to be checked on the hardware.
 The SRDF collision matrix was regenerated after the fix: 21 adjacent pairs and 170 never colliding (the leg ranges exclude
 more poses now).

@@ -14431,70 +14431,70 @@
   <joint name="right_hip1_joint" type="revolute">
     <parent link="pelvis_link" />
     <child link="right_pelvis_hip_connector_link" />
-    <origin xyz="-0.00969672135063 -0.110386243747 0.530898525107" rpy="-3.13456087535 -0.31248581602 0.173623973814" />
+    <origin xyz="-0.00969672135063 -0.110386243747 0.530898525107" rpy="-3.1306860368978295 -0.3128035043151201 0.17301179509872533" />
     <axis xyz="0.98418686278 0.0862037447719 0.15474215172" />
     <limit lower="-1.57" upper="1.57" effort="0" velocity="0" />
   </joint>
   <joint name="left_hip1_joint" type="revolute">
     <parent link="pelvis_link" />
     <child link="left_pelvis_hip_connector_link" />
-    <origin xyz="0.162071443437 -0.095341276579 0.557905363362" rpy="2.76113083438 -0.26984502271 0.226998553181" />
+    <origin xyz="0.162071443437 -0.095341276579 0.557905363362" rpy="2.7183467167438398 -0.2639437345436017 0.2317533334867017" />
     <axis xyz="0.98418686278 0.0862037447719 0.15474215172" />
     <limit lower="-1.57" upper="1.57" effort="0" velocity="0" />
   </joint>
   <joint name="left_hip2_joint" type="revolute">
     <parent link="left_pelvis_hip_connector_link" />
     <child link="left_hip_link" />
-    <origin xyz="0.0737048714298 0.0550664327728 0.00563550960533" rpy="4.23737091569e-05 -0.000640310370656 8.70081733539e-05" />
+    <origin xyz="0.0737048714298 0.0550664327728 0.00563550960533" rpy="-0.0017271626450622185 0.025410667548209677 -0.003475996496044841" />
     <axis xyz="-0.0654764958091 0.988764441901 -0.13437896758" />
     <limit lower="-1.57" upper="0.436332" effort="0" velocity="0" />
   </joint>
   <joint name="left_thigh_joint" type="revolute">
     <parent link="left_hip_link" />
     <child link="left_thigh_link" />
-    <origin xyz="0.0295594845112 -0.0547547636199 -0.144077189711" rpy="-0.0776151432378 0.0924315186356 0.551502114206" />
+    <origin xyz="0.0295594845112 -0.0547547636199 -0.144077189711" rpy="-0.07761510182971064 0.09243142695608915 0.5515016619058566" />
     <axis xyz="0.178036925113 -0.120931243548 -0.976564635664" />
     <limit lower="-0.785398" upper="0.785398" effort="0" velocity="0" />
   </joint>
   <joint name="left_knee_joint" type="revolute">
     <parent link="left_thigh_link" />
     <child link="left_shank_link" />
-    <origin xyz="0.0619897281845 -0.0366673728476 -0.105889876238" rpy="0.437557175688 -0.257361005267 0.055344026785" />
+    <origin xyz="0.0619897281845 -0.0366673728476 -0.105889876238" rpy="0.4713013260424297 -0.2775174188664064 0.05482320062216806" />
     <axis xyz="0.857488443161 -0.467770138691 0.214253744879" />
     <limit lower="-2.0944" upper="0.0" effort="0" velocity="0" />
   </joint>
   <joint name="left_ankle_joint" type="revolute">
     <parent link="left_shank_link" />
     <child link="left_foot_link" />
-    <origin xyz="-0.0449392869028 -0.135544469496 -0.236190672702" rpy="1.0407404625103007 -0.12044098377050214 3.0708590897294146" />
+    <origin xyz="-0.0449392869028 -0.135544469496 -0.236190672702" rpy="1.0378029596335323 -0.11905344722317933 3.071835357300224" />
     <axis xyz="-0.857488443 0.467770139 -0.214253745" />
     <limit lower="-0.6" upper="0.6" effort="0" velocity="0" />
   </joint>
   <joint name="right_hip2_joint" type="revolute">
     <parent link="right_pelvis_hip_connector_link" />
     <child link="right_hip_link" />
-    <origin xyz="-0.0769224210731 -0.0388110570259 0.00577311957047" rpy="-0.00394139381213 -0.118540603691 0.0663964244618" />
+    <origin xyz="-0.0769224210731 -0.0388110570259 0.00577311957047" rpy="-0.004966798395117346 -0.1329499276228137 0.07457231491744754" />
     <axis xyz="1.05705931448e-13 0.873591353299 -0.486660197101" />
     <limit lower="-0.436332" upper="1.57" effort="0" velocity="0" />
   </joint>
   <joint name="right_thigh_joint" type="revolute">
     <parent link="right_hip_link" />
     <child link="right_thigh_link" />
-    <origin xyz="2.36742928207e-06 -0.0421839171922 -0.151164152105" rpy="5.61636194238e-05 0.00791014936651 0.014200081501" />
+    <origin xyz="2.36742928207e-06 -0.0421839171922 -0.151164152105" rpy="5.278645538545646e-05 0.007668658338392767 0.013766518397006614" />
     <axis xyz="-2.92524847871e-14 0.4866601971 0.873591353299" />
     <limit lower="-0.785398" upper="0.785398" effort="0" velocity="0" />
   </joint>
   <joint name="right_knee_joint" type="revolute">
     <parent link="right_thigh_link" />
     <child link="right_shank_link" />
-    <origin xyz="-0.0476200750664 -0.05783777458 -0.103860525726" rpy="-0.5101614477 1.72545060565e-14 -4.01705543503e-14" />
+    <origin xyz="-0.0476200750664 -0.05783777458 -0.103860525726" rpy="-0.5184368512927725 1.7359149180946008e-14 -4.087980349909077e-14" />
     <axis xyz="1.0 -5.31701848255e-14 6.83983701097e-14" />
     <limit lower="-2.0944" upper="0.0" effort="0" velocity="0" />
   </joint>
   <joint name="right_ankle_joint" type="revolute">
     <parent link="right_shank_link" />
     <child link="right_foot_link" />
-    <origin xyz="0.0519680998886 0.000540779603463 -0.274801069437" rpy="-0.0475018928997731 0.08457286638849842 3.14140492086954" />
+    <origin xyz="0.0519680998886 0.000540779603463 -0.274801069437" rpy="-0.05231941496159545 0.08457286638849842 3.14140492086954" />
     <axis xyz="-1.0 -0.0 -0.0" />
     <limit lower="-0.6" upper="0.6" effort="0" velocity="0" />
   </joint>
