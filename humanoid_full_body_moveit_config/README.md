@@ -1,7 +1,7 @@
 # humanoid_full_body_moveit_config
 
 MoveIt 2 (Jazzy) inspection setup for the full-body CAD URDF in
-[`humanoid_full_body_description`](../humanoid_full_body_description/urdf/full_body.urdf):
+[`humanoid_full_body_description`](../humanoid_full_body_description/urdf/full_body.urdf.xacro):
 RViz2 MotionPlanning and joint-space planning. Plans execute in MuJoCo when `backend:=mujoco` is set.
 
 - Fixed base: `torso_link` is the URDF root, no virtual joint.
@@ -25,14 +25,15 @@ and Goal State to `preview`, then click **Plan**.
 
 | Argument | Default | Meaning |
 |---|---|---|
-| `geometry` | `auto` | `cad` = original STL meshes (fails if any are missing); `skeleton` = spheres and cylinders at the joint frames, with no collision geometry; `auto` = CAD when every mesh is present |
+| `model` | `simplified` | `simplified` = one decimated visual and convex-hull collision mesh per link; `detailed` = the original 1,086 CAD part meshes (several GB per process) |
+| `geometry` | `auto` | `cad` = the link meshes (fails if any are missing); `skeleton` = spheres and cylinders at the joint frames, with no collision geometry; `auto` = CAD when every mesh is present |
 | `joint_sliders` | `true` | `joint_state_publisher_gui` sliders; `false` = plain `joint_state_publisher` |
 | `backend` | `fake` | `fake` = joint sliders, plan only; `mujoco` = MuJoCo publishes `/joint_states` and executes plans |
 | `mujoco_viewer` | `true` | MuJoCo viewer window (with `backend:=mujoco`) |
 | `use_rviz` | `true` | `false` runs move_group headless |
 
-CAD mode loads 1,086 STL meshes (about 150 MB) as collision geometry. Each of RViz and move_group then uses a few GB of memory.
-Use `geometry:=skeleton` on small machines.
+The URDF has one simplified visual mesh and one convex-hull collision mesh per link.
+The whole stack (RViz, move_group, MuJoCo) uses about 1 GB.
 
 ## Execute in MuJoCo
 
@@ -77,8 +78,8 @@ ros2 run humanoid_full_body_moveit_config test_plan.py --execute
 ## Self-collision matrix
 
 The `<disable_collisions>` entries in `config/full_body.srdf` come from MoveIt's
-`collisions_updater`: 21 adjacent pairs plus 102 pairs that never collided in 10,000 random samples.
-The CAD meshes of every adjacent pair touch at the zero pose. Without these entries,
+`collisions_updater`: 21 adjacent pairs plus 101 pairs that never collided in 20,000 random samples
+(computed on the convex-hull collision meshes). Every adjacent pair touches at the zero pose. Without these entries,
 `CheckStartStateCollision` rejects every plan request, reporting "21 contact(s) detected".
 Regenerate the matrix after any change to the URDF geometry:
 
@@ -88,11 +89,13 @@ $collisions_updater \
   --urdf install/humanoid_full_body_description/share/humanoid_full_body_description/urdf/full_body.urdf \
   --srdf humanoid_full_body_moveit_config/config/full_body.srdf \
   --output humanoid_full_body_moveit_config/config/full_body.srdf \
-  --default --always --trials 10000
+  --default --always --trials 20000
 ```
 
 ## Known limitations
 
+- Collision shapes are one convex hull per link, so they fill concave regions (for example, the torso frame is a solid
+  block). This is conservative: a plan may be rejected for a contact the real parts would not make.
 - 16 of the 20 joints are `continuous` in the URDF, including the hips, knees and ankles,
   so the planner treats them as able to rotate without limit. Plans are kinematic previews only, not motions the robot can make.
   The MuJoCo servo gains and gravity compensation are simulation choices, not the real actuators.

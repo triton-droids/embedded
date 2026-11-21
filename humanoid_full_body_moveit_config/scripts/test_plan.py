@@ -12,6 +12,7 @@ Exit code 0 only if every group produced a plan (and, with --execute, executed i
 
 import argparse
 import sys
+import time
 import xml.etree.ElementTree as ET
 
 from ament_index_python.packages import get_package_share_path
@@ -19,6 +20,7 @@ from moveit_msgs.action import MoveGroup
 from moveit_msgs.msg import Constraints, JointConstraint, MoveItErrorCodes
 import rclpy
 from rclpy.action import ActionClient
+from sensor_msgs.msg import JointState
 
 
 def group_states(state_name):
@@ -78,6 +80,17 @@ def main():
     if not client.wait_for_server(timeout_sec=60.0):
         print("move_action server not available", file=sys.stderr)
         return 2
+    # move_group validates execution against the current state. Wait until joint states flow,
+    # then give move_group's state monitor a moment to catch up, or the first execute can fail.
+    received = []
+    node.create_subscription(JointState, "joint_states", received.append, 10)
+    deadline = time.monotonic() + 30.0
+    while not received and time.monotonic() < deadline:
+        rclpy.spin_once(node, timeout_sec=0.1)
+    if not received:
+        print("no /joint_states within 30 s", file=sys.stderr)
+        return 2
+    time.sleep(1.0)
 
     failures = 0
     for group in groups:

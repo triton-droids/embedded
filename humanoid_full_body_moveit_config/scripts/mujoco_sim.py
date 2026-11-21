@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """MuJoCo backend for the full-body MoveIt inspection: joint states out, trajectories in.
 
-- Loads humanoid_full_body_description/urdf/full_body.urdf into MuJoCo. torso_link is welded
+- Loads humanoid_full_body_description/urdf/<urdf> (default full_body.urdf) into MuJoCo. torso_link is welded
   to the world (fixed base, like the MoveIt model).
 - Copies the SRDF <disable_collisions> pairs into MuJoCo <exclude> pairs. Without them the
   CAD meshes of neighbouring links touch at the zero pose and push each other apart.
@@ -38,9 +38,9 @@ DESCRIPTION = "humanoid_full_body_description"
 CONFIG = "humanoid_full_body_moveit_config"
 
 
-def build_model(kp, kv, gravity_compensation):
+def build_model(kp, kv, gravity_compensation, urdf_name="full_body.urdf"):
     share = str(get_package_share_path(DESCRIPTION))
-    robot = ET.parse(f"{share}/urdf/full_body.urdf").getroot()
+    robot = ET.parse(f"{share}/urdf/{urdf_name}").getroot()
     for mesh in robot.iter("mesh"):
         mesh.set("filename", mesh.get("filename").replace(f"package://{DESCRIPTION}", share))
     compiler = ET.SubElement(ET.SubElement(robot, "mujoco"), "compiler")
@@ -119,9 +119,10 @@ class MujocoSim(Node):
         self.settle_time = self.declare_parameter("settle_time", 1.0).value  # s
         publish_rate = self.declare_parameter("publish_rate", 100.0).value  # Hz
         self.use_viewer = self.declare_parameter("viewer", True).value
+        urdf_name = self.declare_parameter("urdf", "full_body.urdf").value  # file in the description's urdf/
 
         started = time.monotonic()
-        self.model = build_model(kp, kv, gravity_compensation)
+        self.model = build_model(kp, kv, gravity_compensation, urdf_name)
         self.data = mujoco.MjData(self.model)
         mujoco.mj_forward(self.model, self.data)
         self.get_logger().info(

@@ -67,7 +67,8 @@ def add_skeleton(robot):
 
 def launch_inspection(context):
     config = get_package_share_path("humanoid_full_body_moveit_config") / "config"
-    urdf = get_package_share_path("humanoid_full_body_description") / "urdf/full_body.urdf"
+    urdf_name = URDF_FILES[LaunchConfiguration("model").perform(context)]
+    urdf = get_package_share_path("humanoid_full_body_description") / "urdf" / urdf_name
     robot = ET.parse(urdf).getroot()
     missing = missing_meshes(robot)
     geometry = LaunchConfiguration("geometry").perform(context)
@@ -123,7 +124,8 @@ def launch_inspection(context):
         # MuJoCo owns /joint_states and executes trajectories; no joint sliders.
         sim = Node(
             package="humanoid_full_body_moveit_config", executable="mujoco_sim.py", output="screen",
-            parameters=[{"viewer": LaunchConfiguration("mujoco_viewer").perform(context) == "true"}])
+            parameters=[{"viewer": LaunchConfiguration("mujoco_viewer").perform(context) == "true",
+                         "urdf": urdf_name}])
         # Closing the MuJoCo viewer also ends the session.
         actions += [sim, RegisterEventHandler(OnProcessExit(target_action=sim, on_exit=[Shutdown()]))]
     else:
@@ -139,8 +141,15 @@ def launch_inspection(context):
     return actions
 
 
+# simplified: one decimated visual + one convex-hull collision mesh per link (about 1 GB for the stack).
+# detailed: the original 1,086 CAD part meshes (several GB per process; MuJoCo needs about 3 GB).
+URDF_FILES = {"simplified": "full_body.urdf", "detailed": "full_body_detailed.urdf"}
+
+
 def generate_launch_description():
     return LaunchDescription([
+        DeclareLaunchArgument("model", default_value="simplified", choices=list(URDF_FILES),
+                              description="simplified meshes, or the detailed per-part CAD meshes"),
         DeclareLaunchArgument("geometry", default_value="auto", choices=["auto", "cad", "skeleton"]),
         DeclareLaunchArgument("joint_sliders", default_value="true", choices=["true", "false"]),
         DeclareLaunchArgument("backend", default_value="fake", choices=["fake", "mujoco"],
