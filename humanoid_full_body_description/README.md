@@ -63,7 +63,13 @@ The arm joints were already at a sensible zero (hanging down), so they were not 
 
 ## Mass properties (from the CAD export, not measured)
 
-Total 38.1 kg: torso 10.0, pelvis 3.5, each arm 5.9, each leg 6.4.
+Total 37.1 kg: torso 9.0, pelvis 3.5, each arm 5.9, each leg 6.4. Height at the zero pose 1.05 m (sole to torso top, no head).
+
+The shoulder mounts (`base_link_333` / `base_link_314`, the three-lobed brackets bolted to the torso frame) were changed
+from 6061 aluminium to printed ASA, which made the robot 1.0 kg lighter (−500 g each, 652 → 152 g). The torso mass, COM and inertia were recomputed
+from the two parts' geometry (density difference times the part's own volume integrals, then moved to the new COM with the parallel-axis theorem):
+mass 10.00 → 9.00 kg, COM z 0.192 → 0.181 m, ixx/iyy/izz 0.148/0.275/0.162 → 0.133/0.231/0.129 kg·m².
+The inner round part at each shoulder (`base_link_332` / `313`) is the shoulder motor, not the mount, and was not changed.
 For a robot about 1.13 m tall without a head this is on the heavy side. For comparison, a 1.3 m commercial humanoid weighs about 35 kg.
 Every inertia tensor is positive definite, satisfies the triangle inequality, and has its COM inside the link's hull,
 so the values are physically consistent. Some values still need checking. Weigh the real parts before using these
@@ -74,7 +80,7 @@ for dynamics or control:
 | `*_link_004` (forearm) | 3.19 kg | 7.7 g/cm³ | **Expected:** the forearm carries several motors, so its high mass and density are real, not a modelling error |
 | `*_link_002` | 0.024 kg | 8.7 g/cm³ | Tiny coaxial disc between the two yaw joints. Brass/copper density |
 | `*_link_001` | 0.73 kg | 4.9 g/cm³ | Mixed steel parts |
-| `torso_link` | 10.0016 kg | 3.3 g/cm³ | Suspiciously close to exactly 10 kg. Possibly a manual override (battery/compute allowance?) |
+| `torso_link` | 9.0017 kg (was 10.0016) | 3.0 g/cm³ | Includes the two battery packs (170×60×46 mm). The original 10.0016 kg looked like a manual round number; the ASA shoulder-mount change is applied on top of it. Weighing the real torso (without pelvis) would settle it |
 | legs, pelvis | 0.57–3.5 kg | 2.1–2.9 g/cm³ | Close to aluminium (2.7). Motors are probably not at their real density, so the leg masses may be low |
 
 The arms (5.9 kg each) weigh nearly as much as the legs (6.4 kg each) because the forearms carry several motors.

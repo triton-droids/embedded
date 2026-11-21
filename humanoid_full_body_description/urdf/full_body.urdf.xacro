@@ -69,9 +69,11 @@
 
 
   <!-- Torso (root link, fixed base) -->
+  <!-- Shoulder mounts (base_link_333/314) changed from 6061 aluminium to printed ASA: -500 g each
+       (measured: -1.0 kg for the pair). Mass, COM and inertia recomputed from the part geometry. -->
   <xacro:cad_link name="torso_link" material="aluminum"
-                  mass="10.0016" com="-3.7862e-06 1.50862e-07 0.191725"
-                  inertia="0.14819 -1.49897e-05 3.1948e-06 0.27502 -1.63124e-06 0.161876"/>
+                  mass="9.00169" com="-3.33673e-06 1.67621e-07 0.18077"
+                  inertia="0.133271 3.91238e-05 2.75146e-06 0.23138 -1.64777e-06 0.129094"/>
 
   <!-- Pelvis: fixed to the torso; its top face sits flush on the torso bottom (z = 0) -->
   <xacro:cad_link name="pelvis_link" material="aluminum"
