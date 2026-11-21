@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<package format="3">
+  <name>humanoid_full_body_detailed</name>
+  <version>0.0.1</version>
+  <description>Full-body humanoid URDF, detailed meshes: the CAD export with 1,086 part meshes.</description>
+  <maintainer email="rul039@ucsd.edu">rcli</maintainer>
+  <license>See source CAD model</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

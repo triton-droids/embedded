@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='utf-8'?>
+<package format="3">
+  <name>humanoid_full_body_simplified</name>
+  <version>0.0.1</version>
+  <description>Full-body humanoid URDF, simplified meshes: one decimated visual and one per-part convex collision mesh per link.</description>
+  <maintainer email="rul039@ucsd.edu">rcli</maintainer>
+  <license>See source CAD model</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <exec_depend>xacro</exec_depend>
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

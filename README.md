@@ -1,16 +1,16 @@
 # Full-body humanoid URDF
 
 The full-body humanoid as two URDFs, a light **simplified** model and the original **detailed** CAD meshes.
-Both have the same kinematics and mass properties; only the meshes differ.
-The folder is a ROS 2 package (`humanoid_full_body_description`), but the URDFs also work without ROS.
+Both have the same kinematics and mass properties; only the meshes differ. Each folder is a self-contained ROS 2 package,
+and the two have different package names, so they can be built side by side. The URDFs also work without ROS.
 
-| File | Model |
-|---|---|
-| [`urdf/full_body.urdf.xacro`](urdf/full_body.urdf.xacro) | Simplified, **editable source**, about 210 lines: one macro call per link and joint |
-| [`urdf/full_body.urdf`](urdf/full_body.urdf) | Simplified, expanded from the xacro. After editing the xacro, regenerate it with `xacro urdf/full_body.urdf.xacro -o urdf/full_body.urdf` |
-| [`urdf/full_body_detailed.urdf`](urdf/full_body_detailed.urdf) | Detailed: the CAD export with one visual/collision per part, about 14,500 lines |
-| `meshes/visual/`, `meshes/collision/` | Simplified meshes, one of each per link |
-| `meshes/cad/` | Detailed meshes, 1,086 CAD parts |
+| Folder | Package | Contents |
+|---|---|---|
+| [`simplified/`](simplified) | `humanoid_full_body_simplified` | [`urdf/full_body.urdf.xacro`](simplified/urdf/full_body.urdf.xacro), the **editable source** (about 210 lines: one macro call per link and joint); [`urdf/full_body.urdf`](simplified/urdf/full_body.urdf), expanded from the xacro; `meshes/visual/` and `meshes/collision/`, one mesh of each per link |
+| [`detailed/`](detailed) | `humanoid_full_body_detailed` | [`urdf/full_body.urdf`](detailed/urdf/full_body.urdf), the CAD export with one visual/collision per part (about 14,500 lines); `meshes/cad/`, 1,086 CAD part meshes |
+
+After editing the xacro, regenerate the expanded file with `cd simplified && xacro urdf/full_body.urdf.xacro -o urdf/full_body.urdf`.
+Changes to joints or masses must be made in **both** folders.
 
 The MoveIt 2 / RViz2 / MuJoCo setup, and the script that generates the simplified meshes from the CAD parts, are on the
 `sim-experimental-cyclonedds` branch (`humanoid_full_body_moveit_config`, `humanoid_full_body_description/scripts/`).
@@ -18,14 +18,15 @@ The MoveIt 2 / RViz2 / MuJoCo setup, and the script that generates the simplifie
 ## Use
 
 ```bash
-# ROS 2: put this folder in a workspace's src/ and build it
-colcon build --packages-select humanoid_full_body_description && source install/setup.bash
+# ROS 2: put one or both folders in a workspace's src/ and build
+colcon build --packages-select humanoid_full_body_simplified humanoid_full_body_detailed && source install/setup.bash
 ros2 run robot_state_publisher robot_state_publisher --ros-args -p robot_description:="$(cat \
-  install/humanoid_full_body_description/share/humanoid_full_body_description/urdf/full_body.urdf)"
+  install/humanoid_full_body_simplified/share/humanoid_full_body_simplified/urdf/full_body.urdf)"
+# detailed: install/humanoid_full_body_detailed/share/humanoid_full_body_detailed/urdf/full_body.urdf
 ```
 
-Without ROS (MuJoCo, PyBullet, Isaac, ...), replace `package://humanoid_full_body_description/` in the mesh paths with
-this folder's absolute path.
+Without ROS (MuJoCo, PyBullet, Isaac, ...), replace `package://humanoid_full_body_simplified/` (or `..._detailed/`) in the
+mesh paths with the folder's absolute path.
 MuJoCo rejects STL files over 200,000 faces, and every simplified mesh is under that limit.
 MuJoCo also names mesh assets by file name, and every mesh file name is unique.
 
