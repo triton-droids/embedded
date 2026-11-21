@@ -9,7 +9,7 @@ Full-body humanoid URDF: the upper body plus the articulated lower body at the n
 |---|---|
 | [`urdf/full_body.urdf.xacro`](urdf/full_body.urdf.xacro) | **Source of truth**, about 200 lines: one `cad_link` and one joint macro call per link/joint, grouped by torso / pelvis / arms / legs |
 | `urdf/full_body.urdf` (installed only) | Generated at build time by CMake (`xacro`), so consumers keep loading `share/humanoid_full_body_description/urdf/full_body.urdf` |
-| `meshes/visual/<link>.stl` | The link's CAD parts merged and decimated (266k triangles in total; torso 40k, others ≤ 12k) |
+| `meshes/visual/<link>.stl` | The link's CAD parts, each decimated separately and then concatenated (427k triangles in total). Each part stays within 1 mm of the original (95th percentile); the torso is held to 2 mm so it fits under MuJoCo's 200k-face STL limit. Simple parts such as the two torso battery packs are kept unchanged |
 | `meshes/collision/<link>.stl` | Convex hull of the link's CAD parts (17k triangles in total) |
 | `cad_source/` | Original per-part export: `full_body_parts.urdf` (1,086 `<visual>`/`<collision>` parts, 3.06M triangles) and its STLs. Installed as the **detailed** model `urdf/full_body_detailed.urdf` (CMake option `INSTALL_DETAILED_MODEL`, default ON) |
 | [`scripts/simplify_meshes.py`](scripts/simplify_meshes.py) | Regenerates `meshes/` from `cad_source/` |
