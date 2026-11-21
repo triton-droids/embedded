@@ -10,7 +10,7 @@ Full-body humanoid URDF: the upper body plus the articulated lower body at the n
 | [`urdf/full_body.urdf.xacro`](urdf/full_body.urdf.xacro) | **Source of truth**, about 200 lines: one `cad_link` and one joint macro call per link/joint, grouped by torso / pelvis / arms / legs |
 | `urdf/full_body.urdf` (installed only) | Generated at build time by CMake (`xacro`), so consumers keep loading `share/humanoid_full_body_description/urdf/full_body.urdf` |
 | `meshes/visual/<link>.stl` | The link's CAD parts, each decimated separately and then concatenated (427k triangles in total). Each part stays within 1 mm of the original (95th percentile); the torso is held to 2 mm so it fits under MuJoCo's 200k-face STL limit. Simple parts such as the two torso battery packs are kept unchanged |
-| `meshes/collision/<link>.stl` | Convex hull of the link's CAD parts (17k triangles in total) |
+| `meshes/collision/<link>.stl` | One convex piece per CAD part, concatenated (about 2,500 pieces, 140k triangles): screws/nuts (< 5 cm³) as an oriented box, ordinary parts as their convex hull, strongly concave parts (brackets, extrusions) split with CoACD. See "Collision model" below |
 | `cad_source/` | Original per-part export: `full_body_parts.urdf` (1,086 `<visual>`/`<collision>` parts, 3.06M triangles) and its STLs. Installed as the **detailed** model `urdf/full_body_detailed.urdf` (CMake option `INSTALL_DETAILED_MODEL`, default ON) |
 | [`scripts/simplify_meshes.py`](scripts/simplify_meshes.py) | Regenerates `meshes/` from `cad_source/` |
 
@@ -31,6 +31,24 @@ cd humanoid_full_body_description && /tmp/meshenv/bin/python scripts/simplify_me
 ```
 
 Then regenerate the MoveIt self-collision matrix (see the MoveIt config README), because the collision shapes changed.
+
+## Collision model
+
+Same idea as the SO-101 work in `lerobot_test`: convex shapes per *part*, not per link. A single hull per link filled the gaps
+between parts (the pelvis became a solid block) and wrongly rejected 1.7–4% of random poses. Compared against the detailed
+per-part meshes in MoveIt over 900 random poses (±0.8, ±1.6 and ±π rad):
+
+| Collision model | False positives (only the simplified model collides) | Missed collisions |
+|---|---|---|
+| One convex hull per link (previous) | 4.0% / 1.7% / 3.0% | 0 |
+| One hull per part | 3.7% / 1.0% / 0.7% | 0 |
+| **Per part + CoACD on concave parts (current)** | **0.7% / 0% / 0.3%** | **0** |
+
+CoACD is approximate: with each piece capped at 64 vertices, a decomposed part's surface can lie up to 2.6 mm outside its pieces
+(the script prints this per part). No missed collision showed up in the comparison, but treat contacts closer than ~3 mm as
+unresolved. MoveIt's `default_robot_padding` does not apply to self-collision, so it cannot close this gap. One part
+(`lower_body_link_002_001`) crashes CoACD on every seed and keeps its plain hull. MuJoCo convexifies each collision STL as a whole,
+so in MuJoCo every link is still a single hull.
 
 ## Frames
 

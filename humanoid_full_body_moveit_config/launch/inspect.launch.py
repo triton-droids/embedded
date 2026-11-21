@@ -141,7 +141,7 @@ def launch_inspection(context):
     return actions
 
 
-# simplified: one decimated visual + one convex-hull collision mesh per link (about 1 GB for the stack).
+# simplified: one decimated visual + one per-part convex collision mesh per link (about 1 GB for the stack).
 # detailed: the original 1,086 CAD part meshes (several GB per process; MuJoCo needs about 3 GB).
 URDF_FILES = {"simplified": "full_body.urdf", "detailed": "full_body_detailed.urdf"}
 
