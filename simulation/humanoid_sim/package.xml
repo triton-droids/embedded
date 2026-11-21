@@ -16,6 +16,7 @@
   <!-- Robot model, motor registry and the control/policy nodes under test. -->
   <exec_depend>motor_control_hybrid</exec_depend>
   <exec_depend>humanoid_leg_description</exec_depend>
+  <exec_depend>humanoid_full_body_description</exec_depend>
   <exec_depend>humanoid_safety</exec_depend>
   <exec_depend>nav_msgs</exec_depend>
   <exec_depend>rosgraph_msgs</exec_depend>

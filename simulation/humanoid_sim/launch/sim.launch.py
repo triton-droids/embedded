@@ -30,6 +30,8 @@ timeouts that compare against the host clock (command lifetimes and timeouts in
 C++ and the simulated backend, the walking controller's input/cycle limits, the
 safety supervisor's IMU/feedback/CAN timeouts) are disabled in this mode.
 """
+import os
+
 from launch import LaunchDescription
 from launch.actions import (DeclareLaunchArgument, EmitEvent, GroupAction,
                             IncludeLaunchDescription, OpaqueFunction, RegisterEventHandler,
@@ -166,7 +168,8 @@ def simulation_and_stack(context):
             # stdout carries the readiness handshake; diagnostics stay on stderr.
             output={'stdout': 'log', 'stderr': 'screen'},
             ros_arguments=['--log-level', arg('log_level')],
-            parameters=[arg('sim_config_file'), {
+            parameters=[arg('sim_config_file'),
+                        *_robot_model_parameter_file(arg('robot').perform(context)), {
                 'motor_config_file': registry_path,
                 'use_viewer': flag(context, 'use_viewer'),
                 'dedicated_imu_executor': flag(context, 'dedicated_imu_executor'),
@@ -407,6 +410,32 @@ def simulation_and_stack(context):
     return nodes
 
 
+def _robot_model_parameter_file(robot):
+    """A params file after sim.yaml. sim.yaml sets robot_xml/mesh_dir under the node's own name, which
+    outranks launch's wildcard dict parameters and -p arguments placed before it; only a later
+    node-scoped file overrides it."""
+    values = _robot_model_parameters(robot)
+    if not values:
+        return []
+    import tempfile
+    import yaml
+    with tempfile.NamedTemporaryFile('w', prefix='sim_robot_', suffix='.yaml', delete=False) as f:
+        yaml.safe_dump({'mujoco_sim': {'ros__parameters': values}}, f)
+    return [f.name]
+
+
+def _robot_model_parameters(robot):
+    """robot_xml/mesh_dir for the selected robot; legs keeps sim.yaml (the tracking policy's MJCF)."""
+    if robot == 'legs':
+        return {}
+    if robot != 'full_body':
+        raise ValueError(f"robot must be legs or full_body, not {robot!r}")
+    from ament_index_python.packages import get_package_share_directory
+    share = get_package_share_directory('humanoid_full_body_description')
+    return {'robot_xml': os.path.join(share, 'mjcf', 'full_body_sim.xml'),
+            'mesh_dir': os.path.join(share, 'meshes')}
+
+
 def generate_launch_description():
     arg = LaunchConfiguration
     share = FindPackageShare
@@ -445,6 +474,8 @@ def generate_launch_description():
         ('orientation_source', 'message', 'Policy gravity source: message quaternion or legacy complementary'),
         ('hold_first_frame', 'false', 'Keep reference frame 0 while the policy continues closed-loop corrections'),
         ('connect_policy', 'true', 'Route /policy/desired_motor_subset into cpp_control_node'),
+        ('robot', 'legs', 'Robot model: legs (the tracking policy MJCF, 16 kg) or full_body '
+         '(humanoid_full_body_description/mjcf/full_body_sim.xml, 31.9 kg with torso and arms)'),
         ('auto_start', 'false',
          'Enable motors and release the gantry when the policy starts its reference motion'),
         ('release_delay_s', '0.1', 'With auto_start: delay from enable to gantry release'),

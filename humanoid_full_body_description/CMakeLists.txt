@@ -15,7 +15,7 @@ add_custom_command(
 add_custom_target(full_body_urdf ALL DEPENDS ${URDF_OUTPUT})
 
 install(FILES ${URDF_SOURCE} ${URDF_OUTPUT} DESTINATION share/${PROJECT_NAME}/urdf)
-install(DIRECTORY meshes DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY meshes mjcf DESTINATION share/${PROJECT_NAME})
 
 # Detailed variant: the original per-part CAD export (1,086 meshes, 3M triangles, about 150 MB).
 # Same links, joints and inertials as full_body.urdf, only heavier geometry. It is also the input for

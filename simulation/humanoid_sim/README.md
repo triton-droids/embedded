@@ -231,6 +231,7 @@ prints the same list):
 | `motor_config_file` | installed `motors.yaml` | Motor registry for the backend, controller and policy |
 | `safety_config_file` | installed `safety.yaml` | Safety supervisor configuration |
 | `sim_config_file` | installed `config/sim.yaml` | Parameters of the nodes inside `mujoco_sim` |
+| `robot` | `legs` | `legs` = the tracking policy's 16 kg MJCF; `full_body` = `humanoid_full_body_description/mjcf/full_body_sim.xml` (31.9 kg with torso and arms; the current policy falls with it, see that package's README) |
 | `model_path` | installed `20260914_170827.onnx` | Policy model |
 
 ### Experimental launch

@@ -5756,33 +5756,33 @@
       <inertia ixx="0.002157039754547283" ixy="4.1887417291313226e-07" ixz="2.6331504956336594e-05" iyy="0.0017537847721266105" iyz="3.0915456995647336e-06" izz="0.0007497980627145482" />
     </inertial>
   </link>
-  <joint name="left_shoulder_abduction" type="continuous">
+  <joint name="left_shoulder_pitch_joint" type="continuous">
     <parent link="torso_link" />
     <child link="left_base_link" />
     <origin xyz="0.1972044 0 0.2922097" rpy="0.0022110472285 0.0247092936581 1.57074348031" />
     <axis xyz="5.28303543644e-05 -0.999997551353 0.00221235108716" />
   </joint>
-  <joint name="left_joint_001_10" type="revolute">
+  <joint name="left_shoulder_roll_joint" type="revolute">
     <parent link="left_base_link" />
     <child link="left_link_001" />
     <origin xyz="0.0266166537888 -0.0943095710016 0.000566191354709" rpy="0 0 0" />
     <axis xyz="-0.99990974427 -8.2520742343e-05 -0.0134348987667" />
     <limit lower="-0.261799387799" upper="1.83259571459" effort="0" velocity="0" />
   </joint>
-  <joint name="left_joint_002_16" type="revolute">
+  <joint name="left_shoulder_yaw_joint" type="revolute">
     <parent link="left_link_001" />
     <child link="left_link_002" />
     <origin xyz="-0.0223931296175 -0.00026297934734 -0.118339241241" rpy="0 0 0" />
     <axis xyz="0.013435048429 -0.00221134321465 -0.999907300421" />
     <limit lower="-3.14159265359" upper="3.14159265359" effort="0" velocity="0" />
   </joint>
-  <joint name="left_joint_003_45" type="continuous">
+  <joint name="left_upper_arm_twist_joint" type="continuous">
     <parent link="left_link_002" />
     <child link="left_link_003" />
     <origin xyz="6.71752421433e-06 -1.10567160738e-06 -0.00049995365021" rpy="0 0 0" />
     <axis xyz="0.013435048429 -0.00221134321465 -0.999907300421" />
   </joint>
-  <joint name="left_joint_004_52" type="continuous">
+  <joint name="left_elbow_joint" type="continuous">
     <parent link="left_link_003" />
     <child link="left_link_004" />
     <origin xyz="0.00155821223671 -0.0319538078195 -0.0889827107316" rpy="0 0 0" />
@@ -6909,33 +6909,33 @@
       <inertia ixx="0.002157039754547283" ixy="-4.188741729130882e-07" ixz="2.6331504956336594e-05" iyy="0.0017537847721266105" iyz="-3.0915456995647336e-06" izz="0.0007497980627145482" />
     </inertial>
   </link>
-  <joint name="right_shoulder_abduction" type="continuous">
+  <joint name="right_shoulder_pitch_joint" type="continuous">
     <parent link="torso_link" />
     <child link="right_base_link" />
     <origin xyz="-0.19722 0 0.2922097" rpy="-0.0022110472285 0.0247092936581 1.57084917328" />
     <axis xyz="-5.28303543644e-05 -0.999997551353 -0.00221235108716" />
   </joint>
-  <joint name="right_joint_001_10" type="revolute">
+  <joint name="right_shoulder_roll_joint" type="revolute">
     <parent link="right_base_link" />
     <child link="right_link_001" />
     <origin xyz="0.0266166537888 0.0943095710016 0.000566191354709" rpy="0 0 0" />
     <axis xyz="0.99990974427 -8.2520742343e-05 0.0134348987667" />
     <limit lower="-0.261799387799" upper="1.83259571459" effort="0" velocity="0" />
   </joint>
-  <joint name="right_joint_002_16" type="revolute">
+  <joint name="right_shoulder_yaw_joint" type="revolute">
     <parent link="right_link_001" />
     <child link="right_link_002" />
     <origin xyz="-0.0223931296175 0.00026297934734 -0.118339241241" rpy="0 0 0" />
     <axis xyz="-0.013435048429 -0.00221134321465 0.999907300421" />
     <limit lower="-3.14159265359" upper="3.14159265359" effort="0" velocity="0" />
   </joint>
-  <joint name="right_joint_003_45" type="continuous">
+  <joint name="right_upper_arm_twist_joint" type="continuous">
     <parent link="right_link_002" />
     <child link="right_link_003" />
     <origin xyz="6.71752421433e-06 1.10567160738e-06 -0.00049995365021" rpy="0 0 0" />
     <axis xyz="-0.013435048429 -0.00221134321465 0.999907300421" />
   </joint>
-  <joint name="right_joint_004_52" type="continuous">
+  <joint name="right_elbow_joint" type="continuous">
     <parent link="right_link_003" />
     <child link="right_link_004" />
     <origin xyz="0.00155821223671 0.0319538078195 -0.0889827107316" rpy="0 0 0" />
@@ -14428,65 +14428,75 @@
       <inertia ixx="0.00175724597492" ixy="-1.91761265891e-05" ixz="-5.71493027037e-06" iyy="0.000354470698452" iyz="-0.000150986723602" izz="0.00181706770661" />
     </inertial>
   </link>
-  <joint name="right_pelvis_hip_connector_joint" type="continuous">
+  <joint name="right_hip1_joint" type="revolute">
     <parent link="pelvis_link" />
     <child link="right_pelvis_hip_connector_link" />
     <origin xyz="-0.00969672135063 -0.110386243747 0.530898525107" rpy="-3.13456087535 -0.31248581602 0.173623973814" />
     <axis xyz="0.98418686278 0.0862037447719 0.15474215172" />
+    <limit lower="-1.57" upper="1.57" effort="0" velocity="0" />
   </joint>
-  <joint name="left_pelvis_hip_connector_joint" type="continuous">
+  <joint name="left_hip1_joint" type="revolute">
     <parent link="pelvis_link" />
     <child link="left_pelvis_hip_connector_link" />
     <origin xyz="0.162071443437 -0.095341276579 0.557905363362" rpy="2.76113083438 -0.26984502271 0.226998553181" />
-    <axis xyz="-0.98418686278 -0.0862037447719 -0.15474215172" />
+    <axis xyz="0.98418686278 0.0862037447719 0.15474215172" />
+    <limit lower="-1.57" upper="1.57" effort="0" velocity="0" />
   </joint>
-  <joint name="left_hip_joint" type="continuous">
+  <joint name="left_hip2_joint" type="revolute">
     <parent link="left_pelvis_hip_connector_link" />
     <child link="left_hip_link" />
     <origin xyz="0.0737048714298 0.0550664327728 0.00563550960533" rpy="4.23737091569e-05 -0.000640310370656 8.70081733539e-05" />
     <axis xyz="-0.0654764958091 0.988764441901 -0.13437896758" />
+    <limit lower="-1.57" upper="0.436332" effort="0" velocity="0" />
   </joint>
-  <joint name="left_thigh_joint" type="continuous">
+  <joint name="left_thigh_joint" type="revolute">
     <parent link="left_hip_link" />
     <child link="left_thigh_link" />
     <origin xyz="0.0295594845112 -0.0547547636199 -0.144077189711" rpy="-0.0776151432378 0.0924315186356 0.551502114206" />
     <axis xyz="0.178036925113 -0.120931243548 -0.976564635664" />
+    <limit lower="-0.785398" upper="0.785398" effort="0" velocity="0" />
   </joint>
-  <joint name="left_shank_joint" type="continuous">
+  <joint name="left_knee_joint" type="revolute">
     <parent link="left_thigh_link" />
     <child link="left_shank_link" />
     <origin xyz="0.0619897281845 -0.0366673728476 -0.105889876238" rpy="0.437557175688 -0.257361005267 0.055344026785" />
-    <axis xyz="-0.857488443161 0.467770138691 -0.214253744879" />
+    <axis xyz="0.857488443161 -0.467770138691 0.214253744879" />
+    <limit lower="-2.0944" upper="0.0" effort="0" velocity="0" />
   </joint>
-  <joint name="left_foot_joint" type="continuous">
+  <joint name="left_ankle_joint" type="revolute">
     <parent link="left_shank_link" />
     <child link="left_foot_link" />
     <origin xyz="-0.0449392869028 -0.135544469496 -0.236190672702" rpy="-0.0865500603081 0.045923876382 -0.0234921337145" />
     <axis xyz="0.857488443161 -0.467770138691 0.214253744879" />
+    <limit lower="-0.6" upper="0.6" effort="0" velocity="0" />
   </joint>
-  <joint name="right_hip_joint" type="continuous">
+  <joint name="right_hip2_joint" type="revolute">
     <parent link="right_pelvis_hip_connector_link" />
     <child link="right_hip_link" />
     <origin xyz="-0.0769224210731 -0.0388110570259 0.00577311957047" rpy="-0.00394139381213 -0.118540603691 0.0663964244618" />
     <axis xyz="1.05705931448e-13 0.873591353299 -0.486660197101" />
+    <limit lower="-0.436332" upper="1.57" effort="0" velocity="0" />
   </joint>
-  <joint name="right_thigh_joint" type="continuous">
+  <joint name="right_thigh_joint" type="revolute">
     <parent link="right_hip_link" />
     <child link="right_thigh_link" />
     <origin xyz="2.36742928207e-06 -0.0421839171922 -0.151164152105" rpy="5.61636194238e-05 0.00791014936651 0.014200081501" />
-    <axis xyz="2.92524847871e-14 -0.4866601971 -0.873591353299" />
+    <axis xyz="-2.92524847871e-14 0.4866601971 0.873591353299" />
+    <limit lower="-0.785398" upper="0.785398" effort="0" velocity="0" />
   </joint>
-  <joint name="right_shank_joint" type="continuous">
+  <joint name="right_knee_joint" type="revolute">
     <parent link="right_thigh_link" />
     <child link="right_shank_link" />
     <origin xyz="-0.0476200750664 -0.05783777458 -0.103860525726" rpy="-0.5101614477 1.72545060565e-14 -4.01705543503e-14" />
-    <axis xyz="-1 5.31701848255e-14 -6.83983701097e-14" />
+    <axis xyz="1.0 -5.31701848255e-14 6.83983701097e-14" />
+    <limit lower="-2.0944" upper="0.0" effort="0" velocity="0" />
   </joint>
-  <joint name="right_foot_joint" type="continuous">
+  <joint name="right_ankle_joint" type="revolute">
     <parent link="right_shank_link" />
     <child link="right_foot_link" />
     <origin xyz="0.0519680998886 0.000540779603463 -0.274801069437" rpy="-0.043064997 2.39950617397e-15 -2.09394676167e-15" />
     <axis xyz="1 -5.67566096787e-14 4.74156719471e-14" />
+    <limit lower="-0.6" upper="0.6" effort="0" velocity="0" />
   </joint>
   <!--Torso mounts to the exposed five-hole face. Outer X pitch: 40 mm torso, 41 mm pelvis. Hip connector zero poses compensate for the reversed pelvis mount.-->
   <joint name="torso_to_pelvis" type="fixed">

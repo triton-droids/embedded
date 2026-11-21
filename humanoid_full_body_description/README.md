@@ -70,15 +70,17 @@ For MoveIt 2 / RViz2 inspection, see [humanoid_full_body_moveit_config](../human
 ## Joint zero
 
 At `q = 0` the robot stands upright: legs straight, knee axes lateral, hip-yaw axes vertical, soles flat,
-toes forward (−y in `torso_link`; +z up, +x to the robot's left), and arms hanging straight down.
+arms hanging straight down. In `torso_link`, +z is up and +y is forward (knee flexion swings the foot toward −y); the
+`left_*` joints are on the +x side. This matches the motor registry and the tracking policy's MJCF. With +y forward and +z up,
+that side is the robot's anatomical right, so check the left/right labels against the hardware.
 In the source CAD, the legs were posed rather than straight. The right knee was bent about 29°, the left leg
 was yawed about 33° and pitched about 20°, and the right hip was rolled about 8°. These offsets were moved into
 the `rpy` of the 10 leg joint origins, so that the old pose equals the new joint values below:
 
 | Joint | Old pose in new coordinates (deg) |
 |---|---|
-| left_pelvis_hip_connector / hip / thigh / shank / foot | −19.7 / 0.0 / 32.5 / 29.5 / 5.7 |
-| right_pelvis_hip_connector / hip / thigh / shank / foot | −1.9 / 7.8 / 0.9 / −29.2 / 2.5 |
+| left hip1 / hip2 / thigh / knee / ankle | 19.7 / 0.0 / 32.5 / −29.5 / 5.7 |
+| right hip1 / hip2 / thigh / knee / ankle | −1.9 / 7.8 / −0.9 / 29.2 / 2.5 |
 
 Link geometry and joint positions are unchanged. Only the child frames are rotated about each joint axis.
 The arm joints were already at a sensible zero (hanging down), so they were not changed.
@@ -113,3 +115,44 @@ for dynamics or control:
 
 With the forearm correction each arm (3.3 kg) is about half of each leg (6.4 kg).
 With that mass at the end of each arm, arm motions shift the whole-body COM noticeably, which matters for balance control.
+
+## Joint names, signs and limits
+
+The leg joints use the motor registry / tracking policy names, axis signs and ranges
+(`motor_control_hybrid/models/*/chrobot_16kg_candidate.xml`). Every leg axis points the same way as in that MJCF, so the
+same joint angle bends both models the same way. The knee flexes negative (−120°..0°).
+
+| Leg joint (was) | Name | Range |
+|---|---|---|
+| `*_pelvis_hip_connector_joint` | `*_hip1_joint` (hip pitch) | ±90° |
+| `*_hip_joint` | `*_hip2_joint` (hip roll) | left −90..25°, right −25..90° |
+| `*_thigh_joint` | `*_thigh_joint` (hip yaw) | ±45° |
+| `*_shank_joint` | `*_knee_joint` | −120..0° |
+| `*_foot_joint` | `*_ankle_joint` (ankle pitch) | ±34° |
+
+The arms are renamed to `*_shoulder_pitch_joint` (was `*_shoulder_abduction`), `*_shoulder_roll_joint` (`*_joint_001_10`),
+`*_shoulder_yaw_joint` (`*_joint_002_16`), `*_upper_arm_twist_joint` (`*_joint_003_45`, coaxial with the yaw) and
+`*_elbow_joint` (`*_joint_004_52`). Their axis signs are the CAD export's, and only the CAD limits are set.
+
+## MuJoCo simulation (humanoid_sim)
+
+[`mjcf/full_body_sim.xml`](mjcf/full_body_sim.xml) is the robot for `humanoid_sim`:
+`ros2 launch humanoid_sim sim.launch.py robot:=full_body` (the default `robot:=legs` keeps the policy's 16 kg leg model).
+It is generated from the simplified URDF by [`scripts/make_sim_mjcf.py`](scripts/make_sim_mjcf.py). The script adds a floating
+base (`floating_base` + `imu` site at the torso origin), the `top` site for the simulated head, sole boxes and sites
+(`*_foot_collision_box`, `*_foot`), the policy MJCF's leg damping and armature, position servos that hold the arms at
+ctrl = 0, and the SRDF's disabled collision pairs as exclusions. Rerun the script after any URDF change.
+
+First test with the existing tracking policy (2026-11-21, headless, `auto_start:=true`; runs where startup tripped
+`imu_freshness` before release are left out):
+
+| Robot | Walking reference | Holding frame 0 (standing) |
+|---|---|---|
+| `legs` (policy MJCF, 16 kg) | stayed up for 37 s, 15–17 m | stayed up |
+| `full_body` (31.9 kg) | fell sideways 1.6 s after release (2 of 2) | fell 1.6 s after release |
+| `full_body` with torso and arms made nearly massless (16.3 kg) | fell 2.2 s after release (2 of 2), 1.2 m | – |
+
+So the policy does not transfer, and **mass is not the only reason**. The full-body CAD legs differ from the policy MJCF.
+With all joints at zero, each ankle sits 2–3 cm further out, the feet are 3.5 cm further apart, and the foot extends mostly
+*behind* the ankle (sole centre 2 cm back) where the policy's foot extends mostly in front (2.5 cm forward). Which CAD matches
+the built robot has to be checked on the hardware. A policy for the full-body robot needs training on this model.

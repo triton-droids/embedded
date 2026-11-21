@@ -19,32 +19,32 @@ moveit_simple_controller_manager:
     action_ns: follow_joint_trajectory
     default: true
     joints:
-      - left_joint_001_10
-      - left_joint_002_16
-      - left_joint_003_45
-      - left_joint_004_52
-      - left_shoulder_abduction
+      - left_shoulder_roll_joint
+      - left_shoulder_yaw_joint
+      - left_upper_arm_twist_joint
+      - left_elbow_joint
+      - left_shoulder_pitch_joint
 
   right_arm_controller:
     type: FollowJointTrajectory
     action_ns: follow_joint_trajectory
     default: true
     joints:
-      - right_joint_001_10
-      - right_joint_002_16
-      - right_joint_003_45
-      - right_joint_004_52
-      - right_shoulder_abduction
+      - right_shoulder_roll_joint
+      - right_shoulder_yaw_joint
+      - right_upper_arm_twist_joint
+      - right_elbow_joint
+      - right_shoulder_pitch_joint
 
   left_leg_controller:
     type: FollowJointTrajectory
     action_ns: follow_joint_trajectory
     default: true
     joints:
-      - left_foot_joint
-      - left_hip_joint
-      - left_pelvis_hip_connector_joint
-      - left_shank_joint
+      - left_ankle_joint
+      - left_hip2_joint
+      - left_hip1_joint
+      - left_knee_joint
       - left_thigh_joint
 
   right_leg_controller:
@@ -52,8 +52,8 @@ moveit_simple_controller_manager:
     action_ns: follow_joint_trajectory
     default: true
     joints:
-      - right_foot_joint
-      - right_hip_joint
-      - right_pelvis_hip_connector_joint
-      - right_shank_joint
+      - right_ankle_joint
+      - right_hip2_joint
+      - right_hip1_joint
+      - right_knee_joint
       - right_thigh_joint
