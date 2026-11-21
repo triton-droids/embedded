@@ -63,7 +63,7 @@ The arm joints were already at a sensible zero (hanging down), so they were not 
 
 ## Mass properties (from the CAD export, not measured)
 
-Total 32.5 kg: torso 9.0, pelvis 3.5, each arm 3.6, each leg 6.4. Height at the zero pose 1.05 m (sole to torso top, no head).
+Total 31.9 kg: torso 9.0, pelvis 3.5, each arm 3.3, each leg 6.4. Height at the zero pose 1.05 m (sole to torso top, no head).
 
 The shoulder mounts (`base_link_333` / `base_link_314`, the three-lobed brackets bolted to the torso frame) were changed
 from 6061 aluminium to printed ASA, which made the robot 1.0 kg lighter (−500 g each, 652 → 152 g). The torso mass, COM and inertia were recomputed
@@ -72,9 +72,10 @@ mass 10.00 → 9.00 kg, COM z 0.192 → 0.181 m, ixx/iyy/izz 0.148/0.275/0.162 �
 The inner round part at each shoulder (`base_link_332` / `313`) is the shoulder motor, not the mount, and was not changed.
 
 The ball and block at the end of each forearm (`link_004_004`, 209 cm³, and `link_004_003`, 142 cm³) were exported as steel; they are
-PLA (taken as solid, 1.24 g/cm³). They alone made up 2.75 of the forearm's 3.19 kg. Same delta method as the torso (the forearm's CAD
-inertial matches its geometry to 2 mm): each forearm 3.19 → 0.87 kg, COM z −0.098 → −0.075 m, ixx/iyy/izz 0.0073/0.0067/0.0023 →
-0.0031/0.0026/0.0009 kg·m². Each arm 5.9 → 3.6 kg.
+printed PLA at 20% infill. They alone made up 2.75 of the forearm's 3.19 kg. Effective density = 1.24 g/cm³ × (solid shell + 20% of
+the core), with the shell taken as surface area × 1.2 mm (3 perimeters / top-bottom layers): 0.44 g/cm³ for the block (63 g) and
+0.41 g/cm³ for the ball (85 g). Same delta method as the torso (the forearm's CAD inertial matches its geometry to 2 mm): each forearm
+3.19 → 0.59 kg, COM z −0.098 → −0.058 m. Each arm 5.9 → 3.3 kg.
 For a robot about 1.13 m tall without a head this is on the heavy side. For comparison, a 1.3 m commercial humanoid weighs about 35 kg.
 Every inertia tensor is positive definite, satisfies the triangle inequality, and has its COM inside the link's hull,
 so the values are physically consistent. Some values still need checking. Weigh the real parts before using these
@@ -82,11 +83,11 @@ for dynamics or control:
 
 | Link | Mass | Implied density (mass / CAD volume) | Concern |
 |---|---|---|---|
-| `*_link_004` (forearm) | 0.87 kg (was 3.19) | 2.1 g/cm³ | Ball and block corrected from steel to PLA (solid). If printed with infill, they are lighter still: weigh one |
+| `*_link_004` (forearm) | 0.59 kg (was 3.19) | 1.4 g/cm³ | Ball and block corrected from steel to PLA, 20% infill (85 + 63 g). Weigh one to confirm |
 | `*_link_002` | 0.024 kg | 8.7 g/cm³ | Tiny coaxial disc between the two yaw joints. Brass/copper density |
 | `*_link_001` | 0.73 kg | 4.9 g/cm³ | Mixed steel parts |
 | `torso_link` | 9.0017 kg (was 10.0016) | 3.0 g/cm³ | Includes the two battery packs (170×60×46 mm). The original 10.0016 kg looked like a manual round number; the ASA shoulder-mount change is applied on top of it. Weighing the real torso (without pelvis) would settle it |
 | legs, pelvis | 0.57–3.5 kg | 2.1–2.9 g/cm³ | Close to aluminium (2.7). Motors are probably not at their real density, so the leg masses may be low |
 
-With the forearm correction each arm (3.6 kg) is well under each leg (6.4 kg).
+With the forearm correction each arm (3.3 kg) is about half of each leg (6.4 kg).
 With that mass at the end of each arm, arm motions shift the whole-body COM noticeably, which matters for balance control.

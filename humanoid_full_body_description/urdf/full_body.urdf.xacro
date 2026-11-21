@@ -95,10 +95,11 @@
   <xacro:cad_link name="left_link_003" material="dark_grey"
                   mass="0.684092" com="0.00131303 0.000269986 -0.0796064"
                   inertia="0.000936754 -2.83656e-07 6.62993e-06 0.000967344 1.24085e-05 0.000551426"/>
-  <!-- Ball and block at the forearm end (link_004_004/_003) changed from steel to PLA (solid 1.24 g/cm3). -->
+  <!-- Ball and block at the forearm end (link_004_004/_003) changed from steel to printed PLA, 20% infill with a
+       1.2 mm solid shell: about 0.41-0.44 g/cm3 effective (85 g + 63 g per forearm). -->
   <xacro:cad_link name="left_link_004" material="orange"
-                  mass="0.873313" com="0.00135429 0.0323213 -0.074593"
-                  inertia="0.0030714 3.66677e-07 3.91845e-05 0.00264424 8.29983e-06 0.00091784"/>
+                  mass="0.585745" com="0.00106618 0.032077 -0.0582626"
+                  inertia="0.00215704 4.18874e-07 2.63315e-05 0.00175378 3.09155e-06 0.000749798"/>
   <xacro:continuous_joint name="left_shoulder_abduction" parent="torso_link" child="left_base_link"
       xyz="0.1972044 0 0.2922097" rpy="0.00221104723 0.0247092937 1.57074348"
       axis="5.28303544e-05 -0.999997551 0.00221235109"/>
@@ -129,8 +130,8 @@
                   mass="0.684092" com="0.00131303 -0.000269986 -0.0796064"
                   inertia="0.000936754 2.83656e-07 6.62993e-06 0.000967344 -1.24085e-05 0.000551426"/>
   <xacro:cad_link name="right_link_004" material="orange"
-                  mass="0.873313" com="0.00135429 -0.0323213 -0.074593"
-                  inertia="0.0030714 -3.66677e-07 3.91845e-05 0.00264424 -8.29983e-06 0.00091784"/>
+                  mass="0.585745" com="0.00106618 -0.032077 -0.0582626"
+                  inertia="0.00215704 -4.18874e-07 2.63315e-05 0.00175378 -3.09155e-06 0.000749798"/>
   <xacro:continuous_joint name="right_shoulder_abduction" parent="torso_link" child="right_base_link"
       xyz="-0.19722 0 0.2922097" rpy="-0.00221104723 0.0247092937 1.57084917"
       axis="-5.28303544e-05 -0.999997551 -0.00221235109"/>
