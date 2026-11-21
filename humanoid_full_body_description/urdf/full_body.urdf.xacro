@@ -181,8 +181,8 @@
       xyz="0.0619897282 -0.0366673728 -0.105889876" rpy="0.437557176 -0.257361005 0.0553440268"
       axis="0.857488443 -0.467770139 0.214253745" lower="-2.0944" upper="0"/>
   <xacro:revolute_joint name="left_ankle_joint" parent="left_shank_link" child="left_foot_link"
-      xyz="-0.0449392869 -0.135544469 -0.236190673" rpy="-0.0865500603 0.0459238764 -0.0234921337"
-      axis="0.857488443 -0.467770139 0.214253745" lower="-0.6" upper="0.6"/>
+      xyz="-0.0449392869 -0.135544469 -0.236190673" rpy="1.04074046 -0.120440984 3.07085909"
+      axis="-0.857488443 0.467770139 -0.214253745" lower="-0.6" upper="0.6"/>
 
   <!-- Right leg: hip pitch (hip1), hip roll (hip2), hip yaw (thigh), knee, ankle pitch. Names, axis signs and ranges
        match the tracking policy's MJCF (motor_control_hybrid/models/*/chrobot_16kg_candidate.xml). -->
@@ -214,6 +214,6 @@
       xyz="-0.0476200751 -0.0578377746 -0.103860526" rpy="-0.510161448 0 0"
       axis="1.0 0 0" lower="-2.0944" upper="0"/>
   <xacro:revolute_joint name="right_ankle_joint" parent="right_shank_link" child="right_foot_link"
-      xyz="0.0519680999 0.000540779603 -0.274801069" rpy="-0.043064997 0 0"
-      axis="1 0 0" lower="-0.6" upper="0.6"/>
+      xyz="0.0519680999 0.000540779603 -0.274801069" rpy="-0.0475018929 0.0845728664 3.14140492"
+      axis="-1 0 0" lower="-0.6" upper="0.6"/>
 </robot>

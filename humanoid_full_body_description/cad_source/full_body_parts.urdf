@@ -14466,8 +14466,8 @@
   <joint name="left_ankle_joint" type="revolute">
     <parent link="left_shank_link" />
     <child link="left_foot_link" />
-    <origin xyz="-0.0449392869028 -0.135544469496 -0.236190672702" rpy="-0.0865500603081 0.045923876382 -0.0234921337145" />
-    <axis xyz="0.857488443161 -0.467770138691 0.214253744879" />
+    <origin xyz="-0.0449392869028 -0.135544469496 -0.236190672702" rpy="1.0407404625103007 -0.12044098377050214 3.0708590897294146" />
+    <axis xyz="-0.857488443 0.467770139 -0.214253745" />
     <limit lower="-0.6" upper="0.6" effort="0" velocity="0" />
   </joint>
   <joint name="right_hip2_joint" type="revolute">
@@ -14494,8 +14494,8 @@
   <joint name="right_ankle_joint" type="revolute">
     <parent link="right_shank_link" />
     <child link="right_foot_link" />
-    <origin xyz="0.0519680998886 0.000540779603463 -0.274801069437" rpy="-0.043064997 2.39950617397e-15 -2.09394676167e-15" />
-    <axis xyz="1 -5.67566096787e-14 4.74156719471e-14" />
+    <origin xyz="0.0519680998886 0.000540779603463 -0.274801069437" rpy="-0.0475018928997731 0.08457286638849842 3.14140492086954" />
+    <axis xyz="-1.0 -0.0 -0.0" />
     <limit lower="-0.6" upper="0.6" effort="0" velocity="0" />
   </joint>
   <!--Torso mounts to the exposed five-hole face. Outer X pitch: 40 mm torso, 41 mm pelvis. Hip connector zero poses compensate for the reversed pelvis mount.-->

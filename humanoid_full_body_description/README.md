@@ -152,7 +152,18 @@ First test with the existing tracking policy (2026-11-21, headless, `auto_start:
 | `full_body` (31.9 kg) | fell sideways 1.6 s after release (2 of 2) | fell 1.6 s after release |
 | `full_body` with torso and arms made nearly massless (16.3 kg) | fell 2.2 s after release (2 of 2), 1.2 m | – |
 
-So the policy does not transfer, and **mass is not the only reason**. The full-body CAD legs differ from the policy MJCF.
-With all joints at zero, each ankle sits 2–3 cm further out, the feet are 3.5 cm further apart, and the foot extends mostly
-*behind* the ankle (sole centre 2 cm back) where the policy's foot extends mostly in front (2.5 cm forward). Which CAD matches
-the built robot has to be checked on the hardware. A policy for the full-body robot needs training on this model.
+So the policy did not transfer, and **mass was not the only reason**. The full-body CAD legs differed from the policy MJCF.
+With all joints at zero, each ankle sat 2–3 cm further out, the feet were 3.5 cm further apart, and the foot extended mostly
+*behind* the ankle (sole centre 2 cm back) where the policy's foot extends mostly in front (2.5 cm forward).
+
+**After that test, both feet were turned 180° about the vertical through the ankle** (the CAD foot was mounted the wrong way
+round). The ankle axis is negated, so its world direction and sign convention are unchanged. Now the sole centre is 2.0–3.2 cm in
+front of the hip, as in the policy MJCF (2.4 cm), and the COM sits at the same fore-aft place over the feet as in the 16 kg model.
+Still different from the policy MJCF:
+- Each ankle sits 2–3 cm further out.
+- The two feet are the same, unmirrored part, so the left sole is 1.1 cm outboard of its ankle and the right one 1.4 cm inboard.
+  The policy MJCF has both about 1 cm inboard.
+
+**The test above predates the foot fix and has not been rerun.** Which CAD matches the built robot has to be checked on the hardware.
+The SRDF collision matrix was regenerated after the fix: 21 adjacent pairs and 170 never colliding (the leg ranges exclude
+more poses now).

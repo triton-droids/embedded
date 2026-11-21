@@ -78,7 +78,7 @@ ros2 run humanoid_full_body_moveit_config test_plan.py --execute
 ## Self-collision matrix
 
 The `<disable_collisions>` entries in `config/full_body.srdf` come from MoveIt's
-`collisions_updater`: 21 adjacent pairs plus 101 pairs that never collided in 20,000 random samples
+`collisions_updater`: 21 adjacent pairs plus 170 pairs that never collided in 20,000 random samples
 (computed on the earlier one-hull-per-link meshes, which contain the current collision pieces, so the "never" pairs still hold). Every adjacent pair touches at the zero pose. Without these entries,
 `CheckStartStateCollision` rejects every plan request, reporting "21 contact(s) detected".
 Regenerate the matrix after any change to the URDF geometry:
