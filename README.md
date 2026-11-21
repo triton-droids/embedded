@@ -61,21 +61,40 @@ reference when validating the simplified model. Run only one detailed instance p
 
 ## Frames and joints
 
-- Fixed base at `torso_link`. Its origin is the centre of the torso's bottom face, with +z up, +x to the robot's left and −y forward.
+- Fixed base at `torso_link`. Its origin is the centre of the torso's bottom face, with +z up and +y forward (knee flexion
+  swings the foot toward −y). The `left_*` joints are on the +x side, as in the motor registry and the tracking policy.
+  With +y forward and +z up, that is the robot's anatomical right, so check the left/right labels against the hardware.
 - `pelvis_link` is fixed to the torso. Its top face sits flush on the torso bottom.
-- The legs have hip pitch (`*_pelvis_hip_connector_joint`), hip roll (`*_hip_joint`), hip yaw (`*_thigh_joint`), knee
-  (`*_shank_joint`) and ankle pitch (`*_foot_joint`).
-- The arms have shoulder pitch (`*_shoulder_abduction`), roll (`*_joint_001_10`), two coaxial yaw joints
-  (`*_joint_002_16`, `*_joint_003_45`) and elbow (`*_joint_004_52`).
 - At zero pose the robot is 1.05 m tall from sole to torso top (no head) and 0.68 m wide across the arms.
 
-The joint zero was re-defined from the CAD pose, in which the legs were posed rather than straight. The offsets moved
-into the leg joint origins, in degrees, are:
+Leg joint names, axis signs and ranges follow the motor registry and the tracking policy's MJCF
+(`motor_control_hybrid/models/*/chrobot_16kg_candidate.xml` on `sim-experimental-cyclonedds`). Every leg axis points the same
+way as there, so the same joint angle bends both models the same way.
 
-| Old CAD pose expressed in the new coordinates | hip pitch / roll / yaw / knee / ankle |
+| Joint | Motion | Range | Earlier CAD name |
+|---|---|---|---|
+| `*_hip1_joint` | hip pitch | ±90° | `*_pelvis_hip_connector_joint` |
+| `*_hip2_joint` | hip roll | left −90..25°, right −25..90° | `*_hip_joint` |
+| `*_thigh_joint` | hip yaw | ±45° | `*_thigh_joint` |
+| `*_knee_joint` | knee, flexion negative | −120..0° | `*_shank_joint` |
+| `*_ankle_joint` | ankle pitch | ±34° | `*_foot_joint` |
+| `*_shoulder_pitch_joint` | shoulder pitch | none (continuous) | `*_shoulder_abduction` |
+| `*_shoulder_roll_joint` | shoulder roll | −15..105° (CAD) | `*_joint_001_10` |
+| `*_shoulder_yaw_joint` | shoulder yaw | ±180° (CAD) | `*_joint_002_16` |
+| `*_upper_arm_twist_joint` | twist, coaxial with the yaw | none (continuous) | `*_joint_003_45` |
+| `*_elbow_joint` | elbow | none (continuous) | `*_joint_004_52` |
+
+The joint zero was re-defined from the CAD pose, in which the legs were posed rather than straight. The CAD pose,
+expressed in the new joint coordinates (degrees), is:
+
+| Leg | hip1 / hip2 / thigh / knee / ankle |
 |---|---|
-| left leg | −19.7 / 0.0 / 32.5 / 29.5 / 5.7 |
-| right leg | −1.9 / 7.8 / 0.9 / −29.2 / 2.5 |
+| left | 19.7 / 0.0 / 32.5 / −29.5 / 5.7 |
+| right | −1.9 / 7.8 / −0.9 / 29.2 / 2.5 |
+
+Both CAD feet were mounted the wrong way round, with the sole mostly behind the ankle. Each was turned 180° about the vertical through its
+ankle, and the ankle axis was negated, so its direction is unchanged. The sole centre now sits 2–3 cm in front of the hip, as in the policy's leg model. The two
+feet are the same, unmirrored part, so the left sole is 1.1 cm outboard of its ankle and the right one 1.4 cm inboard.
 
 ## Mass properties
 
@@ -92,9 +111,9 @@ Every inertia tensor is positive definite and satisfies the triangle inequality.
 
 ## Not done yet
 
-- **Joint polarity** has not been checked against the motors. The axis directions come from the CAD, and left/right are
-  mirrored for some joints but not others.
-- **Joint limits**: 16 of the 20 joints are `continuous`. Only the shoulder roll (−15°..105°) and one upper-arm yaw (±180°)
-  have CAD limits, and effort/velocity are 0.
+- **Arm polarity and limits**: the arm axes are the CAD export's, and three arm joints are still `continuous`.
+- **Leg geometry vs the built robot**: compared with the tracking policy's leg model, each ankle sits 2–3 cm further out at
+  zero pose. Which CAD matches the built robot has not been checked.
+- **Effort/velocity limits** are 0 in the URDF.
 - **Encoder zero** and the model zero have not been reconciled.
 - The **masses** have not been weighed, and the motor masses are whatever the CAD assigned.
