@@ -56,7 +56,6 @@ class ImuReaderNode(Node):
 
         self.integrator = RK4DeadReckoner(gravity_world=(0.0, 0.0, 9.80665))
 
-        # 用线程/定时器拉取生成器
         self.gen = iter_imu_samples(
             source="serial",
             port=port,
@@ -69,7 +68,8 @@ class ImuReaderNode(Node):
             gyro_units=gyro_units,
         )
 
-        self.timer = self.create_timer(0.0, self._tick)  # 0.0 -> 尽快调度（由串口阻塞控制节奏）
+        # Schedule as soon as possible. Blocking serial reads pace the callbacks.
+        self.timer = self.create_timer(0.0, self._tick)
         self.get_logger().info(
             f"IMU serial reader: port={port}, baud={baud}, input_format={input_format}"
         )
@@ -96,7 +96,7 @@ class ImuReaderNode(Node):
         imu.angular_velocity.y = float(s["gyro_rad_s"][1])
         imu.angular_velocity.z = float(s["gyro_rad_s"][2])
 
-        # linear acceleration (m/s^2) 这里是机体系原始加速度（包含重力）
+        # Raw body-frame acceleration (m/s^2), including gravity.
         imu.linear_acceleration.x = float(s["acc_m_s2"][0])
         imu.linear_acceleration.y = float(s["acc_m_s2"][1])
         imu.linear_acceleration.z = float(s["acc_m_s2"][2])

@@ -341,5 +341,5 @@ for matching names but resets `hardware_verified: false`; review it again before
 CAN use. Rebuild `motor_control_hybrid` if using a copied install. Supply the same
 new model path to the tracking launch. No resync is needed for ordinary starts.
 
-More detail: [tracking policy contract](tracking_policy_ros2.md),
-[remote RViz](remote_rviz.md), and [configuration audit](motor_configuration_audit.md).
+See the [tracking policy contract](tracking_policy_ros2.md) and
+[remote RViz setup](remote_rviz.md) for details.

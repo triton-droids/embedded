@@ -17,11 +17,11 @@ was inspected through its recursive tree at commit
 actually present in the tree were used instead. English and Chinese revisions
 are not necessarily synchronized.
 
-| Configured model | Latest Chinese CAN2.0 manual found | Mechanical-zero table | Zero-calibration rules | Parameter table |
+| Configured model | Chinese CAN2.0 manual revision | Mechanical-zero table | Zero-calibration rules | Parameter table |
 |---|---|---|---|---|
-| RS02 | `RS02使用说明书261009.pdf` | PDF/printed p.34 | Section 4.2.6, PDF/printed p.40 | PDF/printed p.38 |
-| RS03 | `RS03使用说明书261013.pdf` | PDF p.34 / printed p.33 | Section 4.2.6, PDF p.39 / printed p.38 | PDF p.37 / printed p.36 |
-| RS04 | `RS04使用说明书261009.pdf` | PDF p.36 / printed p.35 | Section 4.2.6, PDF p.42 / printed p.41 | PDF p.40 / printed p.39 |
+| RS02 | 261009 | PDF/printed p.34 | Section 4.2.6, PDF/printed p.40 | PDF/printed p.38 |
+| RS03 | 261013 | PDF p.34 / printed p.33 | Section 4.2.6, PDF p.39 / printed p.38 | PDF p.37 / printed p.36 |
+| RS04 | 261009 | PDF p.36 / printed p.35 | Section 4.2.6, PDF p.42 / printed p.41 | PDF p.40 / printed p.39 |
 
 RS03 was also cross-checked against `RS03User Manual261013.pdf`: mechanical
 zero at PDF p.44 / printed p.43, and section 4.2.6 at PDF p.53 / printed p.52.

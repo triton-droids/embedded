@@ -47,7 +47,7 @@ def quat_rotate(q: np.ndarray, v: np.ndarray) -> np.ndarray:
 
 
 def quat_from_omega(omega_rad_s: np.ndarray) -> np.ndarray:
-    # 用在 qdot = 0.5 * q ⊗ [0, omega]
+    # Quaternion derivative: qdot = 0.5 * q ⊗ [0, omega].
     return np.array([0.0, float(omega_rad_s[0]), float(omega_rad_s[1]), float(omega_rad_s[2])], dtype=np.float64)
 
 
@@ -56,7 +56,7 @@ def qdot(q: np.ndarray, omega_rad_s: np.ndarray) -> np.ndarray:
 
 
 def rk4_quat_step(q: np.ndarray, omega_rad_s: np.ndarray, dt: float) -> np.ndarray:
-    # omega 这里假设在 dt 内常值（IMU 采样通常够用）
+    # Treat angular velocity as constant over the IMU sample interval.
     k1 = qdot(q, omega_rad_s)
     k2 = qdot(q + 0.5*dt*k1, omega_rad_s)
     k3 = qdot(q + 0.5*dt*k2, omega_rad_s)
@@ -88,12 +88,12 @@ def _to_si(
     if acc_units.lower() in ("g", "grav", "gravity"):
         acc = acc * G_M_S2
     elif acc_units.lower() not in ("m/s^2", "mps2", "mps^2"):
-        raise ValueError("acc_units 只能是 'm/s^2' 或 'g'")
+        raise ValueError("acc_units must be 'm/s^2' or 'g'")
 
     if gyro_units.lower() in ("deg/s", "dps", "degps"):
         gyro = gyro * (math.pi / 180.0)
     elif gyro_units.lower() not in ("rad/s", "rads"):
-        raise ValueError("gyro_units 只能是 'rad/s' 或 'deg/s'")
+        raise ValueError("gyro_units must be 'rad/s' or 'deg/s'")
     return acc, gyro
 
 
@@ -200,7 +200,7 @@ class RK4DeadReckoner:
     vel_w: np.ndarray = field(default_factory=lambda: np.zeros(3, dtype=np.float64))
     pos_w: np.ndarray = field(default_factory=lambda: np.zeros(3, dtype=np.float64))
 
-    # 可选：简单的陀螺零偏（你也可以外面做校准后塞进来）
+    # Optional gyro bias from calibration.
     gyro_bias_rad_s: np.ndarray = field(default_factory=lambda: np.zeros(3, dtype=np.float64))
 
     def reset(self) -> None:
@@ -215,16 +215,16 @@ class RK4DeadReckoner:
         gyro_body_rad_s: np.ndarray,
         dt: float,
     ) -> Dict[str, np.ndarray]:
-        # 1) 姿态：RK4 积分陀螺
+        # Integrate angular velocity with RK4 to update orientation.
         omega = gyro_body_rad_s - self.gyro_bias_rad_s
         self.q_wb = rk4_quat_step(self.q_wb, omega, dt)
 
-        # 2) 加速度转世界系并减重力
+        # Rotate acceleration into the world frame and subtract gravity.
         acc_w = quat_rotate(self.q_wb, acc_body_m_s2)
         g_w = np.array(self.gravity_world, dtype=np.float64)
         lin_acc_w = acc_w - g_w
 
-        # 3) 速度/位置积分（这里用简单欧拉；你也能改成 RK4/梯形）
+        # Integrate velocity and position with Euler steps.
         self.vel_w = self.vel_w + lin_acc_w * dt
         self.pos_w = self.pos_w + self.vel_w * dt
 
@@ -249,16 +249,16 @@ def iter_imu_samples(
     gyro_units: str = "rad/s",  # "rad/s" or "deg/s"
 ) -> Generator[Dict, None, None]:
     """
-    读取 IMU 数据，输出 dict：
+    Read IMU data and yield dictionaries containing:
       - t_wall, dt
       - acc_m_s2 (3,), gyro_rad_s (3,)
-      - 可选：rpy_deg, lin_pos_m, lin_vel_m_s
+      - Optional: rpy_deg, lin_pos_m, lin_vel_m_s
     """
     if source != "serial":
-        raise ValueError("目前只实现 source='serial'")
+        raise ValueError("Only source='serial' is supported")
 
     if serial is None:
-        raise RuntimeError("缺少 pyserial：pip install pyserial")
+        raise RuntimeError("pyserial is required. Install it with: pip install pyserial")
     input_format = input_format.lower().strip()
     if input_format not in INPUT_FORMATS:
         raise ValueError(f"input_format must be one of {INPUT_FORMATS}, got {input_format!r}")

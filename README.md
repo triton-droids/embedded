@@ -2,10 +2,8 @@
 
 > [!WARNING]
 > **UNTESTED ON THE PHYSICAL ROBOT.** Nothing in this repository has been
-> validated on the assembled robot with motors powered. What *has* been run is
-> listed per feature in [Features and how to test them](#features-and-how-to-test-them):
-> unit and ROS integration tests, virtual-CAN (vcan) tests, fake-motor and
-> synthetic-IMU benches. The shipped motor registry is deliberately
+> validated on the assembled robot with motors powered.
+> The shipped motor registry is deliberately
 > `hardware_verified: false`, so real CAN startup is refused until motor IDs,
 > zero, polarity, limits and stop behaviour are commissioned on hardware.
 > Treat every launch that can reach motors as a first bring-up, with the robot
@@ -28,7 +26,7 @@ branches; this branch is the hardware stack.
 - [Repository structure](#repository-structure)
 - [Architecture](#architecture)
 - [Features and how to test them](#features-and-how-to-test-them)
-  - [Test status summary](#test-status-summary)
+  - [Known test issues](#known-test-issues)
   - [Common setup for tests](#common-setup-for-tests)
   - [Per-feature tests](#per-feature-tests)
 - [Setup and build](#setup-and-build)
@@ -108,37 +106,13 @@ the policy. Composing policy and hardware is a deliberate, manual step.
 
 ## Features and how to test them
 
-### Test status summary
-
-Software results below were produced on 2026-11-18 on a Jetson Orin Nano 8 GB
-(JetPack 7.2.1 / L4T R39.2.1, Ubuntu 24.04, ROS 2 Jazzy, CycloneDDS) from this
-branch. **"Robot" means the assembled robot with powered motors; no feature has
-been validated there.**
-
-| Feature | Software / bench verification (this branch) | Robot |
-|---|---|---|
-| Environment, build (`rosenv`, colcon, OpenCV 4.6 SDK) | Full workspace builds on JetPack 7 / Jazzy | not tested |
-| DDS middleware (CycloneDDS `local` / `lan` profiles) | All tests below run on the `local` profile; Fast DDS (Agent stand-in) interop and Orin ↔ laptop `lan` checks pass | not tested with a real micro-ROS Agent |
-| ONNX tracking policy (`tracking_policy_node`) | Model, node, deadline and settings tests pass (29); policy runs at 50 Hz on a synthetic-IMU / fake-feedback bench | not tested |
-| C++ scheduler (`cpp_control_node`, `control_core`) | gtests pass (12 + 9); deadline relay smoke passes; **unified fake-stack integration test fails (pre-existing, see below)** | not tested |
-| RobStride CAN, Python (`python_can_node`) | Watchdog/transport/service tests pass; vcan wire check matches independent RS02/03/04 vectors | not tested |
-| RobStride CAN, C++ (`robstride_can_node`) | Codec bit-identical to Python (6 gtests); vcan differential test against Python passes 3/3 | not tested |
-| ENCOS CAN (`encos_can_node`) | Builds only; skeleton, never run | not tested |
-| Fake motors (`fake_motor_node`) | Fake-operation tests pass | n/a |
-| Safety supervisor (`safety_node`) | Unit tests pass (whole `humanoid_safety` suite: 120 passed, 2 skipped); ROS IMU time-contract and monitor integration tests pass (16) | not tested |
-| Fall predictor (`fall_predictor_node`, advisory) | Replays 134 k recorded sim samples identically to the validated TorchScript model; unit tests include a recorded fall; one end-to-end ROS replay on the Orin | not tested; trained on simulation only |
-| Self-collision monitor (advisory) | Checker, marker and Pinocchio backend tests pass (31); MoveIt backend test skipped (MoveIt not installed) | not tested |
-| Read-only monitoring (Web, relay, RViz) | Monitor unit + ROS/HTTP integration tests pass | not tested |
-| Body IMU firmware (BNO085) | Host-side math test passes | not tested on this branch |
-| Head tracking (`track_node`, detector) | Tracker ROS test passes; YOLO CPU fixture passes | not tested |
-
-Known test issues (both also occur on the code before the latest changes):
+### Known test issues
 
 - `test_control_stack_integration.py` fails: it expects the zero abstract
   command to be rejected in fake-motor mode, but `control_test.launch.py`
   enables simulation zero for fake motors, so it is accepted.
 - `test_motor_monitor.py::test_config_hot_reload_keeps_all_motors_and_clears_changed_identity`
-  fails intermittently (about 1 run in 7).
+  fails intermittently.
 
 ### Common setup for tests
 
@@ -377,13 +351,7 @@ After changing `DDS_PROFILE` or `RMW_IMPLEMENTATION`, run `ros2 daemon stop`: a
 daemon started under other settings keeps answering `ros2 node list` /
 `ros2 topic list` with an empty graph.
 
-Verified on the Orin (2026-11-18), with Fast DDS ROS nodes standing in for the
-Agent: `local` — 100 Hz `Imu` Fast DDS ↔ CycloneDDS in both directions, a
-latched reliable estop reaches a late Fast DDS subscriber, and the full
-control stack (C++ CAN backend, policy, safety, fall predictor) runs at its
-nominal rates; `lan` — Orin ↔ laptop in both directions, Fast DDS ↔ CycloneDDS
-at 100 Hz, and a `local` publisher stays invisible to the other host. Not yet
-verified with a real micro-ROS Agent and MCU.
+The CycloneDDS profiles still need validation with a real micro-ROS Agent and MCU.
 
 The profiles request a 16 MB socket receive buffer, capped by the kernel limit:
 

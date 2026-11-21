@@ -314,7 +314,7 @@ automatic reset. Stop all test terminals with Ctrl+C when finished and check
 The current export is restricted to 50 Hz by the node because its reference and
 previous-action observations use that timing. After about 5.96 seconds it holds
 the final reference frame; longer tests evaluate runtime timing, not a repeating
-walking motion. See [measured results](tracking_policy_performance.md).
+walking motion.
 
 ## Regression tests
 

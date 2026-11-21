@@ -62,7 +62,7 @@ def main():
             gy_dps = gy / GYR_S
             gz_dps = gz / GYR_S
 
-            # “反重力方向”单位矢量：用加速度方向近似重力方向（静止/低动态）
+            # Approximate the upward unit vector from acceleration during low motion.
             g_hat = unit3(ax_g, ay_g, az_g)
             if g_hat is None:
                 ugx=ugy=ugz=float("nan")
