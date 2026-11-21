@@ -54,3 +54,6 @@ simulation/humanoid_ball_chase/assets/*.engine.json
 simulation/humanoid_ball_chase/assets/*.engine.log
 simulation/humanoid_ball_chase/assets/*.engine.tmp
 simulation/humanoid_ball_chase/assets/.trt-timing.cache*
+
+# Packaged model archives
+dist/
