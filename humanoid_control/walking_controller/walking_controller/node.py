@@ -116,9 +116,9 @@ class WalkingControllerNode(Node):
             'activity': 'step',
             'squat_depth_m': 0.07,
             'squat_cycles': 1,
-            # Stance: start-up squat knee angle (rad) and torso back lean (rad, + = back). The full-body robot's
-            # hip pitch stops at +17.5 / +15 deg forward; a straighter stance (-0.3) leaning back 0.16 keeps the
-            # hips below 15 deg walking 0.04 m/step in ROS (sim.launch.py sets them for robot:=full_body*).
+            # Stance: start-up squat knee angle (rad) and torso back lean (rad, + = back). A straighter stance
+            # (-0.3) leaning back 0.16 kept the hip pitch below 15 deg walking 0.04 m/step in ROS, for a robot
+            # whose hip flexion is limited.
             'knee_rad': -0.9,
             'torso_pitch_rad': 0.0,
             'torso_kp': 50.0,

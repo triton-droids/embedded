@@ -76,8 +76,8 @@ motor_control_node:
         direction: -1
         encoder_offset_rad: 0.0
         max_torque_nm: null
-        min_position: -1.57
-        max_position: 1.073
+        min_position: -0.305
+        max_position: 2.094
         kp: 100.0
         kd: 1.0
       left_hip2_joint:
@@ -128,8 +128,8 @@ motor_control_node:
         direction: 1
         encoder_offset_rad: 0.0
         max_torque_nm: null
-        min_position: -0.6
-        max_position: 0.6
+        min_position: -1.134
+        max_position: 1.309
         kp: 20.0
         kd: 1.0
         ankle_mapping: &id001
@@ -150,8 +150,8 @@ motor_control_node:
         direction: 1
         encoder_offset_rad: 0.0
         max_torque_nm: null
-        min_position: -1.57
-        max_position: 1.03
+        min_position: -0.262
+        max_position: 2.094
         kp: 100.0
         kd: 1.0
       right_hip2_joint:
@@ -202,8 +202,8 @@ motor_control_node:
         direction: -1
         encoder_offset_rad: 0.0
         max_torque_nm: null
-        min_position: -0.6
-        max_position: 0.6
+        min_position: -1.134
+        max_position: 1.309
         kp: 20.0
         kd: 1.0
         ankle_mapping: *id001
@@ -255,8 +255,8 @@ motor_control_node:
         direction: 1
         encoder_offset_rad: 0.0
         max_torque_nm: null
-        min_position: -3.141593
-        max_position: 3.141593
+        min_position: 0.0
+        max_position: 2.269
         kp: 40.0
         kd: 2.0
       right_shoulder_pitch_joint:
@@ -307,8 +307,8 @@ motor_control_node:
         direction: 1
         encoder_offset_rad: 0.0
         max_torque_nm: null
-        min_position: -3.141593
-        max_position: 3.141593
+        min_position: 0.0
+        max_position: 2.269
         kp: 40.0
         kd: 2.0
     default_can_interface: can1

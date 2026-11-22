@@ -55,6 +55,7 @@ RENAME_BODY = {"torso_link": "torso", "pelvis_link": "hip", "left_foot_link": "l
 ARM_MOTORS = {"shoulder_pitch": "rs-03", "shoulder_roll": "rs-03", "shoulder_yaw": "rs-02", "elbow": "rs-02"}
 ARM_JOINTS = [f"{s}_{j}_joint" for s in ("left", "right") for j in ARM_MOTORS]
 WELDED_ARM_JOINTS = [f"{s}_upper_arm_twist_joint" for s in ("left", "right")]
+ANKLE_DRIVE_RANGE = (-1.134, 1.309)  # rad, ankle_mapping four-bar with at least 10 Nm at the foot
 PEAK_TORQUE_NM = {"rs-02": 17.0, "rs-03": 60.0, "rs-04": 120.0}  # as walking_controller/robot.py
 ARM_DAMPING, ARM_ARMATURE = 0.5, 0.01
 LEG_REGISTRY = REPO / "humanoid_control/motor_control_hybrid/config/motors.yaml"
@@ -158,12 +159,16 @@ def write_arm_registry(urdf_text, out_file):
         if joint.get("name") in ARM_JOINTS:
             limits[joint.get("name")] = ((float(limit.get("lower")), float(limit.get("upper")))
                                          if limit is not None else (-np.pi, np.pi))
-    # Leg position limits from the URDF: it tightens the hip pitch forward stop below the registry's 1.57.
+    # Leg position limits from the URDF (the mechanical range), except the ankle: its four-bar drives the foot only
+    # between about -65 and +75 deg (dead points near -82 / +87 deg; mechanically it folds to -120 / +96.6 deg).
     for joint in ET.fromstring(urdf_text).findall("joint"):
         limit = joint.find("limit")
         if joint.get("name") in LEG_JOINTS and limit is not None:
-            params["motors"][joint.get("name")]["min_position"] = float(limit.get("lower"))
-            params["motors"][joint.get("name")]["max_position"] = float(limit.get("upper"))
+            lo, hi = float(limit.get("lower")), float(limit.get("upper"))
+            if "ankle" in joint.get("name"):
+                lo, hi = max(lo, ANKLE_DRIVE_RANGE[0]), min(hi, ANKLE_DRIVE_RANGE[1])
+            params["motors"][joint.get("name")]["min_position"] = lo
+            params["motors"][joint.get("name")]["max_position"] = hi
     for i, name in enumerate(ARM_JOINTS):
         model = ARM_MOTORS[name.split("_", 1)[1][:-len("_joint")]]
         params["motors"][name] = {

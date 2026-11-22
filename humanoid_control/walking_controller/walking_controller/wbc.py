@@ -54,7 +54,7 @@ class WBCGains:
     # with the ROS chain's latency (offline with ChainTiming: 1 of 3 seeds; 0.1 here: 3 of 3).
     arm_posture_kp: float = 20.0
     # Torso pitch reference about its lateral (x) axis, + = leaning back. Leaning back takes the same amount
-    # off the hip pitch flexion; the full-body robot's hips stop at +17.5 / +15 deg forward.
+    # off the hip pitch flexion (for a robot whose hip flexion is limited).
     torso_pitch_rad: float = 0.0
     arm_posture_weight: float = 0.1
     contact_kp: float = 100.0

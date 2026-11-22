@@ -6,6 +6,13 @@ Full-body humanoid URDF: the upper body plus the articulated lower body at the n
 Two variants with identical kinematics and inertials, a light **simplified** model (default) and the original
 **detailed** CAD meshes. See [MODELS.md](MODELS.md) for the comparison and when to use which.
 
+> **Orientation fix (2026-11-22).** The CAD robot faces −y. Until this fix the model kept the CAD frame, matched the legs
+> to the tracking policy's +y-forward leg model, turned both feet 180° and shifted the leg zeros toward the policy. Front
+> and back were reversed: the feet, the knee bend and the hip range were all mirrored. `scripts/reorient.py` rebuilds the
+> model from commit 77cf784c with the original feet and the torso frame turned 180°, so it faces +y, and re-derives every
+> joint sign. Sections below marked *(before the orientation fix)* report results on the reversed model. Their
+> conclusions about the hip stop, the squat depth and the get-up no longer hold.
+
 ## Layout
 
 | Path | What |
@@ -71,9 +78,8 @@ For MoveIt 2 / RViz2 inspection, see [humanoid_full_body_moveit_config](../human
 ## Joint zero
 
 At `q = 0` the robot stands upright: legs straight, knee axes lateral, hip-yaw axes vertical, soles flat,
-arms hanging straight down. In `torso_link`, +z is up and +y is forward (knee flexion swings the foot toward −y); the
-`left_*` joints are on the +x side. This matches the motor registry and the tracking policy's MJCF. With +y forward and +z up,
-that side is the robot's anatomical right, so check the left/right labels against the hardware.
+arms hanging straight down. In `torso_link`, +z is up and +y is forward (the toes point +y); the `left_*` joints are on
+the −x side, the robot's left. `torso_link` is the CAD torso frame turned 180° about z, because the CAD export faces −y.
 In the source CAD, the legs were posed rather than straight. The right knee was bent about 29°, the left leg
 was yawed about 33° and pitched about 20°, and the right hip was rolled about 8°. These offsets were moved into
 the `rpy` of the 10 leg joint origins, so that the old pose equals the new joint values below:
@@ -119,21 +125,21 @@ With that mass at the end of each arm, arm motions shift the whole-body COM noti
 
 ## Joint names, signs and limits
 
-The leg joints use the motor registry / tracking policy names, axis signs and ranges
-(`motor_control_hybrid/models/*/chrobot_16kg_candidate.xml`). Every leg axis points the same way as in that MJCF, so the
-same joint angle bends both models the same way. The knee flexes negative (−120°..0°).
+The leg joints use the motor registry names. Every joint sign keeps the registry's meaning and was checked by forward
+kinematics (`scripts/reorient.py`). **Fusion shows the opposite sign for hip pitch and ankle.**
 
-| Leg joint (was) | Name | Range |
-|---|---|---|
-| `*_pelvis_hip_connector_joint` | `*_hip1_joint` (hip pitch) | −90° .. **+61.5° left / +59.0° right** (forward stop, see below) |
-| `*_hip_joint` | `*_hip2_joint` (hip roll) | left −90..25°, right −25..90° |
-| `*_thigh_joint` | `*_thigh_joint` (hip yaw) | ±45° |
-| `*_shank_joint` | `*_knee_joint` | −120..0° |
-| `*_foot_joint` | `*_ankle_joint` (ankle pitch) | ±34° |
+| Leg joint (was) | Name | Positive | Range |
+|---|---|---|---|
+| `*_pelvis_hip_connector_joint` | `*_hip1_joint` (hip pitch) | flexion (foot forward) | left −17.5 / right −15° (extension stop, see below) .. +120° |
+| `*_hip_joint` | `*_hip2_joint` (hip roll) | left − / right + abducts | left −90..25°, right −25..90° |
+| `*_thigh_joint` | `*_thigh_joint` (hip yaw) | toe outward | ±45° |
+| `*_shank_joint` | `*_knee_joint` | flexion is **negative** | −120..0° |
+| `*_foot_joint` | `*_ankle_joint` (ankle pitch) | toe up | −120 (toe down) .. +96.6° (toe up), measured; the four-bar drives about −65..+75° (`config/motors_full_body.yaml`) |
 
 The arms are renamed to `*_shoulder_pitch_joint` (was `*_shoulder_abduction`), `*_shoulder_roll_joint` (`*_joint_001_10`),
 `*_shoulder_yaw_joint` (`*_joint_002_16`), `*_upper_arm_twist_joint` (`*_joint_003_45`, coaxial with the yaw) and
-`*_elbow_joint` (`*_joint_004_52`). Their axis signs are the CAD export's, and only the CAD limits are set.
+`*_elbow_joint` (`*_joint_004_52`). Shoulder pitch + swings the arm forward, shoulder roll + abducts, and elbow + flexes
+(assumed forward, 0..130° from Fusion).
 
 ## MuJoCo simulation (humanoid_sim)
 
@@ -308,7 +314,7 @@ model does not have this problem. The squat therefore runs in joint space, like 
 | Offline with ROS-chain timing, 0.05 m | 2 of 2 seeds |
 | ROS, 0.07 m (base 0.61 → 0.52 m, knee to about −88°) | the first squat and stand-up succeeded in 4 of 4 runs; a second squat in the same run failed (2 of 2): each cycle leaves the body about 2 cm further back |
 
-The depth is limited by the ankles (±34°, 17 Nm). Video: `videos/full_body_wbc_squat.mp4` (not tracked).
+*(before the orientation fix)* The depth was limited by the ankles (then ±34°, 17 Nm). Video: `videos/full_body_wbc_squat.mp4` (not tracked).
 
 ### Retest with the real arm motors (8 arm motors, twist welded)
 
@@ -316,24 +322,23 @@ ROS, `robot:=full_body_arms`: walking (stepping in place, then 0.04 m/step from 
 1.49–1.54 m forward, with a sideways lean of at most 3.9°. The squat (0.07 m, base 0.61 → 0.52 m) and stand-up succeeded
 in 2 of 2 runs, and the robot then stood for the rest of the run.
 
-## Hip pitch forward stop
+## Hip pitch extension stop
 
 An exact triangle-mesh sweep of the detailed CAD parts (FCL, then boolean overlap with manifold3d) finds two contacts when
-the thigh is lifted forward (hip1 +). Both are between the hip connector bracket (`link_002_004` left,
+the thigh swings **backward** (hip1 −). Both are between the hip connector bracket (`link_002_004` left,
 `lower_body_link_001_005` right) and brackets on the pelvis:
 
-| Contact | Hip pitch range | Largest overlap | Pelvis part |
+| Contact | Hip pitch | Largest overlap | Pelvis part |
 |---|---|---|---|
-| 1 | left 20–22°, right 17.5–20° | under 1 mm (0.2 × 0.3 × 0.9 mm), clear again from 25° | `lower_body_base_link_021` / `_020` |
-| 2 | left 63.5–95°, right 61–95° | about 3 × 3 × 5 mm (4 mm³), clear again from 100° | `lower_body_base_link_024` / `base_link_025` |
+| 1 | left −20..−22°, right −17.5..−20° | under 1 mm (0.2 × 0.3 × 0.9 mm), clear again from −25° | `lower_body_base_link_021` / `_020` |
+| 2 | left −63.5..−95°, right −61..−95° | about 3 × 3 × 5 mm (4 mm³), clear again from −100° | `lower_body_base_link_024` / `base_link_025` |
 
-Nothing else touches up to 125°. Fusion's joint limit is +30°, set by contact 1. Contact 1 is being removed in the design
-(2026-11-21), so the models limit hip1 to **+61.5° (left) / +59.0° (right)**, 2° short of contact 2. Removing contact 2
-too would allow about 120°, which the get-up routes need (all fours 88°, foot forward under the body 100–120°). MuJoCo,
-MoveIt and the simplified collision model never saw either contact: the parts are on the parent and child of the same
-joint, whose contacts are filtered, and the old ±90° came from the policy MJCF, not from the CAD.
+The models limit hip1 extension to −17.5° (left) / −15° (right), 2° short of contact 1, which is being removed in the design.
+Flexion is free to beyond 120° (Fusion limit 120°). These stops were first taken for the *forward* limit, on the
+reversed model. MuJoCo and MoveIt never saw them: the parts are on the parent and child of the same joint, whose
+contacts are filtered.
 
-Hip pitch used (ROS sim, `full_body_arms`, the default stance): walking 0.04 m/step up to 42.9° left / 45.7° right, 3 of 3
+*(before the orientation fix)* Hip pitch used (ROS sim, `full_body_arms`, the default stance): walking 0.04 m/step up to 42.9° left / 45.7° right, 3 of 3
 runs ran the whole 43 s; the 7 cm squat up to 47.7° / 52.5°, 2 of 2. The tracking policy (16 kg leg model) uses −15..+18°.
 
 With the current hardware (contact 1 still there, about +17.5° / +15°) the WBC needs a straighter stance:
@@ -344,3 +349,11 @@ made the QP infeasible.
 
 `motor_control_hybrid/config/motors.yaml` still allows +1.57 rad, because the tracking policy node refuses a registry
 whose limits differ from its training MJCF.
+
+## After the orientation fix (2026-11-22)
+
+ROS sim, `full_body_arms`, WBC (default stance, knee −52°): walking (stepping in place, then 0.04 m/step from 22 s) ran the
+whole run in 3 of 3 runs (42 s, 1.59–1.67 m, lean at most 2° fore-aft / 4° sideways). The hip pitch used 8..40° and the
+ankle 7..41°. **The squat fails** (1 of 1 in ROS, and offline at 3–7 cm). The ankle runs to 60–65° at 17 Nm and the robot
+tips (torso 31°), although the IK posture needs only about 37–41°. Not investigated yet.
+

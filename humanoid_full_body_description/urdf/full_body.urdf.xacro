@@ -3,8 +3,12 @@
   Full-body humanoid, fixed base at torso_link. Source of truth for the URDF:
   CMake runs xacro on this file and installs the result as urdf/full_body.urdf.
 
-  Frames: torso_link has +z up and +y forward (knee flexion swings the foot toward -y); the left_* joints are on the
-  +x side, as in the motor registry and the tracking policy's MJCF. At q = 0 the robot stands upright:
+  Frames: torso_link has +z up and +y forward (the toes point +y); the left_* joints are on the -x side, the robot's
+  left. The CAD export faces -y: torso_link is the CAD torso frame turned 180 deg about z (see the torso link).
+  Joint signs (checked by forward kinematics, scripts/reorient.py): hip1 + flexes (foot forward), knee - flexes,
+  ankle + lifts the toe, hip2 left - / right + abducts, thigh + turns the toe outward, shoulder_pitch + swings the arm
+  forward, shoulder_roll + abducts, elbow + flexes. Fusion's joint angles have the opposite sign for hip1 and ankle.
+  At q = 0 the robot stands upright:
   legs straight, soles flat, arms hanging down (see README "Joint zero").
 
   Meshes: meshes/visual/<link>.stl is the link's CAD parts, each decimated (within 1-2 mm) and concatenated. meshes/collision/<link>.stl
@@ -72,19 +76,34 @@
   <!-- Torso (root link, fixed base) -->
   <!-- Shoulder mounts (base_link_333/314) changed from 6061 aluminium to printed ASA: -500 g each
        (measured: -1.0 kg for the pair). Mass, COM and inertia recomputed from the part geometry. -->
-  <xacro:cad_link name="torso_link" material="aluminum"
-                  mass="9.00169" com="-3.33673e-06 1.67621e-07 0.18077"
-                  inertia="0.133271 3.91238e-05 2.75146e-06 0.23138 -1.64777e-06 0.129094"/>
+  <!-- The CAD robot faces -y; this link frame is the CAD torso frame turned 180 deg about z, so the robot
+       faces +y (left_* on -x). Mesh, inertial and the three child joints carry the turn. -->
+  <link name="torso_link">
+    <inertial>
+      <origin xyz="3.33673e-06 -1.67621e-07 0.18077" rpy="0 0 0"/>
+      <mass value="9.00169"/>
+      <inertia ixx="0.133271" ixy="3.91238e-05" ixz="-2.75146e-06" iyy="0.23138" iyz="1.64777e-06" izz="0.129094"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 ${pi}"/>
+      <geometry><mesh filename="${mesh_dir}/visual/torso_link.stl"/></geometry>
+      <material name="aluminum"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 ${pi}"/>
+      <geometry><mesh filename="${mesh_dir}/collision/torso_link.stl"/></geometry>
+    </collision>
+  </link>
 
   <!-- Pelvis: fixed to the torso; its top face sits flush on the torso bottom (z = 0) -->
   <xacro:cad_link name="pelvis_link" material="aluminum"
                   mass="3.52329" com="0.0762997 -0.103633 0.54283"
                   inertia="0.00733434 -0.000801202 -0.00142978 0.0170036 -0.000442447 0.0164294"/>
   <xacro:fixed_joint name="torso_to_pelvis" parent="torso_link" child="pelvis_link"
-      xyz="-0.150094227 -0.340438733 0.346935879" rpy="-2.66879765 -0.177967639 0.00628281114"/>
+      xyz="0.150094227 0.340438733 0.346935879" rpy="-2.66879765 -0.177967639 -3.13530984245"/>
 
   <!-- Left arm: shoulder pitch, roll, yaw, upper-arm twist (coaxial with the yaw), elbow.
-       Axis signs are the CAD export's; not yet checked against the motors. -->
+       Axis signs follow the conventions in the header. -->
   <xacro:cad_link name="left_base_link" material="dark_grey"
                   mass="1.30369" com="-0.00467276 -0.0791327 0.000862798"
                   inertia="0.00274206 0.000115059 3.778e-05 0.00155435 -1.35312e-06 0.00262216"/>
@@ -103,8 +122,8 @@
                   mass="0.585745" com="0.00106618 0.032077 -0.0582626"
                   inertia="0.00215704 4.18874e-07 2.63315e-05 0.00175378 3.09155e-06 0.000749798"/>
   <xacro:continuous_joint name="left_shoulder_pitch_joint" parent="torso_link" child="left_base_link"
-      xyz="0.1972044 0 0.2922097" rpy="0.00221104723 0.0247092937 1.57074348"
-      axis="5.28303544e-05 -0.999997551 0.00221235109"/>
+      xyz="-0.1972044 2.41505737238e-17 0.2922097" rpy="0.00221104723 0.0247092937 -1.57084917359"
+      axis="-5.28303544e-05 0.999997551 -0.00221235109"/>
   <xacro:revolute_joint name="left_shoulder_roll_joint" parent="left_base_link" child="left_link_001"
       xyz="0.0266166538 -0.094309571 0.000566191355" rpy="0 0 0"
       axis="-0.999909744 -8.25207423e-05 -0.0134348988" lower="-0.261799388" upper="1.83259571"/>
@@ -114,12 +133,12 @@
   <xacro:continuous_joint name="left_upper_arm_twist_joint" parent="left_link_002" child="left_link_003"
       xyz="6.71752421e-06 -1.10567161e-06 -0.00049995365" rpy="0 0 0"
       axis="0.0134350484 -0.00221134321 -0.9999073"/>
-  <xacro:continuous_joint name="left_elbow_joint" parent="left_link_003" child="left_link_004"
+  <xacro:revolute_joint name="left_elbow_joint" parent="left_link_003" child="left_link_004"
       xyz="0.00155821224 -0.0319538078 -0.0889827107" rpy="0 0 0"
-      axis="0.00109990674 -0.999996917 0.00222632008"/>
+      axis="-0.00109990674 0.999996917 -0.00222632008" lower="0.0" upper="2.269"/>
 
   <!-- Right arm: shoulder pitch, roll, yaw, upper-arm twist (coaxial with the yaw), elbow.
-       Axis signs are the CAD export's; not yet checked against the motors. -->
+       Axis signs follow the conventions in the header. -->
   <xacro:cad_link name="right_base_link" material="dark_grey"
                   mass="1.30369" com="-0.00467276 0.0791327 0.000862798"
                   inertia="0.00274206 -0.000115059 3.778e-05 0.00155435 1.35312e-06 0.00262216"/>
@@ -136,8 +155,8 @@
                   mass="0.585745" com="0.00106618 -0.032077 -0.0582626"
                   inertia="0.00215704 -4.18874e-07 2.63315e-05 0.00175378 -3.09155e-06 0.000749798"/>
   <xacro:continuous_joint name="right_shoulder_pitch_joint" parent="torso_link" child="right_base_link"
-      xyz="-0.19722 0 0.2922097" rpy="-0.00221104723 0.0247092937 1.57084917"
-      axis="-5.28303544e-05 -0.999997551 -0.00221235109"/>
+      xyz="0.19722 -2.41524841728e-17 0.2922097" rpy="-0.00221104723 0.0247092937 -1.57074348359"
+      axis="5.28303544e-05 0.999997551 0.00221235109"/>
   <xacro:revolute_joint name="right_shoulder_roll_joint" parent="right_base_link" child="right_link_001"
       xyz="0.0266166538 0.094309571 0.000566191355" rpy="0 0 0"
       axis="0.999909744 -8.25207423e-05 0.0134348988" lower="-0.261799388" upper="1.83259571"/>
@@ -147,16 +166,13 @@
   <xacro:continuous_joint name="right_upper_arm_twist_joint" parent="right_link_002" child="right_link_003"
       xyz="6.71752421e-06 1.10567161e-06 -0.00049995365" rpy="0 0 0"
       axis="-0.0134350484 -0.00221134321 0.9999073"/>
-  <xacro:continuous_joint name="right_elbow_joint" parent="right_link_003" child="right_link_004"
+  <xacro:revolute_joint name="right_elbow_joint" parent="right_link_003" child="right_link_004"
       xyz="0.00155821224 0.0319538078 -0.0889827107" rpy="0 0 0"
-      axis="-0.00109990674 -0.999996917 -0.00222632008"/>
+      axis="0.00109990674 0.999996917 0.00222632008" lower="0.0" upper="2.269"/>
 
-  <!-- Hip pitch forward (flexion): the hip connector bracket grazes a pelvis bracket at 17.5-22 deg (under 1 mm, being
-       fixed in the design) and hits another one at 63.5 deg left / 61.0 deg right (about 3 x 3 x 5 mm, clear again past
-       100 deg; exact sweep of the CAD parts). The upper limits assume the graze is fixed and keep 2 deg clear of the
-       second contact (1.073 / 1.030 rad). The motor registry and the tracking policy still allow 1.57 rad. -->
   <!-- Left leg: hip pitch (hip1), hip roll (hip2), hip yaw (thigh), knee, ankle pitch. Names, axis signs and ranges
-       match the tracking policy's MJCF (motor_control_hybrid/models/*/chrobot_16kg_candidate.xml). -->
+       follow the conventions in the header. Ranges: hip1 -17.5 / -15 deg (extension stop, left / right) .. +120 deg;
+       ankle -120 (toe down) .. +96.6 deg (toe up), measured; the four-bar drives about -65 .. +75 deg. -->
   <xacro:cad_link name="left_pelvis_hip_connector_link" material="aluminum"
                   mass="1.1951" com="0.0723796 0.00633066 0.0114876"
                   inertia="0.00111526 -4.36942e-05 -5.58966e-05 0.0016302 -2.64521e-05 0.00147137"/>
@@ -173,23 +189,24 @@
                   mass="0.574351" com="-0.0172632 -0.012309 -0.0206316"
                   inertia="0.00139239 -0.000547602 0.000269881 0.000912113 0.000439213 0.00161229"/>
   <xacro:revolute_joint name="left_hip1_joint" parent="pelvis_link" child="left_pelvis_hip_connector_link"
-      xyz="0.162071443 -0.0953412766 0.557905363" rpy="2.71834671 -0.263943735 0.231753333"
-      axis="0.984186863 0.0862037448 0.154742152" lower="-1.57" upper="1.073"/>
+      xyz="0.162071443 -0.0953412766 0.557905363" rpy="2.76113083 -0.269845023 0.226998553"
+      axis="-0.984186863 -0.0862037448 -0.154742152" lower="-0.305" upper="2.094"/>
   <xacro:revolute_joint name="left_hip2_joint" parent="left_pelvis_hip_connector_link" child="left_hip_link"
-      xyz="0.0737048714 0.0550664328 0.00563550961" rpy="-0.00172716264 0.0254106675 -0.00347599651"
+      xyz="0.0737048714 0.0550664328 0.00563550961" rpy="4.23737092e-05 -0.000640310371 8.70081734e-05"
       axis="-0.0654764958 0.988764442 -0.134378968" lower="-1.57" upper="0.436332"/>
   <xacro:revolute_joint name="left_thigh_joint" parent="left_hip_link" child="left_thigh_link"
-      xyz="0.0295594845 -0.0547547636 -0.14407719" rpy="-0.0776151018 0.0924314269 0.551501662"
-      axis="0.178036925 -0.120931244 -0.976564636" lower="-0.785398" upper="0.785398"/>
+      xyz="0.0295594845 -0.0547547636 -0.14407719" rpy="-0.0776151432 0.0924315186 0.551502114"
+      axis="-0.178036925 0.120931244 0.976564636" lower="-0.785398" upper="0.785398"/>
   <xacro:revolute_joint name="left_knee_joint" parent="left_thigh_link" child="left_shank_link"
-      xyz="0.0619897282 -0.0366673728 -0.105889876" rpy="0.471301326 -0.277517419 0.0548232006"
-      axis="0.857488443 -0.467770139 0.214253745" lower="-2.0944" upper="0"/>
+      xyz="0.0619897282 -0.0366673728 -0.105889876" rpy="0.437557176 -0.257361005 0.0553440268"
+      axis="-0.857488443 0.467770139 -0.214253745" lower="-2.0944" upper="0.0"/>
   <xacro:revolute_joint name="left_ankle_joint" parent="left_shank_link" child="left_foot_link"
-      xyz="-0.0449392869 -0.135544469 -0.236190673" rpy="1.03780296 -0.119053447 3.07183536"
-      axis="-0.857488443 0.467770139 -0.214253745" lower="-0.6" upper="0.6"/>
+      xyz="-0.0449392869 -0.135544469 -0.236190673" rpy="-0.0865500603 0.0459238764 -0.0234921337"
+      axis="-0.857488443 0.467770139 -0.214253745" lower="-2.094" upper="1.686"/>
 
   <!-- Right leg: hip pitch (hip1), hip roll (hip2), hip yaw (thigh), knee, ankle pitch. Names, axis signs and ranges
-       match the tracking policy's MJCF (motor_control_hybrid/models/*/chrobot_16kg_candidate.xml). -->
+       follow the conventions in the header. Ranges: hip1 -17.5 / -15 deg (extension stop, left / right) .. +120 deg;
+       ankle -120 (toe down) .. +96.6 deg (toe up), measured; the four-bar drives about -65 .. +75 deg. -->
   <xacro:cad_link name="right_pelvis_hip_connector_link" material="aluminum"
                   mass="1.19906" com="-0.0718408 -0.00636457 -0.0112483"
                   inertia="0.00111705 -2.63053e-05 -6.12627e-05 0.00160606 -7.39441e-05 0.00151158"/>
@@ -206,18 +223,18 @@
                   mass="0.569755" com="-0.012229 -0.0113595 -0.0248806"
                   inertia="0.00175725 -1.91761e-05 -5.71493e-06 0.000354471 -0.000150987 0.00181707"/>
   <xacro:revolute_joint name="right_hip1_joint" parent="pelvis_link" child="right_pelvis_hip_connector_link"
-      xyz="-0.00969672135 -0.110386244 0.530898525" rpy="-3.13068604 -0.312803504 0.173011795"
-      axis="0.984186863 0.0862037448 0.154742152" lower="-1.57" upper="1.030"/>
+      xyz="-0.00969672135 -0.110386244 0.530898525" rpy="-3.13456088 -0.312485816 0.173623974"
+      axis="-0.984186863 -0.0862037448 -0.154742152" lower="-0.262" upper="2.094"/>
   <xacro:revolute_joint name="right_hip2_joint" parent="right_pelvis_hip_connector_link" child="right_hip_link"
-      xyz="-0.0769224211 -0.038811057 0.00577311957" rpy="-0.0049667984 -0.132949928 0.074572315"
+      xyz="-0.0769224211 -0.038811057 0.00577311957" rpy="-0.00394139381 -0.118540604 0.0663964245"
       axis="0 0.873591353 -0.486660197" lower="-0.436332" upper="1.57"/>
   <xacro:revolute_joint name="right_thigh_joint" parent="right_hip_link" child="right_thigh_link"
-      xyz="2.36742928e-06 -0.0421839172 -0.151164152" rpy="5.27864554e-05 0.00766865834 0.0137665184"
-      axis="0 0.486660197 0.873591353" lower="-0.785398" upper="0.785398"/>
+      xyz="2.36742928e-06 -0.0421839172 -0.151164152" rpy="5.61636194e-05 0.00791014937 0.0142000815"
+      axis="-0 -0.486660197 -0.873591353" lower="-0.785398" upper="0.785398"/>
   <xacro:revolute_joint name="right_knee_joint" parent="right_thigh_link" child="right_shank_link"
-      xyz="-0.0476200751 -0.0578377746 -0.103860526" rpy="-0.518436852 -0 0"
-      axis="1.0 0 0" lower="-2.0944" upper="0"/>
+      xyz="-0.0476200751 -0.0578377746 -0.103860526" rpy="-0.510161448 0 0"
+      axis="-1 -0 -0" lower="-2.0944" upper="0.0"/>
   <xacro:revolute_joint name="right_ankle_joint" parent="right_shank_link" child="right_foot_link"
-      xyz="0.0519680999 0.000540779603 -0.274801069" rpy="-0.052319415 0.0845728664 3.14140492"
-      axis="-1 0 0" lower="-0.6" upper="0.6"/>
+      xyz="0.0519680999 0.000540779603 -0.274801069" rpy="-0.043064997 0 0"
+      axis="-1 -0 -0" lower="-2.094" upper="1.686"/>
 </robot>
