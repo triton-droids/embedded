@@ -192,16 +192,16 @@
     </link>
   <link name="left_shank_link">
     <inertial>
-      <origin rpy="0 0 0" xyz="-0.0348549 -0.0468275 -0.107714" />
-      <mass value="1.02324" />
-      <inertia ixx="0.0046623" ixy="-2.54876e-05" ixz="-0.000200659" iyy="0.00371896" iyz="-0.00152528" izz="0.00230065" />
+      <origin rpy="0 0 0" xyz="-0.0349854 -0.046719 -0.105199" />
+      <mass value="0.993488" />
+      <inertia ixx="0.00435127" ixy="-2.12047e-05" ixz="-0.000205347" iyy="0.00343492" iyz="-0.0014736" izz="0.0022705" />
     </inertial>
     </link>
   <link name="left_foot">
     <inertial>
-      <origin rpy="0 0 0" xyz="-0.0172632 -0.012309 -0.0206316" />
-      <mass value="0.574351" />
-      <inertia ixx="0.00139239" ixy="-0.000547602" ixz="0.000269881" iyy="0.000912113" iyz="0.000439213" izz="0.00161229" />
+      <origin rpy="0 0 0" xyz="-0.0159015 -0.00770347 -0.0170421" />
+      <mass value="0.604106" />
+      <inertia ixx="0.0018851" ixy="-0.000622677" ixz="0.000210208" iyy="0.0011582" iyz="0.000207741" izz="0.00190298" />
     </inertial>
     </link>
   <joint name="left_hip1_joint" type="revolute">
@@ -262,16 +262,16 @@
     </link>
   <link name="right_shank_link">
     <inertial>
-      <origin rpy="0 0 0" xyz="0.0309799 0.00264944 -0.118363" />
-      <mass value="1.00899" />
-      <inertia ixx="0.00460144" ixy="-2.06611e-05" ixz="-9.19348e-05" iyy="0.00476998" iyz="8.2796e-05" izz="0.00130264" />
+      <origin rpy="0 0 0" xyz="0.0305918 0.00137019 -0.116128" />
+      <mass value="0.979568" />
+      <inertia ixx="0.00428416" ixy="-3.98445e-06" ixz="-0.000121076" iyy="0.00450366" iyz="-1.29325e-05" izz="0.00124152" />
     </inertial>
     </link>
   <link name="right_foot">
     <inertial>
-      <origin rpy="0 0 0" xyz="-0.012229 -0.0113595 -0.0248806" />
-      <mass value="0.569755" />
-      <inertia ixx="0.00175725" ixy="-1.91761e-05" ixz="-5.71493e-06" iyy="0.000354471" iyz="-0.000150987" izz="0.00181707" />
+      <origin rpy="0 0 0" xyz="-0.0120247 -0.00878213 -0.0195404" />
+      <mass value="0.599179" />
+      <inertia ixx="0.00225964" ixy="-2.52862e-05" ixz="-1.83749e-05" iyy="0.000779092" iyz="-0.000307033" izz="0.00189586" />
     </inertial>
     </link>
   <joint name="right_hip1_joint" type="revolute">

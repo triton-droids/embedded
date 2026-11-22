@@ -9824,19 +9824,6 @@
     </inertial>
   </link>
   <link name="left_shank_link">
-    <visual name="lower_link_005_001_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_description/cad_source/meshes/lower_body_reassembled_description/link_005_001_1_01.stl" />
-      </geometry>
-      <material name="lower_link_005_001_1_01">
-        <color rgba="0.956862745098 0.960784313725 0.964705882353 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_005_001_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_description/cad_source/meshes/lower_body_reassembled_description/link_005_001_1_01.stl" />
-      </geometry>
-    </collision>
     <visual name="lower_link_005_002_1_01">
       <geometry>
         <mesh filename="package://humanoid_full_body_description/cad_source/meshes/lower_body_reassembled_description/link_005_002_1_01.stl" />
@@ -10514,9 +10501,9 @@
       </geometry>
     </collision>
     <inertial>
-      <origin xyz="-0.0348548864068 -0.0468275255237 -0.107714087263" rpy="0 0 0" />
-      <mass value="1.02324302891" />
-      <inertia ixx="0.00466230344902" ixy="-2.54876358234e-05" ixz="-0.000200658514491" iyy="0.00371896344357" iyz="-0.00152527752028" izz="0.00230064700104" />
+      <origin xyz="-0.0349854159525 -0.0467189931839 -0.105199197427" rpy="0 0 0" />
+      <mass value="0.993488408273" />
+      <inertia ixx="0.00435127255514" ixy="-2.12046892153e-05" ixz="-0.000205347010544" iyy="0.00343492213087" iyz="-0.00147359629665" izz="0.00227050115644" />
     </inertial>
   </link>
   <link name="left_foot_link">
@@ -11365,10 +11352,23 @@
         <mesh filename="package://humanoid_full_body_description/cad_source/meshes/lower_body_reassembled_description/link_006_065_1_01.stl" />
       </geometry>
     </collision>
+    <visual name="lower_link_005_001_1_01">
+      <origin xyz="0.0308559617313 0.115490591461 0.24877240502" rpy="0.0855456342174 -0.0477719676774 0.0194582092689" /><geometry>
+        <mesh filename="package://humanoid_full_body_description/cad_source/meshes/lower_body_reassembled_description/link_005_001_1_01.stl" />
+      </geometry>
+      <material name="lower_link_005_001_1_01">
+        <color rgba="0.956862745098 0.960784313725 0.964705882353 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_005_001_1">
+      <origin xyz="0.0308559617313 0.115490591461 0.24877240502" rpy="0.0855456342174 -0.0477719676774 0.0194582092689" /><geometry>
+        <mesh filename="package://humanoid_full_body_description/cad_source/meshes/lower_body_reassembled_description/link_005_001_1_01.stl" />
+      </geometry>
+    </collision>
     <inertial>
-      <origin xyz="-0.0172631811068 -0.0123089934651 -0.0206315570133" rpy="0 0 0" />
-      <mass value="0.574351478138" />
-      <inertia ixx="0.00139239472846" ixy="-0.000547601528148" ixz="0.000269881295313" iyy="0.000912113133328" iyz="0.000439212656604" izz="0.00161228517314" />
+      <origin xyz="-0.0159014676389 -0.00770346715895 -0.0170421224164" rpy="0 0 0" />
+      <mass value="0.604106098775" />
+      <inertia ixx="0.00188509728822" ixy="-0.000622676763131" ixz="0.000210207784898" iyy="0.00115819965557" iyz="0.000207741449448" izz="0.00190298269621" />
     </inertial>
   </link>
   <link name="right_hip_link">
@@ -13609,23 +13609,10 @@
         <mesh filename="package://humanoid_full_body_description/cad_source/meshes/lower_body_reassembled_description/link_009_045_1_01.stl" />
       </geometry>
     </collision>
-    <visual name="lower_link_009_046_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_description/cad_source/meshes/lower_body_reassembled_description/link_009_046_1_01.stl" />
-      </geometry>
-      <material name="lower_link_009_046_1_01">
-        <color rgba="0.956862745098 0.960784313725 0.964705882353 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_009_046_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_description/cad_source/meshes/lower_body_reassembled_description/link_009_046_1_01.stl" />
-      </geometry>
-    </collision>
     <inertial>
-      <origin xyz="0.0309799091068 0.00264944040292 -0.118363273241" rpy="0 0 0" />
-      <mass value="1.00899213559" />
-      <inertia ixx="0.00460143622945" ixy="-2.06611126664e-05" ixz="-9.19347797535e-05" iyy="0.00476998374178" iyz="8.27960183493e-05" izz="0.00130264405569" />
+      <origin xyz="0.0305918229701 0.00137018906361 -0.116127877142" rpy="0 0 0" />
+      <mass value="0.979568431576" />
+      <inertia ixx="0.00428415928967" ixy="-3.9844467669e-06" ixz="-0.000121076006926" iyy="0.00450366064343" iyz="-1.29324823947e-05" izz="0.00124151957775" />
     </inertial>
   </link>
   <link name="right_foot_link">
@@ -14422,10 +14409,23 @@
         <mesh filename="package://humanoid_full_body_description/cad_source/meshes/lower_body_reassembled_description/link_010_061_1_01.stl" />
       </geometry>
     </collision>
+    <visual name="lower_link_009_046_1_01">
+      <origin xyz="-0.0519680998886 -0.0123709278153 0.27452300514" rpy="0.043064997 -2.44249065418e-15 1.98799310347e-15" /><geometry>
+        <mesh filename="package://humanoid_full_body_description/cad_source/meshes/lower_body_reassembled_description/link_009_046_1_01.stl" />
+      </geometry>
+      <material name="lower_link_009_046_1_01">
+        <color rgba="0.956862745098 0.960784313725 0.964705882353 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_009_046_1">
+      <origin xyz="-0.0519680998886 -0.0123709278153 0.27452300514" rpy="0.043064997 -2.44249065418e-15 1.98799310347e-15" /><geometry>
+        <mesh filename="package://humanoid_full_body_description/cad_source/meshes/lower_body_reassembled_description/link_009_046_1_01.stl" />
+      </geometry>
+    </collision>
     <inertial>
-      <origin xyz="-0.0122290159264 -0.0113594567865 -0.0248806021484" rpy="0 0 0" />
-      <mass value="0.569755032687" />
-      <inertia ixx="0.00175724597492" ixy="-1.91761265891e-05" ixz="-5.71493027037e-06" iyy="0.000354470698452" iyz="-0.000150986723602" izz="0.00181706770661" />
+      <origin xyz="-0.0120246869801 -0.0087821256088 -0.0195404296986" rpy="0 0 0" />
+      <mass value="0.599178736701" />
+      <inertia ixx="0.00225963723479" ixy="-2.52862128649e-05" ixz="-1.83748921247e-05" iyy="0.000779091618981" iyz="-0.000307032982246" izz="0.00189585909752" />
     </inertial>
   </link>
   <joint name="right_hip1_joint" type="revolute">
