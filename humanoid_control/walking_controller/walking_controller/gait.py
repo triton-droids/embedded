@@ -72,6 +72,12 @@ class GaitParams:
     # Joint PD during the squat activity. The ankles need a stiffer loop than the start-up squat's
     # (30): at 30 the full-body robot tipped back on its first squat, at 100 it squats down 8 cm
     # (offline, the ankles then reach their 17 Nm).
+    # Where the deep posture puts the CoM (horizontally): 'start' keeps it where the squat began; 'ankle' puts
+    # it squat_com_ahead_m in front of the midpoint of the ankle axes; 'sole' over the middle of the soles.
+    # The full-body robot's ankles sit near the heel and give 17 Nm: with 'start' the CoM began 5 cm ahead and
+    # ran to the toes as the knees went forward, the ankles saturated and it tipped forward.
+    squat_com_ref: str = 'ankle'
+    squat_com_ahead_m: float = 0.02
     squat_activity_ankle_kp: float = 100.0
     squat_activity_kd: float = 4.0
     sway_amplitude_m: float = 0.03
@@ -228,30 +234,102 @@ class GaitController:
 
     def _squat_activity(self, t, q, v, joints, rates):
         p = self.p
-        if not hasattr(self, 'q_deep'):
+        if not hasattr(self, 'squat_ik'):
             self.q_top = joints.copy()
             self.torso_top = self.rm.frame('torso').rotation.copy()
-            self.q_deep = self._squat_posture(q, p.squat_depth_m)
-            self.torso_lean = pin.log3(self.torso_top.T @ self.torso_deep)
             self.com_top = self.rm.com.copy()
+            # Stand back up into q_up (same height, CoM at the goal), not into q_top: the start-up stance leaves
+            # the full-body robot's CoM ahead of its ankles, and standing back into it tipped it forward.
+            self.com_up = self._squat_com_goal(0.0)
+            self.com_deep = self._squat_com_goal(p.squat_depth_m)
+            # The two IK solves take 15-40 ms, over the 30 ms cycle budget on the ROS chain: a few iterations per
+            # cycle, holding the start posture meanwhile (about 12 cycles).
+            self.squat_ik = [self._squat_posture_steps(q.copy(), 0.0, self.com_up),
+                             self._squat_posture_steps(q.copy(), p.squat_depth_m, self.com_deep)]
+            self.squat_ik_out = []
+        if len(self.squat_ik_out) < 2:
+            try:
+                next(self.squat_ik[len(self.squat_ik_out)])
+            except StopIteration as done:
+                self.squat_ik_out.append(done.value)
+            if len(self.squat_ik_out) < 2:
+                return self._squat_hold(t, q, v, joints)
+            (self.q_up, self.torso_up), (self.q_deep, self.torso_deep) = self.squat_ik_out
+            self.torso_lean = pin.log3(self.torso_top.T @ self.torso_deep)
+            self.torso_lean_up = pin.log3(self.torso_top.T @ self.torso_up)
+            self.t_squat = t
             self.rm.forward(q, v)
-        dz, dvz, daz = self._squat_offset(t - self.t_active)
+        tau = t - self.t_squat
+        dz, dvz, daz = self._squat_offset(tau)
         s, ds = -dz / p.squat_depth_m, -dvz / p.squat_depth_m
-        path = self.q_deep - self.q_top
-        self.wbc.set_com(self.com_top + np.array([0.0, 0.0, dz]), np.array([0.0, 0.0, dvz]),
-                         np.array([0.0, 0.0, daz]))
-        self.wbc.set_posture(self.q_top + s * path)
-        self.wbc.set_torso_rotation(self.torso_top @ pin.exp3(s * self.torso_lean))
+        # Going down (and holding) from the start posture, coming up into q_up: the path's upper end changes
+        # once the first descent is over.
+        rising = tau >= p.squat_down_s + p.squat_hold_s
+        q0, c0, lean0 = (self.q_up, self.com_up, self.torso_lean_up) if rising else (self.q_top, self.com_top, np.zeros(3))
+        path = self.q_deep - q0
+        shift = self.com_deep - c0
+        shift[2] = 0.0
+        top = c0.copy(); top[2] = self.com_top[2]
+        self.wbc.set_com(top + s * shift + np.array([0.0, 0.0, dz]),
+                         ds * shift + np.array([0.0, 0.0, dvz]), np.array([0.0, 0.0, daz]))
+        self.wbc.set_posture(q0 + s * path)
+        self.wbc.set_torso_rotation(self.torso_top @ pin.exp3(lean0 + s * (self.torso_lean - lean0)))
         try:
             result = self.wbc.solve(q, v, t)
         except RuntimeError as exc:
             return self._fail(str(exc))
         self.status.update({'squat_dz': dz, 'com_z': float(self.rm.com[2]), 'forces': result.forces})
         kp = np.where(self.ankle, p.squat_activity_ankle_kp, p.squat_kp)
-        return Command(self.q_top + s * path, ds * path, kp, np.full_like(joints, p.squat_activity_kd),
+        return Command(q0 + s * path, ds * path, kp, np.full_like(joints, p.squat_activity_kd),
                        result.tau)
 
-    def _squat_posture(self, q, depth, iterations=200):
+    def _squat_com_goal(self, depth):
+        p = self.p
+        goal = self.rm.com.copy()
+        goal[2] -= depth
+        if p.squat_com_ref == 'start':
+            return goal
+        if p.squat_com_ref == 'sole':
+            ref = 0.5 * (self.rm.sole_center(FEET[0]) + self.rm.sole_center(FEET[1]))
+        else:  # 'ankle': ankle axes (foot frame origins), a little forward
+            ref = 0.5 * (self.rm.frame(FEET[0]).translation + self.rm.frame(FEET[1]).translation)
+            torso_y = self.rm.frame('torso').rotation[:, 1]
+            fwd = np.array([torso_y[0], torso_y[1], 0.0]); fwd /= np.linalg.norm(fwd)
+            ref = ref + p.squat_com_ahead_m * fwd
+        goal[:2] = ref[:2]
+        return goal
+
+    def _squat_hold(self, t, q, v, joints):
+        """Start posture while the squat IK runs."""
+        p = self.p
+        self.wbc.set_com(self.com_top, np.zeros(3), np.zeros(3))
+        self.wbc.set_posture(self.q_top)
+        try:
+            result = self.wbc.solve(q, v, t)
+        except RuntimeError as exc:
+            return self._fail(str(exc))
+        kp = np.where(self.ankle, p.squat_activity_ankle_kp, p.squat_kp)
+        return Command(self.q_top.copy(), np.zeros_like(joints), kp, np.full_like(joints, p.squat_activity_kd),
+                       result.tau)
+
+    def _squat_posture(self, q, depth, com_goal=None, iterations=30):
+        """IK posture (see _squat_posture_steps), solved in one call."""
+        gen = self._squat_posture_steps(q, depth, com_goal, iterations, per_step=iterations)
+        while True:
+            try:
+                next(gen)
+            except StopIteration as done:
+                qj, self.torso_deep = done.value
+                return qj
+
+    def _squat_posture_steps(self, q, depth, com_goal=None, iterations=30, per_step=5):
+        """Generator: yields every `per_step` iterations, returns (joint posture, torso rotation)."""
+        q = q.copy()
+        yield from ()
+        result = yield from self._squat_posture_gen(q, depth, com_goal, iterations, per_step)
+        return result
+
+    def _squat_posture_gen(self, q, depth, com_goal=None, iterations=200, per_step=10**9):
         """Joint posture with both feet and the torso orientation where they are now and the CoM
         `depth` lower over the same ground point (damped least squares on Pinocchio)."""
         model, data = self.rm.model, self.rm.model.createData()
@@ -260,8 +338,13 @@ class GaitController:
         torso = data.oMf[self.rm.frame_id['torso']].rotation.copy()
         com = pin.centerOfMass(model, data, q).copy()
         com[2] -= depth
+        if com_goal is not None:
+            com = np.asarray(com_goal, float).copy()
         q = q.copy()
-        for _ in range(iterations):
+        prev = np.inf
+        for it in range(iterations):
+            if it and it % per_step == 0:
+                yield
             pin.computeJointJacobians(model, data, q)
             pin.framesForwardKinematics(model, data, q)
             rows, errs = [], []
@@ -277,8 +360,10 @@ class GaitController:
             errs.append(com - pin.centerOfMass(model, data, q))
             rows.append(pin.jacobianCenterOfMass(model, data, q))
             J, e = np.vstack(rows), np.concatenate(errs)
-            if np.linalg.norm(e) < 1e-5:
+            norm = float(np.linalg.norm(e))
+            if norm < 1e-5 or prev - norm < 1e-6:  # converged, or no longer improving (limits)
                 break
+            prev = norm
             # Minimum-norm step (the arms and redundant joints move as little as possible). A joint at
             # its limit that the step would push further is locked (its column dropped), so the
             # others take over; plain clipping stalled at the ankle's +34 deg.
@@ -297,8 +382,7 @@ class GaitController:
         e = np.concatenate(errs[:2] + errs[3:])  # feet and CoM; the torso may lean
         self.status['squat_ik_error'] = float(np.linalg.norm(e))
         pin.framesForwardKinematics(model, data, q)
-        self.torso_deep = data.oMf[self.rm.frame_id['torso']].rotation.copy()
-        return q[7:].copy()
+        return q[7:].copy(), data.oMf[self.rm.frame_id['torso']].rotation.copy()
 
     def _squat_offset(self, tau):
         """CoM height offset (m), its rate and acceleration, `tau` s into the squat activity."""

@@ -288,8 +288,9 @@ class WholeBodyController:
         ddq = np.array(self.form.getAccelerations(sol))
         if not (np.isfinite(tau).all() and np.isfinite(ddq).all()):
             raise RuntimeError('QP returned non-finite values')
-        if float(np.max(np.abs(tau) - self.limits)) > 1e-3:
-            raise RuntimeError('QP violated torque bounds')
+        # A few mN*m over the bound is solver round-off (seen at 3 mN*m on a saturated ankle); the result is clipped below.
+        if float(np.max(np.abs(tau) - self.limits)) > 1e-2:
+            raise RuntimeError(f'QP violated torque bounds by {float(np.max(np.abs(tau) - self.limits)):.3f} Nm at joint {int(np.argmax(np.abs(tau) - self.limits))}')
         forces = {}
         for foot in FEET:
             total = 0.0

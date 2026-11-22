@@ -354,6 +354,21 @@ whose limits differ from its training MJCF.
 
 ROS sim, `full_body_arms`, WBC (default stance, knee −52°): walking (stepping in place, then 0.04 m/step from 22 s) ran the
 whole run in 3 of 3 runs (42 s, 1.59–1.67 m, lean at most 2° fore-aft / 4° sideways). The hip pitch used 8..40° and the
-ankle 7..41°. **The squat fails** (1 of 1 in ROS, and offline at 3–7 cm). The ankle runs to 60–65° at 17 Nm and the robot
-tips (torso 31°), although the IK posture needs only about 37–41°. Not investigated yet.
+ankle 7..41°.
+
+**Squat, investigated.** The ankle axes sit near the heel now, and the ankles give 17 Nm. The formula stance
+(hip1 = ankle = −knee/2, torso upright) puts the CoM 3 cm ahead of them in the model, and 5 cm in the sim because the
+soft start-up ankle PD gives way. Squatting moved the knees and the CoM further forward, the ankles saturated, and the
+robot tipped. Changes:
+- the full-body launch leans the torso back 0.2 rad (`torso_pitch_rad`), which puts the stance CoM over the ankle axes;
+  walking still passes 3 of 3 in ROS (42 s, hip 3..27°, ankle 7..46°);
+- the squat's deep posture puts the CoM 2 cm ahead of the ankle axes (`squat_com_ref` = 'ankle'), and the robot stands back
+  up into an IK stance with the CoM there, not into the start posture;
+- the two IK solves are spread over about 12 cycles. In one cycle they took 44 ms in ROS, and the 30 ms cycle check stopped
+  the controller (the "squat" run then just froze standing);
+- the WBC accepts up to 10 mN·m over a torque bound as round-off; 3 mN·m on a saturated ankle had faulted.
+
+The squat now goes down and comes back up offline, but **about 1 s after standing up the robot still tips forward**. Joint
+PD alone cannot hold the CoM against 17 Nm ankles: there is no CoM feedback while both feet are flat, the same gap that keeps
+the WBC from standing still. Fixing it needs a CoM/CoP balance loop for double support.
 

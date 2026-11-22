@@ -441,8 +441,10 @@ def _walk_model_parameters(robot):
     stem = 'full_body_wbc_arms' if robot == 'full_body_arms' else 'full_body_wbc'
     # The upper body is about half the mass: a stiffer torso orientation task stops the WBC from
     # leaning the torso sideways to move the CoM (walking_controller node.py, torso_kp / torso_weight).
-    # The default stance fits the hip pitch range (-17.5 / -15 .. +120 deg, README "Hip pitch extension stop").
-    return {'urdf_path': os.path.join(share, 'urdf', f'{stem}.urdf'), 'torso_kp': 150.0, 'torso_weight': 5.0}
+    # Torso leaning back 0.2 rad puts the start stance's CoM over the ankle axes, which sit near the heel and give
+    # 17 Nm; upright it was 3-5 cm ahead and the ankles saturated in the squat (README "After the orientation fix").
+    return {'urdf_path': os.path.join(share, 'urdf', f'{stem}.urdf'), 'torso_kp': 150.0, 'torso_weight': 5.0,
+            'torso_pitch_rad': 0.2}
 
 
 def _robot_model_parameter_file(robot, registry_path):
