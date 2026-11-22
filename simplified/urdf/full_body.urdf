@@ -383,9 +383,9 @@
   </link>
   <link name="left_shank_link">
     <inertial>
-      <origin rpy="0 0 0" xyz="-0.0348549 -0.0468275 -0.107714"/>
-      <mass value="1.02324"/>
-      <inertia ixx="0.0046623" ixy="-2.54876e-05" ixz="-0.000200659" iyy="0.00371896" iyz="-0.00152528" izz="0.00230065"/>
+      <origin rpy="0 0 0" xyz="-0.0351124 -0.0473446 -0.105056"/>
+      <mass value="0.967957"/>
+      <inertia ixx="0.00432521" ixy="-1.4262e-05" ixz="-0.000208485" iyy="0.00342712" iyz="-0.00148044" izz="0.00224571"/>
     </inertial>
     <visual>
       <geometry>
@@ -417,6 +417,43 @@
       </geometry>
     </collision>
   </link>
+  <link name="left_ankle_crank_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0.0146739 0.015449 -0.010359"/>
+      <mass value="0.0255316"/>
+      <inertia ixx="1.05406e-05" ixy="-3.95031e-06" ixz="2.45077e-06" iyy="6.41408e-06" iyz="3.46214e-06" izz="9.44166e-06"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="package://humanoid_full_body_simplified/meshes/visual/left_ankle_crank_link.stl"/>
+      </geometry>
+      <material name="dark_grey"/>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="package://humanoid_full_body_simplified/meshes/collision/left_ankle_crank_link.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="left_ankle_rod_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="-0.00861674 -0.0444163 -0.070261"/>
+      <mass value="0.0297546"/>
+      <inertia ixx="9.45432e-05" ixy="-4.76696e-06" ixz="-6.52691e-06" iyy="6.7374e-05" iyz="-4.23559e-05" izz="2.91613e-05"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="package://humanoid_full_body_simplified/meshes/visual/left_ankle_rod_link.stl"/>
+      </geometry>
+      <material name="dark_grey"/>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="package://humanoid_full_body_simplified/meshes/collision/left_ankle_rod_link.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="left_ankle_rod_end"/>
   <joint name="left_hip1_joint" type="revolute">
     <parent link="pelvis_link"/>
     <child link="left_pelvis_hip_connector_link"/>
@@ -451,6 +488,30 @@
     <origin rpy="-0.0865500603 0.0459238764 -0.0234921337" xyz="-0.0449392869 -0.135544469 -0.236190673"/>
     <axis xyz="-0.857488443 0.467770139 -0.214253745"/>
     <limit effort="0" lower="-2.094" upper="1.686" velocity="0"/>
+  </joint>
+  <!-- left ankle four-bar (scripts/ankle_linkage.py): crank on the ankle motor, rod on the crank pin.
+       Mimic joints: linear fit over the driven ankle range (max error crank 0.87 deg, rod 1.21 deg);
+       the MuJoCo model closes the loop exactly. -->
+  <joint name="left_ankle_crank_joint" type="revolute">
+    <parent link="left_shank_link"/>
+    <child link="left_ankle_crank_link"/>
+    <origin rpy="0 0 0" xyz="-0.0448447194 -0.0384508622 -0.10028534"/>
+    <axis xyz="-0.857488443 0.467770139 -0.214253745"/>
+    <limit effort="0" lower="-2.1016" upper="1.7008" velocity="0"/>
+    <mimic joint="left_ankle_joint" multiplier="0.979465" offset="-0.000587"/>
+  </joint>
+  <joint name="left_ankle_rod_joint" type="revolute">
+    <parent link="left_ankle_crank_link"/>
+    <child link="left_ankle_rod_link"/>
+    <origin rpy="0 0 0" xyz="0.0229648738 0.0324158082 -0.0211383322"/>
+    <axis xyz="-0.857488443 0.467770139 -0.214253745"/>
+    <limit effort="0" lower="-1.6977" upper="2.101" velocity="0"/>
+    <mimic joint="left_ankle_joint" multiplier="-0.978486" offset="0.002036"/>
+  </joint>
+  <joint name="left_ankle_rod_end_joint" type="fixed">
+    <parent link="left_ankle_rod_link"/>
+    <child link="left_ankle_rod_end"/>
+    <origin rpy="0 0 0" xyz="-0.0175284335 -0.0881981326 -0.139931788"/>
   </joint>
   <link name="right_pelvis_hip_connector_link">
     <inertial>
@@ -508,9 +569,9 @@
   </link>
   <link name="right_shank_link">
     <inertial>
-      <origin rpy="0 0 0" xyz="0.0309799 0.00264944 -0.118363"/>
-      <mass value="1.00899"/>
-      <inertia ixx="0.00460144" ixy="-2.06611e-05" ixz="-9.19348e-05" iyy="0.00476998" iyz="8.2796e-05" izz="0.00130264"/>
+      <origin rpy="0 0 0" xyz="0.0303901 0.000770435 -0.116302"/>
+      <mass value="0.956349"/>
+      <inertia ixx="0.00425711" ixy="1.29521e-06" ixz="-0.000119662" iyy="0.00449924" iyz="-8.90335e-06" izz="0.00121525"/>
     </inertial>
     <visual>
       <geometry>
@@ -542,6 +603,43 @@
       </geometry>
     </collision>
   </link>
+  <link name="right_ankle_crank_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="-0.00336763 0.0255317 -0.000379093"/>
+      <mass value="0.0232195"/>
+      <inertia ixx="1.13043e-05" ixy="-3.98384e-07" ixz="5.91555e-09" iyy="1.55077e-06" iyz="1.9172e-07" izz="1.01127e-05"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="package://humanoid_full_body_simplified/meshes/visual/right_ankle_crank_link.stl"/>
+      </geometry>
+      <material name="dark_grey"/>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="package://humanoid_full_body_simplified/meshes/collision/right_ankle_crank_link.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="right_ankle_rod_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0.001632 -0.000297784 -0.0835512"/>
+      <mass value="0.0294237"/>
+      <inertia ixx="9.44506e-05" ixy="5.04905e-20" ixz="-2.01962e-19" iyy="9.34089e-05" iyz="-3.29952e-07" izz="1.09386e-06"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="package://humanoid_full_body_simplified/meshes/visual/right_ankle_rod_link.stl"/>
+      </geometry>
+      <material name="dark_grey"/>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="package://humanoid_full_body_simplified/meshes/collision/right_ankle_rod_link.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="right_ankle_rod_end"/>
   <joint name="right_hip1_joint" type="revolute">
     <parent link="pelvis_link"/>
     <child link="right_pelvis_hip_connector_link"/>
@@ -576,5 +674,29 @@
     <origin rpy="-0.043064997 0 0" xyz="0.0519680999 0.000540779603 -0.274801069"/>
     <axis xyz="-1 -0 -0"/>
     <limit effort="0" lower="-2.094" upper="1.686" velocity="0"/>
+  </joint>
+  <!-- right ankle four-bar (scripts/ankle_linkage.py): crank on the ankle motor, rod on the crank pin.
+       Mimic joints: linear fit over the driven ankle range (max error crank 1.18 deg, rod 1.59 deg);
+       the MuJoCo model closes the loop exactly. -->
+  <joint name="right_ankle_crank_joint" type="revolute">
+    <parent link="right_shank_link"/>
+    <child link="right_ankle_crank_link"/>
+    <origin rpy="0 0 0" xyz="0.0422680005 0.000540784896 -0.108564364"/>
+    <axis xyz="-1 5.67566097e-14 -4.74156719e-14"/>
+    <limit effort="0" lower="-2.101" upper="1.6989" velocity="0"/>
+    <mimic joint="right_ankle_joint" multiplier="0.978816" offset="-0.001403"/>
+  </joint>
+  <joint name="right_ankle_rod_joint" type="revolute">
+    <parent link="right_ankle_crank_link"/>
+    <child link="right_ankle_rod_link"/>
+    <origin rpy="0 0 0" xyz="2.58126853e-15 0.0449950349 -0.000668084297"/>
+    <axis xyz="-1 5.67566097e-14 -4.74156719e-14"/>
+    <limit effort="0" lower="-1.6948" upper="2.0993" velocity="0"/>
+    <mimic joint="right_ankle_joint" multiplier="-0.977275" offset="0.002898"/>
+  </joint>
+  <joint name="right_ankle_rod_end_joint" type="fixed">
+    <parent link="right_ankle_rod_link"/>
+    <child link="right_ankle_rod_end"/>
+    <origin rpy="0 0 0" xyz="1.02691883e-10 -0.000596364129 -0.166290731"/>
   </joint>
 </robot>

@@ -94,6 +94,12 @@ so its direction flags still apply. **Fusion shows the opposite sign for hip pit
 - **Ankle.** The foot is driven through a heel four-bar (`ankle_mapping` in the motor registry). The motor drives the foot
   with at least 10 Nm between about −65° and +75°. The linkage has dead points near −82° and +87°. Beyond them the foot folds
   passively to the measured −120° / +96.6°. `config/motors_full_body.yaml` limits the ankle to the driven range.
+  In the URDF the four-bar has its own links: `*_ankle_crank_link` turns about the motor axis and `*_ankle_rod_link`
+  hangs on the crank pin (a `*_ankle_rod_end` frame marks the lower eye). Both joints are `<mimic>` joints of the ankle, a
+  linear fit within 0.9° (crank) / 1.6° (rod) over −65..+75°. A URDF tree cannot close the loop; a simulator can, by
+  pinning `*_ankle_rod_end` to the heel lever (MuJoCo: equality `connect`). CAD pins: ground 166.24 mm, crank 45.00, rod
+  166.29, heel lever 44.40 (the `ankle_mapping` lengths differ, see `humanoid_full_body_description/README.md` on
+  sim-experimental-cyclonedds).
 - **Earlier versions of this branch were wrong** (until eb00df9c). They kept the CAD frame, matched the legs to the
   tracking policy's +y-forward leg model, and turned both feet 180°. That reversed the robot front to back: the feet, the
   knee direction and the hip range were all mirrored.

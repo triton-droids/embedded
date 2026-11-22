@@ -9824,19 +9824,6 @@
     </inertial>
   </link>
   <link name="left_shank_link">
-    <visual name="lower_link_005_001_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_001_1_01.stl" />
-      </geometry>
-      <material name="lower_link_005_001_1_01">
-        <color rgba="0.956862745098 0.960784313725 0.964705882353 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_005_001_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_001_1_01.stl" />
-      </geometry>
-    </collision>
     <visual name="lower_link_005_002_1_01">
       <geometry>
         <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_002_1_01.stl" />
@@ -9913,45 +9900,6 @@
     <collision name="lower_link_005_007_1">
       <geometry>
         <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_007_1_01.stl" />
-      </geometry>
-    </collision>
-    <visual name="lower_link_005_008_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_008_1_01.stl" />
-      </geometry>
-      <material name="lower_link_005_008_1_01">
-        <color rgba="0.956862745098 0.960784313725 0.964705882353 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_005_008_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_008_1_01.stl" />
-      </geometry>
-    </collision>
-    <visual name="lower_link_005_009_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_009_1_01.stl" />
-      </geometry>
-      <material name="lower_link_005_009_1_01">
-        <color rgba="0.956862745098 0.960784313725 0.964705882353 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_005_009_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_009_1_01.stl" />
-      </geometry>
-    </collision>
-    <visual name="lower_link_005_010_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_010_1_01.stl" />
-      </geometry>
-      <material name="lower_link_005_010_1_01">
-        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_005_010_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_010_1_01.stl" />
       </geometry>
     </collision>
     <visual name="lower_link_005_011_1_01">
@@ -10175,71 +10123,6 @@
         <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_027_1_01.stl" />
       </geometry>
     </collision>
-    <visual name="lower_link_005_028_Top_Heel_Linkage_Rod_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_028_Top_Heel_Linkage_Rod_01.stl" />
-      </geometry>
-      <material name="lower_link_005_028_Top_Heel_Linkage_Rod_01">
-        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_005_028_Top_Heel_Linkage_Rod">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_028_Top_Heel_Linkage_Rod_01.stl" />
-      </geometry>
-    </collision>
-    <visual name="lower_link_005_029_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_029_1_01.stl" />
-      </geometry>
-      <material name="lower_link_005_029_1_01">
-        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_005_029_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_029_1_01.stl" />
-      </geometry>
-    </collision>
-    <visual name="lower_link_005_030_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_030_1_01.stl" />
-      </geometry>
-      <material name="lower_link_005_030_1_01">
-        <color rgba="0.796078431373 0.796078431373 0.796078431373 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_005_030_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_030_1_01.stl" />
-      </geometry>
-    </collision>
-    <visual name="lower_link_005_031_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_031_1_01.stl" />
-      </geometry>
-      <material name="lower_link_005_031_1_01">
-        <color rgba="0.796078431373 0.796078431373 0.796078431373 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_005_031_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_031_1_01.stl" />
-      </geometry>
-    </collision>
-    <visual name="lower_link_005_032_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_032_1_01.stl" />
-      </geometry>
-      <material name="lower_link_005_032_1_01">
-        <color rgba="0.796078431373 0.796078431373 0.796078431373 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_005_032_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_032_1_01.stl" />
-      </geometry>
-    </collision>
     <visual name="lower_link_005_033_1_01">
       <geometry>
         <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_033_1_01.stl" />
@@ -10383,84 +10266,6 @@
         <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_043_1_01.stl" />
       </geometry>
     </collision>
-    <visual name="lower_link_005_044_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_044_1_01.stl" />
-      </geometry>
-      <material name="lower_link_005_044_1_01">
-        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_005_044_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_044_1_01.stl" />
-      </geometry>
-    </collision>
-    <visual name="lower_link_005_045_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_045_1_01.stl" />
-      </geometry>
-      <material name="lower_link_005_045_1_01">
-        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_005_045_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_045_1_01.stl" />
-      </geometry>
-    </collision>
-    <visual name="lower_link_005_046_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_046_1_01.stl" />
-      </geometry>
-      <material name="lower_link_005_046_1_01">
-        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_005_046_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_046_1_01.stl" />
-      </geometry>
-    </collision>
-    <visual name="lower_link_005_047_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_047_1_01.stl" />
-      </geometry>
-      <material name="lower_link_005_047_1_01">
-        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_005_047_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_047_1_01.stl" />
-      </geometry>
-    </collision>
-    <visual name="lower_link_005_048_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_048_1_01.stl" />
-      </geometry>
-      <material name="lower_link_005_048_1_01">
-        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_005_048_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_048_1_01.stl" />
-      </geometry>
-    </collision>
-    <visual name="lower_link_005_049_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_049_1_01.stl" />
-      </geometry>
-      <material name="lower_link_005_049_1_01">
-        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_005_049_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_049_1_01.stl" />
-      </geometry>
-    </collision>
     <visual name="lower_link_005_050_1_01">
       <geometry>
         <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_050_1_01.stl" />
@@ -10514,9 +10319,9 @@
       </geometry>
     </collision>
     <inertial>
-      <origin xyz="-0.0348548864068 -0.0468275255237 -0.107714087263" rpy="0 0 0" />
-      <mass value="1.02324302891" />
-      <inertia ixx="0.00466230344902" ixy="-2.54876358234e-05" ixz="-0.000200658514491" iyy="0.00371896344357" iyz="-0.00152527752028" izz="0.00230064700104" />
+      <origin xyz="-0.0351124105361 -0.0473445739916 -0.105055571722" rpy="0 0 0" />
+      <mass value="0.967956820331" />
+      <inertia ixx="0.00432521465318" ixy="-1.42620451459e-05" ixz="-0.000208484786932" iyy="0.00342712362611" iyz="-0.0014804426419" izz="0.00224571169878" />
     </inertial>
   </link>
   <link name="left_foot_link">
@@ -11371,7 +11176,202 @@
       <inertia ixx="0.00139239472846" ixy="-0.000547601528148" ixz="0.000269881295313" iyy="0.000912113133328" iyz="0.000439212656604" izz="0.00161228517314" />
     </inertial>
   </link>
-  <link name="right_hip_link">
+  <link name="left_ankle_crank_link"><inertial><origin xyz="0.0146739383552 0.0154489684803 -0.0103590134696" rpy="0 0 0" /><mass value="0.0255315879417" /><inertia ixx="1.05405800943e-05" ixy="-3.95031344905e-06" ixz="2.45077386372e-06" iyy="6.41408171784e-06" iyz="3.46214112115e-06" izz="9.44165653994e-06" /></inertial><visual name="lower_link_005_008_1_01">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_008_1_01.stl" />
+      </geometry>
+      <material name="lower_link_005_008_1_01">
+        <color rgba="0.956862745098 0.960784313725 0.964705882353 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_005_008_1">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_008_1_01.stl" />
+      </geometry>
+    </collision>
+    <visual name="lower_link_005_009_1_01">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_009_1_01.stl" />
+      </geometry>
+      <material name="lower_link_005_009_1_01">
+        <color rgba="0.956862745098 0.960784313725 0.964705882353 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_005_009_1">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_009_1_01.stl" />
+      </geometry>
+    </collision>
+    <visual name="lower_link_005_010_1_01">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_010_1_01.stl" />
+      </geometry>
+      <material name="lower_link_005_010_1_01">
+        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_005_010_1">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_010_1_01.stl" />
+      </geometry>
+    </collision>
+    <visual name="lower_link_005_028_Top_Heel_Linkage_Rod_01">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_028_Top_Heel_Linkage_Rod_01.stl" />
+      </geometry>
+      <material name="lower_link_005_028_Top_Heel_Linkage_Rod_01">
+        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_005_028_Top_Heel_Linkage_Rod">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_028_Top_Heel_Linkage_Rod_01.stl" />
+      </geometry>
+    </collision>
+    <visual name="lower_link_005_029_1_01">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_029_1_01.stl" />
+      </geometry>
+      <material name="lower_link_005_029_1_01">
+        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_005_029_1">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_029_1_01.stl" />
+      </geometry>
+    </collision>
+    <visual name="lower_link_005_030_1_01">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_030_1_01.stl" />
+      </geometry>
+      <material name="lower_link_005_030_1_01">
+        <color rgba="0.796078431373 0.796078431373 0.796078431373 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_005_030_1">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_030_1_01.stl" />
+      </geometry>
+    </collision>
+    <visual name="lower_link_005_031_1_01">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_031_1_01.stl" />
+      </geometry>
+      <material name="lower_link_005_031_1_01">
+        <color rgba="0.796078431373 0.796078431373 0.796078431373 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_005_031_1">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_031_1_01.stl" />
+      </geometry>
+    </collision>
+    <visual name="lower_link_005_032_1_01">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_032_1_01.stl" />
+      </geometry>
+      <material name="lower_link_005_032_1_01">
+        <color rgba="0.796078431373 0.796078431373 0.796078431373 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_005_032_1">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_032_1_01.stl" />
+      </geometry>
+    </collision>
+    <visual name="lower_link_005_044_1_01">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_044_1_01.stl" />
+      </geometry>
+      <material name="lower_link_005_044_1_01">
+        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_005_044_1">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_044_1_01.stl" />
+      </geometry>
+    </collision>
+    <visual name="lower_link_005_045_1_01">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_045_1_01.stl" />
+      </geometry>
+      <material name="lower_link_005_045_1_01">
+        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_005_045_1">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_045_1_01.stl" />
+      </geometry>
+    </collision>
+    <visual name="lower_link_005_046_1_01">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_046_1_01.stl" />
+      </geometry>
+      <material name="lower_link_005_046_1_01">
+        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_005_046_1">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_046_1_01.stl" />
+      </geometry>
+    </collision>
+    <visual name="lower_link_005_047_1_01">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_047_1_01.stl" />
+      </geometry>
+      <material name="lower_link_005_047_1_01">
+        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_005_047_1">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_047_1_01.stl" />
+      </geometry>
+    </collision>
+    <visual name="lower_link_005_048_1_01">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_048_1_01.stl" />
+      </geometry>
+      <material name="lower_link_005_048_1_01">
+        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_005_048_1">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_048_1_01.stl" />
+      </geometry>
+    </collision>
+    <visual name="lower_link_005_049_1_01">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_049_1_01.stl" />
+      </geometry>
+      <material name="lower_link_005_049_1_01">
+        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_005_049_1">
+      <origin xyz="0.044844719448 0.0384508622458 0.100285340001" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_049_1_01.stl" />
+      </geometry>
+    </collision>
+    </link><link name="left_ankle_rod_link"><inertial><origin xyz="-0.00861673987659 -0.0444162992348 -0.0702610335922" rpy="0 0 0" /><mass value="0.029754620637" /><inertia ixx="9.4543204915e-05" ixy="-4.76695754358e-06" ixz="-6.52690927282e-06" iyy="6.73739580843e-05" iyz="-4.23558699316e-05" izz="2.91612908473e-05" /></inertial><visual name="lower_link_005_001_1_01">
+      <origin xyz="0.0218798456056 0.00603505409221 0.12142367224" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_001_1_01.stl" />
+      </geometry>
+      <material name="lower_link_005_001_1_01">
+        <color rgba="0.956862745098 0.960784313725 0.964705882353 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_005_001_1">
+      <origin xyz="0.0218798456056 0.00603505409221 0.12142367224" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_005_001_1_01.stl" />
+      </geometry>
+    </collision>
+    </link><link name="left_ankle_rod_end" /><link name="right_hip_link">
     <visual name="lower_link_007_001_1_01">
       <geometry>
         <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_007_001_1_01.stl" />
@@ -13388,110 +13388,6 @@
         <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_028_1_01.stl" />
       </geometry>
     </collision>
-    <visual name="lower_link_009_029_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_029_1_01.stl" />
-      </geometry>
-      <material name="lower_link_009_029_1_01">
-        <color rgba="0.956862745098 0.960784313725 0.964705882353 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_009_029_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_029_1_01.stl" />
-      </geometry>
-    </collision>
-    <visual name="lower_link_009_030_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_030_1_01.stl" />
-      </geometry>
-      <material name="lower_link_009_030_1_01">
-        <color rgba="0.956862745098 0.960784313725 0.964705882353 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_009_030_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_030_1_01.stl" />
-      </geometry>
-    </collision>
-    <visual name="lower_link_009_031_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_031_1_01.stl" />
-      </geometry>
-      <material name="lower_link_009_031_1_01">
-        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_009_031_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_031_1_01.stl" />
-      </geometry>
-    </collision>
-    <visual name="lower_link_009_032_Top_Heel_Linkage_Rod_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_032_Top_Heel_Linkage_Rod_01.stl" />
-      </geometry>
-      <material name="lower_link_009_032_Top_Heel_Linkage_Rod_01">
-        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_009_032_Top_Heel_Linkage_Rod">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_032_Top_Heel_Linkage_Rod_01.stl" />
-      </geometry>
-    </collision>
-    <visual name="lower_link_009_033_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_033_1_01.stl" />
-      </geometry>
-      <material name="lower_link_009_033_1_01">
-        <color rgba="0.796078431373 0.796078431373 0.796078431373 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_009_033_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_033_1_01.stl" />
-      </geometry>
-    </collision>
-    <visual name="lower_link_009_034_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_034_1_01.stl" />
-      </geometry>
-      <material name="lower_link_009_034_1_01">
-        <color rgba="0.796078431373 0.796078431373 0.796078431373 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_009_034_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_034_1_01.stl" />
-      </geometry>
-    </collision>
-    <visual name="lower_link_009_035_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_035_1_01.stl" />
-      </geometry>
-      <material name="lower_link_009_035_1_01">
-        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_009_035_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_035_1_01.stl" />
-      </geometry>
-    </collision>
-    <visual name="lower_link_009_036_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_036_1_01.stl" />
-      </geometry>
-      <material name="lower_link_009_036_1_01">
-        <color rgba="0.796078431373 0.796078431373 0.796078431373 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_009_036_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_036_1_01.stl" />
-      </geometry>
-    </collision>
     <visual name="lower_link_009_037_1_01">
       <geometry>
         <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_037_1_01.stl" />
@@ -13503,32 +13399,6 @@
     <collision name="lower_link_009_037_1">
       <geometry>
         <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_037_1_01.stl" />
-      </geometry>
-    </collision>
-    <visual name="lower_link_009_038_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_038_1_01.stl" />
-      </geometry>
-      <material name="lower_link_009_038_1_01">
-        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_009_038_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_038_1_01.stl" />
-      </geometry>
-    </collision>
-    <visual name="lower_link_009_039_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_039_1_01.stl" />
-      </geometry>
-      <material name="lower_link_009_039_1_01">
-        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_009_039_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_039_1_01.stl" />
       </geometry>
     </collision>
     <visual name="lower_link_009_040_1_01">
@@ -13609,23 +13479,10 @@
         <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_045_1_01.stl" />
       </geometry>
     </collision>
-    <visual name="lower_link_009_046_1_01">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_046_1_01.stl" />
-      </geometry>
-      <material name="lower_link_009_046_1_01">
-        <color rgba="0.956862745098 0.960784313725 0.964705882353 1" />
-      </material>
-    </visual>
-    <collision name="lower_link_009_046_1">
-      <geometry>
-        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_046_1_01.stl" />
-      </geometry>
-    </collision>
     <inertial>
-      <origin xyz="0.0309799091068 0.00264944040292 -0.118363273241" rpy="0 0 0" />
-      <mass value="1.00899213559" />
-      <inertia ixx="0.00460143622945" ixy="-2.06611126664e-05" ixz="-9.19347797535e-05" iyy="0.00476998374178" iyz="8.27960183493e-05" izz="0.00130264405569" />
+      <origin xyz="0.0303900969282 0.000770434698474 -0.116302310127" rpy="0 0 0" />
+      <mass value="0.956348909891" />
+      <inertia ixx="0.00425711480022" ixy="1.29521185144e-06" ixz="-0.000119662249032" iyy="0.00449924047178" iyz="-8.90335204552e-06" izz="0.00121525247783" />
     </inertial>
   </link>
   <link name="right_foot_link">
@@ -14428,7 +14285,150 @@
       <inertia ixx="0.00175724597492" ixy="-1.91761265891e-05" ixz="-5.71493027037e-06" iyy="0.000354470698452" iyz="-0.000150986723602" izz="0.00181706770661" />
     </inertial>
   </link>
-  <joint name="right_hip1_joint" type="revolute">
+  <link name="right_ankle_crank_link"><inertial><origin xyz="-0.00336763083051 0.0255316543291 -0.000379092805511" rpy="0 0 0" /><mass value="0.0232195216852" /><inertia ixx="1.13043115646e-05" ixy="-3.98383752611e-07" ixz="5.91554631937e-09" iyy="1.55077077656e-06" iyz="1.91719547646e-07" izz="1.01127111131e-05" /></inertial><visual name="lower_link_009_029_1_01">
+      <origin xyz="-0.0422680005015 -0.000540784896256 0.108564364395" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_029_1_01.stl" />
+      </geometry>
+      <material name="lower_link_009_029_1_01">
+        <color rgba="0.956862745098 0.960784313725 0.964705882353 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_009_029_1">
+      <origin xyz="-0.0422680005015 -0.000540784896256 0.108564364395" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_029_1_01.stl" />
+      </geometry>
+    </collision>
+    <visual name="lower_link_009_030_1_01">
+      <origin xyz="-0.0422680005015 -0.000540784896256 0.108564364395" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_030_1_01.stl" />
+      </geometry>
+      <material name="lower_link_009_030_1_01">
+        <color rgba="0.956862745098 0.960784313725 0.964705882353 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_009_030_1">
+      <origin xyz="-0.0422680005015 -0.000540784896256 0.108564364395" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_030_1_01.stl" />
+      </geometry>
+    </collision>
+    <visual name="lower_link_009_031_1_01">
+      <origin xyz="-0.0422680005015 -0.000540784896256 0.108564364395" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_031_1_01.stl" />
+      </geometry>
+      <material name="lower_link_009_031_1_01">
+        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_009_031_1">
+      <origin xyz="-0.0422680005015 -0.000540784896256 0.108564364395" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_031_1_01.stl" />
+      </geometry>
+    </collision>
+    <visual name="lower_link_009_032_Top_Heel_Linkage_Rod_01">
+      <origin xyz="-0.0422680005015 -0.000540784896256 0.108564364395" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_032_Top_Heel_Linkage_Rod_01.stl" />
+      </geometry>
+      <material name="lower_link_009_032_Top_Heel_Linkage_Rod_01">
+        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_009_032_Top_Heel_Linkage_Rod">
+      <origin xyz="-0.0422680005015 -0.000540784896256 0.108564364395" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_032_Top_Heel_Linkage_Rod_01.stl" />
+      </geometry>
+    </collision>
+    <visual name="lower_link_009_033_1_01">
+      <origin xyz="-0.0422680005015 -0.000540784896256 0.108564364395" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_033_1_01.stl" />
+      </geometry>
+      <material name="lower_link_009_033_1_01">
+        <color rgba="0.796078431373 0.796078431373 0.796078431373 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_009_033_1">
+      <origin xyz="-0.0422680005015 -0.000540784896256 0.108564364395" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_033_1_01.stl" />
+      </geometry>
+    </collision>
+    <visual name="lower_link_009_034_1_01">
+      <origin xyz="-0.0422680005015 -0.000540784896256 0.108564364395" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_034_1_01.stl" />
+      </geometry>
+      <material name="lower_link_009_034_1_01">
+        <color rgba="0.796078431373 0.796078431373 0.796078431373 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_009_034_1">
+      <origin xyz="-0.0422680005015 -0.000540784896256 0.108564364395" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_034_1_01.stl" />
+      </geometry>
+    </collision>
+    <visual name="lower_link_009_035_1_01">
+      <origin xyz="-0.0422680005015 -0.000540784896256 0.108564364395" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_035_1_01.stl" />
+      </geometry>
+      <material name="lower_link_009_035_1_01">
+        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_009_035_1">
+      <origin xyz="-0.0422680005015 -0.000540784896256 0.108564364395" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_035_1_01.stl" />
+      </geometry>
+    </collision>
+    <visual name="lower_link_009_036_1_01">
+      <origin xyz="-0.0422680005015 -0.000540784896256 0.108564364395" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_036_1_01.stl" />
+      </geometry>
+      <material name="lower_link_009_036_1_01">
+        <color rgba="0.796078431373 0.796078431373 0.796078431373 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_009_036_1">
+      <origin xyz="-0.0422680005015 -0.000540784896256 0.108564364395" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_036_1_01.stl" />
+      </geometry>
+    </collision>
+    <visual name="lower_link_009_038_1_01">
+      <origin xyz="-0.0422680005015 -0.000540784896256 0.108564364395" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_038_1_01.stl" />
+      </geometry>
+      <material name="lower_link_009_038_1_01">
+        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_009_038_1">
+      <origin xyz="-0.0422680005015 -0.000540784896256 0.108564364395" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_038_1_01.stl" />
+      </geometry>
+    </collision>
+    <visual name="lower_link_009_039_1_01">
+      <origin xyz="-0.0422680005015 -0.000540784896256 0.108564364395" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_039_1_01.stl" />
+      </geometry>
+      <material name="lower_link_009_039_1_01">
+        <color rgba="0.623529411765 0.623529411765 0.623529411765 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_009_039_1">
+      <origin xyz="-0.0422680005015 -0.000540784896256 0.108564364395" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_039_1_01.stl" />
+      </geometry>
+    </collision>
+    </link><link name="right_ankle_rod_link"><inertial><origin xyz="0.00163199942997 -0.000297783947737 -0.0835512119092" rpy="0 0 0" /><mass value="0.0294237040135" /><inertia ixx="9.44505501242e-05" ixy="5.0490483373e-20" ixz="-2.01961933492e-19" iyy="9.34089360351e-05" iyz="-3.29952169875e-07" izz="1.09385924959e-06" /></inertial><visual name="lower_link_009_046_1_01">
+      <origin xyz="-0.0422680005015 -0.0455358198402 0.109232448692" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_046_1_01.stl" />
+      </geometry>
+      <material name="lower_link_009_046_1_01">
+        <color rgba="0.956862745098 0.960784313725 0.964705882353 1" />
+      </material>
+    </visual>
+    <collision name="lower_link_009_046_1">
+      <origin xyz="-0.0422680005015 -0.0455358198402 0.109232448692" rpy="0 0 0" /><geometry>
+        <mesh filename="package://humanoid_full_body_detailed/meshes/cad/lower_body_reassembled_description/link_009_046_1_01.stl" />
+      </geometry>
+    </collision>
+    </link><link name="right_ankle_rod_end" /><joint name="right_hip1_joint" type="revolute">
     <parent link="pelvis_link" />
     <child link="right_pelvis_hip_connector_link" />
     <origin xyz="-0.00969672135063 -0.110386243747 0.530898525107" rpy="-3.13456087535 -0.31248581602 0.173623973814" />
@@ -14470,7 +14470,7 @@
     <axis xyz="-0.857488443161 0.467770138691 -0.214253744879" />
     <limit lower="-2.094" upper="1.686" effort="0" velocity="0" />
   </joint>
-  <joint name="right_hip2_joint" type="revolute">
+  <joint name="left_ankle_crank_joint" type="revolute"><origin xyz="-0.044844719448 -0.0384508622458 -0.100285340001" rpy="0 0 0" /><parent link="left_shank_link" /><child link="left_ankle_crank_link" /><axis xyz="-0.857488443161 0.467770138691 -0.214253744879" /><limit lower="-2.1016" upper="1.7008" effort="0" velocity="0" /><mimic joint="left_ankle_joint" multiplier="0.979465" offset="-0.000587" /></joint><joint name="left_ankle_rod_joint" type="revolute"><origin xyz="0.0229648738424 0.0324158081536 -0.0211383322392" rpy="0 0 0" /><parent link="left_ankle_crank_link" /><child link="left_ankle_rod_link" /><axis xyz="-0.857488443161 0.467770138691 -0.214253744879" /><limit lower="-1.6977" upper="2.101" effort="0" velocity="0" /><mimic joint="left_ankle_joint" multiplier="-0.978486" offset="0.002036" /></joint><joint name="left_ankle_rod_end_joint" type="fixed"><origin xyz="-0.0175284334632 -0.0881981326471 -0.139931787774" rpy="0 0 0" /><parent link="left_ankle_rod_link" /><child link="left_ankle_rod_end" /></joint><joint name="right_hip2_joint" type="revolute">
     <parent link="right_pelvis_hip_connector_link" />
     <child link="right_hip_link" />
     <origin xyz="-0.0769224210731 -0.0388110570259 0.00577311957047" rpy="-0.00394139381213 -0.118540603691 0.0663964244618" />
@@ -14499,7 +14499,7 @@
     <limit lower="-2.094" upper="1.686" effort="0" velocity="0" />
   </joint>
   
-  <joint name="torso_to_pelvis" type="fixed">
+  <joint name="right_ankle_crank_joint" type="revolute"><origin xyz="0.0422680005015 0.000540784896256 -0.108564364395" rpy="0 0 0" /><parent link="right_shank_link" /><child link="right_ankle_crank_link" /><axis xyz="-1 5.67566096787e-14 -4.74156719471e-14" /><limit lower="-2.101" upper="1.6989" effort="0" velocity="0" /><mimic joint="right_ankle_joint" multiplier="0.978816" offset="-0.001403" /></joint><joint name="right_ankle_rod_joint" type="revolute"><origin xyz="2.58126853225e-15 0.044995034944 -0.000668084296929" rpy="0 0 0" /><parent link="right_ankle_crank_link" /><child link="right_ankle_rod_link" /><axis xyz="-1 5.67566096787e-14 -4.74156719471e-14" /><limit lower="-1.6948" upper="2.0993" effort="0" velocity="0" /><mimic joint="right_ankle_joint" multiplier="-0.977275" offset="0.002898" /></joint><joint name="right_ankle_rod_end_joint" type="fixed"><origin xyz="1.02691882775e-10 -0.000596364128591 -0.166290730691" rpy="0 0 0" /><parent link="right_ankle_rod_link" /><child link="right_ankle_rod_end" /></joint><joint name="torso_to_pelvis" type="fixed">
     <parent link="torso_link" />
     <child link="pelvis_link" />
     <origin xyz="0.150094227047 0.340438732917 0.346935879051" rpy="-2.6687976455 -0.177967638809 -3.13530984245" />
