@@ -125,7 +125,7 @@ same joint angle bends both models the same way. The knee flexes negative (−12
 
 | Leg joint (was) | Name | Range |
 |---|---|---|
-| `*_pelvis_hip_connector_joint` | `*_hip1_joint` (hip pitch) | −90° .. **+17.5° left / +15.0° right** (forward stop, see below) |
+| `*_pelvis_hip_connector_joint` | `*_hip1_joint` (hip pitch) | −90° .. **+61.5° left / +59.0° right** (forward stop, see below) |
 | `*_hip_joint` | `*_hip2_joint` (hip roll) | left −90..25°, right −25..90° |
 | `*_thigh_joint` | `*_thigh_joint` (hip yaw) | ±45° |
 | `*_shank_joint` | `*_knee_joint` | −120..0° |
@@ -318,35 +318,29 @@ in 2 of 2 runs, and the robot then stood for the rest of the run.
 
 ## Hip pitch forward stop
 
-Lifting the thigh forward (hip1 +), the hip connector bracket hits the pelvis plate at **19.5° (left) and 17.0° (right)**.
-This comes from an exact triangle-mesh sweep of the detailed CAD parts; Fusion shows about 22°. Backwards the hip swings
-past 120°. The URDFs, the simulation MJCF and `config/motors_full_body.yaml` now limit hip1 to +0.305 / +0.262 rad, 2° short
-of the stop. MuJoCo, MoveIt and the simplified collision model never saw it: the two parts are on the parent and child
-of the same joint, whose contacts are filtered, and the old ±90° came from the policy MJCF, not from the CAD.
+An exact triangle-mesh sweep of the detailed CAD parts (FCL, then boolean overlap with manifold3d) finds two contacts when
+the thigh is lifted forward (hip1 +). Both are between the hip connector bracket (`link_002_004` left,
+`lower_body_link_001_005` right) and brackets on the pelvis:
 
-What used the hip beyond the stop (before the limit, in simulation):
+| Contact | Hip pitch range | Largest overlap | Pelvis part |
+|---|---|---|---|
+| 1 | left 20–22°, right 17.5–20° | under 1 mm (0.2 × 0.3 × 0.9 mm), clear again from 25° | `lower_body_base_link_021` / `_020` |
+| 2 | left 63.5–95°, right 61–95° | about 3 × 3 × 5 mm (4 mm³), clear again from 100° | `lower_body_base_link_024` / `base_link_025` |
 
-| | Hip pitch forward |
-|---|---|
-| Tracking policy walking (16 kg leg model) | −15° .. +18° |
-| WBC walking (knee −51° stance) | +27° .. +45° |
-| WBC squat 7 cm | +22° .. +52° |
-| Get-up via all fours | +88° |
+Nothing else touches up to 125°. Fusion's joint limit is +30°, set by contact 1. Contact 1 is being removed in the design
+(2026-11-21), so the models limit hip1 to **+61.5° (left) / +59.0° (right)**, 2° short of contact 2. Removing contact 2
+too would allow about 120°, which the get-up routes need (all fours 88°, foot forward under the body 100–120°). MuJoCo,
+MoveIt and the simplified collision model never saw either contact: the parts are on the parent and child of the same
+joint, whose contacts are filtered, and the old ±90° came from the policy MJCF, not from the CAD.
 
-With the limit and the old stance (knee −0.9 rad, upright torso), the WBC still walked and squatted offline, but the hips
-rested on the stop: right hip 66% of the time walking, 100% squatting. On the robot that would press the bracket into
-the pelvis.
+Hip pitch used (ROS sim, `full_body_arms`, the default stance): walking 0.04 m/step up to 42.9° left / 45.7° right, 3 of 3
+runs ran the whole 43 s; the 7 cm squat up to 47.7° / 52.5°, 2 of 2. The tracking policy (16 kg leg model) uses −15..+18°.
 
-**Stance for the stop** (`sim.launch.py`, robot:=full_body*): `knee_rad` −0.3 (start-up squat, was −0.9) and
-`torso_pitch_rad` 0.16 (torso leans back 9°; the hip pitch drops by the same amount, and the start-up posture includes
-it). ROS, `full_body_arms`, stepping in place, then 0.04 m/step from 22 s: 3 of 3 runs ran the whole 43 s
-(1.67–1.76 m). Hip pitch peaked at 10.9–11.3° (left) and 13.9–14.7° (right), never on the 17.5 / 15° limit. At 0.12 rad of
-lean the right hip still reached the limit while walking (0.6–2.6% of the time); at 0.06 m/step it does briefly
-offline, so keep the full-body robot at 0.04 m/step.
+With the current hardware (contact 1 still there, about +17.5° / +15°) the WBC needs a straighter stance:
+`knee_rad` −0.3 and `torso_pitch_rad` 0.16 (torso leans back 9°; the hip pitch drops by the same amount). In ROS that walked
+3 of 3 runs with the hips at most 11.3° / 14.7°. The squat and the get-up cannot be done within that stop. A TSID
+joint-position bound on the hip had no effect (the soft contacts let the QP "move" the stance foot), and hard contacts
+made the QP infeasible.
 
-What did not work: a TSID joint-position bound task on the hip pitch had no effect, because the soft contacts let the QP
-meet it by "moving" the stance foot. Hard contacts made the QP infeasible as soon as stepping started. The squat
-activity (hip 22–52°) and the get-up (88°) cannot be done within the stop.
 `motor_control_hybrid/config/motors.yaml` still allows +1.57 rad, because the tracking policy node refuses a registry
 whose limits differ from its training MJCF.
-
