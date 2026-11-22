@@ -252,6 +252,10 @@ class WholeBodyController:
         R = np.array([[c, -s, 0.], [s, c, 0.], [0., 0., 1.]])
         self.torso.setReference(tsid.TrajectorySE3Constant('torso_ref', pin.SE3(R, np.zeros(3))).computeNext())
 
+    def set_torso_rotation(self, rotation):
+        self.torso.setReference(
+            tsid.TrajectorySE3Constant('torso_ref', pin.SE3(np.asarray(rotation, float), np.zeros(3))).computeNext())
+
     def set_posture(self, joints):
         sample = tsid.TrajectoryEuclidianConstant('posture_ref', np.asarray(joints, float)).computeNext()
         self.posture.setReference(sample)

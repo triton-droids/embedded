@@ -111,6 +111,11 @@ class WalkingControllerNode(Node):
             # full-body robot, 32 kg) needs a stiffer one: the legs have no ankle roll, and with weight
             # 0.5 the QP moved the CoM sideways by leaning the torso (15-25 deg in ROS); 5 / 150 keeps it
             # within ~4 deg offline (sim.launch.py sets them for robot:=full_body*).
+            # 'step' (walk / step in place) or 'squat' (both feet down: squat squat_depth_m lower
+            # and stand up again, squat_cycles times, 0 = forever).
+            'activity': 'step',
+            'squat_depth_m': 0.07,
+            'squat_cycles': 1,
             'torso_kp': 50.0,
             'torso_weight': 0.5,
             # Turn first (velocity input): the step is full while |turn| <=
@@ -143,6 +148,8 @@ class WalkingControllerNode(Node):
         limits = load_limits(registry, self.names)
         self.controller = SteppingController(self.robot, limits.torque, StepParams(
             dt=1.0 / p['control_rate_hz'], step_length_m=self._clamp(p['step_length_m']),
+            activity=str(p['activity']), squat_depth_m=float(p['squat_depth_m']),
+            squat_cycles=int(p['squat_cycles']),
             gains=WBCGains(com_kp_z=100.0, com_weight=10.0, contact_kp=float(p['contact_kp']),
                           torso_kp=float(p['torso_kp']), torso_weight=float(p['torso_weight']))))
         self.inputs, self.base_held, self.estop = {}, None, True
@@ -151,6 +158,8 @@ class WalkingControllerNode(Node):
         # Last 400 cycles (2 s) for /walk/status.
         self.cycle_ms, self.input_age_ms, self.joint_age_ms = (deque(maxlen=400) for _ in range(3))
         self._last_sample = None   # stamp of the last physics sample computed ('state')
+        if p['activity'] not in ('step', 'squat'):
+            raise ValueError("activity must be 'step' or 'squat'")
         if p['trigger'] not in ('state', 'timer'):
             raise ValueError("trigger must be 'state' or 'timer'")
         # Depth 1: a cycle always uses the newest sample, never a queued older one.

@@ -278,3 +278,31 @@ The run counts are small. Plain standing still drifts in COM (the ankle-only bal
 
 The tracking policy (RL) after the 200 Hz fix: the 16 kg leg model still walks (2 of 2 runs, 13–14 m in 38 s); the
 full-body robot still falls 1.8–2.2 s after release (4 of 4). The policy needs retraining on the full-body model.
+
+### Squat and stand up (`walk_activity:=squat`)
+
+```bash
+scripts/sim_experimental.sh controller:=model_walk robot:=full_body_arms walk_activity:=squat   # walk_squat_depth_m:=0.07
+```
+
+After the start-up squat the robot squats `squat_depth_m` lower with both feet down, then stands up again
+(`squat_cycles`, node default 1). The WBC alone, as in plain standing, could not hold the 32 kg robot with both feet
+flat. Its contacts are soft tasks, so the QP planned leg accelerations that the closed chain cannot follow (hip yaw
+−14 rad/s² planned, 0 in MuJoCo), and the CoM drifted back about 1 cm/s until the robot tipped over. The 16 kg leg
+model does not have this problem. The squat therefore runs in joint space, like the start-up squat:
+- inverse kinematics gives the deep posture: both feet fixed, the CoM over the same ground point and lower, and a
+  low-weight torso orientation, so the torso leans forward and the arms reach forward as counterweights. With
+  the torso upright the ankles (+34° limit) cannot keep the CoM over the feet. A joint at its limit is locked out of
+  the IK step instead of clipped;
+- the joints follow a min-jerk path between the two postures with stiff PD. The ankles need kp 100 / kd 4; at the
+  start-up squat's 30 the robot tipped back on its first squat. The WBC torque, with the CoM on the same path, is the
+  feedforward.
+
+| | Result |
+|---|---|
+| Offline, depth 0.05–0.08 m (2 cycles each) | all pass; at 0.08 m the ankles reach 17 Nm; 0.10 m and deeper tip over |
+| Offline with ROS-chain timing, 0.05 m | 2 of 2 seeds |
+| ROS, 0.07 m (base 0.61 → 0.52 m, knee to about −88°) | the first squat and stand-up succeeded in 4 of 4 runs; a second squat in the same run failed (2 of 2): each cycle leaves the body about 2 cm further back |
+
+The depth is limited by the ankles (±34°, 17 Nm). Video: `videos/full_body_wbc_squat.mp4` (not tracked).
+

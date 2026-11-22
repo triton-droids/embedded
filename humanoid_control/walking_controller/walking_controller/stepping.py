@@ -267,6 +267,8 @@ class SteppingController(GaitController):
 
     # ---------------------------------------------------------- active
     def _active(self, t, q, v, joints, rates):
+        if self.p.activity == 'squat':  # squat and stand up in place (GaitController), no stepping
+            return super()._active(t, q, v, joints, rates)
         if self.p.activity != 'step':
             return super()._active(t, q, v, joints, rates)
         p = self.p
