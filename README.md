@@ -62,44 +62,41 @@ reference when validating the simplified model. Run only one detailed instance p
 
 ## Frames and joints
 
-- Fixed base at `torso_link`. Its origin is the centre of the torso's bottom face, with +z up and +y forward (knee flexion
-  swings the foot toward −y). The `left_*` joints are on the +x side, as in the motor registry and the tracking policy.
-  With +y forward and +z up, that is the robot's anatomical right, so check the left/right labels against the hardware.
+- Fixed base at `torso_link`. Its origin is the centre of the torso's bottom face, with **+z up and +y forward** (the toes
+  point +y). The `left_*` joints are on the **−x side, the robot's left**.
+- The CAD export faces −y. `torso_link` is the CAD torso frame turned 180° about z: the torso mesh, its inertial and its
+  three child joints (pelvis, both shoulders) carry the turn. All other links keep their CAD frames.
 - `pelvis_link` is fixed to the torso. Its top face sits flush on the torso bottom.
-- At zero pose the robot is 1.05 m tall from sole to torso top (no head) and 0.68 m wide across the arms.
+- At zero pose the robot stands upright, with legs straight, soles flat and arms hanging down. It is 1.05 m tall from sole to
+  torso top (no head) and 0.68 m wide across the arms.
 
-Leg joint names, axis signs and ranges follow the motor registry and the tracking policy's MJCF
-(`motor_control_hybrid/models/*/chrobot_16kg_candidate.xml` on `sim-experimental-cyclonedds`). Every leg axis points the same
-way as there, so the same joint angle bends both models the same way.
+Every joint sign was checked by forward kinematics (`humanoid_full_body_description/scripts/reorient.py` on
+`sim-experimental-cyclonedds`). The meanings are those of the motor registry (`motor_control_hybrid/config/motors.yaml`),
+so its direction flags still apply. **Fusion shows the opposite sign for hip pitch and ankle.**
 
-| Joint | Motion | Range | Earlier CAD name |
+| Joint | Positive direction | Range | Earlier CAD name |
 |---|---|---|---|
-| `*_hip1_joint` | hip pitch | ±90° | `*_pelvis_hip_connector_joint` |
-| `*_hip2_joint` | hip roll | left −90..25°, right −25..90° | `*_hip_joint` |
-| `*_thigh_joint` | hip yaw | ±45° | `*_thigh_joint` |
-| `*_knee_joint` | knee, flexion negative | −120..0° | `*_shank_joint` |
-| `*_ankle_joint` | ankle pitch | ±34° | `*_foot_joint` |
-| `*_shoulder_pitch_joint` | shoulder pitch | none (continuous) | `*_shoulder_abduction` |
-| `*_shoulder_roll_joint` | shoulder roll | −15..105° (CAD) | `*_joint_001_10` |
-| `*_shoulder_yaw_joint` | shoulder yaw | ±180° (CAD) | `*_joint_002_16` |
+| `*_hip1_joint` | hip pitch, **flexion** (foot forward) | left −17.5..+120°, right −15..+120° (see below) | `*_pelvis_hip_connector_joint` |
+| `*_hip2_joint` | hip roll; left − / right + abducts | left −90..25°, right −25..90° | `*_hip_joint` |
+| `*_thigh_joint` | hip yaw, toe outward | ±45° | `*_thigh_joint` |
+| `*_knee_joint` | knee; **flexion is negative** (foot back) | −120..0° (mechanically free both ways) | `*_shank_joint` |
+| `*_ankle_joint` | ankle pitch, **toe up** | −120 (toe down) .. +96.6° (toe up), measured | `*_foot_joint` |
+| `*_shoulder_pitch_joint` | arm forward | none (continuous) | `*_shoulder_abduction` |
+| `*_shoulder_roll_joint` | abduction | −15..105° (CAD) | `*_joint_001_10` |
+| `*_shoulder_yaw_joint` | – | ±180° (CAD) | `*_joint_002_16` |
 | `*_upper_arm_twist_joint` | twist, coaxial with the yaw; **no motor** (see "Motors") | none (continuous) | `*_joint_003_45` |
-| `*_elbow_joint` | elbow | none (continuous) | `*_joint_004_52` |
+| `*_elbow_joint` | flexion (assumed forward, unverified) | 0..130° (Fusion) | `*_joint_004_52` |
 
-The joint zero was re-defined from the CAD pose, in which the legs were posed rather than straight. The CAD pose,
-expressed in the new joint coordinates (degrees), is:
-
-| Leg | hip1 / hip2 / thigh / knee / ankle |
-|---|---|
-| left | 19.7 / 0.0 / 32.5 / −29.5 / 5.7 |
-| right | −1.9 / 7.8 / −0.9 / 29.2 / 2.5 |
-
-The leg zeros were then shifted by at most 2.4° to match the tracking policy's leg model. At `q = 0` the ankle sits where
-the policy model puts it: the fore-aft error went from 1.2 cm to under 1 mm. The sole stays nearly flat (1.5° / 0.95°); there
-is no ankle roll joint to hold both.
-
-Both CAD feet were mounted the wrong way round, with the sole mostly behind the ankle. Each was turned 180° about the vertical through its
-ankle, and the ankle axis was negated, so its direction is unchanged. The sole centre now sits 2–3 cm in front of the hip, as in the policy's leg model. The two
-feet are the same, unmirrored part, so the left sole is 1.1 cm outboard of its ankle and the right one 1.4 cm inboard.
+- **Hip pitch.** Extending the thigh backward, the hip connector bracket grazes a pelvis bracket at 19.5° (left) and
+  17.0° (right). The overlap is under 1 mm and clears again from 25°. An exact mesh sweep of the CAD parts found it; the
+  design is being changed. A second contact (about 3 × 3 × 5 mm) follows at 61–63.5° of extension. The limits keep 2° clear of
+  the first contact. Flexion is free to beyond 120° (Fusion limit 120°).
+- **Ankle.** The foot is driven through a heel four-bar (`ankle_mapping` in the motor registry). The motor drives the foot
+  with at least 10 Nm between about −65° and +75°. The linkage has dead points near −82° and +87°. Beyond them the foot folds
+  passively to the measured −120° / +96.6°. `config/motors_full_body.yaml` limits the ankle to the driven range.
+- **Earlier versions of this branch were wrong** (until eb00df9c). They kept the CAD frame, matched the legs to the
+  tracking policy's +y-forward leg model, and turned both feet 180°. That reversed the robot front to back: the feet, the
+  knee direction and the hip range were all mirrored.
 
 ## Motors
 
@@ -135,9 +132,7 @@ Every inertia tensor is positive definite and satisfies the triangle inequality.
 
 ## Not done yet
 
-- **Arm polarity and limits**: the arm axes are the CAD export's, and three arm joints are still `continuous`. The arm motor entries in `config/` need their CAN ids, directions and zero offsets.
-- **Leg geometry vs the built robot**: compared with the tracking policy's leg model, each ankle sits 2–3 cm further out at
-  zero pose. Which CAD matches the built robot has not been checked.
+- **Arm motors**: the arm motor entries in `config/` need their CAN ids, directions and zero offsets; the elbow flexion direction is assumed.
 - **Effort/velocity limits** are 0 in the URDF.
 - **Encoder zero** and the model zero have not been reconciled.
 - The **masses** have not been weighed, and the motor masses are whatever the CAD assigned.
