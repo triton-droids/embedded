@@ -67,7 +67,7 @@
           <geom type="mesh" group="3" rgba="0.62 0.62 0.62 1" mesh="pelvis_link_collision"/>
           <body name="left_pelvis_hip_connector_link" pos="0.162071 -0.0953413 0.557905" quat="0.191949 0.965886 0.0846008 0.151865">
             <inertial pos="0.0723796 0.00633066 0.0114876" quat="0.549828 0.40437 0.508678 0.524806" mass="1.1951" diaginertia="0.00163683 0.00147753 0.00110246"/>
-            <joint name="left_hip1_joint" pos="0 0 0" axis="0.984187 0.0862037 0.154742" range="-1.57 1.57" armature="0.01" damping="1"/>
+            <joint name="left_hip1_joint" pos="0 0 0" axis="0.984187 0.0862037 0.154742" range="-1.57 0.305" armature="0.01" damping="1"/>
             <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" rgba="0.62 0.62 0.62 1" mesh="left_pelvis_hip_connector_link"/>
             <geom type="mesh" group="3" rgba="0.62 0.62 0.62 1" mesh="left_pelvis_hip_connector_link_collision"/>
             <body name="left_hip_link" pos="0.0737049 0.0550664 0.00563551" quat="0.999917 -0.000841429 0.0127065 -0.00172688">
@@ -99,7 +99,7 @@
           </body>
           <body name="right_pelvis_hip_connector_link" pos="-0.00969672 -0.110386 0.530899" quat="0.0188242 -0.984012 -0.0861885 -0.154715">
             <inertial pos="-0.0718408 -0.00636457 -0.0112483" quat="0.64292 0.30489 0.571014 0.409437" mass="1.19906" diaginertia="0.00164665 0.0014831 0.00110495"/>
-            <joint name="right_hip1_joint" pos="0 0 0" axis="0.984187 0.0862037 0.154742" range="-1.57 1.57" armature="0.01" damping="1"/>
+            <joint name="right_hip1_joint" pos="0 0 0" axis="0.984187 0.0862037 0.154742" range="-1.57 0.262" armature="0.01" damping="1"/>
             <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" rgba="0.62 0.62 0.62 1" mesh="right_pelvis_hip_connector_link"/>
             <geom type="mesh" group="3" rgba="0.62 0.62 0.62 1" mesh="right_pelvis_hip_connector_link_collision"/>
             <body name="right_hip_link" pos="-0.0769224 -0.0388111 0.00577312" quat="0.997101 7.34383e-12 -0.066472 0.0370302">

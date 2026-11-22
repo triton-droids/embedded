@@ -125,7 +125,7 @@ same joint angle bends both models the same way. The knee flexes negative (−12
 
 | Leg joint (was) | Name | Range |
 |---|---|---|
-| `*_pelvis_hip_connector_joint` | `*_hip1_joint` (hip pitch) | ±90° |
+| `*_pelvis_hip_connector_joint` | `*_hip1_joint` (hip pitch) | −90° .. **+17.5° left / +15.0° right** (forward stop, see below) |
 | `*_hip_joint` | `*_hip2_joint` (hip roll) | left −90..25°, right −25..90° |
 | `*_thigh_joint` | `*_thigh_joint` (hip yaw) | ±45° |
 | `*_shank_joint` | `*_knee_joint` | −120..0° |
@@ -315,4 +315,27 @@ The depth is limited by the ankles (±34°, 17 Nm). Video: `videos/full_body_wbc
 ROS, `robot:=full_body_arms`: walking (stepping in place, then 0.04 m/step from 22 s) ran the whole 43 s in 3 of 3 runs,
 1.49–1.54 m forward, with a sideways lean of at most 3.9°. The squat (0.07 m, base 0.61 → 0.52 m) and stand-up succeeded
 in 2 of 2 runs, and the robot then stood for the rest of the run.
+
+## Hip pitch forward stop
+
+Lifting the thigh forward (hip1 +), the hip connector bracket hits the pelvis plate at **19.5° (left) and 17.0° (right)**.
+This comes from an exact triangle-mesh sweep of the detailed CAD parts; Fusion shows about 22°. Backwards the hip swings
+past 120°. The URDFs, the simulation MJCF and `config/motors_full_body.yaml` now limit hip1 to +0.305 / +0.262 rad, 2° short
+of the stop. MuJoCo, MoveIt and the simplified collision model never saw it: the two parts are on the parent and child
+of the same joint, whose contacts are filtered, and the old ±90° came from the policy MJCF, not from the CAD.
+
+What used the hip beyond the stop (before the limit, in simulation):
+
+| | Hip pitch forward |
+|---|---|
+| Tracking policy walking (16 kg leg model) | −15° .. +18° |
+| WBC walking (knee −51° stance) | +27° .. +45° |
+| WBC squat 7 cm | +22° .. +52° |
+| Get-up via all fours | +88° |
+
+With the limit, the WBC still walks (0.04 m/step) and squats offline, but the hips then rest on the stop (right hip 66%
+of the time walking, 100% squatting). The torso leans forward instead: 3.7° walking, 12° squatting. On the robot that
+would press the bracket into the pelvis. The WBC needs joint position limits and a straighter stance first.
+`motor_control_hybrid/config/motors.yaml` still allows +1.57 rad, because the tracking policy node refuses a registry
+whose limits differ from its training MJCF.
 

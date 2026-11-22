@@ -158,6 +158,12 @@ def write_arm_registry(urdf_text, out_file):
         if joint.get("name") in ARM_JOINTS:
             limits[joint.get("name")] = ((float(limit.get("lower")), float(limit.get("upper")))
                                          if limit is not None else (-np.pi, np.pi))
+    # Leg position limits from the URDF: it tightens the hip pitch forward stop below the registry's 1.57.
+    for joint in ET.fromstring(urdf_text).findall("joint"):
+        limit = joint.find("limit")
+        if joint.get("name") in LEG_JOINTS and limit is not None:
+            params["motors"][joint.get("name")]["min_position"] = float(limit.get("lower"))
+            params["motors"][joint.get("name")]["max_position"] = float(limit.get("upper"))
     for i, name in enumerate(ARM_JOINTS):
         model = ARM_MOTORS[name.split("_", 1)[1][:-len("_joint")]]
         params["motors"][name] = {

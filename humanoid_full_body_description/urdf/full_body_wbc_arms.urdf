@@ -204,7 +204,7 @@
     <child link="left_pelvis_hip_connector_link" />
     <origin rpy="2.71834671 -0.263943735 0.231753333" xyz="0.162071443 -0.0953412766 0.557905363" />
     <axis xyz="0.984186863 0.0862037448 0.154742152" />
-    <limit effort="0" lower="-1.57" upper="1.57" velocity="0" />
+    <limit effort="0" lower="-1.57" upper="0.305" velocity="0" />
   </joint>
   <joint name="left_hip2_joint" type="revolute">
     <parent link="left_pelvis_hip_connector_link" />
@@ -274,7 +274,7 @@
     <child link="right_pelvis_hip_connector_link" />
     <origin rpy="-3.13068604 -0.312803504 0.173011795" xyz="-0.00969672135 -0.110386244 0.530898525" />
     <axis xyz="0.984186863 0.0862037448 0.154742152" />
-    <limit effort="0" lower="-1.57" upper="1.57" velocity="0" />
+    <limit effort="0" lower="-1.57" upper="0.262" velocity="0" />
   </joint>
   <joint name="right_hip2_joint" type="revolute">
     <parent link="right_pelvis_hip_connector_link" />

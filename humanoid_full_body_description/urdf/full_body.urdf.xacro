@@ -151,6 +151,9 @@
       xyz="0.00155821224 0.0319538078 -0.0889827107" rpy="0 0 0"
       axis="-0.00109990674 -0.999996917 -0.00222632008"/>
 
+  <!-- Hip pitch forward (flexion) stops at the hip connector bracket hitting the pelvis plate: 19.5 deg left,
+       17.0 deg right (exact sweep of the CAD parts; Fusion shows about 22 deg). The upper limits keep 2 deg clear
+       (0.305 / 0.262 rad). The motor registry and the tracking policy still allow 1.57 rad. -->
   <!-- Left leg: hip pitch (hip1), hip roll (hip2), hip yaw (thigh), knee, ankle pitch. Names, axis signs and ranges
        match the tracking policy's MJCF (motor_control_hybrid/models/*/chrobot_16kg_candidate.xml). -->
   <xacro:cad_link name="left_pelvis_hip_connector_link" material="aluminum"
@@ -170,7 +173,7 @@
                   inertia="0.00139239 -0.000547602 0.000269881 0.000912113 0.000439213 0.00161229"/>
   <xacro:revolute_joint name="left_hip1_joint" parent="pelvis_link" child="left_pelvis_hip_connector_link"
       xyz="0.162071443 -0.0953412766 0.557905363" rpy="2.71834671 -0.263943735 0.231753333"
-      axis="0.984186863 0.0862037448 0.154742152" lower="-1.57" upper="1.57"/>
+      axis="0.984186863 0.0862037448 0.154742152" lower="-1.57" upper="0.305"/>
   <xacro:revolute_joint name="left_hip2_joint" parent="left_pelvis_hip_connector_link" child="left_hip_link"
       xyz="0.0737048714 0.0550664328 0.00563550961" rpy="-0.00172716264 0.0254106675 -0.00347599651"
       axis="-0.0654764958 0.988764442 -0.134378968" lower="-1.57" upper="0.436332"/>
@@ -203,7 +206,7 @@
                   inertia="0.00175725 -1.91761e-05 -5.71493e-06 0.000354471 -0.000150987 0.00181707"/>
   <xacro:revolute_joint name="right_hip1_joint" parent="pelvis_link" child="right_pelvis_hip_connector_link"
       xyz="-0.00969672135 -0.110386244 0.530898525" rpy="-3.13068604 -0.312803504 0.173011795"
-      axis="0.984186863 0.0862037448 0.154742152" lower="-1.57" upper="1.57"/>
+      axis="0.984186863 0.0862037448 0.154742152" lower="-1.57" upper="0.262"/>
   <xacro:revolute_joint name="right_hip2_joint" parent="right_pelvis_hip_connector_link" child="right_hip_link"
       xyz="-0.0769224211 -0.038811057 0.00577311957" rpy="-0.0049667984 -0.132949928 0.074572315"
       axis="0 0.873591353 -0.486660197" lower="-0.436332" upper="1.57"/>

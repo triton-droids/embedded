@@ -14433,14 +14433,14 @@
     <child link="right_pelvis_hip_connector_link" />
     <origin xyz="-0.00969672135063 -0.110386243747 0.530898525107" rpy="-3.1306860368978295 -0.3128035043151201 0.17301179509872533" />
     <axis xyz="0.98418686278 0.0862037447719 0.15474215172" />
-    <limit lower="-1.57" upper="1.57" effort="0" velocity="0" />
+    <limit lower="-1.57" upper="0.262" effort="0" velocity="0" />
   </joint>
   <joint name="left_hip1_joint" type="revolute">
     <parent link="pelvis_link" />
     <child link="left_pelvis_hip_connector_link" />
     <origin xyz="0.162071443437 -0.095341276579 0.557905363362" rpy="2.7183467167438398 -0.2639437345436017 0.2317533334867017" />
     <axis xyz="0.98418686278 0.0862037447719 0.15474215172" />
-    <limit lower="-1.57" upper="1.57" effort="0" velocity="0" />
+    <limit lower="-1.57" upper="0.305" effort="0" velocity="0" />
   </joint>
   <joint name="left_hip2_joint" type="revolute">
     <parent link="left_pelvis_hip_connector_link" />
