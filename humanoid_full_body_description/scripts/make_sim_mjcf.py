@@ -18,6 +18,8 @@ This script builds exactly that from urdf/full_body.urdf.xacro:
   their motors' peak torque; the motorless upper_arm_twist joints are welded,
 - each sole gets a box contact sized from the foot's mesh (the training MJCF used boxes too); the
   foot hull no longer touches the floor,
+- the ankle four-bar's crank and rod (URDF mimic joints) become passive hinges, and an equality connect pins the
+  rod's lower eye to the foot, so the loop closes exactly; they carry no collision geometry,
 - self-contact pairs that the SRDF disables (adjacent or never colliding) are excluded, as in
   humanoid_full_body_moveit_config/scripts/mujoco_sim.py.
 
@@ -61,6 +63,11 @@ ARM_DAMPING, ARM_ARMATURE = 0.5, 0.01
 LEG_REGISTRY = REPO / "humanoid_control/motor_control_hybrid/config/motors.yaml"
 ARM_SERVO_KP = 40.0   # N*m/rad, placeholder: only holds the arms at their commanded pose
 ARM_SERVO_KV = 2.0    # N*m*s/rad
+# Ankle four-bar (scripts/ankle_linkage.py): crank and rod are URDF mimic joints of the ankle. Here they are
+# passive hinges and an equality connect pins the rod's lower eye to the heel lever: the loop closes exactly.
+LINKAGE_JOINTS = [f"{s}_ankle_{j}_joint" for s in ("left", "right") for j in ("crank", "rod")]
+LINKAGE_ARMATURE, LINKAGE_DAMPING = 0.001, 0.01
+LINKAGE_SOLREF = 0.01  # s, loop constraint time constant: twice the timestep, the stiffest that stays stable
 SOLE_SLICE = 0.01     # m: vertices this close to the lowest point form the sole
 TOP_HEIGHT = 0.385    # m, top of the torso frame above torso_link
 
@@ -108,7 +115,13 @@ def write_wbc_model(urdf_text, model, data, out_dir, arms=False):
         for tag in ("parent", "child"):
             element = joint.find(tag)
             element.set("link", WBC_RENAME.get(element.get("link"), element.get("link")))
-        if joint.get("name") in WELDED_ARM_JOINTS or (
+        if joint.find("mimic") is not None:  # ankle four-bar: rigid with the shank in the controller model
+            joint.remove(joint.find("mimic"))
+            joint.set("type", "fixed")
+            for tag in ("axis", "limit"):
+                if joint.find(tag) is not None:
+                    joint.remove(joint.find(tag))
+        elif joint.get("name") in WELDED_ARM_JOINTS or (
                 joint.get("type") != "fixed" and joint.get("name") not in LEG_JOINTS and not arms):
             joint.set("type", "fixed")
             for tag in ("axis", "limit"):
@@ -214,7 +227,10 @@ def main():
     for joint in [j for j in spec.joints if j.name in WELDED_ARM_JOINTS]:
         spec.delete(joint)
     for joint in spec.joints:
-        if joint.name in LEG_JOINTS:
+        if joint.name in LINKAGE_JOINTS:
+            joint.damping, joint.armature = LINKAGE_DAMPING, LINKAGE_ARMATURE
+            joint.limited = mujoco.mjtLimited.mjLIMITED_FALSE
+        elif joint.name in LEG_JOINTS:
             joint.damping, joint.armature = 1.0, 0.01
         elif joint.type == mujoco.mjtJoint.mjJNT_HINGE:  # arms
             joint.damping, joint.armature = ARM_DAMPING, ARM_ARMATURE
@@ -224,6 +240,20 @@ def main():
             servo.forcelimited = mujoco.mjtLimited.mjLIMITED_TRUE
             peak = PEAK_TORQUE_NM[ARM_MOTORS[joint.name.split("_", 1)[1][:-len("_joint")]]]
             servo.forcerange = [-peak, peak]
+
+    for eq in list(spec.equalities):  # mimic equalities from the URDF importer, if any: replaced by the loop
+        spec.delete(eq)
+    for side in ("left", "right"):
+        end = spec.body(f"{side}_ankle_rod_end")
+        anchor = list(end.pos)
+        spec.delete(end)
+        spec.add_equality(type=mujoco.mjtEq.mjEQ_CONNECT, name=f"{side}_ankle_linkage",
+                          name1=f"{side}_ankle_rod_link", name2=f"{side}_foot",
+                          objtype=mujoco.mjtObj.mjOBJ_BODY, data=anchor + [0.0] * 8,
+                          solref=[LINKAGE_SOLREF, 1.0])
+        for link in (f"{side}_ankle_crank_link", f"{side}_ankle_rod_link"):
+            for geom in spec.body(link).geoms:
+                geom.contype, geom.conaffinity = 0, 0
 
     model = spec.compile()
     data = mujoco.MjData(model)
@@ -282,7 +312,7 @@ def main():
     write_arm_registry(urdf, PACKAGE / "config/motors_full_body.yaml")
     mass = sum(model.body_mass)
     print(f"{args.output}: {model.nbody} bodies, {model.njnt} joints ({len(LEG_JOINTS)} legs + "
-          f"{model.nu} arm servos), {mass:.2f} kg, {data.ncon} contacts at zero")
+          f"{model.nu} arm servos + {len(LINKAGE_JOINTS)} ankle linkage), {mass:.2f} kg, {data.ncon} contacts at zero")
 
 
 if __name__ == "__main__":

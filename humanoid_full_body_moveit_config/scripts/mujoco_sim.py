@@ -5,7 +5,9 @@
   to the world (fixed base, like the MoveIt model).
 - Copies the SRDF <disable_collisions> pairs into MuJoCo <exclude> pairs. Without them the
   CAD meshes of neighbouring links touch at the zero pose and push each other apart.
-- Gives every joint a position actuator (PD servo). By default it applies gravity compensation,
+- URDF <mimic> joints (the ankle four-bar's crank and rod) get a joint equality with the same linear relation
+  instead of a servo: MuJoCo's URDF importer ignores <mimic>.
+- Gives every other joint a position actuator (PD servo). By default it applies gravity compensation,
   so the servos only have to track the trajectory.
 - Publishes /joint_states. Each controller in config/moveit_controllers.yaml gets a
   control_msgs/FollowJointTrajectory action server: <controller>/follow_joint_trajectory.
@@ -47,6 +49,8 @@ def build_model(kp, kv, gravity_compensation, urdf_name="full_body.urdf"):
     # Keep every link as its own body and keep the visual meshes for the viewer.
     compiler.attrib.update(strippath="false", fusestatic="false", discardvisual="false",
                            balanceinertia="true")
+    mimic = {joint.get("name"): joint.find("mimic") for joint in robot.findall("joint")
+             if joint.find("mimic") is not None}
     spec = mujoco.MjSpec.from_string(ET.tostring(robot, encoding="unicode"))
 
     srdf = ET.parse(get_package_share_path(CONFIG) / "config/full_body.srdf").getroot()
@@ -64,6 +68,13 @@ def build_model(kp, kv, gravity_compensation, urdf_name="full_body.urdf"):
     for joint in spec.joints:
         joint.damping = 0.5  # N*m*s/rad
         joint.armature = 0.01  # kg*m^2, placeholder reflected rotor inertia
+        if joint.name in mimic:  # follows its master joint: q = offset + multiplier * q_master
+            joint.limited = mujoco.mjtLimited.mjLIMITED_FALSE
+            m = mimic[joint.name]
+            spec.add_equality(type=mujoco.mjtEq.mjEQ_JOINT, name1=joint.name, name2=m.get("joint"),
+                              objtype=mujoco.mjtObj.mjOBJ_JOINT,
+                              data=[float(m.get("offset", 0)), float(m.get("multiplier", 1)), 0, 0, 0] + [0] * 6)
+            continue
         actuator = spec.add_actuator(name=joint.name, target=joint.name,
                                      trntype=mujoco.mjtTrn.mjTRN_JOINT)
         actuator.set_to_position(kp=kp, kv=kv)

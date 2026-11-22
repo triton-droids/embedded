@@ -178,18 +178,33 @@
     </link>
   <link name="left_shank_link">
     <inertial>
-      <origin rpy="0 0 0" xyz="-0.0349854 -0.046719 -0.105199" />
-      <mass value="0.993488" />
-      <inertia ixx="0.00435127" ixy="-2.12047e-05" ixz="-0.000205347" iyy="0.00343492" iyz="-0.0014736" izz="0.0022705" />
+      <origin rpy="0 0 0" xyz="-0.0351124 -0.0473446 -0.105056" />
+      <mass value="0.967957" />
+      <inertia ixx="0.00432521" ixy="-1.4262e-05" ixz="-0.000208485" iyy="0.00342712" iyz="-0.00148044" izz="0.00224571" />
     </inertial>
     </link>
   <link name="left_foot">
     <inertial>
-      <origin rpy="0 0 0" xyz="-0.0159015 -0.00770347 -0.0170421" />
-      <mass value="0.604106" />
-      <inertia ixx="0.0018851" ixy="-0.000622677" ixz="0.000210208" iyy="0.0011582" iyz="0.000207741" izz="0.00190298" />
+      <origin rpy="0 0 0" xyz="-0.0172632 -0.012309 -0.0206316" />
+      <mass value="0.574351" />
+      <inertia ixx="0.00139239" ixy="-0.000547602" ixz="0.000269881" iyy="0.000912113" iyz="0.000439213" izz="0.00161229" />
     </inertial>
     </link>
+  <link name="left_ankle_crank_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0.0146739 0.015449 -0.010359" />
+      <mass value="0.0255316" />
+      <inertia ixx="1.05406e-05" ixy="-3.95031e-06" ixz="2.45077e-06" iyy="6.41408e-06" iyz="3.46214e-06" izz="9.44166e-06" />
+    </inertial>
+    </link>
+  <link name="left_ankle_rod_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="-0.00861674 -0.0444163 -0.070261" />
+      <mass value="0.0297546" />
+      <inertia ixx="9.45432e-05" ixy="-4.76696e-06" ixz="-6.52691e-06" iyy="6.7374e-05" iyz="-4.23559e-05" izz="2.91613e-05" />
+    </inertial>
+    </link>
+  <link name="left_ankle_rod_end" />
   <joint name="left_hip1_joint" type="revolute">
     <parent link="pelvis_link" />
     <child link="left_pelvis_hip_connector_link" />
@@ -225,6 +240,22 @@
     <axis xyz="-0.857488443 0.467770139 -0.214253745" />
     <limit effort="0" lower="-2.094" upper="1.686" velocity="0" />
   </joint>
+  
+  <joint name="left_ankle_crank_joint" type="fixed">
+    <parent link="left_shank_link" />
+    <child link="left_ankle_crank_link" />
+    <origin rpy="0 0 0" xyz="-0.0448447194 -0.0384508622 -0.10028534" />
+    </joint>
+  <joint name="left_ankle_rod_joint" type="fixed">
+    <parent link="left_ankle_crank_link" />
+    <child link="left_ankle_rod_link" />
+    <origin rpy="0 0 0" xyz="0.0229648738 0.0324158082 -0.0211383322" />
+    </joint>
+  <joint name="left_ankle_rod_end_joint" type="fixed">
+    <parent link="left_ankle_rod_link" />
+    <child link="left_ankle_rod_end" />
+    <origin rpy="0 0 0" xyz="-0.0175284335 -0.0881981326 -0.139931788" />
+  </joint>
   <link name="right_pelvis_hip_connector_link">
     <inertial>
       <origin rpy="0 0 0" xyz="-0.0718408 -0.00636457 -0.0112483" />
@@ -248,18 +279,33 @@
     </link>
   <link name="right_shank_link">
     <inertial>
-      <origin rpy="0 0 0" xyz="0.0305918 0.00137019 -0.116128" />
-      <mass value="0.979568" />
-      <inertia ixx="0.00428416" ixy="-3.98445e-06" ixz="-0.000121076" iyy="0.00450366" iyz="-1.29325e-05" izz="0.00124152" />
+      <origin rpy="0 0 0" xyz="0.0303901 0.000770435 -0.116302" />
+      <mass value="0.956349" />
+      <inertia ixx="0.00425711" ixy="1.29521e-06" ixz="-0.000119662" iyy="0.00449924" iyz="-8.90335e-06" izz="0.00121525" />
     </inertial>
     </link>
   <link name="right_foot">
     <inertial>
-      <origin rpy="0 0 0" xyz="-0.0120247 -0.00878213 -0.0195404" />
-      <mass value="0.599179" />
-      <inertia ixx="0.00225964" ixy="-2.52862e-05" ixz="-1.83749e-05" iyy="0.000779092" iyz="-0.000307033" izz="0.00189586" />
+      <origin rpy="0 0 0" xyz="-0.012229 -0.0113595 -0.0248806" />
+      <mass value="0.569755" />
+      <inertia ixx="0.00175725" ixy="-1.91761e-05" ixz="-5.71493e-06" iyy="0.000354471" iyz="-0.000150987" izz="0.00181707" />
     </inertial>
     </link>
+  <link name="right_ankle_crank_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="-0.00336763 0.0255317 -0.000379093" />
+      <mass value="0.0232195" />
+      <inertia ixx="1.13043e-05" ixy="-3.98384e-07" ixz="5.91555e-09" iyy="1.55077e-06" iyz="1.9172e-07" izz="1.01127e-05" />
+    </inertial>
+    </link>
+  <link name="right_ankle_rod_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0.001632 -0.000297784 -0.0835512" />
+      <mass value="0.0294237" />
+      <inertia ixx="9.44506e-05" ixy="5.04905e-20" ixz="-2.01962e-19" iyy="9.34089e-05" iyz="-3.29952e-07" izz="1.09386e-06" />
+    </inertial>
+    </link>
+  <link name="right_ankle_rod_end" />
   <joint name="right_hip1_joint" type="revolute">
     <parent link="pelvis_link" />
     <child link="right_pelvis_hip_connector_link" />
@@ -294,5 +340,21 @@
     <origin rpy="-0.043064997 0 0" xyz="0.0519680999 0.000540779603 -0.274801069" />
     <axis xyz="-1 -0 -0" />
     <limit effort="0" lower="-2.094" upper="1.686" velocity="0" />
+  </joint>
+  
+  <joint name="right_ankle_crank_joint" type="fixed">
+    <parent link="right_shank_link" />
+    <child link="right_ankle_crank_link" />
+    <origin rpy="0 0 0" xyz="0.0422680005 0.000540784896 -0.108564364" />
+    </joint>
+  <joint name="right_ankle_rod_joint" type="fixed">
+    <parent link="right_ankle_crank_link" />
+    <child link="right_ankle_rod_link" />
+    <origin rpy="0 0 0" xyz="2.58126853e-15 0.0449950349 -0.000668084297" />
+    </joint>
+  <joint name="right_ankle_rod_end_joint" type="fixed">
+    <parent link="right_ankle_rod_link" />
+    <child link="right_ankle_rod_end" />
+    <origin rpy="0 0 0" xyz="1.02691883e-10 -0.000596364129 -0.166290731" />
   </joint>
 </robot>

@@ -206,9 +206,11 @@
     <disable_collisions link1="left_base_link" link2="right_shank_link" reason="Never"/>
     <disable_collisions link1="left_base_link" link2="right_thigh_link" reason="Never"/>
     <disable_collisions link1="left_base_link" link2="torso_link" reason="Adjacent"/>
+    <disable_collisions link1="left_foot_link" link2="left_hip_link" reason="Never"/>
     <disable_collisions link1="left_foot_link" link2="left_link_001" reason="Never"/>
     <disable_collisions link1="left_foot_link" link2="left_link_002" reason="Never"/>
     <disable_collisions link1="left_foot_link" link2="left_link_003" reason="Never"/>
+    <disable_collisions link1="left_foot_link" link2="left_link_004" reason="Never"/>
     <disable_collisions link1="left_foot_link" link2="left_pelvis_hip_connector_link" reason="Never"/>
     <disable_collisions link1="left_foot_link" link2="left_shank_link" reason="Adjacent"/>
     <disable_collisions link1="left_foot_link" link2="left_thigh_link" reason="Never"/>
@@ -352,6 +354,7 @@
     <disable_collisions link1="right_base_link" link2="right_shank_link" reason="Never"/>
     <disable_collisions link1="right_base_link" link2="right_thigh_link" reason="Never"/>
     <disable_collisions link1="right_base_link" link2="torso_link" reason="Adjacent"/>
+    <disable_collisions link1="right_foot_link" link2="right_hip_link" reason="Never"/>
     <disable_collisions link1="right_foot_link" link2="right_link_001" reason="Never"/>
     <disable_collisions link1="right_foot_link" link2="right_link_002" reason="Never"/>
     <disable_collisions link1="right_foot_link" link2="right_link_003" reason="Never"/>
@@ -389,4 +392,79 @@
     <disable_collisions link1="right_shank_link" link2="right_thigh_link" reason="Adjacent"/>
     <disable_collisions link1="right_shank_link" link2="torso_link" reason="Never"/>
     <disable_collisions link1="right_thigh_link" link2="torso_link" reason="Never"/>
+    <!-- Ankle four-bar (crank, rod): mimic joints only approximate the closed loop, so they never check against their own shank and foot. -->
+    <disable_collisions link1="left_ankle_crank_link" link2="left_ankle_rod_link" reason="Adjacent"/>
+    <disable_collisions link1="left_ankle_crank_link" link2="left_base_link" reason="Never"/>
+    <disable_collisions link1="left_ankle_crank_link" link2="left_hip_link" reason="Never"/>
+    <disable_collisions link1="left_ankle_crank_link" link2="left_link_001" reason="Never"/>
+    <disable_collisions link1="left_ankle_crank_link" link2="left_link_002" reason="Never"/>
+    <disable_collisions link1="left_ankle_crank_link" link2="left_link_003" reason="Never"/>
+    <disable_collisions link1="left_ankle_crank_link" link2="left_pelvis_hip_connector_link" reason="Never"/>
+    <disable_collisions link1="left_ankle_crank_link" link2="left_shank_link" reason="Adjacent"/>
+    <disable_collisions link1="left_ankle_crank_link" link2="pelvis_link" reason="Never"/>
+    <disable_collisions link1="left_ankle_crank_link" link2="right_ankle_crank_link" reason="Never"/>
+    <disable_collisions link1="left_ankle_crank_link" link2="right_base_link" reason="Never"/>
+    <disable_collisions link1="left_ankle_crank_link" link2="right_hip_link" reason="Never"/>
+    <disable_collisions link1="left_ankle_crank_link" link2="right_link_001" reason="Never"/>
+    <disable_collisions link1="left_ankle_crank_link" link2="right_link_002" reason="Never"/>
+    <disable_collisions link1="left_ankle_crank_link" link2="right_link_003" reason="Never"/>
+    <disable_collisions link1="left_ankle_crank_link" link2="right_link_004" reason="Never"/>
+    <disable_collisions link1="left_ankle_crank_link" link2="right_pelvis_hip_connector_link" reason="Never"/>
+    <disable_collisions link1="left_ankle_crank_link" link2="right_thigh_link" reason="Never"/>
+    <disable_collisions link1="left_ankle_crank_link" link2="torso_link" reason="Never"/>
+    <disable_collisions link1="left_ankle_rod_link" link2="left_base_link" reason="Never"/>
+    <disable_collisions link1="left_ankle_rod_link" link2="left_foot_link" reason="Default"/>
+    <disable_collisions link1="left_ankle_rod_link" link2="left_hip_link" reason="Never"/>
+    <disable_collisions link1="left_ankle_rod_link" link2="left_link_001" reason="Never"/>
+    <disable_collisions link1="left_ankle_rod_link" link2="left_link_002" reason="Never"/>
+    <disable_collisions link1="left_ankle_rod_link" link2="left_link_003" reason="Never"/>
+    <disable_collisions link1="left_ankle_rod_link" link2="left_pelvis_hip_connector_link" reason="Never"/>
+    <disable_collisions link1="left_ankle_rod_link" link2="pelvis_link" reason="Never"/>
+    <disable_collisions link1="left_ankle_rod_link" link2="right_base_link" reason="Never"/>
+    <disable_collisions link1="left_ankle_rod_link" link2="right_hip_link" reason="Never"/>
+    <disable_collisions link1="left_ankle_rod_link" link2="right_link_001" reason="Never"/>
+    <disable_collisions link1="left_ankle_rod_link" link2="right_link_002" reason="Never"/>
+    <disable_collisions link1="left_ankle_rod_link" link2="right_link_003" reason="Never"/>
+    <disable_collisions link1="left_ankle_rod_link" link2="right_link_004" reason="Never"/>
+    <disable_collisions link1="left_ankle_rod_link" link2="right_pelvis_hip_connector_link" reason="Never"/>
+    <disable_collisions link1="left_ankle_rod_link" link2="torso_link" reason="Never"/>
+    <disable_collisions link1="left_base_link" link2="right_ankle_crank_link" reason="Never"/>
+    <disable_collisions link1="left_base_link" link2="right_ankle_rod_link" reason="Never"/>
+    <disable_collisions link1="left_hip_link" link2="right_ankle_crank_link" reason="Never"/>
+    <disable_collisions link1="left_hip_link" link2="right_ankle_rod_link" reason="Never"/>
+    <disable_collisions link1="left_link_001" link2="right_ankle_crank_link" reason="Never"/>
+    <disable_collisions link1="left_link_001" link2="right_ankle_rod_link" reason="Never"/>
+    <disable_collisions link1="left_link_002" link2="right_ankle_crank_link" reason="Never"/>
+    <disable_collisions link1="left_link_002" link2="right_ankle_rod_link" reason="Never"/>
+    <disable_collisions link1="left_link_003" link2="right_ankle_crank_link" reason="Never"/>
+    <disable_collisions link1="left_link_003" link2="right_ankle_rod_link" reason="Never"/>
+    <disable_collisions link1="left_link_004" link2="right_ankle_crank_link" reason="Never"/>
+    <disable_collisions link1="left_link_004" link2="right_ankle_rod_link" reason="Never"/>
+    <disable_collisions link1="left_pelvis_hip_connector_link" link2="right_ankle_crank_link" reason="Never"/>
+    <disable_collisions link1="left_pelvis_hip_connector_link" link2="right_ankle_rod_link" reason="Never"/>
+    <disable_collisions link1="left_thigh_link" link2="right_ankle_crank_link" reason="Never"/>
+    <disable_collisions link1="pelvis_link" link2="right_ankle_crank_link" reason="Never"/>
+    <disable_collisions link1="pelvis_link" link2="right_ankle_rod_link" reason="Never"/>
+    <disable_collisions link1="right_ankle_crank_link" link2="right_ankle_rod_link" reason="Adjacent"/>
+    <disable_collisions link1="right_ankle_crank_link" link2="right_base_link" reason="Never"/>
+    <disable_collisions link1="right_ankle_crank_link" link2="right_hip_link" reason="Never"/>
+    <disable_collisions link1="right_ankle_crank_link" link2="right_link_001" reason="Never"/>
+    <disable_collisions link1="right_ankle_crank_link" link2="right_link_002" reason="Never"/>
+    <disable_collisions link1="right_ankle_crank_link" link2="right_link_003" reason="Never"/>
+    <disable_collisions link1="right_ankle_crank_link" link2="right_link_004" reason="Never"/>
+    <disable_collisions link1="right_ankle_crank_link" link2="right_pelvis_hip_connector_link" reason="Never"/>
+    <disable_collisions link1="right_ankle_crank_link" link2="right_shank_link" reason="Adjacent"/>
+    <disable_collisions link1="right_ankle_crank_link" link2="torso_link" reason="Never"/>
+    <disable_collisions link1="right_ankle_rod_link" link2="right_base_link" reason="Never"/>
+    <disable_collisions link1="right_ankle_rod_link" link2="right_foot_link" reason="Default"/>
+    <disable_collisions link1="right_ankle_rod_link" link2="right_hip_link" reason="Never"/>
+    <disable_collisions link1="right_ankle_rod_link" link2="right_link_001" reason="Never"/>
+    <disable_collisions link1="right_ankle_rod_link" link2="right_link_002" reason="Never"/>
+    <disable_collisions link1="right_ankle_rod_link" link2="right_link_003" reason="Never"/>
+    <disable_collisions link1="right_ankle_rod_link" link2="right_pelvis_hip_connector_link" reason="Never"/>
+    <disable_collisions link1="right_ankle_rod_link" link2="torso_link" reason="Never"/>
+    <disable_collisions link1="left_ankle_rod_link" link2="left_shank_link" reason="User"/>
+    <disable_collisions link1="left_ankle_crank_link" link2="left_foot_link" reason="User"/>
+    <disable_collisions link1="right_ankle_rod_link" link2="right_shank_link" reason="User"/>
+    <disable_collisions link1="right_ankle_crank_link" link2="right_foot_link" reason="User"/>
 </robot>

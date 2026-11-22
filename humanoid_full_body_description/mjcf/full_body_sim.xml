@@ -23,11 +23,15 @@
     <mesh name="left_thigh_link" file="visual/left_thigh_link.stl"/>
     <mesh name="left_shank_link" file="visual/left_shank_link.stl"/>
     <mesh name="left_foot_link" file="visual/left_foot_link.stl"/>
+    <mesh name="left_ankle_crank_link" file="visual/left_ankle_crank_link.stl"/>
+    <mesh name="left_ankle_rod_link" file="visual/left_ankle_rod_link.stl"/>
     <mesh name="right_pelvis_hip_connector_link" file="visual/right_pelvis_hip_connector_link.stl"/>
     <mesh name="right_hip_link" file="visual/right_hip_link.stl"/>
     <mesh name="right_thigh_link" file="visual/right_thigh_link.stl"/>
     <mesh name="right_shank_link" file="visual/right_shank_link.stl"/>
     <mesh name="right_foot_link" file="visual/right_foot_link.stl"/>
+    <mesh name="right_ankle_crank_link" file="visual/right_ankle_crank_link.stl"/>
+    <mesh name="right_ankle_rod_link" file="visual/right_ankle_rod_link.stl"/>
     <mesh name="torso_link_collision" file="collision/torso_link.stl"/>
     <mesh name="pelvis_link_collision" file="collision/pelvis_link.stl"/>
     <mesh name="left_pelvis_hip_connector_link_collision" file="collision/left_pelvis_hip_connector_link.stl"/>
@@ -35,11 +39,15 @@
     <mesh name="left_thigh_link_collision" file="collision/left_thigh_link.stl"/>
     <mesh name="left_shank_link_collision" file="collision/left_shank_link.stl"/>
     <mesh name="left_foot_link_collision" file="collision/left_foot_link.stl"/>
+    <mesh name="left_ankle_crank_link_collision" file="collision/left_ankle_crank_link.stl"/>
+    <mesh name="left_ankle_rod_link_collision" file="collision/left_ankle_rod_link.stl"/>
     <mesh name="right_pelvis_hip_connector_link_collision" file="collision/right_pelvis_hip_connector_link.stl"/>
     <mesh name="right_hip_link_collision" file="collision/right_hip_link.stl"/>
     <mesh name="right_thigh_link_collision" file="collision/right_thigh_link.stl"/>
     <mesh name="right_shank_link_collision" file="collision/right_shank_link.stl"/>
     <mesh name="right_foot_link_collision" file="collision/right_foot_link.stl"/>
+    <mesh name="right_ankle_crank_link_collision" file="collision/right_ankle_crank_link.stl"/>
+    <mesh name="right_ankle_rod_link_collision" file="collision/right_ankle_rod_link.stl"/>
     <mesh name="left_base_link_collision" file="collision/left_base_link.stl"/>
     <mesh name="left_link_001_collision" file="collision/left_link_001.stl"/>
     <mesh name="left_link_002_collision" file="collision/left_link_002.stl"/>
@@ -81,17 +89,29 @@
                 <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" rgba="0.62 0.62 0.62 1" mesh="left_thigh_link"/>
                 <geom type="mesh" group="3" rgba="0.62 0.62 0.62 1" mesh="left_thigh_link_collision"/>
                 <body name="left_shank_link" pos="0.0619897 -0.0366674 -0.10589" quat="0.966951 0.218627 -0.119263 0.0546265">
-                  <inertial pos="-0.0349854 -0.046719 -0.105199" quat="0.849648 -0.246409 0.161397 0.437415" mass="0.993488" diaginertia="0.00450432 0.00429479 0.00125758"/>
+                  <inertial pos="-0.0351124 -0.0473446 -0.105056" quat="0.84362 -0.243439 0.164292 0.449501" mass="0.967957" diaginertia="0.0044982 0.00426792 0.00123192"/>
                   <joint name="left_knee_joint" pos="0 0 0" axis="-0.857488 0.46777 -0.214254" range="-2.0944 0" armature="0.01" damping="1"/>
                   <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" rgba="0.62 0.62 0.62 1" mesh="left_shank_link"/>
                   <geom type="mesh" group="3" rgba="0.62 0.62 0.62 1" mesh="left_shank_link_collision"/>
                   <body name="left_foot" pos="-0.0449393 -0.135544 -0.236191" quat="0.998743 -0.0429777 0.0234448 -0.0107385">
-                    <inertial pos="-0.0159015 -0.00770347 -0.0170421" quat="0.7791 0.569569 -0.23898 -0.107157" mass="0.604106" diaginertia="0.00226305 0.00195204 0.000731186"/>
+                    <inertial pos="-0.0172632 -0.012309 -0.0206316" quat="0.691222 0.222612 -0.511975 0.458843" mass="0.574351" diaginertia="0.00182417 0.00174784 0.000344788"/>
                     <joint name="left_ankle_joint" pos="0 0 0" axis="-0.857488 0.46777 -0.214254" range="-2.094 1.686" armature="0.01" damping="1"/>
                     <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" rgba="0.8 0.8 0.8 1" mesh="left_foot_link"/>
                     <geom type="mesh" contype="2" conaffinity="2" group="3" rgba="0.8 0.8 0.8 1" mesh="left_foot_link_collision"/>
                     <geom name="left_foot_collision_box" size="0.0356129 0.0958921 0.0075" pos="-0.0220331 -0.0291621 -0.0307356" quat="0.258687 -0.0407551 0.232711 0.936625" type="box" group="3"/>
                     <site name="left_foot" pos="-0.0223635 -0.0325897 -0.0373984" quat="0.258687 -0.0407551 0.232711 0.936625" size="0.01"/>
+                  </body>
+                  <body name="left_ankle_crank_link" pos="-0.0448447 -0.0384509 -0.100285">
+                    <inertial pos="0.0146739 0.015449 -0.010359" quat="0.847774 0.471786 -0.193258 -0.146114" mass="0.0255316" diaginertia="1.29926e-05 1.16992e-05 1.70452e-06"/>
+                    <joint name="left_ankle_crank_joint" pos="0 0 0" axis="-0.857488 0.46777 -0.214254" limited="false" range="-2.1016 1.7008" armature="0.001" damping="0.01"/>
+                    <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" rgba="0.33 0.33 0.33 1" mesh="left_ankle_crank_link"/>
+                    <geom type="mesh" contype="0" conaffinity="0" group="3" rgba="0.33 0.33 0.33 1" mesh="left_ankle_crank_link_collision"/>
+                    <body name="left_ankle_rod_link" pos="0.0229649 0.0324158 -0.0211383">
+                      <inertial pos="-0.00861674 -0.0444163 -0.070261" quat="0.921018 -0.28366 -0.0348061 -0.264672" mass="0.0297546" diaginertia="9.55128e-05 9.44607e-05 1.10496e-06"/>
+                      <joint name="left_ankle_rod_joint" pos="0 0 0" axis="-0.857488 0.46777 -0.214254" limited="false" range="-1.6977 2.101" armature="0.001" damping="0.01"/>
+                      <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" rgba="0.33 0.33 0.33 1" mesh="left_ankle_rod_link"/>
+                      <geom type="mesh" contype="0" conaffinity="0" group="3" rgba="0.33 0.33 0.33 1" mesh="left_ankle_rod_link_collision"/>
+                    </body>
                   </body>
                 </body>
               </body>
@@ -113,17 +133,29 @@
                 <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" rgba="0.62 0.62 0.62 1" mesh="right_thigh_link"/>
                 <geom type="mesh" group="3" rgba="0.62 0.62 0.62 1" mesh="right_thigh_link_collision"/>
                 <body name="right_shank_link" pos="-0.0476201 -0.0578378 -0.103861" quat="0.967643 -0.252324 0 0">
-                  <inertial pos="0.0305918 0.00137019 -0.116128" quat="0.701208 0.0127491 0.0153529 0.712677" mass="0.979568" diaginertia="0.00450377 0.00428891 0.00123666"/>
+                  <inertial pos="0.0303901 0.000770435 -0.116302" quat="0.709394 0.0128761 0.0148736 0.704538" mass="0.956349" diaginertia="0.00449928 0.0042618 0.00121053"/>
                   <joint name="right_knee_joint" pos="0 0 0" axis="-1 0 0" range="-2.0944 0" armature="0.01" damping="1"/>
                   <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" rgba="0.62 0.62 0.62 1" mesh="right_shank_link"/>
                   <geom type="mesh" group="3" rgba="0.62 0.62 0.62 1" mesh="right_shank_link_collision"/>
                   <body name="right_foot" pos="0.0519681 0.00054078 -0.274801" quat="0.999768 -0.0215308 0 0">
-                    <inertial pos="-0.0120247 -0.00878213 -0.0195404" quat="0.612526 0.79014 0.0101804 -0.0196799" mass="0.599179" diaginertia="0.00226064 0.00197424 0.000699705"/>
+                    <inertial pos="-0.012229 -0.0113595 -0.0248806" quat="0.465704 0.508229 -0.540859 0.48197" mass="0.569755" diaginertia="0.00183268 0.00175734 0.000338775"/>
                     <joint name="right_ankle_joint" pos="0 0 0" axis="-1 0 0" range="-2.094 1.686" armature="0.01" damping="1"/>
                     <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" rgba="0.62 0.62 0.62 1" mesh="right_foot_link"/>
                     <geom type="mesh" contype="2" conaffinity="2" group="3" rgba="0.62 0.62 0.62 1" mesh="right_foot_link_collision"/>
                     <geom name="right_foot_collision_box" size="0.0349083 0.0968 0.0075" pos="-0.0120566 -0.0187036 -0.0424181" quat="0.00858871 -0.0209519 -0.0228035 0.999483" type="box" group="3"/>
                     <site name="right_foot" pos="-0.0117396 -0.0183644 -0.0499037" quat="0.00858871 -0.0209519 -0.0228035 0.999483" size="0.01"/>
+                  </body>
+                  <body name="right_ankle_crank_link" pos="0.042268 0.000540785 -0.108564">
+                    <inertial pos="-0.00336763 0.0255317 -0.000379093" quat="0.714802 0.699029 -0.0136927 -0.0151308" mass="0.0232195" diaginertia="1.13205e-05 1.0117e-05 1.53024e-06"/>
+                    <joint name="right_ankle_crank_joint" pos="0 0 0" axis="-1 0 0" limited="false" range="-2.101 1.6989" armature="0.001" damping="0.01"/>
+                    <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" rgba="0.33 0.33 0.33 1" mesh="right_ankle_crank_link"/>
+                    <geom type="mesh" contype="0" conaffinity="0" group="3" rgba="0.33 0.33 0.33 1" mesh="right_ankle_crank_link_collision"/>
+                    <body name="right_ankle_rod_link" pos="0 0.044995 -0.000668084">
+                      <inertial pos="0.001632 -0.000297784 -0.0835512" quat="0.999998 -0.00178707 0 0" mass="0.0294237" diaginertia="9.44506e-05 9.34101e-05 1.09268e-06"/>
+                      <joint name="right_ankle_rod_joint" pos="0 0 0" axis="-1 0 0" limited="false" range="-1.6948 2.0993" armature="0.001" damping="0.01"/>
+                      <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" rgba="0.33 0.33 0.33 1" mesh="right_ankle_rod_link"/>
+                      <geom type="mesh" contype="0" conaffinity="0" group="3" rgba="0.33 0.33 0.33 1" mesh="right_ankle_rod_link_collision"/>
+                    </body>
                   </body>
                 </body>
               </body>
@@ -198,10 +230,14 @@
     <exclude body1="torso" body2="left_thigh_link"/>
     <exclude body1="torso" body2="left_shank_link"/>
     <exclude body1="torso" body2="left_foot"/>
+    <exclude body1="torso" body2="left_ankle_crank_link"/>
+    <exclude body1="torso" body2="left_ankle_rod_link"/>
     <exclude body1="torso" body2="right_pelvis_hip_connector_link"/>
     <exclude body1="torso" body2="right_thigh_link"/>
     <exclude body1="torso" body2="right_shank_link"/>
     <exclude body1="torso" body2="right_foot"/>
+    <exclude body1="torso" body2="right_ankle_crank_link"/>
+    <exclude body1="torso" body2="right_ankle_rod_link"/>
     <exclude body1="torso" body2="left_base_link"/>
     <exclude body1="torso" body2="left_link_001"/>
     <exclude body1="torso" body2="left_link_002"/>
@@ -214,10 +250,14 @@
     <exclude body1="hip" body2="left_thigh_link"/>
     <exclude body1="hip" body2="left_shank_link"/>
     <exclude body1="hip" body2="left_foot"/>
+    <exclude body1="hip" body2="left_ankle_crank_link"/>
+    <exclude body1="hip" body2="left_ankle_rod_link"/>
     <exclude body1="hip" body2="right_pelvis_hip_connector_link"/>
     <exclude body1="hip" body2="right_thigh_link"/>
     <exclude body1="hip" body2="right_shank_link"/>
     <exclude body1="hip" body2="right_foot"/>
+    <exclude body1="hip" body2="right_ankle_crank_link"/>
+    <exclude body1="hip" body2="right_ankle_rod_link"/>
     <exclude body1="hip" body2="left_base_link"/>
     <exclude body1="hip" body2="left_link_001"/>
     <exclude body1="hip" body2="left_link_002"/>
@@ -232,11 +272,15 @@
     <exclude body1="left_pelvis_hip_connector_link" body2="left_thigh_link"/>
     <exclude body1="left_pelvis_hip_connector_link" body2="left_shank_link"/>
     <exclude body1="left_pelvis_hip_connector_link" body2="left_foot"/>
+    <exclude body1="left_pelvis_hip_connector_link" body2="left_ankle_crank_link"/>
+    <exclude body1="left_pelvis_hip_connector_link" body2="left_ankle_rod_link"/>
     <exclude body1="left_pelvis_hip_connector_link" body2="right_pelvis_hip_connector_link"/>
     <exclude body1="left_pelvis_hip_connector_link" body2="right_hip_link"/>
     <exclude body1="left_pelvis_hip_connector_link" body2="right_thigh_link"/>
     <exclude body1="left_pelvis_hip_connector_link" body2="right_shank_link"/>
     <exclude body1="left_pelvis_hip_connector_link" body2="right_foot"/>
+    <exclude body1="left_pelvis_hip_connector_link" body2="right_ankle_crank_link"/>
+    <exclude body1="left_pelvis_hip_connector_link" body2="right_ankle_rod_link"/>
     <exclude body1="left_pelvis_hip_connector_link" body2="left_base_link"/>
     <exclude body1="left_pelvis_hip_connector_link" body2="left_link_001"/>
     <exclude body1="left_pelvis_hip_connector_link" body2="left_link_002"/>
@@ -248,11 +292,16 @@
     <exclude body1="left_pelvis_hip_connector_link" body2="right_link_004"/>
     <exclude body1="left_hip_link" body2="left_thigh_link"/>
     <exclude body1="left_hip_link" body2="left_shank_link"/>
+    <exclude body1="left_hip_link" body2="left_foot"/>
+    <exclude body1="left_hip_link" body2="left_ankle_crank_link"/>
+    <exclude body1="left_hip_link" body2="left_ankle_rod_link"/>
     <exclude body1="left_hip_link" body2="right_pelvis_hip_connector_link"/>
     <exclude body1="left_hip_link" body2="right_hip_link"/>
     <exclude body1="left_hip_link" body2="right_thigh_link"/>
     <exclude body1="left_hip_link" body2="right_shank_link"/>
     <exclude body1="left_hip_link" body2="right_foot"/>
+    <exclude body1="left_hip_link" body2="right_ankle_crank_link"/>
+    <exclude body1="left_hip_link" body2="right_ankle_rod_link"/>
     <exclude body1="left_hip_link" body2="left_base_link"/>
     <exclude body1="left_hip_link" body2="left_link_001"/>
     <exclude body1="left_hip_link" body2="left_link_002"/>
@@ -266,6 +315,7 @@
     <exclude body1="left_thigh_link" body2="left_foot"/>
     <exclude body1="left_thigh_link" body2="right_pelvis_hip_connector_link"/>
     <exclude body1="left_thigh_link" body2="right_hip_link"/>
+    <exclude body1="left_thigh_link" body2="right_ankle_crank_link"/>
     <exclude body1="left_thigh_link" body2="left_base_link"/>
     <exclude body1="left_thigh_link" body2="left_link_001"/>
     <exclude body1="left_thigh_link" body2="left_link_002"/>
@@ -276,6 +326,8 @@
     <exclude body1="left_thigh_link" body2="right_link_003"/>
     <exclude body1="left_thigh_link" body2="right_link_004"/>
     <exclude body1="left_shank_link" body2="left_foot"/>
+    <exclude body1="left_shank_link" body2="left_ankle_crank_link"/>
+    <exclude body1="left_shank_link" body2="left_ankle_rod_link"/>
     <exclude body1="left_shank_link" body2="right_pelvis_hip_connector_link"/>
     <exclude body1="left_shank_link" body2="right_hip_link"/>
     <exclude body1="left_shank_link" body2="left_base_link"/>
@@ -287,21 +339,51 @@
     <exclude body1="left_shank_link" body2="right_link_002"/>
     <exclude body1="left_shank_link" body2="right_link_003"/>
     <exclude body1="left_shank_link" body2="right_link_004"/>
+    <exclude body1="left_foot" body2="left_ankle_crank_link"/>
+    <exclude body1="left_foot" body2="left_ankle_rod_link"/>
     <exclude body1="left_foot" body2="right_pelvis_hip_connector_link"/>
     <exclude body1="left_foot" body2="right_hip_link"/>
     <exclude body1="left_foot" body2="left_base_link"/>
     <exclude body1="left_foot" body2="left_link_001"/>
     <exclude body1="left_foot" body2="left_link_002"/>
     <exclude body1="left_foot" body2="left_link_003"/>
+    <exclude body1="left_foot" body2="left_link_004"/>
     <exclude body1="left_foot" body2="right_base_link"/>
     <exclude body1="left_foot" body2="right_link_001"/>
     <exclude body1="left_foot" body2="right_link_002"/>
     <exclude body1="left_foot" body2="right_link_003"/>
     <exclude body1="left_foot" body2="right_link_004"/>
+    <exclude body1="left_ankle_crank_link" body2="left_ankle_rod_link"/>
+    <exclude body1="left_ankle_crank_link" body2="right_pelvis_hip_connector_link"/>
+    <exclude body1="left_ankle_crank_link" body2="right_hip_link"/>
+    <exclude body1="left_ankle_crank_link" body2="right_thigh_link"/>
+    <exclude body1="left_ankle_crank_link" body2="right_ankle_crank_link"/>
+    <exclude body1="left_ankle_crank_link" body2="left_base_link"/>
+    <exclude body1="left_ankle_crank_link" body2="left_link_001"/>
+    <exclude body1="left_ankle_crank_link" body2="left_link_002"/>
+    <exclude body1="left_ankle_crank_link" body2="left_link_003"/>
+    <exclude body1="left_ankle_crank_link" body2="right_base_link"/>
+    <exclude body1="left_ankle_crank_link" body2="right_link_001"/>
+    <exclude body1="left_ankle_crank_link" body2="right_link_002"/>
+    <exclude body1="left_ankle_crank_link" body2="right_link_003"/>
+    <exclude body1="left_ankle_crank_link" body2="right_link_004"/>
+    <exclude body1="left_ankle_rod_link" body2="right_pelvis_hip_connector_link"/>
+    <exclude body1="left_ankle_rod_link" body2="right_hip_link"/>
+    <exclude body1="left_ankle_rod_link" body2="left_base_link"/>
+    <exclude body1="left_ankle_rod_link" body2="left_link_001"/>
+    <exclude body1="left_ankle_rod_link" body2="left_link_002"/>
+    <exclude body1="left_ankle_rod_link" body2="left_link_003"/>
+    <exclude body1="left_ankle_rod_link" body2="right_base_link"/>
+    <exclude body1="left_ankle_rod_link" body2="right_link_001"/>
+    <exclude body1="left_ankle_rod_link" body2="right_link_002"/>
+    <exclude body1="left_ankle_rod_link" body2="right_link_003"/>
+    <exclude body1="left_ankle_rod_link" body2="right_link_004"/>
     <exclude body1="right_pelvis_hip_connector_link" body2="right_hip_link"/>
     <exclude body1="right_pelvis_hip_connector_link" body2="right_thigh_link"/>
     <exclude body1="right_pelvis_hip_connector_link" body2="right_shank_link"/>
     <exclude body1="right_pelvis_hip_connector_link" body2="right_foot"/>
+    <exclude body1="right_pelvis_hip_connector_link" body2="right_ankle_crank_link"/>
+    <exclude body1="right_pelvis_hip_connector_link" body2="right_ankle_rod_link"/>
     <exclude body1="right_pelvis_hip_connector_link" body2="left_base_link"/>
     <exclude body1="right_pelvis_hip_connector_link" body2="left_link_001"/>
     <exclude body1="right_pelvis_hip_connector_link" body2="left_link_002"/>
@@ -313,6 +395,9 @@
     <exclude body1="right_pelvis_hip_connector_link" body2="right_link_003"/>
     <exclude body1="right_hip_link" body2="right_thigh_link"/>
     <exclude body1="right_hip_link" body2="right_shank_link"/>
+    <exclude body1="right_hip_link" body2="right_foot"/>
+    <exclude body1="right_hip_link" body2="right_ankle_crank_link"/>
+    <exclude body1="right_hip_link" body2="right_ankle_rod_link"/>
     <exclude body1="right_hip_link" body2="left_base_link"/>
     <exclude body1="right_hip_link" body2="left_link_001"/>
     <exclude body1="right_hip_link" body2="left_link_002"/>
@@ -334,6 +419,8 @@
     <exclude body1="right_thigh_link" body2="right_link_002"/>
     <exclude body1="right_thigh_link" body2="right_link_003"/>
     <exclude body1="right_shank_link" body2="right_foot"/>
+    <exclude body1="right_shank_link" body2="right_ankle_crank_link"/>
+    <exclude body1="right_shank_link" body2="right_ankle_rod_link"/>
     <exclude body1="right_shank_link" body2="left_base_link"/>
     <exclude body1="right_shank_link" body2="left_link_001"/>
     <exclude body1="right_shank_link" body2="left_link_002"/>
@@ -343,6 +430,8 @@
     <exclude body1="right_shank_link" body2="right_link_001"/>
     <exclude body1="right_shank_link" body2="right_link_002"/>
     <exclude body1="right_shank_link" body2="right_link_003"/>
+    <exclude body1="right_foot" body2="right_ankle_crank_link"/>
+    <exclude body1="right_foot" body2="right_ankle_rod_link"/>
     <exclude body1="right_foot" body2="left_base_link"/>
     <exclude body1="right_foot" body2="left_link_001"/>
     <exclude body1="right_foot" body2="left_link_002"/>
@@ -352,6 +441,26 @@
     <exclude body1="right_foot" body2="right_link_001"/>
     <exclude body1="right_foot" body2="right_link_002"/>
     <exclude body1="right_foot" body2="right_link_003"/>
+    <exclude body1="right_ankle_crank_link" body2="right_ankle_rod_link"/>
+    <exclude body1="right_ankle_crank_link" body2="left_base_link"/>
+    <exclude body1="right_ankle_crank_link" body2="left_link_001"/>
+    <exclude body1="right_ankle_crank_link" body2="left_link_002"/>
+    <exclude body1="right_ankle_crank_link" body2="left_link_003"/>
+    <exclude body1="right_ankle_crank_link" body2="left_link_004"/>
+    <exclude body1="right_ankle_crank_link" body2="right_base_link"/>
+    <exclude body1="right_ankle_crank_link" body2="right_link_001"/>
+    <exclude body1="right_ankle_crank_link" body2="right_link_002"/>
+    <exclude body1="right_ankle_crank_link" body2="right_link_003"/>
+    <exclude body1="right_ankle_crank_link" body2="right_link_004"/>
+    <exclude body1="right_ankle_rod_link" body2="left_base_link"/>
+    <exclude body1="right_ankle_rod_link" body2="left_link_001"/>
+    <exclude body1="right_ankle_rod_link" body2="left_link_002"/>
+    <exclude body1="right_ankle_rod_link" body2="left_link_003"/>
+    <exclude body1="right_ankle_rod_link" body2="left_link_004"/>
+    <exclude body1="right_ankle_rod_link" body2="right_base_link"/>
+    <exclude body1="right_ankle_rod_link" body2="right_link_001"/>
+    <exclude body1="right_ankle_rod_link" body2="right_link_002"/>
+    <exclude body1="right_ankle_rod_link" body2="right_link_003"/>
     <exclude body1="left_base_link" body2="left_link_001"/>
     <exclude body1="left_base_link" body2="left_link_002"/>
     <exclude body1="left_base_link" body2="left_link_003"/>
@@ -398,6 +507,11 @@
     <exclude body1="right_link_002" body2="right_link_004"/>
     <exclude body1="right_link_003" body2="right_link_004"/>
   </contact>
+
+  <equality>
+    <connect name="left_ankle_linkage" body1="left_ankle_rod_link" body2="left_foot" anchor="-0.0175284 -0.0881981 -0.139932" solref="0.01"/>
+    <connect name="right_ankle_linkage" body1="right_ankle_rod_link" body2="right_foot" anchor="1.02692e-10 -0.000596364 -0.166291" solref="0.01"/>
+  </equality>
 
   <actuator>
     <general name="left_shoulder_pitch_joint_servo" joint="left_shoulder_pitch_joint" forcelimited="true" forcerange="-60 60" biastype="affine" gainprm="40" biasprm="0 -40 -2"/>

@@ -141,6 +141,48 @@ The arms are renamed to `*_shoulder_pitch_joint` (was `*_shoulder_abduction`), `
 `*_elbow_joint` (`*_joint_004_52`). Shoulder pitch + swings the arm forward, shoulder roll + abducts, and elbow + flexes
 (assumed forward, 0..130° from Fusion).
 
+## Ankle four-bar
+
+The ankle motor sits in the shank, 166 mm above the ankle axis. A crank on its output pushes a rod down to a lever at
+the heel. The CAD export put crank and rod in the shank link, so they stood still while the foot rotated and the rod
+came off the foot. `scripts/ankle_linkage.py` gives them their own links:
+
+| Link | Parent, joint | Moves with |
+|---|---|---|
+| `*_ankle_crank_link` (crank, hub and pin hardware, 23–26 g) | shank, `*_ankle_crank_joint` about the motor axis | the motor |
+| `*_ankle_rod_link` (pushrod, 30 g) | crank, `*_ankle_rod_joint` about the crank pin | the crank pin |
+| `*_ankle_rod_end` (frame, no mass) | rod, fixed at the lower eye | on the heel lever pin |
+
+A URDF tree cannot hold the closed loop, so both joints are `<mimic>` joints of `*_ankle_joint` (RViz, MoveIt and
+`robot_state_publisher` move them). A mimic is linear: over the driven range −65..+75° it is within 0.9° (crank) and
+1.6° (rod), so in RViz the rod end may miss the heel pin by up to about 5 mm. The simulation closes the loop exactly:
+`mjcf/full_body_sim.xml` keeps crank and rod as passive hinges and pins the rod end to the foot with an equality
+`connect` (gap under 1.5 mm while the ankle sweeps at 1.4 rad/s, 0 at rest). The Pinocchio models (WBC) weld crank and
+rod to the shank. The MoveIt MuJoCo backend (`humanoid_full_body_moveit_config/scripts/mujoco_sim.py`) follows the
+mimic relation with joint equalities.
+
+Pin positions measured from the CAD (cylinder axes of the crank hub, crank pin and rod eyes), both legs:
+
+| Bar | CAD | `ankle_mapping` (motors.yaml) |
+|---|---|---|
+| ground: ankle axis to motor axis | 166.24 mm | 6.5625 in = 166.69 mm |
+| crank | 45.00 mm | 1.79 in = 45.47 mm |
+| rod | 166.29 mm | 6.5 in = 165.10 mm |
+| heel lever | 44.40 mm | 1.875 in = 47.63 mm |
+
+Crank (= motor) angle for an ankle angle, four-bar solved with the CAD pins (left leg; right within 0.5° in the driven
+range), against the motor angle `ankle_mapping` commands:
+
+| Ankle | −65° | −45° | −20° | 0° | +20° | +45° | +75° | +90° |
+|---|---|---|---|---|---|---|---|---|
+| Crank, CAD | −63.4° | −44.2° | −19.7° | 0° | +19.7° | +44.2° | +72.6° | +82.9° |
+| Motor, `ankle_mapping` | −55.9° | −39.8° | −17.0° | +1.9° | +21.1° | +45.1° | +72.9° | – |
+
+The two disagree by up to 7.5° at −65°: the CAD heel lever is 3.2 mm shorter than the mapping's, and the mapping puts
+the lever at exactly 90° to the ground bar at ankle 0, where the CAD has 87.9° (left) / 90.9° (right). This assumes `ankle_mapping`'s ankle
+angle has the URDF's sign (+ lifts the toe), not checked on the robot. If the hardware is built like the CAD, the controller's ankle angle is off by that much. Check on the robot before changing
+`ankle_mapping`. The motor's zero (crank position at ankle 0) is taken from the CAD here.
+
 ## MuJoCo simulation (humanoid_sim)
 
 [`mjcf/full_body_sim.xml`](mjcf/full_body_sim.xml) is the robot for `humanoid_sim`:
