@@ -28,6 +28,7 @@ import tsid
 from .robot import FEET, TORSO, RobotModel
 
 FLAT, INNER, OUTER, SWING = 'flat', 'inner', 'outer', 'swing'
+ARM_KEYS = ('shoulder', 'elbow', 'arm_twist')
 EDGES = (INNER, OUTER)
 
 
@@ -47,6 +48,12 @@ class WBCGains:
     torso_weight: float = 0.5
     posture_kp: float = 20.0
     posture_weight: float = 0.01
+    # Arm joints (models with arms): an extra posture task on them only. With the global posture weight
+    # the QP swings the arms freely for the CoM and angular momentum tasks (the legs cannot move the CoM
+    # sideways in double support, the arm roll can): shoulder roll ran to 1.1 rad and stepping failed
+    # with the ROS chain's latency (offline with ChainTiming: 1 of 3 seeds; 0.1 here: 3 of 3).
+    arm_posture_kp: float = 20.0
+    arm_posture_weight: float = 0.1
     contact_kp: float = 100.0
     contact_weight: float = 1e3
     force_regularization_weight: float = 1e-5
@@ -102,6 +109,14 @@ class WholeBodyController:
         self.posture.setKp(np.full(robot.na, g.posture_kp))
         self.posture.setKd(np.full(robot.na, _kd(g.posture_kp)))
         self.form.addMotionTask(self.posture, g.posture_weight, 1, 0.0)
+        arms = np.array([any(k in n for k in ARM_KEYS) for n in robot.joint_names], float)
+        self.arm_posture = None
+        if arms.any() and g.arm_posture_weight > 0.0:
+            self.arm_posture = tsid.TaskJointPosture('arm_posture', self.robot)
+            self.arm_posture.setKp(np.full(robot.na, g.arm_posture_kp))
+            self.arm_posture.setKd(np.full(robot.na, _kd(g.arm_posture_kp)))
+            self.arm_posture.setMask(arms)
+            self.form.addMotionTask(self.arm_posture, g.arm_posture_weight, 1, 0.0)
 
         self.cop = tsid.TaskCopEquality('cop', self.robot)
         self.cop_active = False
@@ -238,8 +253,10 @@ class WholeBodyController:
         self.torso.setReference(tsid.TrajectorySE3Constant('torso_ref', pin.SE3(R, np.zeros(3))).computeNext())
 
     def set_posture(self, joints):
-        self.posture.setReference(
-            tsid.TrajectoryEuclidianConstant('posture_ref', np.asarray(joints, float)).computeNext())
+        sample = tsid.TrajectoryEuclidianConstant('posture_ref', np.asarray(joints, float)).computeNext()
+        self.posture.setReference(sample)
+        if self.arm_posture is not None:
+            self.arm_posture.setReference(sample)
 
     def set_swing_reference(self, foot, pose: pin.SE3, velocity=None, acceleration=None):
         s = tsid.TrajectorySample(12, 6)

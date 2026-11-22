@@ -80,7 +80,7 @@ def dds_profile(context):
 def simulation_and_stack(context):
     """Start the simulator, then the robot stack once the simulator is ready."""
     arg = LaunchConfiguration
-    registry_path = arg('motor_config_file').perform(context)
+    registry_path = _registry_path(arg('robot').perform(context), arg('motor_config_file').perform(context))
     with open(registry_path) as stream:
         registry = yaml.safe_load(stream)
     params = registry.get('motor_control_node', {}).get('ros__parameters', registry)
@@ -169,7 +169,8 @@ def simulation_and_stack(context):
             output={'stdout': 'log', 'stderr': 'screen'},
             ros_arguments=['--log-level', arg('log_level')],
             parameters=[arg('sim_config_file'),
-                        *_robot_model_parameter_file(arg('robot').perform(context)), {
+                        *_robot_model_parameter_file(arg('robot').perform(context), registry_path),
+                        sim_values := {
                 'motor_config_file': registry_path,
                 'use_viewer': flag(context, 'use_viewer'),
                 'dedicated_imu_executor': flag(context, 'dedicated_imu_executor'),
@@ -220,7 +221,8 @@ def simulation_and_stack(context):
                 'stereo_baseline_m': 0.05 if flag(context, 'enable_stereo') else 0.0,
                 'stereo_rate_hz': ParameterValue(arg('stereo_rate_hz'), value_type=float),
                 'stereo_shadows': flag(context, 'stereo_shadows')},
-               yaw_error],
+               yaw_error,
+               *_node_scoped_parameter_file(arg('sim_config_file').perform(context), sim_values)],
         # Without the simulator every other node would only report stale inputs.
         on_exit=[EmitEvent(event=Shutdown(reason='mujoco_sim exited'))],
     )
@@ -353,7 +355,7 @@ def simulation_and_stack(context):
     safety_launch = include('humanoid_safety', 'safety.launch.py', {
             'mode': 'supervisor' if minimal else 'all',
             'log_level': arg('log_level'),
-            'motor_config_file': arg('motor_config_file'),
+            'motor_config_file': registry_path,
             'safety_config': arg('safety_config_file'),
             'fall_detection_enabled': arg('fall_detection_enabled'),
             'trip_on_imu_timeout': arg('trip_on_imu_timeout'),
@@ -411,22 +413,41 @@ def simulation_and_stack(context):
     return nodes
 
 
+ROBOTS = ('legs', 'full_body', 'full_body_arms')
+
+
+def _registry_path(robot, given):
+    """full_body_arms: the 20-motor registry (legs plus placeholder arm motors) unless motor_config_file
+    was set to something other than the default leg registry."""
+    if robot not in ROBOTS:
+        raise ValueError(f'robot must be one of {ROBOTS}, not {robot!r}')
+    from ament_index_python.packages import get_package_share_directory
+    default = os.path.join(get_package_share_directory('motor_control_hybrid'), 'config', 'motors.yaml')
+    if robot != 'full_body_arms' or os.path.realpath(given) != os.path.realpath(default):
+        return given
+    return os.path.join(get_package_share_directory('humanoid_full_body_description'),
+                        'config', 'motors_full_body.yaml')
+
+
 def _walk_model_parameters(robot):
-    """walking_controller's Pinocchio model; full_body: arms fixed, see make_sim_mjcf.py."""
-    if robot != 'full_body':
+    """walking_controller's Pinocchio model (see make_sim_mjcf.py): full_body has the arms fixed,
+    full_body_arms all 20 joints."""
+    if robot == 'legs':
         return {}
     from ament_index_python.packages import get_package_share_directory
     share = get_package_share_directory('humanoid_full_body_description')
-    return {'urdf_path': os.path.join(share, 'urdf', 'full_body_wbc.urdf')}
+    stem = 'full_body_wbc_arms' if robot == 'full_body_arms' else 'full_body_wbc'
+    return {'urdf_path': os.path.join(share, 'urdf', f'{stem}.urdf')}
 
 
-def _robot_model_parameter_file(robot):
-    """A params file after sim.yaml. sim.yaml sets robot_xml/mesh_dir under the node's own name, which
-    outranks launch's wildcard dict parameters and -p arguments placed before it; only a later
-    node-scoped file overrides it."""
+def _robot_model_parameter_file(robot, registry_path):
+    """A params file after sim.yaml. sim.yaml sets robot_xml/mesh_dir/motor_config_file under the node's
+    own name, which outranks launch's wildcard dict parameters and -p arguments placed before it; only a
+    later node-scoped file overrides it."""
     values = _robot_model_parameters(robot)
     if not values:
         return []
+    values['motor_config_file'] = registry_path
     import tempfile
     import yaml
     with tempfile.NamedTemporaryFile('w', prefix='sim_robot_', suffix='.yaml', delete=False) as f:
@@ -434,12 +455,37 @@ def _robot_model_parameter_file(robot):
     return [f.name]
 
 
+def _node_scoped_parameter_file(sim_config, values):
+    """The launch's values above again, scoped to each sim.yaml node that sets the same key.
+
+    sim.yaml scopes its values by node name (mujoco_sim, sim_motor_backend, ...), and a node-scoped value
+    outranks a wildcard one whatever the file order: without this, e.g. model_walk's 200 Hz joint states
+    and ground truth stayed at sim.yaml's 50 Hz. Plain values only (no substitutions)."""
+    import tempfile
+    import yaml
+    with open(sim_config) as stream:
+        config = yaml.safe_load(stream) or {}
+    plain = {k: v for k, v in values.items() if isinstance(v, (bool, int, float, str))}
+    scoped = {}
+    for node, section in config.items():
+        if node == '/**' or not isinstance(section, dict):
+            continue
+        keys = (section.get('ros__parameters') or {}).keys() & plain.keys()
+        if keys:
+            scoped[node] = {'ros__parameters': {k: plain[k] for k in sorted(keys)}}
+    if not scoped:
+        return []
+    with tempfile.NamedTemporaryFile('w', prefix='sim_scoped_', suffix='.yaml', delete=False) as f:
+        yaml.safe_dump(scoped, f)
+    return [f.name]
+
+
 def _robot_model_parameters(robot):
     """robot_xml/mesh_dir for the selected robot; legs keeps sim.yaml (the tracking policy's MJCF)."""
     if robot == 'legs':
         return {}
-    if robot != 'full_body':
-        raise ValueError(f"robot must be legs or full_body, not {robot!r}")
+    if robot not in ROBOTS:
+        raise ValueError(f'robot must be one of {ROBOTS}, not {robot!r}')
     from ament_index_python.packages import get_package_share_directory
     share = get_package_share_directory('humanoid_full_body_description')
     return {'robot_xml': os.path.join(share, 'mjcf', 'full_body_sim.xml'),
@@ -485,7 +531,9 @@ def generate_launch_description():
         ('hold_first_frame', 'false', 'Keep reference frame 0 while the policy continues closed-loop corrections'),
         ('connect_policy', 'true', 'Route /policy/desired_motor_subset into cpp_control_node'),
         ('robot', 'legs', 'Robot model: legs (the tracking policy MJCF, 16 kg) or full_body '
-         '(humanoid_full_body_description/mjcf/full_body_sim.xml, 31.9 kg with torso and arms)'),
+         '(humanoid_full_body_description/mjcf/full_body_sim.xml, 31.9 kg with torso and arms; arms held by '
+         'position servos) or full_body_arms (same MJCF, arms driven by motors: the 20-motor registry '
+         'config/motors_full_body.yaml, and controller:=model_walk controls all 20 joints)'),
         ('auto_start', 'false',
          'Enable motors and release the gantry when the policy starts its reference motion'),
         ('release_delay_s', '0.1', 'With auto_start: delay from enable to gantry release'),

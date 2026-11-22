@@ -86,6 +86,13 @@ class StepParams(GaitParams):
     # True: lateral CoM reference over the stance foot during the kick (a long
     # single support); False: as walking (sway about the middle).
     kick_hold_com: bool = False
+    # Arm swing (models with arm joints, e.g. full_body_wbc_arms.urdf): each shoulder pitch posture
+    # reference swings against its own foot, -gain * (that foot's offset ahead of the feet's midpoint
+    # along the walking direction), so an arm is forward while the other side's foot is. Shoulder pitch
+    # + = arm forward. Only the posture task's reference: the WBC's centroidal angular momentum task
+    # (held at zero) also uses the arms. 0 = arms at the nominal posture.
+    arm_swing_rad_per_m: float = 4.0
+    arm_swing_max_rad: float = 0.4
 
 
 class SteppingController(GaitController):
@@ -103,6 +110,9 @@ class SteppingController(GaitController):
         self.kick_settle = False        # one more step after a kick before standing
         self.kick_squared = False       # this request already squared the feet
         self.kicks = 0
+        names = robot.joint_names
+        self.shoulder_pitch = {f: names.index(f'{f.split("_")[0]}_shoulder_pitch_joint')
+                               for f in FEET if f'{f.split("_")[0]}_shoulder_pitch_joint' in names}
 
     def request_kick(self, foot):
         """Kick with `foot` at the next single support of the other foot (standing: now)."""
@@ -364,6 +374,7 @@ class SteppingController(GaitController):
         cop = self.mid + p0[0] * self.lat_axis + p0[1] * self.fwd_axis
         cop[2] = self.ground_z
         self.wbc.set_cop(cop)
+        self._arm_swing()
         try:
             result = self.wbc.solve(q, v, t)
         except RuntimeError as exc:
@@ -376,6 +387,17 @@ class SteppingController(GaitController):
                                      'requested' if self.kick_request else None), 'kicks': self.kicks,
                             'forces': result.forces, 'com_z': float(com[2])})
         return self._sample_command(result, joints, rates)
+
+    def _arm_swing(self):
+        if not self.shoulder_pitch or self.p.arm_swing_rad_per_m == 0.0:
+            return
+        posture = self.q_nominal.copy()
+        for foot, index in self.shoulder_pitch.items():
+            ahead = 0.5 * (self.rm.sole_center(foot) - self.rm.sole_center(other(foot))) @ self.fwd_axis
+            posture[index] += float(np.clip(-self.p.arm_swing_rad_per_m * ahead,
+                                            -self.p.arm_swing_max_rad, self.p.arm_swing_max_rad))
+        self.wbc.set_posture(posture)
+        self.status['arm_swing'] = {f: float(posture[i]) for f, i in self.shoulder_pitch.items()}
 
     # ------------------------------------------------------- events
     def _lift_off(self, t, q):

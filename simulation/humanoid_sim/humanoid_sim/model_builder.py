@@ -146,6 +146,10 @@ def _add_leg_actuators(spec: mujoco.MjSpec, torque_limits: dict[str, float]) -> 
     for joint, torque in torque_limits.items():
         if spec.joint(joint) is None:
             raise ValueError(f'Registry joint {joint} is not in the robot model')
+        # A registry motor replaces any actuator the robot MJCF already has on that joint
+        # (the full-body MJCF holds its arms with position servos when they are not in the registry).
+        for existing in [a for a in spec.actuators if a.target == joint]:
+            spec.delete(existing)
         actuator = spec.add_actuator(
             name=actuator_name(joint), target=joint, trntype=mujoco.mjtTrn.mjTRN_JOINT,
             gaintype=mujoco.mjtGain.mjGAIN_FIXED, biastype=mujoco.mjtBias.mjBIAS_AFFINE,
