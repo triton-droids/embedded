@@ -251,5 +251,30 @@ Results (2026-11-21; ROS = `sim_experimental`, 200 Hz after the fix above, stepp
 | Offline with ROS-chain timing, 0.04 m/step 15 s | – | 2 of 2 seeds, 0.78 m |
 | Offline 0.06 / 0.08 m/step | – | 0.06: 20 s, 1.74 m; 0.08: torso tilt fault at 10.5 s |
 
-In the ROS runs the shoulder pitch swings over 0.36–0.51 rad. The run counts are small. Plain standing still drifts in
-COM (the ankle-only balance mode). The WBC gains are still the 16 kg leg model's.
+In the ROS runs the shoulder pitch swings over 0.36–0.51 rad.
+
+### Sideways torso lean (fixed)
+
+In those runs the torso leaned sideways: ±12–17° while stepping in place, and 10–25° to one side, on average +14°,
+while walking. There were two causes:
+
+1. **Torso orientation task too weak for a heavy upper body.** The legs have no ankle roll. With the 16 kg leg
+   model's torso weight (0.5, kp 50 against a CoM weight of 10), the QP moved the CoM sideways by leaning the torso
+   on the hip roll. The torso and arms are about half of the 32 kg. `walking_controller` now has `torso_kp` /
+   `torso_weight` node parameters; the defaults are unchanged (50 / 0.5), and `sim.launch.py` sets 150 / 5 for
+   `robot:=full_body*`. Offline with ROS-chain timing at 0.04 m/step, the largest lean went from 14.9° to 4.3°.
+2. **Feet yaw drift while walking straight.** Each swing target copied the stance foot's measured yaw, so yaw slips
+   added up. After 20 s both feet were 25–30° off the torso, which holds the heading, and the hip yaw was at
+   ±0.5 rad. Straight steps now place the swing foot at the walking heading, and the drift stays at 8° or less.
+
+After both fixes (ROS, 200 Hz, stepping in place, then 0.04 m/step from 22 s):
+
+| | Runs that ran the whole 43 s | Sideways lean, mean / max | Travel |
+|---|---|---|---|
+| `full_body_arms` | **4 of 4** | +0.7° / 4.2° | 1.42–1.53 m forward, ≤ 4 cm sideways |
+| `full_body` (arms fixed) | 2 of 2 | – | – |
+
+The run counts are small. Plain standing still drifts in COM (the ankle-only balance mode).
+
+The tracking policy (RL) after the 200 Hz fix: the 16 kg leg model still walks (2 of 2 runs, 13–14 m in 38 s); the
+full-body robot still falls 1.8–2.2 s after release (4 of 4). The policy needs retraining on the full-body model.

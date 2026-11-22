@@ -437,7 +437,9 @@ def _walk_model_parameters(robot):
     from ament_index_python.packages import get_package_share_directory
     share = get_package_share_directory('humanoid_full_body_description')
     stem = 'full_body_wbc_arms' if robot == 'full_body_arms' else 'full_body_wbc'
-    return {'urdf_path': os.path.join(share, 'urdf', f'{stem}.urdf')}
+    # The upper body is about half the mass: a stiffer torso orientation task stops the WBC from
+    # leaning the torso sideways to move the CoM (walking_controller node.py, torso_kp / torso_weight).
+    return {'urdf_path': os.path.join(share, 'urdf', f'{stem}.urdf'), 'torso_kp': 150.0, 'torso_weight': 5.0}
 
 
 def _robot_model_parameter_file(robot, registry_path):

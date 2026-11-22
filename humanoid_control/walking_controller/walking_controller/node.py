@@ -107,6 +107,12 @@ class WalkingControllerNode(Node):
             # contact is pulled flat with it; 100 makes the single-support
             # force swing ~40-250 N (design doc section 17).
             'contact_kp': 100.0,
+            # WBC torso orientation task. The defaults suit the 16 kg leg model. A heavy upper body (the
+            # full-body robot, 32 kg) needs a stiffer one: the legs have no ankle roll, and with weight
+            # 0.5 the QP moved the CoM sideways by leaning the torso (15-25 deg in ROS); 5 / 150 keeps it
+            # within ~4 deg offline (sim.launch.py sets them for robot:=full_body*).
+            'torso_kp': 50.0,
+            'torso_weight': 0.5,
             # Turn first (velocity input): the step is full while |turn| <=
             # cmd_vel_turn_free_rad, 0 from cmd_vel_turn_stop_rad, linear in
             # between, so a large heading error is turned out in place. All
@@ -137,7 +143,8 @@ class WalkingControllerNode(Node):
         limits = load_limits(registry, self.names)
         self.controller = SteppingController(self.robot, limits.torque, StepParams(
             dt=1.0 / p['control_rate_hz'], step_length_m=self._clamp(p['step_length_m']),
-            gains=WBCGains(com_kp_z=100.0, com_weight=10.0, contact_kp=float(p['contact_kp']))))
+            gains=WBCGains(com_kp_z=100.0, com_weight=10.0, contact_kp=float(p['contact_kp']),
+                          torso_kp=float(p['torso_kp']), torso_weight=float(p['torso_weight']))))
         self.inputs, self.base_held, self.estop = {}, None, True
         self.started, self.fault, self.cycles = False, '', 0
         self._slow_log_last = None  # Start of the previous cycle (slow_log_ms gap).

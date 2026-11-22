@@ -432,6 +432,12 @@ class SteppingController(GaitController):
         # and the commanded step length along the walking direction.
         stance_pose = self.rm.data.oMf[self.rm.frame_id[stance]].copy()
         yaw = math.atan2(stance_pose.rotation[1, 0], stance_pose.rotation[0, 0])
+        if not self.turning:
+            # Straight: place the swing foot at the walking heading, not at the stance foot's measured
+            # yaw. Copying the measured yaw let small yaw slips add up step by step (full-body robot in
+            # ROS: both feet +25-30 deg against the torso after 20 s of walking, hip yaw at +-0.5 rad and
+            # the torso leaning 15-25 deg sideways); the torso task holds the heading, so the legs twisted.
+            yaw = self._wrap(self.yaw0[stance] + self.heading)
         level = pin.SE3(pin.rpy.rpyToMatrix(0.0, 0.0, yaw) @ self._foot_rest_rotation(stance),
                         stance_pose.translation.copy())
         level.translation[2] = self.footholds[stance].translation[2]
