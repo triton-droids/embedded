@@ -14,7 +14,8 @@ This script builds exactly that from urdf/full_body.urdf.xacro:
 - `floating_base` sits at the torso_link origin (centre of the torso's bottom face, +z up),
 - the leg joints get the policy MJCF's damping (1.0) and armature (0.01); their names, axis signs and
   ranges already match it in the URDF,
-- the arms, which have no motors in the registry, get position servos that hold ctrl (0 = hanging down),
+- the arms, which have no motors in the registry, get position servos that hold ctrl (0 = hanging down), with
+  their motors' peak torque; the motorless upper_arm_twist joints are welded,
 - each sole gets a box contact sized from the foot's mesh (the training MJCF used boxes too); the
   foot hull no longer touches the floor,
 - self-contact pairs that the SRDF disables (adjacent or never colliding) are excluded, as in
@@ -24,8 +25,8 @@ It also writes the Pinocchio model for the model-based walking controller (walki
 `controller:=model_walk`): urdf/full_body_wbc.urdf with the arm joints fixed (arms ride on the torso as rigid
 mass), frames renamed to the controller's `torso` / `left_foot` / `right_foot`, and
 urdf/full_body_wbc.dynamics.json (MuJoCo base to Pinocchio root, leg armature/damping, sole corners).
-With the arms driven too (`robot:=full_body_arms`): urdf/full_body_wbc_arms.* (all 20 joints) and
-config/motors_full_body.yaml (leg registry plus placeholder arm motors; humanoid_sim then replaces the arm
+With the arms driven too (`robot:=full_body_arms`): urdf/full_body_wbc_arms.* (all 18 motor joints) and
+config/motors_full_body.yaml (leg registry plus the 8 arm motors; humanoid_sim then replaces the arm
 position servos with the same MIT-law motors as the legs).
 
 Run after changing the URDF (needs ROS xacro and the mujoco Python module, e.g. from rosenv):
@@ -48,14 +49,17 @@ SRDF = REPO / "humanoid_full_body_moveit_config/config/full_body.srdf"
 LEG_JOINTS = [f"{s}_{j}_joint" for s in ("left", "right") for j in ("hip1", "hip2", "thigh", "knee", "ankle")]
 RENAME_BODY = {"torso_link": "torso", "pelvis_link": "hip", "left_foot_link": "left_foot",
                "right_foot_link": "right_foot"}
-ARM_JOINTS = [f"{s}_{j}_joint" for s in ("left", "right")
-              for j in ("shoulder_pitch", "shoulder_roll", "shoulder_yaw", "upper_arm_twist", "elbow")]
+# Arm motors per side (hardware): shoulder pitch (on the torso) RS03, then towards the wrist shoulder roll RS03,
+# shoulder yaw RS02 and elbow RS02. The CAD's upper_arm_twist joint is coaxial with the shoulder yaw and carries
+# a 24 g link: no motor, so the simulation and the WBC models weld it (the URDF keeps it for MoveIt).
+ARM_MOTORS = {"shoulder_pitch": "rs-03", "shoulder_roll": "rs-03", "shoulder_yaw": "rs-02", "elbow": "rs-02"}
+ARM_JOINTS = [f"{s}_{j}_joint" for s in ("left", "right") for j in ARM_MOTORS]
+WELDED_ARM_JOINTS = [f"{s}_upper_arm_twist_joint" for s in ("left", "right")]
+PEAK_TORQUE_NM = {"rs-02": 17.0, "rs-03": 60.0, "rs-04": 120.0}  # as walking_controller/robot.py
 ARM_DAMPING, ARM_ARMATURE = 0.5, 0.01
-ARM_MOTOR_MODEL = "rs-02"  # placeholder
 LEG_REGISTRY = REPO / "humanoid_control/motor_control_hybrid/config/motors.yaml"
 ARM_SERVO_KP = 40.0   # N*m/rad, placeholder: only holds the arms at their commanded pose
 ARM_SERVO_KV = 2.0    # N*m*s/rad
-ARM_FORCE_LIMIT = 20.0
 SOLE_SLICE = 0.01     # m: vertices this close to the lowest point form the sole
 TOP_HEIGHT = 0.385    # m, top of the torso frame above torso_link
 
@@ -91,7 +95,7 @@ def write_wbc_model(urdf_text, model, data, out_dir, arms=False):
     """Pinocchio URDF (controller frame names) and its .dynamics.json.
 
     arms=False: full_body_wbc.* with the arm joints fixed (10 leg joints).
-    arms=True: full_body_wbc_arms.* with all 20 joints; continuous arm joints become revolute
+    arms=True: full_body_wbc_arms.* with the 18 motor joints (upper_arm_twist welded); continuous arm joints become revolute
     (Pinocchio models a continuous joint with nq = 2, the controller expects nq = nv)."""
     robot = ET.fromstring(urdf_text)
     for link in robot.findall("link"):
@@ -103,14 +107,15 @@ def write_wbc_model(urdf_text, model, data, out_dir, arms=False):
         for tag in ("parent", "child"):
             element = joint.find(tag)
             element.set("link", WBC_RENAME.get(element.get("link"), element.get("link")))
-        if joint.get("type") == "continuous" and arms:
-            joint.set("type", "revolute")
-            ET.SubElement(joint, "limit", lower=str(-np.pi), upper=str(np.pi), effort="0", velocity="0")
-        elif joint.get("type") != "fixed" and joint.get("name") not in LEG_JOINTS and not arms:
+        if joint.get("name") in WELDED_ARM_JOINTS or (
+                joint.get("type") != "fixed" and joint.get("name") not in LEG_JOINTS and not arms):
             joint.set("type", "fixed")
             for tag in ("axis", "limit"):
                 if joint.find(tag) is not None:
                     joint.remove(joint.find(tag))
+        elif joint.get("type") == "continuous" and arms:
+            joint.set("type", "revolute")
+            ET.SubElement(joint, "limit", lower=str(-np.pi), upper=str(np.pi), effort="0", velocity="0")
     corners = {}
     for side in ("left", "right"):
         geom = model.geom(f"{side}_foot_collision_box").id
@@ -132,7 +137,7 @@ def write_wbc_model(urdf_text, model, data, out_dir, arms=False):
         "contact_points": corners,
     }
     stem = "full_body_wbc_arms" if arms else "full_body_wbc"
-    note = "All 20 joints." if arms else "Arm joints fixed."
+    note = "All 18 motor joints." if arms else "Arm joints fixed."
     (out_dir / f"{stem}.urdf").write_text(
         "<?xml version=\"1.0\"?>\n<!-- Generated by scripts/make_sim_mjcf.py: Pinocchio model for walking_controller. "
         f"{note} Do not edit. -->\n" + ET.tostring(robot, encoding="unicode"))
@@ -140,10 +145,10 @@ def write_wbc_model(urdf_text, model, data, out_dir, arms=False):
 
 
 def write_arm_registry(urdf_text, out_file):
-    """Motor registry with the 10 leg motors of motor_control_hybrid/config/motors.yaml plus 10 arm motors.
+    """Motor registry with the 10 leg motors of motor_control_hybrid/config/motors.yaml plus the 8 arm motors.
 
-    For simulation only (robot:=full_body_arms): the arm entries are placeholders (motor model, CAN ids,
-    direction and gains are not the real arm hardware's)."""
+    For simulation only (robot:=full_body_arms): the arm motor models are the hardware's, CAN ids,
+    direction and gains are placeholders."""
     import yaml
     legs = yaml.safe_load(LEG_REGISTRY.read_text())
     params = legs["motor_control_node"]["ros__parameters"]
@@ -154,14 +159,16 @@ def write_arm_registry(urdf_text, out_file):
             limits[joint.get("name")] = ((float(limit.get("lower")), float(limit.get("upper")))
                                          if limit is not None else (-np.pi, np.pi))
     for i, name in enumerate(ARM_JOINTS):
+        model = ARM_MOTORS[name.split("_", 1)[1][:-len("_joint")]]
         params["motors"][name] = {
-            "can_interface": "can2", "master_id": 255, "motor_id": 11 + i, "model": ARM_MOTOR_MODEL,
+            "can_interface": "can2", "master_id": 255, "motor_id": 11 + i, "model": model,
             "actuator_type": None, "direction": 1, "encoder_offset_rad": 0.0,
-            "max_torque_nm": ARM_FORCE_LIMIT, "min_position": round(limits[name][0], 6),
+            "max_torque_nm": None, "min_position": round(limits[name][0], 6),
             "max_position": round(limits[name][1], 6), "kp": ARM_SERVO_KP, "kd": ARM_SERVO_KV}
     header = ("# Generated by humanoid_full_body_description/scripts/make_sim_mjcf.py: the leg motors of\n"
-              "# motor_control_hybrid/config/motors.yaml plus 10 arm motors. SIMULATION ONLY: the arm entries\n"
-              "# (model, CAN ids, direction, gains) are placeholders, not the real arm hardware. Do not edit.\n")
+              "# motor_control_hybrid/config/motors.yaml plus 8 arm motors (shoulder pitch/roll RS03, shoulder yaw\n"
+              "# and elbow RS02). SIMULATION ONLY: the arm CAN ids, directions, zero offsets and gains are\n"
+              "# placeholders, not calibrated hardware. Do not edit.\n")
     out_file.parent.mkdir(parents=True, exist_ok=True)
     out_file.write_text(header + yaml.safe_dump(legs, sort_keys=False))
 
@@ -193,6 +200,8 @@ def main():
         visual = geom.meshname and spec.mesh(geom.meshname).file.startswith("visual/")
         geom.group, geom.contype, geom.conaffinity = (2, 0, 0) if visual else (3, 1, 1)
 
+    for joint in [j for j in spec.joints if j.name in WELDED_ARM_JOINTS]:
+        spec.delete(joint)
     for joint in spec.joints:
         if joint.name in LEG_JOINTS:
             joint.damping, joint.armature = 1.0, 0.01
@@ -202,7 +211,8 @@ def main():
                                       trntype=mujoco.mjtTrn.mjTRN_JOINT)
             servo.set_to_position(kp=ARM_SERVO_KP, kv=ARM_SERVO_KV)
             servo.forcelimited = mujoco.mjtLimited.mjLIMITED_TRUE
-            servo.forcerange = [-ARM_FORCE_LIMIT, ARM_FORCE_LIMIT]
+            peak = PEAK_TORQUE_NM[ARM_MOTORS[joint.name.split("_", 1)[1][:-len("_joint")]]]
+            servo.forcerange = [-peak, peak]
 
     model = spec.compile()
     data = mujoco.MjData(model)

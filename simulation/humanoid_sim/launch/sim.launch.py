@@ -419,7 +419,7 @@ ROBOTS = ('legs', 'full_body', 'full_body_arms')
 
 
 def _registry_path(robot, given):
-    """full_body_arms: the 20-motor registry (legs plus placeholder arm motors) unless motor_config_file
+    """full_body_arms: the 18-motor registry (10 legs plus 8 arm motors) unless motor_config_file
     was set to something other than the default leg registry."""
     if robot not in ROBOTS:
         raise ValueError(f'robot must be one of {ROBOTS}, not {robot!r}')
@@ -433,7 +433,7 @@ def _registry_path(robot, given):
 
 def _walk_model_parameters(robot):
     """walking_controller's Pinocchio model (see make_sim_mjcf.py): full_body has the arms fixed,
-    full_body_arms all 20 joints."""
+    full_body_arms all 18 motor joints."""
     if robot == 'legs':
         return {}
     from ament_index_python.packages import get_package_share_directory
@@ -538,8 +538,8 @@ def generate_launch_description():
         ('connect_policy', 'true', 'Route /policy/desired_motor_subset into cpp_control_node'),
         ('robot', 'legs', 'Robot model: legs (the tracking policy MJCF, 16 kg) or full_body '
          '(humanoid_full_body_description/mjcf/full_body_sim.xml, 31.9 kg with torso and arms; arms held by '
-         'position servos) or full_body_arms (same MJCF, arms driven by motors: the 20-motor registry '
-         'config/motors_full_body.yaml, and controller:=model_walk controls all 20 joints)'),
+         'position servos) or full_body_arms (same MJCF, arms driven by motors: the 18-motor registry '
+         'config/motors_full_body.yaml, and controller:=model_walk controls all 18 motor joints)'),
         ('auto_start', 'false',
          'Enable motors and release the gantry when the policy starts its reference motion'),
         ('release_delay_s', '0.1', 'With auto_start: delay from enable to gantry release'),

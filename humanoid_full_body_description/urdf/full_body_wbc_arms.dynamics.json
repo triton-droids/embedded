@@ -77,10 +77,6 @@
       "armature": 0.01,
       "damping": 0.5
     },
-    "left_upper_arm_twist_joint": {
-      "armature": 0.01,
-      "damping": 0.5
-    },
     "left_elbow_joint": {
       "armature": 0.01,
       "damping": 0.5
@@ -94,10 +90,6 @@
       "damping": 0.5
     },
     "right_shoulder_yaw_joint": {
-      "armature": 0.01,
-      "damping": 0.5
-    },
-    "right_upper_arm_twist_joint": {
       "armature": 0.01,
       "damping": 0.5
     },
