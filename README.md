@@ -8,6 +8,7 @@ and the two have different package names, so they can be built side by side. The
 |---|---|---|
 | [`simplified/`](simplified) | `humanoid_full_body_simplified` | [`urdf/full_body.urdf.xacro`](simplified/urdf/full_body.urdf.xacro), the **editable source** (about 210 lines: one macro call per link and joint); [`urdf/full_body.urdf`](simplified/urdf/full_body.urdf), expanded from the xacro; `meshes/visual/` and `meshes/collision/`, one mesh of each per link |
 | [`detailed/`](detailed) | `humanoid_full_body_detailed` | [`urdf/full_body.urdf`](detailed/urdf/full_body.urdf), the CAD export with one visual/collision per part (about 14,500 lines); `meshes/cad/`, 1,086 CAD part meshes |
+| [`config/`](config) | – | [`motors_full_body.yaml`](config/motors_full_body.yaml), the motor registry for the full body (simulation): 10 leg motors and 8 arm motors, see "Motors" below |
 
 After editing the xacro, regenerate the expanded file with `cd simplified && xacro urdf/full_body.urdf.xacro -o urdf/full_body.urdf`.
 Changes to joints or masses must be made in **both** folders.
@@ -81,7 +82,7 @@ way as there, so the same joint angle bends both models the same way.
 | `*_shoulder_pitch_joint` | shoulder pitch | none (continuous) | `*_shoulder_abduction` |
 | `*_shoulder_roll_joint` | shoulder roll | −15..105° (CAD) | `*_joint_001_10` |
 | `*_shoulder_yaw_joint` | shoulder yaw | ±180° (CAD) | `*_joint_002_16` |
-| `*_upper_arm_twist_joint` | twist, coaxial with the yaw | none (continuous) | `*_joint_003_45` |
+| `*_upper_arm_twist_joint` | twist, coaxial with the yaw; **no motor** (see "Motors") | none (continuous) | `*_joint_003_45` |
 | `*_elbow_joint` | elbow | none (continuous) | `*_joint_004_52` |
 
 The joint zero was re-defined from the CAD pose, in which the legs were posed rather than straight. The CAD pose,
@@ -92,9 +93,32 @@ expressed in the new joint coordinates (degrees), is:
 | left | 19.7 / 0.0 / 32.5 / −29.5 / 5.7 |
 | right | −1.9 / 7.8 / −0.9 / 29.2 / 2.5 |
 
+The leg zeros were then shifted by at most 2.4° to match the tracking policy's leg model. At `q = 0` the ankle sits where
+the policy model puts it: the fore-aft error went from 1.2 cm to under 1 mm. The sole stays nearly flat (1.5° / 0.95°); there
+is no ankle roll joint to hold both.
+
 Both CAD feet were mounted the wrong way round, with the sole mostly behind the ankle. Each was turned 180° about the vertical through its
 ankle, and the ankle axis was negated, so its direction is unchanged. The sole centre now sits 2–3 cm in front of the hip, as in the policy's leg model. The two
 feet are the same, unmirrored part, so the left sole is 1.1 cm outboard of its ankle and the right one 1.4 cm inboard.
+
+## Motors
+
+[`config/motors_full_body.yaml`](config/motors_full_body.yaml) has the same format as `motor_control_hybrid/config/motors.yaml`.
+The 10 leg entries are copied from that file. Peak torques are RS-04 120 Nm, RS-03 60 Nm and RS-02 17 Nm.
+
+| Joint | Motor |
+|---|---|
+| `*_hip1_joint` (hip pitch), `*_knee_joint` | RS-04 |
+| `*_hip2_joint` (hip roll), `*_thigh_joint` (hip yaw) | RS-03 |
+| `*_ankle_joint` | RS-02 |
+| `*_shoulder_pitch_joint` (on the torso), `*_shoulder_roll_joint` | RS-03 |
+| `*_shoulder_yaw_joint`, `*_elbow_joint` | RS-02 |
+
+Each arm has 4 motors: shoulder pitch, then shoulder roll, shoulder yaw and elbow towards the wrist.
+`*_upper_arm_twist_joint` is a CAD artefact: it is coaxial with the shoulder yaw, the link between them weighs 24 g, and it has no
+motor. The URDFs keep it, but the simulation and controllers treat it as fixed at 0. The arm entries' CAN ids, directions,
+zero offsets and gains are **placeholders**. Their position ranges are the URDF's, ±180° where the joint is continuous. Only the
+motor models are from the hardware.
 
 ## Mass properties
 
@@ -111,7 +135,7 @@ Every inertia tensor is positive definite and satisfies the triangle inequality.
 
 ## Not done yet
 
-- **Arm polarity and limits**: the arm axes are the CAD export's, and three arm joints are still `continuous`.
+- **Arm polarity and limits**: the arm axes are the CAD export's, and three arm joints are still `continuous`. The arm motor entries in `config/` need their CAN ids, directions and zero offsets.
 - **Leg geometry vs the built robot**: compared with the tracking policy's leg model, each ankle sits 2–3 cm further out at
   zero pose. Which CAD matches the built robot has not been checked.
 - **Effort/velocity limits** are 0 in the URDF.
