@@ -192,3 +192,27 @@ the joint positions along the chain (for example, hip2 sits 1 cm further out), a
 robot still has to be checked on the hardware.
 The SRDF collision matrix was regenerated after the fix: 21 adjacent pairs and 170 never colliding (the leg ranges exclude
 more poses now).
+
+## Model-based walking (WBC)
+
+`walking_controller` (LIPM MPC + TSID, no RL; `controller:=model_walk`) runs the full-body robot with
+`robot:=full_body`. `make_sim_mjcf.py` also writes its Pinocchio model, `urdf/full_body_wbc.urdf`. In that model the arm joints are fixed, so the
+arms ride on the torso as rigid mass (31.9 kg in total), and the frames are named `torso`, `left_foot` and `right_foot`.
+`full_body_wbc.dynamics.json` holds the identity base offset, the leg armature/damping, and the sole corners of the MJCF foot boxes.
+The Pinocchio COM matches MuJoCo's.
+
+```bash
+scripts/sim_experimental.sh controller:=model_walk robot:=full_body auto_start:=true   # steps in place
+ros2 topic pub --once /walk/step_length std_msgs/msg/Float64 "{data: 0.04}"           # walk forward
+```
+
+First results (2026-11-21, default walking_controller gains, tuned for the 16 kg leg model):
+
+| Run | Stepping in place | Walking 0.04 m/step | 0.08 m/step | Standing still (no stepping) |
+|---|---|---|---|---|
+| Offline (`walking_controller.offline`, fixed and Jetson-like timing) | 30 s, 55 steps; 20 s with chain timing | 30 s, 1.85 m | torso tilt fault at 11 s | tips back, fault at 6.7 s |
+| ROS (`sim_experimental`, CycloneDDS) | 2 of 5 runs stepped for the whole 38–39 s; 3 faulted (torso tilt) 5–10 s after release, before any walk command | – | – | – |
+
+So model-based control does keep the full-body robot up, which the tracking policy did not, but not yet reliably in the ROS
+chain. Offline never failed, so the ROS-only failures still need investigating. Plain standing drifts in COM
+(the ankle-only balance mode). Next: find the ROS-only failure in the squat-to-stepping transition, and retune the WBC gains for 32 kg.

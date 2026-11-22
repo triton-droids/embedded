@@ -14,7 +14,8 @@ add_custom_command(
   COMMENT "xacro full_body.urdf.xacro -> full_body.urdf")
 add_custom_target(full_body_urdf ALL DEPENDS ${URDF_OUTPUT})
 
-install(FILES ${URDF_SOURCE} ${URDF_OUTPUT} DESTINATION share/${PROJECT_NAME}/urdf)
+install(FILES ${URDF_SOURCE} ${URDF_OUTPUT} urdf/full_body_wbc.urdf urdf/full_body_wbc.dynamics.json
+        DESTINATION share/${PROJECT_NAME}/urdf)
 install(DIRECTORY meshes mjcf DESTINATION share/${PROJECT_NAME})
 
 # Detailed variant: the original per-part CAD export (1,086 meshes, 3M triangles, about 150 MB).

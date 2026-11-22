@@ -326,6 +326,7 @@ def simulation_and_stack(context):
             additional_env={'OPENBLAS_NUM_THREADS': '1', 'OMP_NUM_THREADS': '1',
                             'MKL_NUM_THREADS': '1'},
             parameters=[{'motor_config_file': registry_path,
+                         **_walk_model_parameters(arg('robot').perform(context)),
                          'step_length_m': float(arg('step_length_m').perform(context)),
                          'cmd_vel_topic': arg('walk_cmd_vel_topic').perform(context),
                          'contact_kp': float(arg('walk_contact_kp').perform(context)),
@@ -408,6 +409,15 @@ def simulation_and_stack(context):
     nodes.append(RegisterEventHandler(OnProcessIO(
         target_action=simulator, on_stdout=start_stack_once, on_stderr=start_stack_once)))
     return nodes
+
+
+def _walk_model_parameters(robot):
+    """walking_controller's Pinocchio model; full_body: arms fixed, see make_sim_mjcf.py."""
+    if robot != 'full_body':
+        return {}
+    from ament_index_python.packages import get_package_share_directory
+    share = get_package_share_directory('humanoid_full_body_description')
+    return {'urdf_path': os.path.join(share, 'urdf', 'full_body_wbc.urdf')}
 
 
 def _robot_model_parameter_file(robot):
