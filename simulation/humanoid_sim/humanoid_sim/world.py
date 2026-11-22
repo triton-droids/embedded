@@ -30,6 +30,7 @@ import numpy as np
 
 from . import diag
 from . import model_builder as mb
+from .ankle_linkage import AnkleLinkage
 from .motor_model import MotorBank
 
 
@@ -107,6 +108,11 @@ class SimWorld:
         self._qpos = np.array([model.joint(n).qposadr[0] for n in self.joint_names])
         self._qvel = np.array([model.joint(n).dofadr[0] for n in self.joint_names])
         self._act = np.array([model.actuator(mb.actuator_name(n)).id for n in self.joint_names])
+        # Four-bar ankles: the motor law runs on the motor side of the linkage (ankle_linkage.py).
+        self._linkage = [AnkleLinkage(motors.limits[n].ankle_mapping) if motors.limits[n].ankle_mapping else None
+                         for n in self.joint_names]
+        self._motor_torque = [motors.limits[n].max_torque for n in self.joint_names]
+        self._ratio = np.ones(len(self.joint_names))  # d motor / d joint of the last step
         self._weld = model.equality(mb.BASE_WELD).id
         self._base_joint = model.body(mb.BASE_BODY).jntadr[0]
 
@@ -213,10 +219,25 @@ class SimWorld:
                 self.motors.seed_reference(joint, q)
                 sp = self.motors.setpoint(joint, q, dt)
                 act = self._act[i]
-                # force = ctrl + bias1*q + bias2*qdot = kp*(q_ref-q) + kd*(dq_ref-qdot) + tau_ff
-                data.ctrl[act] = sp.kp * sp.q_ref + sp.kd * sp.dq_ref + sp.tau_ff
-                model.actuator_biasprm[act, 1] = -sp.kp
-                model.actuator_biasprm[act, 2] = -sp.kd
+                linkage = self._linkage[i]
+                if linkage is None:
+                    # force = ctrl + bias1*q + bias2*qdot = kp*(q_ref-q) + kd*(dq_ref-qdot) + tau_ff
+                    data.ctrl[act] = sp.kp * sp.q_ref + sp.kd * sp.dq_ref + sp.tau_ff
+                    model.actuator_biasprm[act, 1] = -sp.kp
+                    model.actuator_biasprm[act, 2] = -sp.kd
+                    continue
+                # As motor_control_hybrid: only the position target is converted to the motor angle; kp, kd,
+                # velocity and feedforward torque reach the motor unchanged. Motor law, linearised about q:
+                #   tau_m = kp*(m_ref - m(q) - J*(q' - q)) + kd*(dq_ref - J*q') + tau_ff,  tau_joint = J*tau_m
+                motor, ratio = linkage.motor(q)
+                m_ref, _ = linkage.motor(sp.q_ref, motor)
+                linkage.motor(q, motor)  # keep the branch at the current pose
+                self._ratio[i] = ratio
+                data.ctrl[act] = ratio * (sp.kp * (m_ref - motor + ratio * q) + sp.kd * sp.dq_ref + sp.tau_ff)
+                model.actuator_biasprm[act, 1] = -ratio * ratio * sp.kp
+                model.actuator_biasprm[act, 2] = -ratio * ratio * sp.kd
+                limit = abs(ratio) * self._motor_torque[i]  # the motor's torque limit, seen at the joint
+                model.actuator_forcerange[act] = (-limit, limit)
             if self.head is not None:
                 self._apply_head(dt)
             if self._pitch_joint >= 0:
@@ -307,6 +328,9 @@ class SimWorld:
             self.control_fault = None
             self.reset_count += 1
             mujoco.mj_resetData(self.model, self.data)
+            for i, linkage in enumerate(self._linkage):
+                if linkage is not None:
+                    linkage.reset(float(self.data.qpos[self._qpos[i]]))
             for joint in self.joint_names:
                 self.motors.disable(joint)
             self._head_target = None
@@ -353,7 +377,9 @@ class SimWorld:
                 names=list(self.joint_names),
                 position=self.data.qpos[self._qpos].copy(),
                 velocity=self.data.qvel[self._qvel].copy(),
-                effort=self.data.actuator_force[self._act].copy(),
+                # Motor torque, as the CAN backend reports it (also for four-bar ankles).
+                effort=self.data.actuator_force[self._act] / np.where(np.abs(self._ratio) > 1e-3,
+                                                                       self._ratio, 1.0),
                 stamp_ns=self.sample_stamp_ns, sampled_mono=self.sampled_mono,
             )
 

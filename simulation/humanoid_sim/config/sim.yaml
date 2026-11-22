@@ -13,6 +13,7 @@ mujoco_sim:
     start_base_held: true      # Virtual gantry; release with /sim/hold_base false
     pause_on_control_fault: true # freeze the failure pose; reset required, no auto re-arm
     command_timeout_s: 0.5     # Same as python_can_node command_timeout_s
+    ankle_linkage: true        # drive registry ankle_mapping joints through the four-bar, like the real motors
     velocity_mode_kd: 2.0      # VELOCITY-mode damping when a command carries kd=0
     enable_head: true
     head_mass_kg: 0.05         # placeholder; the policy was trained without a head

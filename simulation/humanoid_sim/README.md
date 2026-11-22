@@ -113,10 +113,20 @@ control the running simulation are in
   every physics step and clamped to the registry torque (or the RobStride peak
   for the model when `max_torque_nm` is null). Command admission, timestamp
   checks, deadline expiry ("explicit enable required"), estop and joint-limit
-  clipping follow `python_can_node`. Not modelled: enable acknowledgement
-  delay, CAN latency or loss, friction, backlash, motor current limits, the
-  ankle four-bar linkage (the sim drives the ankle joint directly), and real
-  temperatures (a placeholder first-order heating model drives telemetry).
+  clipping follow `python_can_node`. Ankles with an `ankle_mapping` in the
+  registry are driven through the four-bar like on the robot
+  (`humanoid_sim/ankle_linkage.py`, the same equation as
+  `motor_control_hybrid/ankle_mapping.py`, solved in closed form): only the
+  position target is converted to the motor angle, kp, kd, velocity and
+  feedforward torque reach the motor unchanged, and the foot gets
+  `tau_ankle = J * tau_motor` with `J = d motor / d ankle` (0.95 at zero, 0.70
+  at -65 deg, 0 at the dead points near -83 / +92 deg). The motor torque limit
+  applies on the motor side, and `effort` reports motor torque as the CAN
+  backend does. `ankle_linkage: false` drives the ankle joint directly. Not
+  modelled: enable acknowledgement delay, CAN latency or loss, friction,
+  backlash, motor current limits, the rotor inertia reflected through the
+  linkage, and real temperatures (a placeholder first-order heating model drives
+  telemetry).
 - **IMU**: MuJoCo gyro, accelerometer (specific force, ~+9.81 on Z upright) and
   frame quaternion at the `imu` site, which is identity-aligned with the base as
   in training. Noise and gyro bias are optional and zero by default.

@@ -103,6 +103,8 @@ class SimControlNode(Node):
             'target_period_s': 8.0,
             'ground_truth_rate_hz': 50.0,
             'allow_torque_only_motion': False,
+            # Drive four-bar ankles (registry ankle_mapping) through the linkage like the real motors.
+            'ankle_linkage': True,
             'publish_feet_ground_truth': False,
             # use_sim_time only: wall pace of the physics loop (0.5 = half speed).
             'real_time_factor': 1.0,
@@ -114,7 +116,7 @@ class SimControlNode(Node):
 
         registry_path = p['motor_config_file'] or _share('motor_control_hybrid', 'config', 'motors.yaml')
         self.registry = load_registry(registry_path)
-        limits = limits_from_registry(self.registry)
+        limits = limits_from_registry(self.registry, ankle_linkage=bool(p['ankle_linkage']))
         options = mb.WorldOptions(
             robot_xml=p['robot_xml'] or _share('motor_control_hybrid', MODEL_DIR,
                                                'chrobot_16kg_candidate.xml'),

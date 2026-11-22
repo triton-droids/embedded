@@ -42,6 +42,8 @@ class JointLimits:
     kd: float
     max_torque: float
     max_velocity: float
+    # Registry ankle_mapping (four-bar): the motor law runs in motor coordinates, see ankle_linkage.py.
+    ankle_mapping: dict | None = None
 
 
 @dataclass
@@ -74,11 +76,14 @@ class _JointState:
     events: list = field(default_factory=list)
 
 
-def limits_from_registry(params: dict) -> dict[str, JointLimits]:
+def limits_from_registry(params: dict, ankle_linkage: bool = True) -> dict[str, JointLimits]:
     """Build joint limits from the ``ros__parameters`` block of motors.yaml.
 
     Unlike the CAN backend this does not require ``hardware_verified``: no
-    hardware is touched in simulation.
+    hardware is touched in simulation. With ``ankle_linkage`` a joint's
+    ``ankle_mapping`` is kept, and the simulator drives that joint through the
+    four-bar like the real motor (see ankle_linkage.py); otherwise the ankle
+    motor acts directly on the joint.
     """
     motors = params.get('motors') or {}
     if not motors:
@@ -96,6 +101,7 @@ def limits_from_registry(params: dict) -> dict[str, JointLimits]:
             kd=float(cfg.get('kd', 0.0)),
             max_torque=float(torque),
             max_velocity=float(cfg.get('max_vel_rad_s', max_velocity)),
+            ankle_mapping=dict(cfg['ankle_mapping']) if ankle_linkage and cfg.get('ankle_mapping') else None,
         )
     return limits
 
