@@ -166,9 +166,12 @@ Pin positions measured from the CAD (cylinder axes of the crank hub, crank pin a
 | Bar | CAD | `ankle_mapping` (motors.yaml) |
 |---|---|---|
 | ground: ankle axis to motor axis | 166.24 mm | 6.5625 in = 166.69 mm |
-| crank | 45.00 mm | 1.79 in = 45.47 mm |
-| rod | 166.29 mm | 6.5 in = 165.10 mm |
-| heel lever | 44.40 mm | 1.875 in = 47.63 mm |
+| crank (`L2`, on the motor) | 45.00 mm | 1.875 in = 47.63 mm |
+| rod (`L3`) | 166.29 mm | 6.5 in = 165.10 mm |
+| heel lever (`L4`, on the foot) | 44.40 mm | 1.79 in = 45.47 mm |
+
+`ankle_mapping` solves the Freudenstein equation with the ankle as θ2 and the motor as θ4, so its `L2` is the crank and
+`L4` the heel lever. `ankle_mapping` with the CAD lengths reproduces the CAD column below to 0.1°.
 
 Crank (= motor) angle for an ankle angle, four-bar solved with the CAD pins (left leg; right within 0.5° in the driven
 range), against the motor angle `ankle_mapping` commands:
@@ -178,10 +181,14 @@ range), against the motor angle `ankle_mapping` commands:
 | Crank, CAD | −63.4° | −44.2° | −19.7° | 0° | +19.7° | +44.2° | +72.6° | +82.9° |
 | Motor, `ankle_mapping` | −55.9° | −39.8° | −17.0° | +1.9° | +21.1° | +45.1° | +72.9° | – |
 
-The two disagree by up to 7.5° at −65°: the CAD heel lever is 3.2 mm shorter than the mapping's, and the mapping puts
-the lever at exactly 90° to the ground bar at ankle 0, where the CAD has 87.9° (left) / 90.9° (right). This assumes `ankle_mapping`'s ankle
-angle has the URDF's sign (+ lifts the toe), not checked on the robot. If the hardware is built like the CAD, the controller's ankle angle is off by that much. Check on the robot before changing
-`ankle_mapping`. The motor's zero (crank position at ankle 0) is taken from the CAD here.
+Why they differ: in the CAD the four-bar is almost a parallelogram (crank 45.00 ≈ lever 44.40, rod 166.29 ≈ ground
+166.24), so the motor turns almost exactly with the foot. The mapping's bars are not: its crank is 2.6 mm longer than
+its lever and its rod 1.6 mm shorter than its ground bar. A longer crank needs less rotation for the same rod travel,
+so the motor turns less than the foot, most at toe-down: 7.5° short at −65°, about equal at +75°. Its 90° zero
+angles add about 2° (the CAD has the lever at 87.9° / 90.9° and the crank at 92.1° / 89.2° to the ground bar at ankle
+0, left / right). This assumes `ankle_mapping`'s ankle angle has the URDF's sign (+ lifts the toe), not checked on the
+robot. If the hardware is built like the CAD, the controller's ankle angle is off by that much. Check on the robot
+(crank and lever pin distances with calipers, or the foot angle at a few motor angles) before changing `ankle_mapping`.
 
 ## MuJoCo simulation (humanoid_sim)
 

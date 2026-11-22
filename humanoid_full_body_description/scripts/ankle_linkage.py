@@ -321,7 +321,7 @@ def print_report(report):
     for side, bar, fc, fr, err, rho, new_links in report:
         L1 = radial(bar.M, bar.A, bar.ax); L4 = bar.crank; L3 = bar.rod; L2 = radial(bar.F0, bar.A, bar.ax)
         print(f'== {side}: ground {L1 * 1000:.2f} mm, crank {L4 * 1000:.2f}, rod {L3 * 1000:.2f}, heel lever '
-              f'{L2 * 1000:.2f} (ankle_mapping 166.69 / 45.47 / 165.10 / 47.63)')
+              f'{L2 * 1000:.2f} (ankle_mapping L1..L4: ground 166.69, crank 47.63, rod 165.10, lever 45.47)')
         print(f'   density {rho / 1000:.2f} g/cm3; ' + ', '.join(
             f'{n}: {v[2] * 1000:.1f} g ({len(v[0])} parts)' for n, v in new_links.items()))
         print(f'   mimic crank = {fc[0]:.4f} * ankle {fc[1]:+.4f} (max err {err[0]:.2f} deg), '
