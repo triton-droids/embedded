@@ -116,6 +116,11 @@ class WalkingControllerNode(Node):
             'activity': 'step',
             'squat_depth_m': 0.07,
             'squat_cycles': 1,
+            # Stance: start-up squat knee angle (rad) and torso back lean (rad, + = back). The full-body robot's
+            # hip pitch stops at +17.5 / +15 deg forward; a straighter stance (-0.3) leaning back 0.16 keeps the
+            # hips below 15 deg walking 0.04 m/step in ROS (sim.launch.py sets them for robot:=full_body*).
+            'knee_rad': -0.9,
+            'torso_pitch_rad': 0.0,
             'torso_kp': 50.0,
             'torso_weight': 0.5,
             # Turn first (velocity input): the step is full while |turn| <=
@@ -149,9 +154,10 @@ class WalkingControllerNode(Node):
         self.controller = SteppingController(self.robot, limits.torque, StepParams(
             dt=1.0 / p['control_rate_hz'], step_length_m=self._clamp(p['step_length_m']),
             activity=str(p['activity']), squat_depth_m=float(p['squat_depth_m']),
-            squat_cycles=int(p['squat_cycles']),
+            squat_cycles=int(p['squat_cycles']), knee_rad=float(p['knee_rad']),
             gains=WBCGains(com_kp_z=100.0, com_weight=10.0, contact_kp=float(p['contact_kp']),
-                          torso_kp=float(p['torso_kp']), torso_weight=float(p['torso_weight']))))
+                          torso_kp=float(p['torso_kp']), torso_weight=float(p['torso_weight']),
+                          torso_pitch_rad=float(p['torso_pitch_rad']))))
         self.inputs, self.base_held, self.estop = {}, None, True
         self.started, self.fault, self.cycles = False, '', 0
         self._slow_log_last = None  # Start of the previous cycle (slow_log_ms gap).

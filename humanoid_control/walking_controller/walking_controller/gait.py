@@ -87,8 +87,12 @@ class GaitController:
         self.wbc = WholeBodyController(robot, torque_limits, self.p.gains)
         names = robot.joint_names
         self.ankle = np.array(['ankle' in n for n in names])
+        # Hip pitch less by the torso's back lean (WBCGains.torso_pitch_rad), so the start-up squat already
+        # ends in the posture the WBC then holds.
+        lean = self.p.gains.torso_pitch_rad
         self.q_nominal = np.array([self.p.knee_rad if 'knee' in n else
-                                   -self.p.knee_rad / 2 if ('hip1' in n or 'ankle' in n) else 0.0
+                                   -self.p.knee_rad / 2 - lean if 'hip1' in n else
+                                   -self.p.knee_rad / 2 if 'ankle' in n else 0.0
                                    for n in names])
         self.phase, self.fault, self.t_phase = HOLD, '', 0.0
         self.contact_since = None

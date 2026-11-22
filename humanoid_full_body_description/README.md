@@ -333,9 +333,20 @@ What used the hip beyond the stop (before the limit, in simulation):
 | WBC squat 7 cm | +22° .. +52° |
 | Get-up via all fours | +88° |
 
-With the limit, the WBC still walks (0.04 m/step) and squats offline, but the hips then rest on the stop (right hip 66%
-of the time walking, 100% squatting). The torso leans forward instead: 3.7° walking, 12° squatting. On the robot that
-would press the bracket into the pelvis. The WBC needs joint position limits and a straighter stance first.
+With the limit and the old stance (knee −0.9 rad, upright torso), the WBC still walked and squatted offline, but the hips
+rested on the stop: right hip 66% of the time walking, 100% squatting. On the robot that would press the bracket into
+the pelvis.
+
+**Stance for the stop** (`sim.launch.py`, robot:=full_body*): `knee_rad` −0.3 (start-up squat, was −0.9) and
+`torso_pitch_rad` 0.16 (torso leans back 9°; the hip pitch drops by the same amount, and the start-up posture includes
+it). ROS, `full_body_arms`, stepping in place, then 0.04 m/step from 22 s: 3 of 3 runs ran the whole 43 s
+(1.67–1.76 m). Hip pitch peaked at 10.9–11.3° (left) and 13.9–14.7° (right), never on the 17.5 / 15° limit. At 0.12 rad of
+lean the right hip still reached the limit while walking (0.6–2.6% of the time); at 0.06 m/step it does briefly
+offline, so keep the full-body robot at 0.04 m/step.
+
+What did not work: a TSID joint-position bound task on the hip pitch had no effect, because the soft contacts let the QP
+meet it by "moving" the stance foot. Hard contacts made the QP infeasible as soon as stepping started. The squat
+activity (hip 22–52°) and the get-up (88°) cannot be done within the stop.
 `motor_control_hybrid/config/motors.yaml` still allows +1.57 rad, because the tracking policy node refuses a registry
 whose limits differ from its training MJCF.
 
