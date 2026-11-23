@@ -14,12 +14,17 @@ foot at its next swing (standing: after shifting onto the other foot); the
 kick state is in /walk/status ('kick', 'kicks').
 Output: MotorCommand (MODE_MOTION) on /walk/desired_motor_subset, forwarded
 by cpp_control_node. Any fault sends DISABLE and latches; restart the node.
+With fall_recovery (full body, simulation; see recovery.py) a fall instead starts the get-up MPC:
+a controller fault after the gantry release (torso tilt) -> 'rise' -> 'straight' -> a new walking
+controller from the standing robot (GaitController.start_from_stand), and again after the next fall.
+Input, safety and estop faults still latch.
 """
 from __future__ import annotations
 
 from collections import deque
 import json
 from pathlib import Path
+import threading
 import time
 
 import numpy as np
@@ -138,6 +143,14 @@ class WalkingControllerNode(Node):
             # which only walks forward, so it crept up to the ball. 0 = never
             # stand (step in place, the previous behaviour).
             'cmd_vel_stand_after_s': 1.0,
+            # Torso tilt that counts as a fall (controller fault; with fall_recovery: start the get-up).
+            'max_tilt_rad': 0.5,
+            # Fall recovery (recovery.py): get up with a sampling MPC on the simulator's MJCF, then walk on.
+            # Each plan takes ~0.8 s of CPU: run with sim_time:=true and real_time_factor ~0.03.
+            'fall_recovery': False,
+            'recovery_robot_xml': '', 'recovery_mesh_dir': '',
+            'recovery_threads': 8, 'recovery_seed': 0,
+            'recovery_straight_timeout_s': 6.0,
             'cmd_vel_rest_step_m': 0.005,
             'cmd_vel_rest_turn_rad': 0.01,
         }
@@ -150,14 +163,23 @@ class WalkingControllerNode(Node):
                                                  / 'config/motors.yaml')
         self.robot = RobotModel(urdf)
         self.names = self.robot.joint_names
-        limits = load_limits(registry, self.names)
-        self.controller = SteppingController(self.robot, limits.torque, StepParams(
-            dt=1.0 / p['control_rate_hz'], step_length_m=self._clamp(p['step_length_m']),
-            activity=str(p['activity']), squat_depth_m=float(p['squat_depth_m']),
-            squat_cycles=int(p['squat_cycles']), knee_rad=float(p['knee_rad']),
-            gains=WBCGains(com_kp_z=100.0, com_weight=10.0, contact_kp=float(p['contact_kp']),
-                          torso_kp=float(p['torso_kp']), torso_weight=float(p['torso_weight']),
-                          torso_pitch_rad=float(p['torso_pitch_rad']))))
+        self.limits = limits = load_limits(registry, self.names)
+        self.controller = self._make_controller(self._clamp(p['step_length_m']), 0.0)
+        # Fall recovery: mode 'walk' (the walking controller) or the planner's 'rise' / 'straight'.
+        self.mode, self.recoveries, self.recovery_events = 'walk', 0, deque(maxlen=20)
+        self.planner = None
+        if p['fall_recovery']:
+            from .recovery import GetUpPlanner, RecoveryParams
+            if not p['recovery_robot_xml']:
+                raise ValueError('fall_recovery needs recovery_robot_xml (the simulator MJCF) and recovery_mesh_dir')
+            self.planner = GetUpPlanner(
+                p['recovery_robot_xml'], p['recovery_mesh_dir'], registry, self.names,
+                self.controller.q_nominal, limits.torque,
+                RecoveryParams(threads=int(p['recovery_threads']), seed=int(p['recovery_seed']),
+                               straight_timeout_s=float(p['recovery_straight_timeout_s'])))
+            self._plan_state, self._plan_event = None, threading.Event()
+            self._handoff = False
+            threading.Thread(target=self._plan_loop, name='recovery_planner', daemon=True).start()
         self.inputs, self.base_held, self.estop = {}, None, True
         self.started, self.fault, self.cycles = False, '', 0
         self._slow_log_last = None  # Start of the previous cycle (slow_log_ms gap).
@@ -202,6 +224,19 @@ class WalkingControllerNode(Node):
         self.create_timer(0.5, self._publish_status)
         self.get_logger().info(f'Model-based walking (MPC + WBC) → {p["output_topic"]}; '
                                'step length on /walk/step_length')
+
+    def _make_controller(self, step_length, turn):
+        p = self.params
+        controller = SteppingController(self.robot, self.limits.torque, StepParams(
+            dt=1.0 / p['control_rate_hz'], step_length_m=step_length,
+            activity=str(p['activity']), squat_depth_m=float(p['squat_depth_m']),
+            squat_cycles=int(p['squat_cycles']), knee_rad=float(p['knee_rad']),
+            max_tilt_rad=float(p['max_tilt_rad']),
+            gains=WBCGains(com_kp_z=100.0, com_weight=10.0, contact_kp=float(p['contact_kp']),
+                          torso_kp=float(p['torso_kp']), torso_weight=float(p['torso_weight']),
+                          torso_pitch_rad=float(p['torso_pitch_rad']))))
+        controller.p.turn_rad = turn
+        return controller
 
     @staticmethod
     def _clamp(length):
@@ -387,8 +422,24 @@ class WalkingControllerNode(Node):
             return
         # Latency compensation (GaitParams.predict_s): the state is this old now.
         age_s = (now_ns - snapshot['odom'][1]) * 1e-9
+        if self.planner is not None:
+            measured = (snapshot['odom'][1] * 1e-9, pose, twist, joints, forces)
+            if self.mode != 'walk' and self._handoff:
+                self._handoff = False
+                old = self.controller.p
+                self.controller = self._make_controller(old.step_length_m, old.turn_rad)
+                self.controller.start_from_stand(now_ns * 1e-9, q, v, forces)
+                self._set_mode('walk', self.planner.ready_why)
+            if self.mode != 'walk':
+                self._recovery_tick(now_ns, measured, begin)
+                return
         command = self.controller.step(now_ns * 1e-9, q, v, forces, self.base_held, age_s=age_s)
         if command is None or self.controller.phase == FAULT:
+            if self.planner is not None and self.started and not self.base_held:
+                self._set_mode('rise', f'controller fault: {self.controller.fault}')
+                self.planner.reset('rise', snapshot['odom'][1] * 1e-9, ordered(joints.name, joints.position, self.names))
+                self._recovery_tick(now_ns, measured, begin)
+                return
             self._fail(f'Controller fault: {self.controller.fault}')
             return
         self._publish_stance()
@@ -422,6 +473,65 @@ class WalkingControllerNode(Node):
             return
         self.cycles += 1
 
+    # ------------------------------------------------------------------ fall recovery
+    def _set_mode(self, mode, why=''):
+        t = self.get_clock().now().nanoseconds * 1e-9
+        self.mode = mode
+        if mode == 'rise':
+            self.recoveries += 1
+        self.recovery_events.append((round(t, 2), mode, why))
+        self.get_logger().warn(f'Fall recovery: -> {mode} at {t:.2f} s ({why})')
+
+    def _recovery_tick(self, now_ns, measured, begin):
+        """Hand the newest sample to the planner thread and command the current plan's targets."""
+        self._plan_state = measured
+        self._plan_event.set()
+        q_ref = self.planner.target(now_ns * 1e-9)
+        n = len(self.names)
+        msg = MotorCommand()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.valid_until.sec, msg.valid_until.nanosec = divmod(
+            now_ns + int(self.params['output_lifetime_s'] * 1e9), 10**9)
+        msg.joint_name = list(self.names)
+        msg.mode = [MotorCommand.MODE_MOTION] * n
+        msg.position, msg.velocity, msg.acceleration = q_ref.tolist(), [0.0] * n, [0.0] * n
+        msg.torque, msg.kp, msg.kd = [0.0] * n, self.planner.kp.tolist(), self.planner.kd.tolist()
+        try:
+            self.output.publish(msg)
+        except RCLError as error:
+            self._fail(f'Command publication failed: {error}')
+            return
+        self.cycle_ms.append((time.monotonic() - begin) * 1e3)
+        self.cycles += 1
+
+    def _plan_loop(self):
+        """Planner thread: one plan per newest sample while recovering (MuJoCo rollouts release the GIL)."""
+        while rclpy.ok():
+            if not self._plan_event.wait(0.5) or self.mode == 'walk' or self.fault:
+                continue
+            self._plan_event.clear()
+            stamp, pose, twist, joints, forces = self._plan_state
+            joint_q = ordered(joints.name, joints.position, self.names)
+            try:
+                self.planner.set_state(
+                    [pose.position.x, pose.position.y, pose.position.z],
+                    [pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z],
+                    [twist.linear.x, twist.linear.y, twist.linear.z],
+                    [twist.angular.x, twist.angular.y, twist.angular.z],
+                    joint_q, ordered(joints.name, joints.velocity, self.names))
+                transition = self.planner.plan(stamp, forces)
+            except Exception as error:  # noqa: BLE001 - report and stop the robot, never hang
+                self._fail(f'Recovery planner failed: {error!r}')
+                continue
+            if self.mode == 'walk':
+                continue
+            if transition in ('rise', 'straight'):
+                why = self.planner.ready_why if transition == 'straight' else 'lost the stand while straightening'
+                self.planner.reset(transition, stamp, joint_q)
+                self._set_mode(transition, why)
+            elif transition == 'ready':
+                self._handoff = True
+
     def _publish_stance(self):
         c = self.controller
         stance = getattr(c, 'stance', None) if getattr(c, 'gphase', None) == SS else None
@@ -449,6 +559,8 @@ class WalkingControllerNode(Node):
                   # Age of the odom / joint sample at cycle start (sample stamp -> now).
                   'input_age_ms': stats(self.input_age_ms), 'joint_age_ms': stats(self.joint_age_ms),
                   'predict_ms': 1e3 * getattr(c, 'horizon_s', 0.0),
+                  'recovery': self.mode if self.planner is not None else 'off',
+                  'recoveries': self.recoveries, 'recovery_events': list(self.recovery_events),
                   **{k: v for k, v in c.status.items() if k not in ('forces',)}}
         try:
             self.status_pub.publish(String(data=json.dumps(status, default=str)))

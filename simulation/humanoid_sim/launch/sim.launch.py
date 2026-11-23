@@ -337,6 +337,8 @@ def simulation_and_stack(context):
                          'cmd_vel_max_step_m': float(arg('walk_max_step_m').perform(context)),
                          'cmd_vel_max_turn_rad': float(arg('walk_max_turn_rad').perform(context)),
                          'slow_log_ms': float(arg('walk_slow_log_ms').perform(context)),
+                         'max_tilt_rad': float(arg('walk_max_tilt_rad').perform(context)),
+                         **_fall_recovery_parameters(context, arg),
                          # Input freshness, command lifetime and the cycle-time fault.
                          **({'input_timeout_s': NO_TIMEOUT_S, 'output_lifetime_s': NO_TIMEOUT_S,
                              'max_cycle_s': NO_TIMEOUT_S} if sim_time else {})}]))
@@ -447,6 +449,19 @@ def _walk_model_parameters(robot):
             'torso_pitch_rad': 0.2}
 
 
+def _fall_recovery_parameters(context, arg):
+    """walk_fall_recovery: walking_controller's get-up MPC plans on the simulator's own MJCF (full body only)."""
+    if arg('walk_fall_recovery').perform(context).lower() != 'true':
+        return {}
+    robot = arg('robot').perform(context)
+    if robot == 'legs':
+        raise ValueError('walk_fall_recovery needs robot:=full_body_arms (or full_body)')
+    model = _robot_model_parameters(robot)
+    return {'fall_recovery': True, 'recovery_robot_xml': model['robot_xml'],
+            'recovery_mesh_dir': model['mesh_dir'],
+            'recovery_threads': int(arg('walk_recovery_threads').perform(context))}
+
+
 def _robot_model_parameter_file(robot, registry_path):
     """A params file after sim.yaml. sim.yaml sets robot_xml/mesh_dir/motor_config_file under the node's
     own name, which outranks launch's wildcard dict parameters and -p arguments placed before it; only a
@@ -516,6 +531,11 @@ def generate_launch_description():
         ('controller', 'policy', 'policy (RL tracking policy) or model_walk (LIPM MPC + TSID, no RL)'),
         ('step_length_m', '0.0', 'controller:=model_walk: initial step length (0..0.10 m); change with /walk/step_length'),
         ('walk_contact_kp', '100.0', 'controller:=model_walk: WBC contact task gain'),
+        ('walk_fall_recovery', 'false', 'controller:=model_walk, full body: after a fall get up (sampling MPC), stand '
+         'straight and walk on. ~0.8 s CPU per plan: use sim_time:=true real_time_factor:=0.03 and '
+         'fall_detection_enabled:=false'),
+        ('walk_recovery_threads', '8', 'walk_fall_recovery: rollout threads'),
+        ('walk_max_tilt_rad', '0.5', 'controller:=model_walk: torso tilt that counts as a fall'),
         ('walk_activity', 'step', 'controller:=model_walk: step (walk / step in place) or squat (squat down and stand up, feet down)'),
         ('walk_squat_depth_m', '0.07', 'controller:=model_walk walk_activity:=squat: how far the CoM goes down below the start-up stance (full body: 0.08 m at most)'),
         ('odom_tf_robot', 'true', 'With enable_odom_tf: false publishes only world -> odom (another node, e.g. leg_odometry, publishes odom -> base)'),

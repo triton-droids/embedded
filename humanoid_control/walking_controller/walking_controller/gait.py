@@ -172,6 +172,16 @@ class GaitController:
             return self._squat(t, q, v, joints, rates)
         return self._active(t, q, v, joints, rates)
 
+    def start_from_stand(self, t, q, v, forces):
+        """Take over a robot already standing on both feet (after a fall recovery): skip LANDING, which
+        holds every joint at zero until the feet load (meant for lowering from the gantry, and would
+        jerk a crouched robot straight), and squat from the current joints to the start stance."""
+        q, v = np.asarray(q, float), np.asarray(v, float)
+        self.rm.forward(q, v)
+        self.forces = np.asarray(forces, float)
+        self.fault = ''
+        self._start_squat(t, q)
+
     # ------------------------------------------------------------- squat
     def _start_squat(self, t, q):
         self.phase, self.t_phase = SQUAT, t
