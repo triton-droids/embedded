@@ -1,0 +1,13 @@
+# Local dependency checkout (installed separately).
+/mjlab/
+
+# Python environments and generated caches.
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# Simulation logs and local previews.
+MUJOCO_LOG.TXT
+/simplified_sim.png
+/simplified_stand.png

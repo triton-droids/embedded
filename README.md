@@ -31,6 +31,37 @@ mesh paths with the folder's absolute path.
 MuJoCo rejects STL files over 200,000 faces, and every simplified mesh is under that limit.
 MuJoCo also names mesh assets by file name, and every mesh file name is unique.
 
+## MuJoCo (simplified, with motors)
+
+```bash
+cd simplified
+python3 scripts/make_mjcf.py           # urdf/full_body.urdf -> mjcf/full_body.xml (rerun after URDF changes)
+python3 scripts/stand.py --headless    # 10 s standing test; without --headless opens the viewer (macOS: mjpython)
+```
+
+- [`mjcf/full_body.xml`](simplified/mjcf/full_body.xml) (generated) is the robot on a free joint with one `<motor>` per motor,
+  `gear="1"` (ctrl = torque in N·m) and `ctrlrange` = the motor's **peak** torque (not continuous):
+
+  | Actuator | Joint | Motor | ctrlrange (N·m) |
+  |---|---|---|---|
+  | `*_hip1_motor`, `*_knee_motor` | hip pitch, knee | RS-04 | ±120 |
+  | `*_hip2_motor`, `*_thigh_motor` | hip roll, hip yaw | RS-03 | ±60 |
+  | `*_ankle_motor` | **`*_ankle_crank_joint`** (motor axis) | RS-02 | ±17 |
+  | `*_shoulder_pitch_motor`, `*_shoulder_roll_motor` | arm | RS-03 | ±60 |
+  | `*_shoulder_yaw_motor`, `*_elbow_motor` | arm | RS-02 | ±17 |
+
+- **Ankle.** The RS-02 turns the four-bar crank, not the foot. Crank and rod are passive hinges, and an equality `connect`
+  pins the rod's lower eye to the heel lever. MuJoCo therefore passes the 17 N·m through the real linkage geometry, so the foot
+  torque varies with the ankle angle. Its PD acts on the crank angle (crank ≈ 0.98 × ankle near zero). The loop uses a
+  near-hard `solimp` (0.99, 0.999); with the default it stretched about 6 mm under body weight and the robot fell.
+- `*_upper_arm_twist_joint` is welded. Each sole is a 15 mm box contact. The robot collides only with the floor, with no
+  self-collision.
+- [`mjcf/scene.xml`](simplified/mjcf/scene.xml) adds the floor and lights.
+- [`scripts/stand.py`](simplified/scripts/stand.py) holds the zero pose with joint PD, using the registry gains for every joint except the ankle.
+  Standing still with no balance feedback is an inverted pendulum on the ankles (m·g·h ≈ 200 N·m/rad). The registry's
+  ankle kp 20 tips the robot over within 2 s, so `stand.py` uses `--ankle-kp 150 --ankle-kd 3`. It then stands with about
+  2° lean, using under 35% of peak torque.
+
 ## Simplified vs detailed
 
 ### Identical in both

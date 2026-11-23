@@ -1,0 +1,21 @@
+<!-- The robot on a floor. Open with: python3 -m mujoco.viewer (then drag this file in)
+     (motors unpowered: it collapses), or run scripts/stand.py to hold the zero pose. -->
+<mujoco model="full_body_scene">
+  <include file="full_body.xml"/>
+
+  <visual>
+    <global offwidth="2048" offheight="2048"/>
+  </visual>
+
+  <asset>
+    <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1="0.82 0.83 0.86"
+             rgb2="0.72 0.73 0.77"/>
+    <material name="grid" texture="grid" texrepeat="8 8" reflectance="0.1"/>
+  </asset>
+
+  <worldbody>
+    <light pos="1 -1 3" dir="-0.3 0.3 -1" diffuse="0.7 0.7 0.7"/>
+    <light pos="-1 1 3" dir="0.3 -0.3 -1" diffuse="0.4 0.4 0.4"/>
+    <geom name="floor" type="plane" size="5 5 0.1" material="grid" contype="1" conaffinity="2"/>
+  </worldbody>
+</mujoco>

@@ -1,0 +1,15 @@
+[build-system]
+requires = ["uv_build>=0.13.7,<0.14.0"]  # same backend as mjlab
+build-backend = "uv_build"
+
+[project]
+name = "humanoid-mjlab"
+version = "0.1.0"
+description = "The full-body humanoid (simplified/mjcf/full_body.xml) in mjlab."
+requires-python = ">=3.11,<3.15"  # as mjlab
+# Everything else (torch, mujoco, mujoco-warp, rsl-rl, ...) comes in through mjlab.
+dependencies = ["mjlab"]
+
+[tool.uv.sources]
+# The local mjlab checkout next to this folder, editable: no second copy of mjlab or its dependencies.
+mjlab = { path = "../mjlab", editable = true }
