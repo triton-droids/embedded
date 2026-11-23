@@ -155,6 +155,57 @@ it). Offline (`tools/kick_eval.py`, `test/test_kick.py`, Jetson chain timing):
 Note the model's `left_foot` is on the robot's right (negative y in
 `base_link`) and `right_foot` on its left.
 
+## Fall recovery (full body, simulation)
+
+`fall_recovery` (launch: `walk_fall_recovery:=true`, full body only) turns a fall into a get-up instead of a
+latched fault. A controller fault after the gantry release (torso tilt above `max_tilt_rad`) starts
+`recovery.py`, a predictive-sampling MPC on the simulator's own MJCF:
+
+* **rise**: 96 rollouts of 1 s every plan, joint targets on 5 knots, the lowest cost kept and warm-started;
+  cost: torso height and uprightness, CoM over the feet, feet down. Ends once only the feet touch the floor,
+  torso up, for 0.5 s.
+* **straight**: torso upright, CoM between the feet, legs at the walking controller's start stance, soles flat
+  and loaded, feet side by side at the start-stance spacing (a staggered stance made the start-up squat fight
+  the planted feet and fall). Hands over when all of that holds for 0.3 s, or a relaxed version after 6 s.
+* **hand-off**: a new walking controller via `GaitController.start_from_stand`, which skips LANDING (it holds
+  every joint at zero and would jerk a crouched robot straight) and squats from the current joints.
+
+The rollouts model the four-bar ankles as humanoid_sim drives them; the commands are joint-space MIT targets
+(the motor layer converts the ankle position). Input, estop and safety faults still latch. A plan takes about
+0.4-0.8 s of CPU (8 threads), 10-20 times slower than its 0.04 s period, so the ROS chain runs on simulated
+time slowed to ~0.03 real time. The safety supervisor's fall detection must be off, or it estops the fall:
+
+```bash
+ros2 launch humanoid_sim sim.launch.py robot:=full_body_arms controller:=model_walk auto_start:=true \
+  sim_time:=true real_time_factor:=0.03 walk_fall_recovery:=true fall_detection_enabled:=false \
+  walk_max_tilt_rad:=0.6 step_length_m:=0.04
+ros2 topic pub --once /sim/push std_msgs/msg/Float64MultiArray "{data: [150.0, 0.0, 0.0, 0.3]}"  # knock it over
+```
+
+`/walk/status` adds `recovery` (`walk` / `rise` / `straight`), `recoveries` and `recovery_events`. ROS trial
+(2026-11-22, 150 N push after 4 steps): up in 2 s, handed over after the 6 s straightening timeout, walked 59
+steps, fell again after ~26 s and got up again.
+
+### Offline evaluation
+
+`tools/recovery_eval.py` runs one episode without ROS (lying `prone` / `supine`, or `push:<deg>`: walk, then a
+150 N, 0.3 s push in that world direction), with the ankles driven through the four-bar and the 2-step command
+delay, and writes a JSON summary (`--frames` for rendering). `--rollout-dt 0.01` rolls out at 10 ms (half the
+cost). `tools/ros_push_recovery_trial.sh OUT_DIR` runs the ROS trial above, scripted, with a bag.
+
+Results (2026-11-22; 40 s episodes; "up" counts reaching the straightening phase, "walking" the
+episodes still walking at 40 s):
+
+| Variant | Episodes | Up | Handed over | Walking at 40 s | Falls after hand-over | Plan time |
+|---|---|---|---|---|---|---|
+| rollout 10 ms | 36 (6 starts x 6 seeds) | 35 | 30 | 16 | 19 | 0.37-0.67 s |
+| rollout 5 ms | 24 (6 starts x 4 seeds) | 23 | 19 | 10 | 11 | 0.56-1.29 s |
+
+Getting up is reliable; walking on is not: about half the episodes fall again within ~25 s of the hand-over
+(torso tilt), worst from supine (6 of 6 handed over, 6 falls, 1 still walking). The 10 ms rollouts cost no
+success rate here and plan 1.5-1.9 times faster. Not real time on any host: a robot needs a get-up policy
+(e.g. trained on these trajectories), not this MPC.
+
 ## How it works
 
 Measured first on the RL gait (it already walks on this robot): ~48 % double
