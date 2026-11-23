@@ -35,7 +35,7 @@ import rclpy
 from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
 from rclpy.node import Node
 from rclpy.signals import SignalHandlerOptions
-from std_msgs.msg import String
+from std_msgs.msg import Float64MultiArray, String
 from std_srvs.srv import SetBool, Trigger
 import yaml
 
@@ -65,6 +65,7 @@ class SimControlNode(Node):
     Services:
       /sim/reset      std_srvs/Trigger  spawn pose, motors disabled, base held
       /sim/hold_base  std_srvs/SetBool  engage (true) or release (false) the gantry
+      /sim/push       std_msgs/Float64MultiArray  [fx, fy, fz, duration_s]: world-frame force on the base (tests)
     Topics:
       /sim/ground_truth/odom  nav_msgs/Odometry  base pose/velocity (world frame)
       /sim/status             std_msgs/String    JSON timing and state, 1 Hz
@@ -172,11 +173,19 @@ class SimControlNode(Node):
         self.status_pub = self.create_publisher(String, '/sim/status', 2)
         self.create_service(Trigger, '/sim/reset', self._reset)
         self.create_service(SetBool, '/sim/hold_base', self._hold_base)
+        self.create_subscription(Float64MultiArray, '/sim/push', self._push, 2)
         self.create_timer(1.0 / float(p['ground_truth_rate_hz']), self._publish_odom)
         self.create_timer(1.0, self._publish_status)
         self._last_status = (time.monotonic(), 0.0)
         self._odom_msg = None
         self._feet_msg = None
+
+    def _push(self, msg):
+        if len(msg.data) != 4 or not msg.data[3] > 0.0:
+            self.get_logger().error('/sim/push needs [fx, fy, fz, duration_s > 0]')
+            return
+        self.world.push(msg.data[:3], msg.data[3])
+        self.get_logger().warn(f'Push {list(msg.data[:3])} N for {msg.data[3]:g} s')
 
     def _reset(self, request, response):
         self.world.reset(base_held=True)

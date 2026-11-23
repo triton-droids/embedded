@@ -576,6 +576,7 @@ are maintained in [wbc_control_node](../../humanoid_control/wbc_control_node/REA
 |---|---|---|
 | `/sim/reset` | `std_srvs/Trigger` | Spawn pose, gantry engaged, all motors disabled |
 | `/sim/hold_base` | `std_srvs/SetBool` | Engage (moves the base back to spawn) or release the gantry |
+| `/sim/push` | `std_msgs/Float64MultiArray` | `[fx, fy, fz, duration_s]`: world-frame force (N) on the base for that much simulated time (tests, e.g. knocking the robot over) |
 | `/sim/ground_truth/odom` | `nav_msgs/Odometry` | Base pose; twist is in the **world** frame |
 | `/sim/status` | `std_msgs/String` | JSON: sim time, real-time factor, overruns, gantry, estop |
 

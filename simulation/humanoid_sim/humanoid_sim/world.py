@@ -115,6 +115,10 @@ class SimWorld:
         self._ratio = np.ones(len(self.joint_names))  # d motor / d joint of the last step
         self._weld = model.equality(mb.BASE_WELD).id
         self._base_joint = model.body(mb.BASE_BODY).jntadr[0]
+        # /sim/push: a world-frame force on the base until _push_until_ns (simulated clock; 0 = none).
+        self._push_body = model.body(mb.BASE_BODY).id
+        self._push_force = np.zeros(3)
+        self._push_until_ns = 0
 
         self.head = head
         self._pitch_joint = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, 'head_pitch_joint')
@@ -244,6 +248,11 @@ class SimWorld:
                 self._apply_pitch(dt)
             if self._target_mocap is not None and self.target_motion is not None:
                 self._move_target()
+            if self._push_until_ns:
+                active = self.clock_ns < self._push_until_ns
+                data.xfrc_applied[self._push_body, :3] = self._push_force if active else 0.0
+                if not active:
+                    self._push_until_ns = 0
             mujoco.mj_step(model, data)
             self.clock_ns += self._step_ns
             self.sample_stamp_ns = self.clock_ns if self.sim_clock else time.time_ns()
@@ -317,6 +326,12 @@ class SimWorld:
         self.data.mocap_pos[self._target_mocap] = self._target_home + np.array([offset, 0.0, 0.0])
 
     # ------------------------------------------------------------- controls
+    def push(self, force_world, duration_s: float) -> None:
+        """Apply a world-frame force (N) to the base body for duration_s of simulated time (tests)."""
+        with self.lock:
+            self._push_force = np.asarray(force_world, dtype=float)[:3].copy()
+            self._push_until_ns = self.clock_ns + max(1, int(float(duration_s) * 1e9))
+
     def reset(self, base_held: bool = True) -> None:
         """Return to the spawn pose with all motors disabled.
 
@@ -327,6 +342,8 @@ class SimWorld:
         with self.lock:
             self.control_fault = None
             self.reset_count += 1
+            self._push_until_ns = 0
+            self.data.xfrc_applied[:] = 0.0
             mujoco.mj_resetData(self.model, self.data)
             for i, linkage in enumerate(self._linkage):
                 if linkage is not None:
