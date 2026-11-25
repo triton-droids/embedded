@@ -267,3 +267,111 @@ def test_skip_mode_latches_persistent_acceleration_outliers(node):
     node.accel_outlier_since = time.monotonic() - 0.2  # outliers for longer than input_timeout_s
     node.on_imu(spike(node))
     assert node.fault == 'Invalid IMU acceleration persisted'
+
+
+@pytest.fixture
+def switchable(monkeypatch, tmp_path):
+    import shutil
+    source = Path(__file__).resolve().parents[1] / 'models/20260914_170827'
+    if not (source / '20260914_170827.onnx').exists():
+        pytest.skip('LFS policy export absent')
+    # Same weights under another name: a second, separately loaded session.
+    shutil.copy(source / '20260914_170827.onnx', tmp_path / 'alternate.onnx')
+    shutil.copy(source / 'chrobot_16kg_candidate.xml', tmp_path)
+    rclpy.init(args=['--ros-args', '-p', 'calibration_seconds:=0.0',
+                     '-p', f'model_paths:=["{tmp_path / "alternate.onnx"}"]'])
+    monkeypatch.setattr(TrackingPolicyNode, "run_worker", lambda self: None)
+    policy_node = TrackingPolicyNode()
+    policy_node.angles_pub = Capture()
+    policy_node.actions_pub = Capture()
+    policy_node.command_pub = Capture()
+    yield policy_node
+    policy_node.destroy_node()
+    rclpy.shutdown()
+
+
+def switch(node, name, restart_reference=False):
+    from motor_control_interfaces.srv import SwitchPolicyModel
+    request = SwitchPolicyModel.Request(model_name=name, restart_reference=restart_reference)
+    return node.on_switch_model(request, SwitchPolicyModel.Response())
+
+
+def test_all_switchable_models_are_preloaded(switchable):
+    assert sorted(switchable.policies) == ['20260914_170827', 'alternate']
+    assert switchable.model_name == '20260914_170827'
+    assert switchable.policy is switchable.policies['20260914_170827']
+    assert switchable.policies['alternate'] is not switchable.policy
+
+
+def test_unknown_model_is_rejected_without_changing_output(switchable):
+    response = switch(switchable, 'missing')
+    assert not response.success
+    assert response.active_model == '20260914_170827'
+    assert response.available_models == ['20260914_170827', 'alternate']
+    assert switchable.policy is switchable.policies['20260914_170827']
+
+
+def test_switch_mid_inference_publishes_every_tick(switchable):
+    old, new = switchable.policies['20260914_170827'], switchable.policies['alternate']
+    old_run = old.run
+    # The service call lands while the old model's inference is running.
+    old.run = Mock(side_effect=lambda *args: (switch(switchable, 'alternate'), old_run(*args))[1])
+    new.run = Mock(wraps=new.run)
+    switchable.on_imu(imu_sample(switchable))
+    switchable.tick()
+    assert old.run.call_count == 1 and new.run.call_count == 0
+    assert switchable.model_name == 'alternate'
+    switchable.on_imu(imu_sample(switchable))
+    switchable.tick()
+    assert old.run.call_count == 1 and new.run.call_count == 1
+    assert len(switchable.command_pub.messages) == 2
+    assert switchable.fault is None
+    # Previous-action history carries across the switch.
+    np.testing.assert_allclose(new.run.call_args.args[0][0, 43:53],
+                               switchable.actions_pub.messages[0].data, rtol=1e-6)
+
+
+def test_restart_reference_plays_new_model_from_first_frame(switchable):
+    switchable.started = time.monotonic() - 1.0
+    switchable.on_imu(imu_sample(switchable))
+    switchable.tick()
+    assert switchable.frame >= 50
+    assert switch(switchable, 'alternate', restart_reference=True).success
+    switchable.on_imu(imu_sample(switchable))
+    switchable.tick()
+    assert switchable.frame == 0
+
+
+def test_registry_must_approve_every_switchable_model(monkeypatch, tmp_path):
+    import hashlib
+    import shutil
+    import onnx
+    import yaml
+    package = Path(__file__).resolve().parents[1]
+    source = package / 'models/20260914_170827'
+    if not (source / '20260914_170827.onnx').exists():
+        pytest.skip('LFS policy export absent')
+    # Same contract and weights, but a different file hash.
+    exported = onnx.load(source / '20260914_170827.onnx')
+    exported.metadata_props.add(key='note', value='alternate')
+    onnx.save(exported, tmp_path / 'alternate.onnx')
+    shutil.copy(source / 'chrobot_16kg_candidate.xml', tmp_path)
+    registry = yaml.safe_load((package / 'config/motors.yaml').read_text())
+    registry_path = tmp_path / 'motors.yaml'
+    monkeypatch.setattr(TrackingPolicyNode, "run_worker", lambda self: None)
+
+    def start():
+        registry_path.write_text(yaml.safe_dump(registry, sort_keys=False))
+        rclpy.init(args=['--ros-args', '-p', 'calibration_seconds:=0.0',
+                         '-p', f'motor_config_file:={registry_path}',
+                         '-p', f'model_paths:=["{tmp_path / "alternate.onnx"}"]'])
+        try:
+            TrackingPolicyNode().destroy_node()
+        finally:
+            rclpy.shutdown()
+
+    with pytest.raises(ValueError, match='not approved'):
+        start()
+    registry['motor_control_node']['ros__parameters']['model_contract']['allowed_model_sha256s'].append(
+        hashlib.sha256((tmp_path / 'alternate.onnx').read_bytes()).hexdigest())
+    start()

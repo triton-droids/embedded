@@ -50,7 +50,7 @@ from std_srvs.srv import Trigger
 from motor_control_interfaces.msg import AbstractCommand, AbstractCommandStatus
 from motor_control_interfaces.srv import SubmitAbstractCommand
 
-try:  # feat/policy-switching; absent on branches without the model switch.
+try:  # SwitchPolicyModel; absent where motor_control_interfaces predates the model switch.
     from motor_control_interfaces.srv import SwitchPolicyModel
 except ImportError:  # pragma: no cover - depends on the built interfaces
     SwitchPolicyModel = None

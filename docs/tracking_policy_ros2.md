@@ -152,6 +152,42 @@ so delayed callbacks do not replay an outdated frame. The embedded reference has
 an untrained discontinuity. Long-run measurements after this point assess
 runtime timing, not continued walking-motion tracking.
 
+## Switching models at runtime
+
+`model_path` is the startup model. The `model_paths` list adds more models; it
+is a YAML list launch argument and defaults to `[]`. Every model is loaded,
+validated and warmed up before control starts. Models are named by their ONNX
+file stem:
+
+```bash
+ros2 launch motor_control_hybrid tracking_policy.launch.py \
+  "model_paths:=[/path/to/other/other.onnx]"
+ros2 service call /policy/switch_model motor_control_interfaces/srv/SwitchPolicyModel \
+  "{model_name: other, restart_reference: true}"
+```
+
+A switch only replaces the model used by the next 50 Hz tick. A tick already
+running finishes and publishes on the old model, so no period is skipped. The
+previous-action observation carries over unchanged. `restart_reference: true`
+plays the new model's embedded reference from frame 0. `false` keeps the
+reference clock, so the new export's frames hold or loop as usual. An unknown
+name returns `success: false` and leaves the active model as it was.
+`/policy/status` reports `active_model` and `available_models`.
+
+All models must use the same joint order. With `motor_config_file` set, the
+registry must approve every model's SHA-256 in
+`model_contract.allowed_model_sha256s`. Each model must also match the
+registry's metadata, gains and joint limits. To approve another export without
+changing the contract:
+
+```bash
+python scripts/sync_tracking_motor_config.py --approve-model /path/to/other/other.onnx
+```
+
+This refuses any export whose contract, gains or limits differ, and it resets
+`hardware_verified: false`. A normal `--model` resync keeps existing approvals
+only if the contract is unchanged.
+
 ## IMU, frames, and input faults
 
 The ESP32-S3 JSON format is:
@@ -209,9 +245,9 @@ No guessed mappings or SDK implementation are added by this integration.
 `motor_control_hybrid/config/motors.yaml` now stores the ten joints in the active
 tracking export's order, its Kp/Kd, zero default positions, action scale 0.2,
 50 Hz contract, and simulation joint limits. The launch reads this order for
-fake feedback. On startup the policy checks the registry against the model's
-SHA256 and metadata, including the motor gain entries; configuration drift
-requires resynchronization.
+fake feedback. On startup the policy checks that the model's SHA256 is listed
+in `allowed_model_sha256s`. It also checks the model's metadata, including the
+motor gain entries; configuration drift requires resynchronization.
 
 ```bash
 source rosenv/bin/activate

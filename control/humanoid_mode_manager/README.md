@@ -97,8 +97,10 @@ ros2 service call /mode_manager/enable std_srvs/srv/Trigger
 | `Damp` | A damping-only command path (kp 0, kd only) through `cpp_control_node`. |
 | `ResetController` | `walking_controller` latches faults until restarted; needs a `/walk/reset` service. |
 | `ResetLocalization` | `vio_localizer` has no reset; needs `/localization/reset`. |
-| `SwitchModel` | `SwitchPolicyModel` is on `feat/policy-switching`; without it the action is logged only. |
-| fall warning | The fall predictor (`/safety/fall_warning`) was trained on the legs model under the old RL tracking policy; on the full body its warning is untested. |
+
+`SwitchModel` calls `/policy/switch_model` (tracking_policy_node) and can select only models preloaded with
+`model_paths` (`sim.launch.py model_paths:=...`). The fall warning (`/safety/fall_warning`, `use_fall_warning`)
+comes from a predictor trained on the legs model under the old RL tracking policy; on the full body it is untested.
 
 Status topics are slow (`/walk/status` 2 Hz, `/policy/status` 1 Hz), so controller faults are seen with up to
 0.5-1 s delay; the motor path does not depend on this node.

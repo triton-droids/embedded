@@ -31,6 +31,7 @@ C++ and the simulated backend, the walking controller's input/cycle limits, the
 safety supervisor's IMU/feedback/CAN timeouts) are disabled in this mode.
 """
 import os
+from typing import List
 
 from launch import LaunchDescription
 from launch.actions import (DeclareLaunchArgument, EmitEvent, GroupAction,
@@ -289,6 +290,7 @@ def simulation_and_stack(context):
             ros_arguments=['--log-level', arg('log_level')],
             parameters=[{
                 'model_path': arg('model_path'),
+                'model_paths': ParameterValue(arg('model_paths'), value_type=List[str]),
                 'control_rate_hz': float(contract['control_hz']),
                 'motor_config_file': registry_path,
                 'imu_topic': '/imu/data_raw',
@@ -578,6 +580,8 @@ def generate_launch_description():
         ('walk_max_turn_rad', '0.08', 'controller:=model_walk: velocity input turn cap per step, rad (node clamps to 0.15)'),
         ('walk_cmd_vel_topic', '', 'controller:=model_walk: optional TwistStamped velocity input, e.g. /ball_chase/cmd_vel'),
         ('enable_policy', 'true', 'Run tracking_policy_node on simulated IMU/joint feedback'),
+        ('model_paths', '[]', 'YAML list of extra tracking models preloaded for /policy/switch_model '
+                              '(each needs a registry approval, see docs/tracking_policy_ros2.md)'),
         ('enable_wbc', 'false', 'Deprecated: insert TSID between RL and C++ (less stable than tuned PD; see docs/reports/2026-11-08-wbc-deprecation.md)'),
         ('pd_profile', 'tuned', 'PD path (no WBC) defaults: tuned (200 Hz, release clock, loop, no head sim, skip IMU spikes) or original'),
         ('wbc_command_rate_hz', '200.0', 'C++ forwarding rate for the WBC simulation only'),
