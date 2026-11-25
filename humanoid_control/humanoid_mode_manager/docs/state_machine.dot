@@ -1,0 +1,92 @@
+// humanoid_mode_manager state machine + walking_controller fall recovery (get-up phases).
+// Edge labels are the trigger conditions with the default parameters
+// (humanoid_mode_manager core/machine.py MachineParams, walking_controller recovery.py RecoveryParams).
+// Render: dot -Tpng -Gdpi=100 state_machine.dot -o state_machine.png
+digraph modes {
+  graph [rankdir=TB, newrank=true, compound=true, fontname="DejaVu Sans", fontsize=24, labelloc=t,
+         nodesep=0.9, ranksep=0.9, pad=0.4,
+         label="humanoid_mode_manager state machine (edge labels: trigger conditions, default parameters)\n\n"];
+  node  [fontname="DejaVu Sans", fontsize=15, shape=box, style="rounded,filled", penwidth=1.5, margin="0.2,0.1"];
+  edge  [fontname="DejaVu Sans", fontsize=12, color="#555555"];
+
+  subgraph cluster_life {
+    label="Lifecycle layer"; style="rounded"; color="#5577aa"; fontcolor="#5577aa";
+    boot     [label="BOOT\nwaiting for every input", fillcolor="#dddddd"];
+    disabled [label="DISABLED\nmotors off (default safe mode)", fillcolor="#c9c9ec"];
+    enabling [label="ENABLING\nENABLE sent", fillcolor="#bcd4f0"];
+    homing   [label="HOMING\nHOME sent", fillcolor="#bcd4f0"];
+    gantry   [label="GANTRY\ncontroller selected, base still held", fillcolor="#bfe3f2"];
+  }
+  subgraph cluster_motion {
+    label="Motion layer"; style="rounded"; color="#339944"; fontcolor="#339944";
+    kick    [label="KICK\n(placeholder)", fillcolor="#f0f0a0"];
+    walk    [label="WALK\nfollows the velocity command", fillcolor="#a6f0a6"];
+    stand   [label="STAND", fillcolor="#b8e6c4"];
+    squat   [label="SQUAT\n(placeholder)", fillcolor="#dff0a0"];
+    falling [label="FALLING\ntilting, not at rest", fillcolor="#ffd59e"];
+    fallen  [label="FALLEN\nlying at rest", fillcolor="#ffc09e"];
+    subgraph cluster_getup {
+      label="GETUP (walking_controller recovery phases; ★ = Aid of Magic, simulation test only)";
+      style="rounded,filled"; fillcolor="#fbe3f2"; color="#cc3399"; fontcolor="#cc3399";
+      rise     [label="rise\nget-up policy getup.npz\n★ on when SIM_ASSIST_PHASES includes rise", fillcolor="#f7b6dc"];
+      straight [label="straight\nbalance policy balance_bb2.npz\n★ on by default", fillcolor="#f7b6dc"];
+      handover [label="back to walk\nwalking policy walk.npz\n★ may stay on for SIM_ASSIST_WALK_S", fillcolor="#f7b6dc"];
+    }
+  }
+  subgraph cluster_safety {
+    label="Safety layer"; style="rounded,dashed"; color="#cc3333"; fontcolor="#cc3333";
+    any_mode   [label="any mode", shape=plaintext, style="", fontcolor="#777777"];
+    any_active [label="any mode with a controller\n(HOMING, GANTRY, motion layer)\nand failures of ENABLING / HOMING / FALLEN / GETUP",
+                shape=plaintext, style="", fontcolor="#777777"];
+    estop   [label="ESTOP\nsafety estop, motors off", fillcolor="#ffb3b3"];
+    damping [label="DAMPING\ndamping-only soft stop, 1 s", fillcolor="#f5c6a5"];
+    fault   [label="FAULT\nlatched fault", fillcolor="#ff8080"];
+  }
+
+  { rank=same; gantry; kick; }
+  { rank=same; walk; stand; squat; }
+  { rank=same; falling; fallen; }
+  { rank=same; rise; straight; handover; }
+
+  // lifecycle
+  boot     -> disabled [label="inputs present and fresh"];
+  disabled -> enabling [label="enable request\n(inputs fresh, no estop,\nno supervisor warning)"];
+  enabling -> homing   [label="ENABLE completed"];
+  homing   -> gantry   [label="HOME completed"];
+  enabling -> gantry   [label="ENABLE completed\n(home_on_enable=false)", style=dashed, constraint=false];
+  disabled -> gantry   [label="sim autostart: enabled externally,\nbase released (external_enable,\nfirst DISABLED after BOOT only)", style=dashed, constraint=false];
+  gantry   -> stand    [label="base released (sim base_held=false)\nor release request"];
+
+  // motion
+  stand -> walk  [label="velocity command"];
+  walk  -> stand [label="no velocity command for 1 s"];
+  stand -> squat [label="squat request"];
+  squat -> stand [label="5 s (placeholder)"];
+  walk  -> kick  [label="kick request"];
+  stand -> kick  [label="kick request"];
+  kick  -> walk  [label="kick done (idle 1 s),\nvelocity command"];
+  kick  -> stand [label="kick done, no command /\n5 s timeout", constraint=false];
+  stand -> falling [label="tilt > 0.45 rad, or the controller\nis already in rise / straight\n(same from WALK / KICK / SQUAT)", color="#e08000", fontcolor="#e08000"];
+  walk  -> falling [color="#e08000"];
+  squat -> falling [color="#e08000"];
+  falling -> stand  [label="tilt < 0.25 rad for 1 s\n(caught itself)", constraint=false];
+  falling -> fallen [label="angular speed < 0.3 rad/s\nfor 0.5 s"];
+  falling -> rise   [label="controller reports\nrecovery = rise / straight\n-> GETUP", color="#cc3399", fontcolor="#cc3399"];
+  fallen  -> rise   [label="get-up attempts < 3\n-> GETUP", color="#cc3399", fontcolor="#cc3399"];
+
+  // get-up phases (walking_controller recovery.py)
+  rise     -> straight [label="z > 0.5 m, up > 0.85,\nfeet only on the floor, for 0.5 s"];
+  straight -> rise     [label="non-foot body on the floor /\nz < 0.38 m / up < 0.6", color="#cc3399", fontcolor="#cc3399", constraint=false];
+  straight -> handover [label="tilt < 0.25 rad, each foot > 40 N,\nspeed < 0.15 m/s, leg error < 0.25 rad,\nsoles < 10 deg off flat, for 0.3 s\n(relaxed after 6 s)"];
+  handover -> rise     [label="tilt > 0.6 rad while walking", color="#cc3399", fontcolor="#cc3399", constraint=false];
+  handover -> stand    [label="GETUP -> STAND: handed back to walking\nand tilt < 0.25 rad for 1 s", constraint=false];
+
+  // safety (kept out of the layout of the other layers)
+  any_mode   -> estop   [label="/safety/estop = true", color="#cc3333", fontcolor="#cc3333"];
+  any_active -> damping [label="stale inputs / supervisor unhealthy / controller fault (not falling)\nENABLING failed or 5 s, HOMING failed or 15 s\nFALLEN after 3 attempts, GETUP longer than 30 s\n(then -> FAULT)\ndisable request (then -> DISABLED)", color="#cc3333", fontcolor="#cc3333"];
+  damping -> fault    [label="after 1 s (entered on a fault)"];
+  damping -> disabled [label="after 1 s (entered on a disable request)", style=dashed, constraint=false];
+  estop   -> disabled [label="estop released", constraint=false];
+  fault   -> disabled [label="operator reset", constraint=false];
+  boot    -> fault    [label="30 s timeout", constraint=false, color="#cc3333", fontcolor="#cc3333"];
+}
