@@ -64,6 +64,16 @@ the GPU detector, `scripts/run_cuvslam.sh` + `enable_vio:=true` for localization
 | Documentation index, architecture, build boundaries | [docs](docs/README.md) |
 | Physical robot (archived) and legacy code | [hardware](hardware/README.md), [legacy](legacy/README.md) |
 
+## Robot mode state machine
+
+`humanoid_mode_manager` decides the robot mode and which controller owns the motors; the walking
+controller's get-up phases are shown with it. Edge labels are the trigger conditions at the default
+parameters. It is a placeholder that runs as a dry run (`sim.launch.py mode_manager:=true`); details in
+[its README](control/humanoid_mode_manager/README.md) and
+[docs/states.md](control/humanoid_mode_manager/docs/states.md).
+
+![humanoid_mode_manager state machine](control/humanoid_mode_manager/docs/state_machine.png)
+
 ## Repository layout
 
 Packages are grouped by role. Package names did not change, so `ros2 launch` and
