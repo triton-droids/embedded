@@ -30,6 +30,23 @@ MODE_DISABLE = 4
 # Peak torques by registry model when max_torque_nm is null (RobStride datasheets).
 DEFAULT_PEAK_TORQUE_NM = {'rs-02': 17.0, 'rs-03': 60.0, 'rs-04': 120.0}
 FALLBACK_PEAK_TORQUE_NM = 60.0
+# Output no-load speed at 48 V (robstride.com product pages, +-10 %): RS02 410 rpm, RS03 195 rpm, RS04 200 rpm.
+# Rated points on the same pages: RS02 6 N.m @ 100 rpm, RS03 20 N.m @ 100 rpm, RS04 40 N.m @ 50 rpm.
+NO_LOAD_SPEED_RAD_S = {'rs-02': 410 * 2 * math.pi / 60, 'rs-03': 195 * 2 * math.pi / 60,
+                       'rs-04': 200 * 2 * math.pi / 60}
+
+
+def speed_torque_range(peak: float, no_load_speed: float, motor_speed: float) -> tuple[float, float]:
+    """Torque range (lower, upper) a motor can produce at ``motor_speed`` (motor output coordinates).
+
+    Motoring (torque along the motion) follows a straight torque-speed line from ``peak`` at stall to zero at
+    the no-load speed, which stays above the datasheet rated points; braking (torque against the motion) keeps
+    the full peak. Beyond the no-load speed the motor cannot drive further in that direction at all.
+    """
+    if not math.isfinite(no_load_speed) or no_load_speed <= 0.0:
+        return -peak, peak
+    available = peak * min(1.0, max(0.0, 1.0 - abs(motor_speed) / no_load_speed))
+    return (-peak, available) if motor_speed >= 0.0 else (-available, peak)
 
 
 @dataclass
@@ -42,6 +59,8 @@ class JointLimits:
     kd: float
     max_torque: float
     max_velocity: float
+    # Motor output no-load speed (rad/s) for the torque-speed limit; inf = no limit.
+    no_load_speed: float = math.inf
     # Registry ankle_mapping (four-bar): the motor law runs in motor coordinates, see ankle_linkage.py.
     ankle_mapping: dict | None = None
 
@@ -101,6 +120,7 @@ def limits_from_registry(params: dict, ankle_linkage: bool = True) -> dict[str, 
             kd=float(cfg.get('kd', 0.0)),
             max_torque=float(torque),
             max_velocity=float(cfg.get('max_vel_rad_s', max_velocity)),
+            no_load_speed=float(NO_LOAD_SPEED_RAD_S.get(str(cfg.get('model')), math.inf)),
             ankle_mapping=dict(cfg['ankle_mapping']) if ankle_linkage and cfg.get('ankle_mapping') else None,
         )
     return limits

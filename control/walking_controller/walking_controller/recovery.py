@@ -1,7 +1,8 @@
 """Fall recovery for the full body: predictive-sampling MPC that gets the robot up and stands it straight.
 
 Phases (GetUpPlanner.phase):
-  rise      from lying (any pose) until the robot stands on its feet only, torso up, for rise_hold_s
+  rise      from lying (any pose) until the robot stands on its feet only, z > 0.5 m and upright > 0.85
+            for rise_hold_s; optional rise_max_speed / rise_max_tilt_rad limits require a calmer hand-over
   straight  torso upright, CoM between the feet, legs at the walking controller's start stance, soles flat
             and loaded, feet at the start stance (side by side, not staggered); ends with ready() once
             all of that holds for straight_hold_s, or a relaxed version of it after straight_timeout_s
@@ -57,7 +58,15 @@ class RecoveryParams:
     threads: int = 8
     seed: int = 0
     rise_hold_s: float = 0.5
+    # Calm hand-over requirements are off by default: balance handles braking after rising.
+    # Set finite speed / tighter tilt limits to require a calmer rise -> straight transition.
+    rise_max_speed: float = math.inf
+    rise_max_tilt_rad: float = math.acos(0.85)
     straight_hold_s: float = 0.3
+    # straight -> rise ("lost the stand"): a non-foot body on the floor, or base below / tilt beyond these
+    # (the balance policy's training fall check, tools/rl_tasks/balance.py fall_z / fall_up).
+    straight_fall_z: float = 0.38
+    straight_fall_up: float = 0.6
     straight_timeout_s: float = 6.0
     # straight cost weights
     w_up: float = 8.0
@@ -346,6 +355,12 @@ class GetUpPlanner:
             self.nominal, self.plan_k, self.plan_t0 = K[best], K[best], float(t)
         return self._transition(t, np.asarray(forces, float))
 
+    def check(self, t, forces):
+        """Phase transition for the state last given to set_state, without planning (the get-up student
+        policy drives the joints; this planner only judges rise -> straight -> ready)."""
+        with self.lock:
+            return self._transition(t, np.asarray(forces, float))
+
     def target(self, t):
         """Joint targets of the current plan at simulated time t."""
         with self.lock:
@@ -358,13 +373,17 @@ class GetUpPlanner:
         z, up = float(d.qpos[self.free + 2]), self.upright()
         feet_only = self.feet_only()
         if self.phase == RISE:
-            ok = z > 0.5 and up > 0.85 and feet_only
+            speed = float(np.linalg.norm(d.qvel[self.vb:self.vb + 3]))
+            ok = (z > 0.5 and up > max(0.85, math.cos(p.rise_max_tilt_rad)) and feet_only
+                  and speed < p.rise_max_speed)
             self.ok_since = (self.ok_since if self.ok_since is not None else t) if ok else None
             if self.ok_since is not None and t - self.ok_since >= p.rise_hold_s:
-                self.ready_why = f'z {z:.2f}, up {up:+.2f}'
+                self.ready_why = f'z {z:.2f}, up {up:+.2f}, speed {speed:.2f}'
                 return STRAIGHT
             return None
-        if not (z > 0.4 and feet_only):
+        # Lost the stand: as the balance policy's fall check (tools/rl_tasks/balance.py), a body other than
+        # the feet on the floor, or too low / tilted. Both feet briefly in the air (a bouncy hand-over) is not.
+        if (self.floor_contacts() - self.foot_bodies) or z < p.straight_fall_z or up < p.straight_fall_up:
             return RISE
         speed = float(np.linalg.norm(d.qvel[self.vb:self.vb + 3]))
         err = float(np.abs(d.qpos[self.qadr[self.leg]] - self.q_nominal[self.leg]).max())

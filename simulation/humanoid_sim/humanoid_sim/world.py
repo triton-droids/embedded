@@ -31,7 +31,7 @@ import numpy as np
 from . import diag
 from . import model_builder as mb
 from .ankle_linkage import AnkleLinkage
-from .motor_model import MotorBank
+from .motor_model import MotorBank, speed_torque_range
 
 
 @dataclass
@@ -80,7 +80,7 @@ class SimWorld:
                  base_held: bool = True, settle_s: float = 2.0,
                  pause_on_control_fault: bool = False,
                  imu_writer=None, sim_clock: bool = False,
-                 real_time_factor: float = 1.0) -> None:
+                 real_time_factor: float = 1.0, motor_speed_limits: bool = True) -> None:
         self.model = model
         self.data = mujoco.MjData(model)
         self.motors = motors
@@ -112,6 +112,9 @@ class SimWorld:
         self._linkage = [AnkleLinkage(motors.limits[n].ankle_mapping) if motors.limits[n].ankle_mapping else None
                          for n in self.joint_names]
         self._motor_torque = [motors.limits[n].max_torque for n in self.joint_names]
+        # Torque-speed limit (motor_model.speed_torque_range), applied at the motor output every physics step.
+        self._no_load = [motors.limits[n].no_load_speed if motor_speed_limits else math.inf
+                         for n in self.joint_names]
         self._ratio = np.ones(len(self.joint_names))  # d motor / d joint of the last step
         self._weld = model.equality(mb.BASE_WELD).id
         self._base_joint = model.body(mb.BASE_BODY).jntadr[0]
@@ -119,6 +122,9 @@ class SimWorld:
         self._push_body = model.body(mb.BASE_BODY).id
         self._push_force = np.zeros(3)
         self._push_until_ns = 0
+        # /sim/assist (TEST ONLY): steadies the base -- horizontal damping and an uprighting torque.
+        self._assist = False
+        self.assist_lin_kd, self.assist_rot_kp, self.assist_rot_kd = 150.0, 250.0, 25.0
 
         self.head = head
         self._pitch_joint = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, 'head_pitch_joint')
@@ -229,6 +235,8 @@ class SimWorld:
                     data.ctrl[act] = sp.kp * sp.q_ref + sp.kd * sp.dq_ref + sp.tau_ff
                     model.actuator_biasprm[act, 1] = -sp.kp
                     model.actuator_biasprm[act, 2] = -sp.kd
+                    model.actuator_forcerange[act] = speed_torque_range(
+                        self._motor_torque[i], self._no_load[i], float(data.qvel[self._qvel[i]]))
                     continue
                 # As motor_control_hybrid: only the position target is converted to the motor angle; kp, kd,
                 # velocity and feedforward torque reach the motor unchanged. Motor law, linearised about q:
@@ -240,8 +248,10 @@ class SimWorld:
                 data.ctrl[act] = ratio * (sp.kp * (m_ref - motor + ratio * q) + sp.kd * sp.dq_ref + sp.tau_ff)
                 model.actuator_biasprm[act, 1] = -ratio * ratio * sp.kp
                 model.actuator_biasprm[act, 2] = -ratio * ratio * sp.kd
-                limit = abs(ratio) * self._motor_torque[i]  # the motor's torque limit, seen at the joint
-                model.actuator_forcerange[act] = (-limit, limit)
+                # The motor's torque range at its own speed (J * joint rate), seen at the joint (tau = J * tau_m).
+                low, high = speed_torque_range(self._motor_torque[i], self._no_load[i],
+                                               ratio * float(data.qvel[self._qvel[i]]))
+                model.actuator_forcerange[act] = sorted((ratio * low, ratio * high))
             if self.head is not None:
                 self._apply_head(dt)
             if self._pitch_joint >= 0:
@@ -253,7 +263,12 @@ class SimWorld:
                 data.xfrc_applied[self._push_body, :3] = self._push_force if active else 0.0
                 if not active:
                     self._push_until_ns = 0
+            assist = self._assist_wrench() if self._assist else None
+            if assist is not None:
+                data.xfrc_applied[self._push_body] += assist
             mujoco.mj_step(model, data)
+            if assist is not None:
+                data.xfrc_applied[self._push_body] -= assist
             self.clock_ns += self._step_ns
             self.sample_stamp_ns = self.clock_ns if self.sim_clock else time.time_ns()
             self.sampled_mono = time.monotonic()
@@ -326,6 +341,33 @@ class SimWorld:
         self.data.mocap_pos[self._target_mocap] = self._target_home + np.array([offset, 0.0, 0.0])
 
     # ------------------------------------------------------------- controls
+    def set_assist(self, enabled: bool) -> None:
+        """TEST ONLY: steady the base (horizontal damping + uprighting torque) while enabled."""
+        with self.lock:
+            self._assist = bool(enabled)
+
+    @property
+    def assist(self) -> bool:
+        return self._assist
+
+    def _assist_wrench(self) -> np.ndarray:
+        """World-frame [force, torque] on the base: -kd * horizontal velocity, and a torque rotating the base's up
+        axis towards world +z (kp * angle about the axis) damped by -kd * angular velocity."""
+        d, j = self.data, self._base_joint
+        qv = self.model.jnt_dofadr[j]
+        lin = d.qvel[qv:qv + 3]
+        omega_body = d.qvel[qv + 3:qv + 6]
+        rot = d.xmat[self._push_body].reshape(3, 3)
+        up = rot[:, 2]
+        axis = np.cross(up, [0.0, 0.0, 1.0])
+        s = float(np.linalg.norm(axis))
+        angle = math.atan2(s, float(up[2]))
+        rot_err = axis / s * angle if s > 1e-9 else np.zeros(3)
+        wrench = np.zeros(6)
+        wrench[:2] = -self.assist_lin_kd * lin[:2]
+        wrench[3:] = self.assist_rot_kp * rot_err - self.assist_rot_kd * (rot @ omega_body)
+        return wrench
+
     def push(self, force_world, duration_s: float) -> None:
         """Apply a world-frame force (N) to the base body for duration_s of simulated time (tests)."""
         with self.lock:
@@ -343,6 +385,7 @@ class SimWorld:
             self.control_fault = None
             self.reset_count += 1
             self._push_until_ns = 0
+            self._assist = False
             self.data.xfrc_applied[:] = 0.0
             mujoco.mj_resetData(self.model, self.data)
             for i, linkage in enumerate(self._linkage):

@@ -35,7 +35,7 @@ import rclpy
 from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
 from rclpy.node import Node
 from rclpy.signals import SignalHandlerOptions
-from std_msgs.msg import Float64MultiArray, String
+from std_msgs.msg import Bool, Float64MultiArray, String
 from std_srvs.srv import SetBool, Trigger
 import yaml
 
@@ -66,6 +66,7 @@ class SimControlNode(Node):
       /sim/reset      std_srvs/Trigger  spawn pose, motors disabled, base held
       /sim/hold_base  std_srvs/SetBool  engage (true) or release (false) the gantry
       /sim/push       std_msgs/Float64MultiArray  [fx, fy, fz, duration_s]: world-frame force on the base (tests)
+      /sim/assist     std_msgs/Bool      TEST ONLY: steady the base (horizontal damping, uprighting torque)
     Topics:
       /sim/ground_truth/odom  nav_msgs/Odometry  base pose/velocity (world frame)
       /sim/status             std_msgs/String    JSON timing and state, 1 Hz
@@ -84,6 +85,8 @@ class SimControlNode(Node):
             'command_timeout_s': 0.5,
             'command_future_tolerance_s': 0.01,
             'pause_on_control_fault': True,
+            # Torque-speed limit of each motor (motor_model.speed_torque_range, RobStride datasheet no-load speeds).
+            'motor_speed_limits': True,
             'dedicated_command_executor': False,
             'velocity_mode_kd': 2.0,
             'enable_head': True,
@@ -149,7 +152,7 @@ class SimControlNode(Node):
             base_held=bool(p['start_base_held']), settle_s=float(p['settle_s']),
             pause_on_control_fault=bool(p['pause_on_control_fault']),
             sim_clock=self.sim_clock, real_time_factor=float(p['real_time_factor'])
-            if self.sim_clock else 1.0)
+            if self.sim_clock else 1.0, motor_speed_limits=bool(p['motor_speed_limits']))
         if self.sim_clock:
             # Every node runs with use_sim_time: this is the only clock source.
             from rclpy.qos import QoSProfile, ReliabilityPolicy
@@ -174,6 +177,7 @@ class SimControlNode(Node):
         self.create_service(Trigger, '/sim/reset', self._reset)
         self.create_service(SetBool, '/sim/hold_base', self._hold_base)
         self.create_subscription(Float64MultiArray, '/sim/push', self._push, 2)
+        self.create_subscription(Bool, '/sim/assist', self._assist, 2)
         self.create_timer(1.0 / float(p['ground_truth_rate_hz']), self._publish_odom)
         self.create_timer(1.0, self._publish_status)
         self._last_status = (time.monotonic(), 0.0)
@@ -186,6 +190,11 @@ class SimControlNode(Node):
             return
         self.world.push(msg.data[:3], msg.data[3])
         self.get_logger().warn(f'Push {list(msg.data[:3])} N for {msg.data[3]:g} s')
+
+    def _assist(self, msg):
+        if bool(msg.data) != self.world.assist:
+            self.world.set_assist(bool(msg.data))
+            self.get_logger().warn(f'TEST ASSIST {"ON" if msg.data else "OFF"} (simulation only: base steadied)')
 
     def _reset(self, request, response):
         self.world.reset(base_held=True)
@@ -259,7 +268,7 @@ class SimControlNode(Node):
             max_odom_callback_s=getattr(self, '_max_odom_callback_s', 0.0),
             max_status_callback_s=getattr(self, '_max_status_callback_s', 0.0),
             publish_failures=dict(getattr(self, '_publish_failures', {})),
-            estop_active=self.world.motors.estop_active))), '/sim/status')
+            estop_active=self.world.motors.estop_active, assist=self.world.assist))), '/sim/status')
         self._max_status_callback_s = max(getattr(self, '_max_status_callback_s', 0.0), time.monotonic()-begin)
 
 

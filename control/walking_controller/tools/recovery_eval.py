@@ -44,11 +44,13 @@ def apply_mit(sim, planner, command):
     if command is None:
         d.ctrl[act] = 0.0
         m.actuator_biasprm[act, 1:3] = 0.0
+        sim.apply_speed_limits()
         return
     c = command
     d.ctrl[act] = c.kp * c.q_ref + c.kd * c.dq_ref + c.tau_ff
     m.actuator_biasprm[act, 1] = -c.kp
     m.actuator_biasprm[act, 2] = -c.kd
+    ratios = {}
     for k, i in enumerate(planner.ank):
         q0 = d.qpos[sim.qpos[i]]
         m0, ratio = planner._motor(k, q0)
@@ -56,8 +58,9 @@ def apply_mit(sim, planner, command):
         d.ctrl[act[i]] = ratio * (c.kp[i] * (ref - m0 + ratio * q0)
                                   + c.kd[i] * c.dq_ref[i] + c.tau_ff[i])
         m.actuator_biasprm[act[i], 1:3] = -ratio**2 * np.array([c.kp[i], c.kd[i]])
-        limit = abs(ratio) * planner.tau_motor[k]
-        m.actuator_forcerange[act[i]] = (-limit, limit)
+        ratios[int(i)] = ratio
+    # Motor torque-speed limits (ankles: the motor's range at J * joint rate, seen at the joint).
+    sim.apply_speed_limits(ratios)
 
 
 def lying_pose(sim, planner, start):

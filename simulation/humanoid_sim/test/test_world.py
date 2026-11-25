@@ -250,3 +250,34 @@ def test_simulation_clock_stamps_are_simulated_time_across_resets():
     assert world.sample_stamp_ns == world.clock_ns == start + 10 * world._step_ns
     world.reset()
     assert world.sample_stamp_ns == world.clock_ns >= start + 10 * world._step_ns  # Never backwards.
+
+
+def test_assist_wrench_opposes_motion_and_uprights(world):
+    import math
+    d, j = world.data, world._base_joint
+    qp, qv = world.model.jnt_qposadr[j], world.model.jnt_dofadr[j]
+    d.qpos[qp + 3:qp + 7] = [1, 0, 0, 0]
+    d.qvel[:] = 0.0
+    d.qvel[qv:qv + 3] = [0.4, -0.2, 0.0]
+    mujoco.mj_forward(world.model, d)
+    w = world._assist_wrench()
+    np.testing.assert_allclose(w[:2], [-0.4 * world.assist_lin_kd, 0.2 * world.assist_lin_kd])
+    np.testing.assert_allclose(w[3:], 0.0, atol=1e-9)            # upright and not rotating: no torque
+    a = 0.3                                                         # tilted about +x
+    d.qpos[qp + 3:qp + 7] = [math.cos(a / 2), math.sin(a / 2), 0, 0]
+    d.qvel[:] = 0.0
+    mujoco.mj_forward(world.model, d)
+    w = world._assist_wrench()
+    assert w[3] < 0 and abs(w[4]) < 1e-9                          # torque back about -x
+    assert abs(w[3] + world.assist_rot_kp * a) < 1e-6
+
+
+def test_assist_is_applied_only_while_enabled_and_cleared_on_reset(world):
+    world.set_base_held(False)
+    assert not world.assist
+    world.set_assist(True)
+    assert world.assist
+    run(world, 0.05)
+    np.testing.assert_allclose(world.data.xfrc_applied[world._push_body], 0.0)  # removed after each step
+    world.reset()
+    assert not world.assist

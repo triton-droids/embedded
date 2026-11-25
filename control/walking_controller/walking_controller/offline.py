@@ -43,7 +43,8 @@ def load(paths=None):
 
 
 class OfflineSim:
-    def __init__(self, robot: RobotModel, limits, paths, delay_steps=2, friction=None, world=None):
+    def __init__(self, robot: RobotModel, limits, paths, delay_steps=2, friction=None, world=None,
+                 motor_speed_limits=True):
         """world: optional WorldOptions overrides, e.g. {'add_head': True,
         'scene_builder': 'humanoid_ball_chase.scene:build_scene'} (camera mount)."""
         from humanoid_sim import model_builder as mb
@@ -73,6 +74,14 @@ class OfflineSim:
         if friction is not None:
             m.geom('floor').friction[0] = friction
         self.dt = float(m.opt.timestep)
+        # Torque-speed limit per motor (humanoid_sim.motor_model): peak torque and no-load speed by registry model.
+        from humanoid_sim.motor_model import NO_LOAD_SPEED_RAD_S
+        import yaml
+        reg = yaml.safe_load(Path(paths['registry']).read_text())
+        reg = reg.get('motor_control_node', {}).get('ros__parameters', reg)['motors']
+        self.peak = np.asarray(limits.torque, float)
+        self.no_load = np.array([NO_LOAD_SPEED_RAD_S.get(str(reg[n].get('model')), np.inf) if motor_speed_limits
+                                 else np.inf for n in robot.joint_names])
         self.delay_steps = int(delay_steps)
         self.queue, self.command = [], None
         mujoco.mj_resetData(m, self.data)
@@ -126,6 +135,17 @@ class OfflineSim:
                 return True
         return False
 
+    def apply_speed_limits(self, ratios=None):
+        """Set every joint actuator's force range from its motor's torque-speed limit. ratios: {joint index:
+        d motor / d joint} for four-bar ankles driven on the motor side (tau_joint = J * tau_motor)."""
+        from humanoid_sim.motor_model import speed_torque_range
+        m, d = self.model, self.data
+        for i, act in enumerate(self.act):
+            ratio = 1.0 if not ratios or i not in ratios else float(ratios[i])
+            low, high = speed_torque_range(float(self.peak[i]), float(self.no_load[i]),
+                                           ratio * float(d.qvel[self.qvel[i]]))
+            m.actuator_forcerange[act] = sorted((ratio * low, ratio * high))
+
     def step(self, command: Command | None, push=None):
         self.queue.append(command)
         if len(self.queue) > self.delay_steps:
@@ -139,6 +159,7 @@ class OfflineSim:
                 d.ctrl[act] = c.kp[i] * c.q_ref[i] + c.kd[i] * c.dq_ref[i] + c.tau_ff[i]
                 m.actuator_biasprm[act, 1] = -c.kp[i]
                 m.actuator_biasprm[act, 2] = -c.kd[i]
+        self.apply_speed_limits()
         d.xfrc_applied[self.base_body, :3] = 0.0 if push is None else push
         mujoco.mj_step(m, d)
 

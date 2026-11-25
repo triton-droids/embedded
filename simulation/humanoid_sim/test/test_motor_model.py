@@ -160,3 +160,20 @@ def test_readiness_diagnostic_distinguishes_expiry_from_disable():
     submit(bank, MODE_ENABLE, now_mono=NOW_MONO + .6)
     submit(bank, MODE_DISABLE, now_mono=NOW_MONO + .6)
     assert bank.readiness_failure(NOW_MONO + .6) == 'disabled joint knee'
+
+
+def test_speed_torque_range_follows_the_datasheet_line():
+    from humanoid_sim.motor_model import NO_LOAD_SPEED_RAD_S, speed_torque_range
+    w0 = NO_LOAD_SPEED_RAD_S['rs-04']
+    assert speed_torque_range(120.0, w0, 0.0) == (-120.0, 120.0)
+    low, high = speed_torque_range(120.0, w0, 0.5 * w0)
+    assert low == -120.0 and high == pytest.approx(60.0)       # motoring derated, braking at peak
+    low, high = speed_torque_range(120.0, w0, -0.5 * w0)
+    assert low == pytest.approx(-60.0) and high == 120.0
+    assert speed_torque_range(120.0, w0, 2 * w0) == (-120.0, 0.0)  # cannot drive past no-load speed
+    # Above the datasheet rated points: RS04 40 N.m @ 50 rpm, RS03 20 N.m @ 100 rpm, RS02 6 N.m @ 100 rpm.
+    rpm = 2 * math.pi / 60
+    assert speed_torque_range(120.0, w0, 50 * rpm)[1] > 40.0
+    assert speed_torque_range(60.0, NO_LOAD_SPEED_RAD_S['rs-03'], 100 * rpm)[1] > 20.0
+    assert speed_torque_range(17.0, NO_LOAD_SPEED_RAD_S['rs-02'], 100 * rpm)[1] > 6.0
+    assert speed_torque_range(60.0, math.inf, 100.0) == (-60.0, 60.0)

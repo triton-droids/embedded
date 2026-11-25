@@ -18,6 +18,7 @@
   <exec_depend>humanoid_leg_description</exec_depend>
   <exec_depend>humanoid_full_body_description</exec_depend>
   <exec_depend>humanoid_safety</exec_depend>
+  <exec_depend>humanoid_mode_manager</exec_depend>
   <exec_depend>nav_msgs</exec_depend>
   <exec_depend>rosgraph_msgs</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>

@@ -151,6 +151,23 @@ class WalkingControllerNode(Node):
             'recovery_robot_xml': '', 'recovery_mesh_dir': '',
             'recovery_threads': 8, 'recovery_seed': 0,
             'recovery_straight_timeout_s': 6.0,
+            # Get-up student policy (npz from tools/getup_bc.py) instead of the MPC: runs in real time, the
+            # planner model only judges rise -> straight -> ready. '' = MPC.
+            'recovery_policy': '',
+            # Balance policy (tools/rl_train.py --task balance) for the straight phase instead of the MPC.
+            'recovery_balance_policy': '',
+            # RL walking policy (tools/rl_train.py --task walk) instead of the MPC + WBC stepping controller:
+            # tracks cmd_vel (linear.x, linear.y, angular.z). '' = model-based walking.
+            'walk_policy': '',
+            # Gait-clock period (s) the walking policy was trained with (5-value command policies).
+            'walk_policy_period': 0.7,
+            # TEST ONLY (simulation): steady the base via /sim/assist during the straight phase (balance), off at
+            # the hand-over to walking. Never available on hardware.
+            'recovery_sim_assist': False,
+            # Recovery phases the assist is on in (comma separated: rise, straight).
+            'recovery_sim_assist_phases': 'straight',
+            # Keep the assist on this long (s) after the hand-over to walking, then off (0 = off at once).
+            'recovery_sim_assist_walk_s': 0.0,
             'cmd_vel_rest_step_m': 0.005,
             'cmd_vel_rest_turn_rad': 0.01,
         }
@@ -179,7 +196,27 @@ class WalkingControllerNode(Node):
                                straight_timeout_s=float(p['recovery_straight_timeout_s'])))
             self._plan_state, self._plan_event = None, threading.Event()
             self._handoff = False
+            # RL policies per recovery phase (tools/rl_train.py): 'rise' = get-up, 'straight' = balance (the
+            # hand-over to walking). A phase without a policy uses the MPC. The planner then only judges the
+            # phase transitions (rise -> straight -> ready).
+            from .getup_policy import GetUpPolicy
+            self.phase_policies = {}
+            for phase, key in (('rise', 'recovery_policy'), ('straight', 'recovery_balance_policy')):
+                if p[key]:
+                    policy = GetUpPolicy(p[key])
+                    if policy.joint_names != list(self.names) or policy.command_dim:
+                        raise ValueError(f'{key}: joint order differs from the controller or not a recovery policy')
+                    self.phase_policies[phase] = policy
+            self._policy_t0, self._policy_next, self._policy_q = 0.0, 0.0, None
             threading.Thread(target=self._plan_loop, name='recovery_planner', daemon=True).start()
+            if hasattr(self.controller, 'set_velocity'):  # created before the planner: use its joint ranges
+                self.controller.lo, self.controller.hi = self.planner.lo.copy(), self.planner.hi.copy()
+        self.assist_pub, self.sim_assist = None, False
+        self.assist_phases = {s.strip() for s in str(p['recovery_sim_assist_phases']).split(',') if s.strip()}
+        if p['recovery_sim_assist']:
+            self.assist_pub = self.create_publisher(Bool, '/sim/assist', 2)
+            self.get_logger().warn('recovery_sim_assist: a TEST-ONLY simulator assist steadies the base during '
+                                   f'{p["recovery_sim_assist_phases"]} (results with it are not the policy\'s own)')
         self.inputs, self.base_held, self.estop = {}, None, True
         self.started, self.fault, self.cycles = False, '', 0
         self._slow_log_last = None  # Start of the previous cycle (slow_log_ms gap).
@@ -227,6 +264,20 @@ class WalkingControllerNode(Node):
 
     def _make_controller(self, step_length, turn):
         p = self.params
+        if p['walk_policy']:
+            from .policy_walk import PolicyWalkController
+            from .recovery import KP
+            kp = np.array([next(v for k, v in KP.items() if k in n) for n in self.names], float)
+            # Clip targets to the simulator model's joint ranges, as in training (rl_env): the registry allows
+            # e.g. +-3.14 rad shoulder pitch where the MJCF locks it at 0, and PD torque against a locked joint
+            # yanks the torso. The planner (fall recovery) has those ranges; without it, the registry limits.
+            planner = getattr(self, 'planner', None)
+            lower, upper = (planner.lo, planner.hi) if planner is not None else (self.limits.lower, self.limits.upper)
+            controller = PolicyWalkController(p['walk_policy'], self.names, kp, 0.24 * np.sqrt(kp),
+                                              lower, upper, float(p['max_tilt_rad']),
+                                              period=float(p['walk_policy_period']))
+            controller.set_velocity(*getattr(self, '_last_velocity', (0.0, 0.0, 0.0)))
+            return controller
         controller = SteppingController(self.robot, self.limits.torque, StepParams(
             dt=1.0 / p['control_rate_hz'], step_length_m=step_length,
             activity=str(p['activity']), squat_depth_m=float(p['squat_depth_m']),
@@ -255,6 +306,10 @@ class WalkingControllerNode(Node):
         v, w = msg.twist.linear.x, msg.twist.angular.z
         if not (np.isfinite(v) and np.isfinite(w)):
             return
+        if hasattr(self.controller, 'set_velocity'):  # walk_policy: the policy takes the velocity directly
+            vy = msg.twist.linear.y if np.isfinite(msg.twist.linear.y) else 0.0
+            self._last_velocity = (v, w, vy)
+            self.controller.set_velocity(v, w, vy)
         step, turn = step_command(
             v, w, self.step_period_s(), min(MAX_STEP_M, float(self.params['cmd_vel_max_step_m'])),
             min(MAX_TURN_RAD, float(self.params['cmd_vel_max_turn_rad'])),
@@ -286,6 +341,9 @@ class WalkingControllerNode(Node):
         if self.cmd_vel is not None and _behaviour_now(self) - self.cmd_vel[2] > self.params['cmd_vel_timeout_s']:
             self.cmd_vel = None
             self.controller.p.step_length_m = self.controller.p.turn_rad = 0.0
+            self._last_velocity = (0.0, 0.0, 0.0)
+            if hasattr(self.controller, 'set_velocity'):
+                self.controller.set_velocity(0.0, 0.0)
             self.get_logger().warn('cmd_vel stale: stopping')
         if self.cmd_vel is None:
             self._update_stand(0.0, 0.0)
@@ -374,6 +432,7 @@ class WalkingControllerNode(Node):
             self._fail('Safety estop; restart the node after /sim/reset')
 
     def _fail(self, reason):
+        self._set_assist(False)
         if self.fault:
             return
         self.fault = reason
@@ -394,6 +453,10 @@ class WalkingControllerNode(Node):
         if self.fault:
             self._send_disable()
             return
+        off_at = getattr(self, '_assist_off_at', None)
+        if off_at is not None and self.get_clock().now().nanoseconds * 1e-9 >= off_at:
+            self._assist_off_at = None
+            self._set_assist(False)
         if self.estop or self.base_held is None or not all(k in self.inputs for k in ('joints', 'odom', 'feet')):
             return
         begin = time.monotonic()
@@ -433,6 +496,11 @@ class WalkingControllerNode(Node):
             if self.mode != 'walk':
                 self._recovery_tick(now_ns, measured, begin)
                 return
+        if hasattr(self.controller, 'measured'):  # walk_policy: IMU-like base state and encoders
+            o, w = pose.orientation, twist.angular
+            self.controller.measured = ([o.w, o.x, o.y, o.z], [w.x, w.y, w.z],
+                                        ordered(joints.name, joints.position, self.names),
+                                        ordered(joints.name, joints.velocity, self.names))
         command = self.controller.step(now_ns * 1e-9, q, v, forces, self.base_held, age_s=age_s)
         if command is None or self.controller.phase == FAULT:
             if self.planner is not None and self.started and not self.base_held:
@@ -476,17 +544,40 @@ class WalkingControllerNode(Node):
     # ------------------------------------------------------------------ fall recovery
     def _set_mode(self, mode, why=''):
         t = self.get_clock().now().nanoseconds * 1e-9
+        if self.planner is not None and mode in self.phase_policies and mode != self.mode:
+            self.phase_policies[mode].reset()
+            self._policy_t0, self._policy_next, self._policy_q = t, t, None
         self.mode = mode
+        hold = float(self.params['recovery_sim_assist_walk_s'])
+        if mode == 'walk' and self.sim_assist and hold > 0.0:
+            self._assist_off_at = t + hold          # walking starts with the assist; tick() turns it off
+        else:
+            self._assist_off_at = None
+            self._set_assist(mode in self.assist_phases)
         if mode == 'rise':
             self.recoveries += 1
         self.recovery_events.append((round(t, 2), mode, why))
         self.get_logger().warn(f'Fall recovery: -> {mode} at {t:.2f} s ({why})')
 
+    def _set_assist(self, enabled):
+        if self.assist_pub is None or enabled == self.sim_assist:
+            return
+        self.sim_assist = enabled
+        try:
+            self.assist_pub.publish(Bool(data=enabled))
+        except RCLError:
+            pass
+        self.get_logger().warn(f'TEST ASSIST {"ON" if enabled else "OFF"}')
+
     def _recovery_tick(self, now_ns, measured, begin):
         """Hand the newest sample to the planner thread and command the current plan's targets."""
         self._plan_state = measured
         self._plan_event.set()
-        q_ref = self.planner.target(now_ns * 1e-9)
+        policy = self.phase_policies.get(self.mode)
+        if policy is not None:
+            q_ref = self._policy_target(policy, now_ns * 1e-9, measured)
+        else:
+            q_ref = self.planner.target(now_ns * 1e-9)
         n = len(self.names)
         msg = MotorCommand()
         msg.header.stamp = self.get_clock().now().to_msg()
@@ -504,6 +595,22 @@ class WalkingControllerNode(Node):
         self.cycle_ms.append((time.monotonic() - begin) * 1e3)
         self.cycles += 1
 
+    def _policy_target(self, policy, t, measured):
+        """Recovery policy at 50 Hz (as trained); the target is held between its ticks."""
+        if self._policy_q is None or t + 1e-6 >= self._policy_next:
+            from .getup_policy import CONTROL_DT, frame, quat_rotate_inverse
+            _, pose, twist, joints, _ = measured
+            o = pose.orientation
+            quat = np.array([o.w, o.x, o.y, o.z])
+            ang = quat_rotate_inverse(quat / np.linalg.norm(quat),
+                                      [twist.angular.x, twist.angular.y, twist.angular.z])
+            current = frame(ang, quat, ordered(joints.name, joints.position, self.names),
+                            ordered(joints.name, joints.velocity, self.names), policy.q_nominal)
+            _, q = policy.step(current, t - self._policy_t0)
+            self._policy_q = np.clip(q, self.planner.lo, self.planner.hi)
+            self._policy_next = max(self._policy_next + CONTROL_DT, t)
+        return self._policy_q
+
     def _plan_loop(self):
         """Planner thread: one plan per newest sample while recovering (MuJoCo rollouts release the GIL)."""
         while rclpy.ok():
@@ -519,7 +626,10 @@ class WalkingControllerNode(Node):
                     [twist.linear.x, twist.linear.y, twist.linear.z],
                     [twist.angular.x, twist.angular.y, twist.angular.z],
                     joint_q, ordered(joints.name, joints.velocity, self.names))
-                transition = self.planner.plan(stamp, forces)
+                if self.mode in self.phase_policies:
+                    transition = self.planner.check(stamp, forces)
+                else:
+                    transition = self.planner.plan(stamp, forces)
             except Exception as error:  # noqa: BLE001 - report and stop the robot, never hang
                 self._fail(f'Recovery planner failed: {error!r}')
                 continue
@@ -561,6 +671,7 @@ class WalkingControllerNode(Node):
                   'predict_ms': 1e3 * getattr(c, 'horizon_s', 0.0),
                   'recovery': self.mode if self.planner is not None else 'off',
                   'recoveries': self.recoveries, 'recovery_events': list(self.recovery_events),
+                  'sim_assist': self.sim_assist,
                   **{k: v for k, v in c.status.items() if k not in ('forces',)}}
         try:
             self.status_pub.publish(String(data=json.dumps(status, default=str)))

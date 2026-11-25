@@ -190,6 +190,7 @@ def simulation_and_stack(context):
                 # host) before this loaded process applies it; allow 100 ms lead.
                 'command_future_tolerance_s': 0.1 if sim_time else 0.01,
                 'real_time_factor': ParameterValue(arg('real_time_factor'), value_type=float),
+                'motor_speed_limits': ParameterValue(arg('motor_speed_limits'), value_type=bool),
                 'policy_commands_topic': '',
                 'gil_switch_interval_s': float(arg('gil_switch_interval_s').perform(context)),
                 'collection_output_dir': arg('collection_output_dir').perform(context),
@@ -333,6 +334,8 @@ def simulation_and_stack(context):
                          'activity': arg('walk_activity').perform(context),
                          'squat_depth_m': float(arg('walk_squat_depth_m').perform(context)),
                          'cmd_vel_topic': arg('walk_cmd_vel_topic').perform(context),
+                         'walk_policy': arg('walk_rl_policy').perform(context),
+                         'walk_policy_period': float(arg('walk_rl_policy_period').perform(context)),
                          'contact_kp': float(arg('walk_contact_kp').perform(context)),
                          'cmd_vel_max_step_m': float(arg('walk_max_step_m').perform(context)),
                          'cmd_vel_max_turn_rad': float(arg('walk_max_turn_rad').perform(context)),
@@ -342,6 +345,19 @@ def simulation_and_stack(context):
                          # Input freshness, command lifetime and the cycle-time fault.
                          **({'input_timeout_s': NO_TIMEOUT_S, 'output_lifetime_s': NO_TIMEOUT_S,
                              'max_cycle_s': NO_TIMEOUT_S} if sim_time else {})}]))
+    if flag(context, 'mode_manager'):
+        dry_run = flag(context, 'mode_manager_dry_run')
+        if not dry_run and flag(context, 'auto_start'):
+            raise ValueError('mode_manager_dry_run:=false enables the motors itself; use auto_start:=false')
+        stack.append(Node(
+            package='humanoid_mode_manager', executable='mode_manager', output='screen',
+            ros_arguments=['--log-level', arg('log_level')],
+            parameters=[PathJoinSubstitution([FindPackageShare('humanoid_mode_manager'), 'config',
+                                              'mode_manager.yaml']),
+                        {'dry_run': dry_run, 'controller': 'walk' if model_walk else 'policy',
+                         'gantry': 'sim',
+                         'getup': ('walking_controller' if model_walk and flag(context, 'walk_fall_recovery')
+                                   else 'none')}]))
     if connected and flag(context, 'auto_start'):
         stack.append(Node(
             package='humanoid_sim', executable='sim_autostart', output='screen',
@@ -459,7 +475,12 @@ def _fall_recovery_parameters(context, arg):
     model = _robot_model_parameters(robot)
     return {'fall_recovery': True, 'recovery_robot_xml': model['robot_xml'],
             'recovery_mesh_dir': model['mesh_dir'],
-            'recovery_threads': int(arg('walk_recovery_threads').perform(context))}
+            'recovery_threads': int(arg('walk_recovery_threads').perform(context)),
+            'recovery_policy': arg('walk_recovery_policy').perform(context),
+            'recovery_balance_policy': arg('walk_balance_policy').perform(context),
+            'recovery_sim_assist': arg('walk_sim_assist').perform(context).lower() == 'true',
+            'recovery_sim_assist_phases': arg('walk_sim_assist_phases').perform(context),
+            'recovery_sim_assist_walk_s': float(arg('walk_sim_assist_walk_s').perform(context))}
 
 
 def _robot_model_parameter_file(robot, registry_path):
@@ -535,6 +556,17 @@ def generate_launch_description():
          'straight and walk on. ~0.8 s CPU per plan: use sim_time:=true real_time_factor:=0.03 and '
          'fall_detection_enabled:=false'),
         ('walk_recovery_threads', '8', 'walk_fall_recovery: rollout threads'),
+        ('walk_recovery_policy', '', 'walk_fall_recovery: get-up student policy npz (tools/getup_bc.py) instead of '
+                                     'the MPC; runs in real time'),
+        ('walk_balance_policy', '', 'walk_fall_recovery: balance policy npz (tools/rl_train.py --task balance) for '
+                                    'the straight phase instead of the MPC'),
+        ('walk_rl_policy', '', 'controller:=model_walk: RL walking policy npz (tools/rl_train.py --task walk) '
+                               'instead of the MPC + WBC stepping controller; follows walk_cmd_vel_topic'),
+        ('walk_rl_policy_period', '0.7', 'walk_rl_policy: gait-clock period (s) the policy was trained with'),
+        ('walk_sim_assist', 'false', 'walk_fall_recovery: TEST ONLY - steady the base via /sim/assist during the '
+                                     'straight phase (balance); simulation only'),
+        ('walk_sim_assist_walk_s', '0.0', 'walk_sim_assist: keep the assist this long (s) into walking after the hand-over'),
+        ('walk_sim_assist_phases', 'straight', 'walk_sim_assist: recovery phases with the assist, e.g. rise,straight'),
         ('walk_max_tilt_rad', '0.5', 'controller:=model_walk: torso tilt that counts as a fall'),
         ('walk_activity', 'step', 'controller:=model_walk: step (walk / step in place) or squat (squat down and stand up, feet down)'),
         ('walk_squat_depth_m', '0.07', 'controller:=model_walk walk_activity:=squat: how far the CoM goes down below the start-up stance (full body: 0.08 m at most)'),
@@ -563,6 +595,8 @@ def generate_launch_description():
          '(description/humanoid_full_body_description/mjcf/full_body_sim.xml, 31.9 kg with torso and arms; arms held by '
          'position servos) or full_body_arms (same MJCF, arms driven by motors: the 18-motor registry '
          'config/motors_full_body.yaml, and controller:=model_walk controls all 18 motor joints)'),
+        ('mode_manager', 'false', 'Start humanoid_mode_manager (robot mode state machine; see its README)'),
+        ('mode_manager_dry_run', 'true', 'With mode_manager: publish the mode only, execute no action'),
         ('auto_start', 'false',
          'Enable motors and release the gantry when the policy starts its reference motion'),
         ('release_delay_s', '0.1', 'With auto_start: delay from enable to gantry release'),
@@ -613,6 +647,8 @@ def generate_launch_description():
         ('collection_profile', 'standard', 'standard or recovery perturbation scenario bank'),
         ('sim_time', 'false', 'Run every node on simulated time (/clock); disables host-clock timeouts'),
         ('real_time_factor', '1.0', 'With sim_time: physics pace relative to real time (0.5 = half speed)'),
+        ('motor_speed_limits', 'true', 'Torque-speed limit of each motor (RobStride no-load speeds); false = peak '
+                                      'torque at any speed (the previous behaviour)'),
     ]
     paths = [
         ('motor_config_file', [share('motor_control_hybrid'), 'config', 'motors.yaml']),
