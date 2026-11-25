@@ -70,6 +70,12 @@ def mode_nodes(context):
                     'stale_after_s': NO_TIMEOUT_S if no_timeouts else ParameterValue(
                         LaunchConfiguration('diagnostics_stale_after_s'), value_type=float),
                 }]))
+        if LaunchConfiguration('fall_predictor').perform(context).lower() == 'true':
+            # Advisory only: publishes /safety/fall_warning, never trips the estop.
+            nodes.append(Node(package='humanoid_safety', executable='fall_predictor_node',
+                name='fall_predictor', output='screen',
+                ros_arguments=['--log-level', LaunchConfiguration('log_level')],
+                parameters=[{'log_path': LaunchConfiguration('fall_predictor_log')}]))
     if mode in ('web', 'monitor', 'all'):
         parameters = {
             'source_topic': LaunchConfiguration('source_topic'),
@@ -142,6 +148,10 @@ def generate_launch_description():
                               description='Simulation time: no IMU/feedback/CAN freshness trips'),
         DeclareLaunchArgument('trip_on_imu_timeout', default_value='', choices=['', 'true', 'false'],
                              description='Override YAML IMU timeout trip; empty preserves configuration'),
+        DeclareLaunchArgument('fall_predictor', default_value='false', choices=['true', 'false'],
+                             description='Advisory learned fall predictor next to the supervisor'),
+        DeclareLaunchArgument('fall_predictor_log', default_value='',
+                             description='Optional JSONL shadow log path for the fall predictor'),
         DeclareLaunchArgument('safety_config', default_value=PathJoinSubstitution(
             [FindPackageShare('humanoid_safety'), 'config', 'safety.yaml'])),
         OpaqueFunction(function=mode_nodes),

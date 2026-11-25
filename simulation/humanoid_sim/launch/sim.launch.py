@@ -356,6 +356,7 @@ def simulation_and_stack(context):
                                               'mode_manager.yaml']),
                         {'dry_run': dry_run, 'controller': 'walk' if model_walk else 'policy',
                          'gantry': 'sim',
+                         'use_fall_warning': flag(context, 'fall_predictor'),
                          'getup': ('walking_controller' if model_walk and flag(context, 'walk_fall_recovery')
                                    else 'none')}]))
     if connected and flag(context, 'auto_start'):
@@ -379,6 +380,8 @@ def simulation_and_stack(context):
             'safety_config': arg('safety_config_file'),
             'fall_detection_enabled': arg('fall_detection_enabled'),
             'trip_on_imu_timeout': arg('trip_on_imu_timeout'),
+            'fall_predictor': arg('fall_predictor'),
+            'fall_predictor_log': arg('fall_predictor_log'),
             'disable_timeouts': 'true' if sim_time else 'false',
             'status_reliability': 'best_effort',
             'ros_domain_id': arg('ros_domain_id'),
@@ -629,6 +632,9 @@ def generate_launch_description():
         ('calibration_seconds', '2.0', 'Policy gyro calibration; keep the base held meanwhile'),
         ('policy_imu_accel_outlier', 'auto', 'Policy on an out-of-range |IMU acceleration| sample: latch a fault, or skip isolated outliers; auto: skip with tuned PD, else latch'),
         ('fall_detection_enabled', '', 'Override safety.yaml fall detection'),
+        ('fall_predictor', 'false', 'Advisory learned fall predictor (humanoid_safety fall_predictor_node): '
+                                    '/safety/fall_warning, never trips the estop; mode_manager then also enters FALLING on it'),
+        ('fall_predictor_log', '', 'fall_predictor: optional JSONL shadow log path'),
         ('trip_on_imu_timeout', '', 'Override safety.yaml IMU timeout trip'),
         ('dds_publication_mode', 'ASYNCHRONOUS', 'Fast DDS publication mode for the simulated stack'),
         ('dds_tuning', 'off',

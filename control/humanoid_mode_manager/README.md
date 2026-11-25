@@ -65,7 +65,7 @@ it is published only, nothing acts on it yet.
 | in | `/joint_states`, `/imu/data_raw` | `sensor_msgs/JointState`, `sensor_msgs/Imu` |
 | in | `/walk/status` or `/policy/status` | `std_msgs/String` JSON |
 | in | `/sim/status`, `/localization/status` | `std_msgs/String` JSON |
-| in | `/safety/fall_warning` | `std_msgs/Bool` (fall predictor, other branches) |
+| in | `/safety/fall_warning` | `std_msgs/Bool` (humanoid_safety `fall_predictor_node`; `sim.launch.py fall_predictor:=true`) |
 | in | `/ball_chase/cmd_vel` | `geometry_msgs/TwistStamped` |
 | in | `/control_core/abstract_command_status` | `motor_control_interfaces/AbstractCommandStatus` |
 | in | `/mode_manager/request` | `std_msgs/String`: `enable`, `disable`, `reset`, `release`, `kick_left`, `kick_right`, `squat` |
@@ -98,7 +98,7 @@ ros2 service call /mode_manager/enable std_srvs/srv/Trigger
 | `ResetController` | `walking_controller` latches faults until restarted; needs a `/walk/reset` service. |
 | `ResetLocalization` | `vio_localizer` has no reset; needs `/localization/reset`. |
 | `SwitchModel` | `SwitchPolicyModel` is on `feat/policy-switching`; without it the action is logged only. |
-| fall warning | The fall predictor node (`/safety/fall_warning`) is not on this branch and was trained on the legs model. |
+| fall warning | The fall predictor (`/safety/fall_warning`) was trained on the legs model under the old RL tracking policy; on the full body its warning is untested. |
 
 Status topics are slow (`/walk/status` 2 Hz, `/policy/status` 1 Hz), so controller faults are seen with up to
 0.5-1 s delay; the motor path does not depend on this node.
