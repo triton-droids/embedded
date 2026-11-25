@@ -22,7 +22,7 @@ separate shell. Stop previous launches before starting replacements.
 ## 1. Install and build once on the Jetson
 
 Prerequisites: ROS 2 Humble, colcon, Python venv support, and the deployment ONNX export in
-`humanoid_control/motor_control_hybrid/models/20260914_170827/` (not an LFS pointer).
+`control/motor_control_hybrid/models/20260914_170827/` (not an LFS pointer).
 
 ```bash
 cd "$EMBEDDED_WORKSPACE"
@@ -32,7 +32,7 @@ source /opt/ros/humble/setup.bash
 source rosenv/bin/activate
 
 colcon build --symlink-install \
-  --base-paths humanoid_control humanoid_leg_description \
+  --base-paths control description/humanoid_leg_description \
   --packages-select motor_control_hybrid humanoid_leg_description \
   --cmake-args \
   -DPython3_EXECUTABLE="$EMBEDDED_WORKSPACE/rosenv/bin/python"
@@ -87,7 +87,7 @@ Keep the IMU stationary during the initial two-second calibration:
 
 ```bash
 ros2 launch motor_control_hybrid tracking_policy.launch.py \
-  model_path:="$EMBEDDED_WORKSPACE/humanoid_control/motor_control_hybrid/models/20260914_170827/20260914_170827.onnx" \
+  model_path:="$EMBEDDED_WORKSPACE/control/motor_control_hybrid/models/20260914_170827/20260914_170827.onnx" \
   port:=/dev/ttyACM0 \
   baud:=115200 \
   input_format:=bno085_csv \
@@ -231,7 +231,7 @@ registry. Simulation supplies joint names, gains and limits, but not physical
 CAN IDs, encoder calibration or validated hardware gains.
 
 Before starting CAN, complete and verify the ten-joint entries in
-`humanoid_control/motor_control_hybrid/config/motors.yaml`: CAN interface and ID,
+`control/motor_control_hybrid/config/motors.yaml`: CAN interface and ID,
 motor model, master ID, direction, encoder offset and applicable hardware limits.
 Review the simulation gains and limits against the actual robot. Set
 `hardware_verified: true` only after that review. The driver validates mappings
@@ -252,7 +252,7 @@ Terminal A, with the Jetson environment sourced:
 ```bash
 python -m pip install robstride-dynamics
 ros2 run motor_control_hybrid python_can_node --ros-args \
-  -p motor_config_file:="$PWD/humanoid_control/motor_control_hybrid/config/motors.yaml" \
+  -p motor_config_file:="$PWD/control/motor_control_hybrid/config/motors.yaml" \
   -p publish_rate_hz:=50.0 \
   -p feedback_poll_hz:=50.0 \
   -r joint_states:=/hardware/joint_states \
@@ -263,7 +263,7 @@ Terminal B, with the Jetson environment sourced:
 
 ```bash
 ros2 launch motor_control_hybrid tracking_policy.launch.py \
-  model_path:="$EMBEDDED_WORKSPACE/humanoid_control/motor_control_hybrid/models/20260914_170827/20260914_170827.onnx" \
+  model_path:="$EMBEDDED_WORKSPACE/control/motor_control_hybrid/models/20260914_170827/20260914_170827.onnx" \
   port:=/dev/ttyACM0 baud:=115200 input_format:=bno085_csv \
   use_fake_joint_states:=false \
   joint_feedback_mode:=joint_states \

@@ -49,7 +49,7 @@ DEFAULT_VELOCITY = 1.0
 
 def default_motor_config_path() -> Path:
     repo_root = Path(__file__).resolve().parents[4]
-    return repo_root / "humanoid_control" / "motor_control_hybrid" / "config" / "motors.yaml"
+    return repo_root / "control" / "motor_control_hybrid" / "config" / "motors.yaml"
 
 
 @dataclass(frozen=True)

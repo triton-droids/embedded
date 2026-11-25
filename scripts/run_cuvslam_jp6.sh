@@ -36,7 +36,7 @@ if [[ -n "${DDS_PEER_IP:-}" ]]; then
   split_env=(-e DDS_LOCAL_IP="$DDS_LOCAL_IP" -e DDS_PEER_IP="$DDS_PEER_IP")
 fi
 name="${ISAAC_CONTAINER_NAME:-humanoid_cuvslam}"
-launch="${ISAAC_LAUNCH:-/workspaces/humanoid/humanoid_control/humanoid_localization/launch/cuvslam.launch.py}"
+launch="${ISAAC_LAUNCH:-/workspaces/humanoid/perception/humanoid_localization/launch/cuvslam.launch.py}"
 cpuset=()
 [[ -n "${ISAAC_CPUSET:-}" ]] && cpuset=(--cpuset-cpus "$ISAAC_CPUSET")
 # Isaac ROS 3.2 needs the host's tegra and VPI libraries mounted.

@@ -15,7 +15,7 @@ from motor_control_hybrid.python_can_node import PythonCanNode
 
 
 REPO = Path(__file__).resolve().parents[3]
-REGISTRY = REPO / 'humanoid_control/motor_control_hybrid/config/motors.yaml'
+REGISTRY = REPO / 'control/motor_control_hybrid/config/motors.yaml'
 MODEL = REPO.parent / 'simulation/logs/legs_tracking/20260914_170827/20260914_170827.onnx'
 HAS_ONNX = importlib.util.find_spec('onnx') is not None and importlib.util.find_spec('onnxruntime') is not None
 

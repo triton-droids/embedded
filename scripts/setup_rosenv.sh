@@ -44,7 +44,7 @@ add_requirements(root / 'requirements-rosenv.txt')
 add_requirements(root / 'requirements-wbc.txt')
 digest.update((root / 'scripts/setup_rosenv.sh').read_bytes())
 digest.update((root / 'scripts/setup_wbc.sh').read_bytes())
-for patch in sorted((root / 'experimental').glob('tsid-1.7.1-*.patch')):
+for patch in sorted((root / 'third_party' / 'tsid').glob('tsid-1.7.1-*.patch')):
     digest.update(patch.name.encode())
     digest.update(patch.read_bytes())
 digest.update(f'{sys.version}|{platform.machine()}|torch={sys.argv[2]}'.encode())

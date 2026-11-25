@@ -560,7 +560,7 @@ def generate_launch_description():
         ('hold_first_frame', 'false', 'Keep reference frame 0 while the policy continues closed-loop corrections'),
         ('connect_policy', 'true', 'Route /policy/desired_motor_subset into cpp_control_node'),
         ('robot', 'legs', 'Robot model: legs (the tracking policy MJCF, 16 kg) or full_body '
-         '(humanoid_full_body_description/mjcf/full_body_sim.xml, 31.9 kg with torso and arms; arms held by '
+         '(description/humanoid_full_body_description/mjcf/full_body_sim.xml, 31.9 kg with torso and arms; arms held by '
          'position servos) or full_body_arms (same MJCF, arms driven by motors: the 18-motor registry '
          'config/motors_full_body.yaml, and controller:=model_walk controls all 18 motor joints)'),
         ('auto_start', 'false',

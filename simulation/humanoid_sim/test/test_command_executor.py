@@ -20,7 +20,7 @@ def test_command_and_estop_group_can_run_while_feedback_is_busy():
     try:
         world = make_world()
         root = Path(__file__).resolve().parents[3]
-        registry = yaml.safe_load((root / 'humanoid_control/motor_control_hybrid/config/motors.yaml').read_text())['motor_control_node']['ros__parameters']
+        registry = yaml.safe_load((root / 'control/motor_control_hybrid/config/motors.yaml').read_text())['motor_control_node']['ros__parameters']
         receiver = Node("test_motor_receiver", start_parameter_services=False)
         backend = SimMotorBackendNode(world, registry, command_node=receiver)
         sender = Node('test_command_arrival')

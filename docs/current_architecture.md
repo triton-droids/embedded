@@ -86,15 +86,15 @@ measurement. Diagram frequencies/budgets are settings, not measured guarantees.
 
 ## Source references
 
-- `humanoid_control/motor_control_hybrid/launch/tracking_policy.launch.py`
+- `control/motor_control_hybrid/launch/tracking_policy.launch.py`
 - `hardware/motor_control_hybrid/launch/hybrid_control.launch.py`
-- `humanoid_control/motor_control_hybrid/motor_control_hybrid/tracking_policy_node.py`
-- `humanoid_control/motor_control_hybrid/src/cpp_control_node.cpp`
+- `control/motor_control_hybrid/motor_control_hybrid/tracking_policy_node.py`
+- `control/motor_control_hybrid/src/cpp_control_node.cpp`
 - `hardware/motor_control_hybrid/motor_control_hybrid/python_can_node.py`
-- `humanoid_control/humanoid_safety/launch/safety.launch.py`
-- `humanoid_control/humanoid_safety/humanoid_safety/`
-- `humanoid_leg_description/launch/display.launch.py`
-- `humanoid_vision/launch/head_tracking.launch.py`
+- `safety/humanoid_safety/launch/safety.launch.py`
+- `safety/humanoid_safety/humanoid_safety/`
+- `description/humanoid_leg_description/launch/display.launch.py`
+- `perception/humanoid_vision/launch/head_tracking.launch.py`
 - `legacy/sdk_prototype/webui/` and `legacy/sdk_prototype/robstride_webui/`
 
 ## Regenerate the figures

@@ -10,9 +10,9 @@ source /opt/ros/humble/setup.bash
 sudo apt-get update
 rosdep update
 rosdep install -y -r --ignore-src --rosdistro humble \
-  --from-paths humanoid_control humanoid_vision \
+  --from-paths control safety perception \
   simulation/humanoid_sim \
-  humanoid_leg_description \
+  description/humanoid_leg_description \
   || echo "Warning: some rosdep keys failed to install; see above." >&2
 
 # Share dependency resolution, Python ABI checks and activation with native hosts.

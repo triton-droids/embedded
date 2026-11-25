@@ -6,7 +6,7 @@
 ## 1. 已经有的
 
 ### 1.1 定位（不用仿真真值）
-- 包 `humanoid_control/humanoid_localization`（README 有详细说明）：
+- 包 `perception/humanoid_localization`（README 有详细说明）：
   - `vio_localizer`：姿态取机身 IMU（模拟 BNO085 game rotation vector，无磁力计），
     位置由 cuVSLAM 双目 VO 的位移经头部 TF（base→stereo_rig）换算后累加；
     速度门限 2 m/s；起点是已知开球位姿（第一帧 VO 时初始化）。
@@ -79,7 +79,7 @@
 ## 3. 下一步建议（按优先级）
 
 1. **查清 cpp_control_node 内部约 20 ms。**
-   读 `humanoid_control/motor_control_hybrid/src/cpp_control_node.cpp` 的
+   读 `control/motor_control_hybrid/src/cpp_control_node.cpp` 的
    `desired_motor_callback`、`control_loop`、`publish_output`（转发时取最旧 source）。
    目标：转发时的指令年龄降到 ≤ 收到时 + 1 个周期（约 8 ms）。
    验收：`HUMANOID_CPP_DIAG=1` 下 `tx_age_ms - rx_age_ms` 中位数 < 8 ms。

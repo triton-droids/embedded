@@ -10,7 +10,7 @@
 # Other arguments go to ball_chase.launch.py unchanged.
 repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_dir" || exit 1
-[[ -f install/setup.bash ]] || { echo "Build first (see humanoid_control/walking_controller/README.md)" >&2; exit 1; }
+[[ -f install/setup.bash ]] || { echo "Build first (see control/walking_controller/README.md)" >&2; exit 1; }
 # shellcheck source=/dev/null
 source scripts/activate_rosenv.sh || exit 1
 export ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}" ROS_LOCALHOST_ONLY=1

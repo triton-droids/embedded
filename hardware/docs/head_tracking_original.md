@@ -139,9 +139,9 @@ can switch between objects; identity association is not implemented yet.
 After sourcing the tracker install:
 
 ```bash
-/usr/bin/python3 humanoid_vision/algorithm/test/test_track_node.py
+/usr/bin/python3 perception/humanoid_vision/algorithm/test/test_track_node.py
 # Test the same controller through the unified launch (hardware components off):
-/usr/bin/python3 humanoid_vision/algorithm/test/test_track_node.py --launch
+/usr/bin/python3 perception/humanoid_vision/algorithm/test/test_track_node.py --launch
 ```
 
 The test launches a tracker on ROS domain 71 and publishes synthetic camera

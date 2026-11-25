@@ -12,7 +12,7 @@ from humanoid_sim.motor_model import MODE_ENABLE, MODE_MOTION, MotorBank, limits
 from humanoid_sim.world import HeadServoConfig, SimWorld  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[3]
-HYBRID = REPO / 'humanoid_control' / 'motor_control_hybrid'
+HYBRID = REPO / 'control' / 'motor_control_hybrid'
 
 
 def make_world(foot_clearance_m=0.05, settle_s=0.0):
@@ -20,7 +20,7 @@ def make_world(foot_clearance_m=0.05, settle_s=0.0):
     limits = limits_from_registry(registry['motor_control_node']['ros__parameters'])
     model = mb.build_model(mb.WorldOptions(
         robot_xml=str(HYBRID / 'models' / '20260914_170827' / 'chrobot_16kg_candidate.xml'),
-        mesh_dir=str(REPO / 'humanoid_leg_description' / 'meshes' / 'robot_meshes'),
+        mesh_dir=str(REPO / 'description' / 'humanoid_leg_description' / 'meshes' / 'robot_meshes'),
         joint_torque_limits={name: lim.max_torque for name, lim in limits.items()},
         foot_clearance_m=foot_clearance_m))
     return SimWorld(model, MotorBank(limits), head=HeadServoConfig(), base_held=True,

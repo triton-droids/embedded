@@ -145,7 +145,7 @@ workspace, run from the workspace root:
 
 ```bash
 ROS_DOMAIN_ID=181 ROS_LOCALHOST_ONLY=1 ROS_LOG_DIR=/tmp/deadline-probe-logs \
-  python3 humanoid_control/motor_control_hybrid/test/ros_deadline_relay_smoke.py
+  python3 control/motor_control_hybrid/test/ros_deadline_relay_smoke.py
 ```
 
 It starts only an isolated C++ relay with fake a/b feedback and private topics.

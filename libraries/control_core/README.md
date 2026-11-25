@@ -9,7 +9,7 @@ Active ROS-independent C++ library used by `cpp_control_node`.
 - `python/bindings.cpp`: standalone pybind11 interface to the command core.
 
 The ROS adapter builds these sources directly through
-[`motor_control_hybrid/CMakeLists.txt`](../../humanoid_control/motor_control_hybrid/CMakeLists.txt)
+[`motor_control_hybrid/CMakeLists.txt`](../../control/motor_control_hybrid/CMakeLists.txt)
 and installs these public headers. This library does not implement MPC or WBC.
 
 For a standalone C++ build without ROS or Python bindings, from the repo root:

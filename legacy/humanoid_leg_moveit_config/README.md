@@ -4,7 +4,7 @@ Retained MoveIt 2 configuration for `humanoid_leg_description`. The source is
 under `legacy/`; the ROS package name remains `humanoid_leg_moveit_config`.
 
 The demo loads the installed leg URDF
-(`humanoid_leg_description/urdf/human_offset_corrected.urdf`) and this package's
+(`description/humanoid_leg_description/urdf/human_offset_corrected.urdf`) and this package's
 `config/humanoid_leg.srdf`. Planning groups are `left_leg` and `right_leg`.
 
 ## Build and launch

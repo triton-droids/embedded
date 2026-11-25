@@ -66,8 +66,8 @@ is claimed by this audit.
 ## Verification
 
 Protocol/adapter/management/watchdog tests live under
-`humanoid_control/motor_control_hybrid/test/`; Web admission and batching tests
-under `humanoid_control/humanoid_safety/test/`. SocketCAN verification uses only
+`control/motor_control_hybrid/test/`; Web admission and batching tests
+under `safety/humanoid_safety/test/`. SocketCAN verification uses only
 an interface whose kernel type is vcan, reserved test IDs 241-243 and host 254.
 Expected example, host 255/motor 1: Enable ID 0300FF01 and Disable ID 0400FF01,
 both with payload 0000000000000000. Home is a sequence of type-1 targets, not a

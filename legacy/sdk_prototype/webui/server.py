@@ -27,7 +27,7 @@ import yaml
 
 from legacy.sdk_prototype.python.robot_sdk import GainTuner, MotorGrpcClient, load_motor_configs_from_yaml
 
-DEFAULT_CONFIG = REPO_ROOT / "humanoid_control/motor_control_hybrid/config/motors.yaml"
+DEFAULT_CONFIG = REPO_ROOT / "control/motor_control_hybrid/config/motors.yaml"
 STATIC_ROOT = Path(__file__).resolve().parent
 
 

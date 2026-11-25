@@ -195,7 +195,7 @@ Utility functions in `gain_tuner.py`:
 ## Motor Web UI
 
 The Web UI in `legacy/sdk_prototype/webui` shows live status for every motor in
-`humanoid_control/motor_control_hybrid/config/motors.yaml` and exposes buttons
+`control/motor_control_hybrid/config/motors.yaml` and exposes buttons
 for the existing motor and gain-tuner commands.
 
 Start the motor gRPC gateway first:
@@ -221,7 +221,7 @@ Useful options:
 ```bash
 python3 legacy/sdk_prototype/webui/server.py \
   --motor-grpc-addr 127.0.0.1:50052 \
-  --config humanoid_control/motor_control_hybrid/config/motors.yaml \
+  --config control/motor_control_hybrid/config/motors.yaml \
   --port 8088
 ```
 

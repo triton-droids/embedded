@@ -51,13 +51,32 @@ the GPU detector, `scripts/run_cuvslam.sh` + `enable_vio:=true` for localization
 |---|---|
 | Simulator: launch arguments, viewer, controls, stereo, limitations | [simulation/humanoid_sim](simulation/humanoid_sim/README.md) |
 | Ball chase: camera, detectors (TensorRT, Isaac ROS), A*, VIO switch | [simulation/humanoid_ball_chase](simulation/humanoid_ball_chase/README.md) |
-| Model-based walking controller | [humanoid_control/walking_controller](humanoid_control/walking_controller/README.md) |
-| Localization: body IMU + cuVSLAM stereo VO | [humanoid_control/humanoid_localization](humanoid_control/humanoid_localization/README.md) |
-| WBC simulation path (policy + TSID) | [humanoid_control/wbc_control_node](humanoid_control/wbc_control_node/README.md) |
-| Safety, Web monitoring | [humanoid_control/humanoid_safety](humanoid_control/humanoid_safety/README.md) |
+| Model-based walking controller | [control/walking_controller](control/walking_controller/README.md) |
+| Mode manager (state machine) | [control/humanoid_mode_manager](control/humanoid_mode_manager/README.md) |
+| Localization: body IMU + cuVSLAM stereo VO | [perception/humanoid_localization](perception/humanoid_localization/README.md) |
+| WBC simulation path (policy + TSID) | [deprecated/wbc_control_node](deprecated/wbc_control_node/README.md) |
+| Safety, Web monitoring | [safety/humanoid_safety](safety/humanoid_safety/README.md) |
+| Detection and head tracking | [perception/humanoid_vision](perception/humanoid_vision/TRACKING.md) |
 | C++ command core | [libraries/control_core](libraries/control_core/README.md) |
-| Leg URDF and meshes | [humanoid_leg_description](humanoid_leg_description/README.md) |
-| Full-body URDF, MoveIt 2 + RViz2 inspection | [humanoid_full_body_moveit_config](humanoid_full_body_moveit_config/README.md); simplified vs detailed model: [MODELS.md](humanoid_full_body_description/MODELS.md) |
+| Leg URDF and meshes | [humanoid_leg_description](description/humanoid_leg_description/README.md) |
+| Full-body URDF, MoveIt 2 + RViz2 inspection | [humanoid_full_body_moveit_config](description/humanoid_full_body_moveit_config/README.md); simplified vs detailed model: [MODELS.md](description/humanoid_full_body_description/MODELS.md) |
 | Evaluations | [VIO and Isaac trials](evaluation/vio_isaac_trials/README.md), [fall predictor](evaluation/fall_predictor/README.md) |
 | Documentation index, architecture, build boundaries | [docs](docs/README.md) |
 | Physical robot (archived) and legacy code | [hardware](hardware/README.md), [legacy](legacy/README.md) |
+
+## Repository layout
+
+Packages are grouped by role. Package names did not change, so `ros2 launch` and
+`FindPackageShare` work as before; only repository paths moved.
+
+| Directory | Packages |
+|---|---|
+| `description/` | `humanoid_leg_description`, `humanoid_full_body_description`, `humanoid_full_body_moveit_config` |
+| `control/` | `motor_control_interfaces`, `motor_control_hybrid`, `walking_controller`, `humanoid_mode_manager` |
+| `safety/` | `humanoid_safety` |
+| `perception/` | `humanoid_vision`, `humanoid_localization` |
+| `simulation/` | `humanoid_sim`, `humanoid_ball_chase` |
+| `libraries/` | `control_core` (plain CMake, used by `motor_control_hybrid`) |
+| `deprecated/` | `wbc_control_node` (still built for `enable_wbc:=true`), `wbc_prototype/` (its isolated model tests) |
+| `third_party/tsid/` | TSID 1.7.1 patches applied by `scripts/setup_rosenv.sh` and `scripts/setup_wbc.sh` |
+| `hardware/`, `legacy/` | physical-robot sources and historical code, excluded with `COLCON_IGNORE` |

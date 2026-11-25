@@ -12,11 +12,11 @@ REPO = Path(__file__).resolve().parents[3]
 
 
 def _build(**extra):
-    hybrid = REPO / 'humanoid_control/motor_control_hybrid'
+    hybrid = REPO / 'control/motor_control_hybrid'
     limits = limits_from_registry(yaml.safe_load((hybrid/'config/motors.yaml').read_text())['motor_control_node']['ros__parameters'])
     return mb.build_model(mb.WorldOptions(
         robot_xml=str(hybrid/'models/20260914_170827/chrobot_16kg_candidate.xml'),
-        mesh_dir=str(REPO/'humanoid_leg_description/meshes/robot_meshes'),
+        mesh_dir=str(REPO/'description/humanoid_leg_description/meshes/robot_meshes'),
         joint_torque_limits={name: lim.max_torque for name,lim in limits.items()},
         camera_resolution=(424,240), camera_fovy_deg=58,
         scene_builder='humanoid_ball_chase.scene:build_scene', **extra))
@@ -92,7 +92,7 @@ def test_optical_extrinsics_follow_actual_yaw(model):
 def test_pitch_servo_moves_and_release_removes_drive(model):
     from humanoid_sim.world import SimWorld,HeadServoConfig
     from humanoid_sim.motor_model import MotorBank
-    hybrid=REPO/'humanoid_control/motor_control_hybrid'
+    hybrid=REPO/'control/motor_control_hybrid'
     limits=limits_from_registry(yaml.safe_load((hybrid/'config/motors.yaml').read_text())['motor_control_node']['ros__parameters'])
     world=SimWorld(model,MotorBank(limits),head=HeadServoConfig(),settle_s=.2)
     joint=model.joint('head_pitch_joint').qposadr[0]
@@ -144,12 +144,12 @@ def test_camera_faces_toes_and_ball_is_in_front(model):
 
 
 def test_hard_scene_adds_only_visual_clutter():
-    hybrid = REPO / 'humanoid_control/motor_control_hybrid'
+    hybrid = REPO / 'control/motor_control_hybrid'
     limits = limits_from_registry(yaml.safe_load((hybrid/'config/motors.yaml').read_text())['motor_control_node']['ros__parameters'])
     def build(builder):
         return mb.build_model(mb.WorldOptions(
             robot_xml=str(hybrid/'models/20260914_170827/chrobot_16kg_candidate.xml'),
-            mesh_dir=str(REPO/'humanoid_leg_description/meshes/robot_meshes'),
+            mesh_dir=str(REPO/'description/humanoid_leg_description/meshes/robot_meshes'),
             joint_torque_limits={name: lim.max_torque for name,lim in limits.items()},
             camera_resolution=(424,240), camera_fovy_deg=58,
             scene_builder='humanoid_ball_chase.scene:' + builder))

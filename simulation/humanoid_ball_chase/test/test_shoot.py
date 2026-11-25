@@ -47,13 +47,13 @@ def test_shoot_fixture_matches_known_world_goal():
  import numpy as np
  from humanoid_sim import model_builder as mb
  repo=Path(__file__).resolve().parents[3]
- hybrid=repo/'humanoid_control/motor_control_hybrid'
+ hybrid=repo/'control/motor_control_hybrid'
  import yaml
  from humanoid_sim.motor_model import limits_from_registry
  limits=limits_from_registry(yaml.safe_load((hybrid/'config/motors.yaml').read_text())['motor_control_node']['ros__parameters'])
  model=mb.build_model(mb.WorldOptions(
   robot_xml=str(hybrid/'models/20260914_170827/chrobot_16kg_candidate.xml'),
-  mesh_dir=str(repo/'humanoid_leg_description/meshes/robot_meshes'),
+  mesh_dir=str(repo/'description/humanoid_leg_description/meshes/robot_meshes'),
   joint_torque_limits={name:lim.max_torque for name,lim in limits.items()},
   scene_builder='humanoid_ball_chase.scene:build_scene_shoot'))
  data=mujoco.MjData(model);mujoco.mj_forward(model,data)

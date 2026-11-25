@@ -50,14 +50,14 @@ Commands below run from the repository root unless stated otherwise.
 
 | Path | Purpose |
 |---|---|
-| [`humanoid_control/motor_control_interfaces`](../../humanoid_control/motor_control_interfaces) | Shared `MotorCommand` message definition. |
-| [`humanoid_control/motor_control_hybrid`](../../humanoid_control/motor_control_hybrid) | ONNX policy, C++ command scheduler, CAN transport, and fake motors. |
+| [`control/motor_control_interfaces`](../../control/motor_control_interfaces) | Shared `MotorCommand` message definition. |
+| [`control/motor_control_hybrid`](../../control/motor_control_hybrid) | ONNX policy, C++ command scheduler, CAN transport, and fake motors. |
 | [`libraries/control_core`](../../libraries/control_core) | ROS-independent per-joint command selection and hold-last storage used by the scheduler. |
-| [`humanoid_control/humanoid_safety`](../../humanoid_control/humanoid_safety) | Latched safety supervisor, read-only Web/ROS monitoring, and advisory self-collision checks. |
+| [`safety/humanoid_safety`](../../safety/humanoid_safety) | Latched safety supervisor, read-only Web/ROS monitoring, and advisory self-collision checks. |
 | [`simulation/humanoid_sim`](../../simulation/humanoid_sim) | MuJoCo simulation with C++ command forwarding, Web and safety; replaces CAN, IMU/head MCUs and camera. |
-| [`humanoid_vision`](../../humanoid_vision) | Detection, optional depth projection, image viewing, and host-side head tracking. |
+| [`humanoid_vision`](../../perception/humanoid_vision) | Detection, optional depth projection, image viewing, and host-side head tracking. |
 | [`hardware/imu_process`](../imu_process) | Body/head MCU firmware, serial IMU package, fusion utilities, fall detector, and acceptance probe. |
-| [`humanoid_leg_description`](../../humanoid_leg_description), [`hardware/humanoid_arm_description`](../humanoid_arm_description) | URDFs, meshes, and display launch files. |
+| [`humanoid_leg_description`](../../description/humanoid_leg_description), [`hardware/humanoid_arm_description`](../humanoid_arm_description) | URDFs, meshes, and display launch files. |
 | [`launch`](../../launch) | Workspace-level system, head-tracking, and display entry points. |
 | [`legacy`](../../legacy) | Retained arm/leg MoveIt packages and application SDK prototype/examples. |
 
@@ -104,10 +104,10 @@ Message abbreviations below: `MotorCommand` =
 
 | Node | Responsibility | Publishes | Subscribes |
 |---|---|---|---|
-| [`tracking_policy_node`](../../humanoid_control/motor_control_hybrid/motor_control_hybrid/tracking_policy_node.py) | Runs the ten-joint ONNX policy at 50 Hz; calibrates the gyro and checks input freshness, input skew, inference deadlines, and estop. | `/policy/actions`, `/policy/target_angles`, `/policy/desired_motor_subset`, `/policy/status` | Configurable IMU and joint-state inputs; `/safety/estop` |
-| [`cpp_control_node`](../../humanoid_control/motor_control_hybrid/src/cpp_control_node.cpp) | Schedules per-joint commands at 50 Hz. Enforces deadlines/estop and hosts the default-disabled zero stop/wait state machine with async backend clients. | `/motor_commands`, `/control_core/abstract_command_status` | `/joint_states`, `/desired_motor_subset`, `/desired_velocity_subset`, `/control_core/abstract_command`, `/safety/estop`, `/safety/status` |
+| [`tracking_policy_node`](../../control/motor_control_hybrid/motor_control_hybrid/tracking_policy_node.py) | Runs the ten-joint ONNX policy at 50 Hz; calibrates the gyro and checks input freshness, input skew, inference deadlines, and estop. | `/policy/actions`, `/policy/target_angles`, `/policy/desired_motor_subset`, `/policy/status` | Configurable IMU and joint-state inputs; `/safety/estop` |
+| [`cpp_control_node`](../../control/motor_control_hybrid/src/cpp_control_node.cpp) | Schedules per-joint commands at 50 Hz. Enforces deadlines/estop and hosts the default-disabled zero stop/wait state machine with async backend clients. | `/motor_commands`, `/control_core/abstract_command_status` | `/joint_states`, `/desired_motor_subset`, `/desired_velocity_subset`, `/control_core/abstract_command`, `/safety/estop`, `/safety/status` |
 | [`python_can_node`](../motor_control_hybrid/motor_control_hybrid/python_can_node.py) | Owns RobStride CAN I/O with independent TX and per-interface RX threads. Checks commands, tracks enable acknowledgements, enforces local deadlines, and publishes feedback. | `/joint_states`, `/motor_status`, `/motor_telemetry`, `/can_timing` | `/motor_commands`, `/safety/estop` |
-| [`fake_motor_node`](../../humanoid_control/motor_control_hybrid/motor_control_hybrid/fake_motor_node.py) | Provides simple simulated joint motion and status without CAN hardware. It is a testing backend, not a dynamics-equivalent motor model. | `/joint_states`, `/motor_status` | `/motor_commands`, `/safety/estop` |
+| [`fake_motor_node`](../../control/motor_control_hybrid/motor_control_hybrid/fake_motor_node.py) | Provides simple simulated joint motion and status without CAN hardware. It is a testing backend, not a dynamics-equivalent motor model. | `/joint_states`, `/motor_status` | `/motor_commands`, `/safety/estop` |
 
 The real CAN node also serves `/motor_backend/get_feedback`
 (`motor_control_interfaces/srv/GetMotorFeedback`) for cached raw motor-coordinate
@@ -142,15 +142,15 @@ currently registered in the production scheduler.
 
 | Node | Responsibility | Publishes | Subscribes |
 |---|---|---|---|
-| [`safety_node`](../../humanoid_control/humanoid_safety/humanoid_safety/safety_node.py) | Checks IMU orientation and source/receipt freshness on a steady-clock timer; latches estop on a confirmed fall or IMU timeout. Provides `/safety/reset` (`std_srvs/srv/Trigger`). | `/safety/estop`, `/safety/status` | `/imu/data_raw` |
-| [`motor_web_node`](../../humanoid_control/humanoid_safety/humanoid_safety/motor_web_node.py) | Serves read-only motor telemetry over HTTP, default `127.0.0.1:8080`. Tracks state age, temperature, estop, and supervisor health. | No application topics | `/joint_states`, `/motor_telemetry`, `/safety/estop`, `/safety/status` |
-| [`joint_state_monitor_node`](../../humanoid_control/humanoid_safety/humanoid_safety/joint_state_monitor_node.py) | Validates and relays JointState messages while preserving source timestamps. | Configurable `output_topic` | Configurable `source_topic` |
-| [`self_collision_monitor_node`](../../humanoid_control/humanoid_safety/humanoid_safety/self_collision/monitor_node.py) | Checks measured poses, target poses, and a sampled path between them; publishes advisory distances/collisions at 20 Hz by default. | `/safety/self_collision`, optional `/safety/self_collision/markers` | `/joint_states`, `/policy/target_angles` |
+| [`safety_node`](../../safety/humanoid_safety/humanoid_safety/safety_node.py) | Checks IMU orientation and source/receipt freshness on a steady-clock timer; latches estop on a confirmed fall or IMU timeout. Provides `/safety/reset` (`std_srvs/srv/Trigger`). | `/safety/estop`, `/safety/status` | `/imu/data_raw` |
+| [`motor_web_node`](../../safety/humanoid_safety/humanoid_safety/motor_web_node.py) | Serves read-only motor telemetry over HTTP, default `127.0.0.1:8080`. Tracks state age, temperature, estop, and supervisor health. | No application topics | `/joint_states`, `/motor_telemetry`, `/safety/estop`, `/safety/status` |
+| [`joint_state_monitor_node`](../../safety/humanoid_safety/humanoid_safety/joint_state_monitor_node.py) | Validates and relays JointState messages while preserving source timestamps. | Configurable `output_topic` | Configurable `source_topic` |
+| [`self_collision_monitor_node`](../../safety/humanoid_safety/humanoid_safety/self_collision/monitor_node.py) | Checks measured poses, target poses, and a sampled path between them; publishes advisory distances/collisions at 20 Hz by default. | `/safety/self_collision`, optional `/safety/self_collision/markers` | `/joint_states`, `/policy/target_angles` |
 
 The relay's standalone defaults are `/policy/joint_states` to `/joint_states`.
 The safety launch instead defaults to `/joint_states` to
 `/safety/visualization/joint_states`. The
-[`motor_control_hybrid` relay entry](../../humanoid_control/motor_control_hybrid/motor_control_hybrid/joint_state_monitor_node.py)
+[`motor_control_hybrid` relay entry](../../control/motor_control_hybrid/motor_control_hybrid/joint_state_monitor_node.py)
 is a compatibility alias for this same implementation, not another processing
 stage. `benchmark_self_collision` is a non-ROS CLI helper, not a node.
 
@@ -162,9 +162,9 @@ latch does not itself enable motors.
 
 | Node | Responsibility | Publishes | Subscribes |
 |---|---|---|---|
-| [`ball_detection_node`](../../humanoid_vision/src/ball_detection_node.cpp) | Runs YOLO, selects the highest-confidence detection, and publishes its pixel center plus an optional depth-derived 3D point. The bundled model detects faces. | `/vision/target_center`, `/vision/ball_3d_position` | `/camera/camera/color/image_raw`, `/camera/camera/aligned_depth_to_color/image_raw`, `/camera/camera/color/camera_info` |
-| [`track_node`](../../humanoid_vision/src/track_node.cpp) | Converts pixel-center error and camera intrinsics into a single yaw or pitch angle command. Applies deadband, speed/acceleration limits, angle limits, and freshness checks. | `/head/servo_target_rad` | `/vision/target_center`, `/camera/camera/color/camera_info` |
-| [`image_viewer_node`](../../humanoid_vision/src/image_viewer_node.cpp) | Displays cached color and aligned-depth images for camera diagnostics. | No application topics | Configurable color/depth topics, defaulting to the camera image topics above |
+| [`ball_detection_node`](../../perception/humanoid_vision/src/ball_detection_node.cpp) | Runs YOLO, selects the highest-confidence detection, and publishes its pixel center plus an optional depth-derived 3D point. The bundled model detects faces. | `/vision/target_center`, `/vision/ball_3d_position` | `/camera/camera/color/image_raw`, `/camera/camera/aligned_depth_to_color/image_raw`, `/camera/camera/color/camera_info` |
+| [`track_node`](../../perception/humanoid_vision/src/track_node.cpp) | Converts pixel-center error and camera intrinsics into a single yaw or pitch angle command. Applies deadband, speed/acceleration limits, angle limits, and freshness checks. | `/head/servo_target_rad` | `/vision/target_center`, `/camera/camera/color/camera_info` |
+| [`image_viewer_node`](../../perception/humanoid_vision/src/image_viewer_node.cpp) | Displays cached color and aligned-depth images for camera diagnostics. | No application topics | Configurable color/depth topics, defaulting to the camera image topics above |
 | [`body_imu_mcu`](../imu_process/policy_imu/policy_imu_microros/policy_imu_microros.ino) | Body BNO085 micro-ROS firmware; publishes IMU samples on a 10 ms timer and status on a 1 s timer. | `/imu/data_raw`, `/imu/status` | No application topics |
 | [`head_mcu`](../imu_process/head_mcu/humanoid_vision_microros/humanoid_vision_microros.ino) | Head micro-ROS firmware; publishes raw IMU telemetry and maps servo angles to PCA9685 channel 8 PWM. Releases PWM on command timeout. | `/head/imu`, `/head/mcu_status` | `/head/servo_target_rad` |
 | [`body_imu_probe`](../imu_process/policy_imu/policy_imu_microros/check_body_imu.py) | Read-only acceptance helper for IMU timing, units, orientation validity, and optional stationary/upright checks. | No application topics | Configurable IMU topic, default `/imu/data_raw`; `/imu/status` |
@@ -219,7 +219,7 @@ the pixel center and CameraInfo, not the 3D point or head IMU.
 ## Tracking model inputs and outputs
 
 The deployed tracking export is
-[`20260914_170827.onnx`](../../humanoid_control/motor_control_hybrid/models/20260914_170827/20260914_170827.onnx):
+[`20260914_170827.onnx`](../../control/motor_control_hybrid/models/20260914_170827/20260914_170827.onnx):
 56 observation values, ten actions, and a 50 Hz policy period. The runtime uses
 CPU ONNX Runtime. This contract belongs to the tracking export; the retained
 Torch bridge and vision detector have separate input/output contracts.
@@ -297,8 +297,8 @@ as zero, and copies fixed gains from the model metadata:
 
 The policy predicts actions, not gains or torque. These are the deployed model's
 settings, not evidence of physical actuator calibration. See
-[`tracking_onnx.py`](../../humanoid_control/motor_control_hybrid/motor_control_hybrid/tracking_onnx.py)
-and the [motor registry](../../humanoid_control/motor_control_hybrid/config/motors.yaml).
+[`tracking_onnx.py`](../../control/motor_control_hybrid/motor_control_hybrid/tracking_onnx.py)
+and the [motor registry](../../control/motor_control_hybrid/config/motors.yaml).
 
 For MIT motion mode, the intended actuator relation is:
 
@@ -339,7 +339,7 @@ comes from the oldest selected input, with expiry at that source time plus
 ## MotorCommand contract
 
 The authoritative definition is
-[`MotorCommand.msg`](../../humanoid_control/motor_control_interfaces/msg/MotorCommand.msg).
+[`MotorCommand.msg`](../../control/motor_control_interfaces/msg/MotorCommand.msg).
 `joint_name[i]` identifies the joint for the corresponding field entries;
 `mode` can contain one broadcast value or one value per joint. Modes are velocity
 (`0`), position (`1`), MIT motion (`2`), enable (`3`), and disable (`4`). Position
@@ -545,10 +545,10 @@ Retained MoveIt entry points are listed under [Legacy](#legacy).
 - [Policy and visualization workflow](activate_tracking_system.md)
 - [Control watchdogs](../../docs/control_watchdogs.md)
 - [RobStride manual review and abstract-command design](robstride_abstract_command_design.md)
-- [Safety supervisor and read-only monitoring](../../humanoid_control/humanoid_safety/README.md)
+- [Safety supervisor and read-only monitoring](../../safety/humanoid_safety/README.md)
 - [Self-collision monitoring](../../docs/self_collision_monitor.md)
 - [MuJoCo simulation](../../simulation/humanoid_sim/README.md)
-- [Head tracking controls and tests](../../humanoid_vision/TRACKING.md)
+- [Head tracking controls and tests](../../perception/humanoid_vision/TRACKING.md)
 - [Head MCU interface](../imu_process/head_mcu/README.md)
 - [Body IMU firmware and acceptance checks](../imu_process/policy_imu/policy_imu_microros/README.md)
 - [IMU source layout and shared helpers](../imu_process/README.md)

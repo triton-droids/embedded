@@ -42,7 +42,7 @@ the policy. A check that overruns its period is logged.
 
 ## Geometry and allowed pairs
 
-- Robot: `humanoid_leg_description/urdf/human_offset_corrected.urdf`,
+- Robot: `description/humanoid_leg_description/urdf/human_offset_corrected.urdf`,
   fixed base. Ground and environment contact are out of scope.
 - Adjacent links (each URDF joint's parent and child) are exempt. These are
   exactly the "Adjacent" entries in `legacy/humanoid_leg_moveit_config`'s SRDF, which a
@@ -86,7 +86,7 @@ Markers come from the `measured` check only, because RViz shows one robot state.
 `publish_markers` is true, with any backend.
 
 The backend needs `ros-humble-pinocchio` (or the Jazzy equivalent), which also
-installs the Coal collision library: `rosdep install --from-paths humanoid_control/humanoid_safety`.
+installs the Coal collision library: `rosdep install --from-paths safety/humanoid_safety`.
 
 ## Backends and benchmarking
 

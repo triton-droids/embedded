@@ -40,13 +40,13 @@ Regression command, run in isolated DDS domains with writable temporary ROS logs
 RUN_ROS_INTEGRATION=1 ROS_LOG_DIR=/tmp/imu_diag_final_tests \
 ROS_DOMAIN_ID=190 ROS_LOCALHOST_ONLY=1 python -m pytest \
   simulation/humanoid_sim/test \
-  humanoid_control/wbc_control_node/test/test_bridge.py \
-  humanoid_control/motor_control_hybrid/test/test_tracking_node.py \
-  experimental/test_wbc_model.py \
-  humanoid_control/humanoid_safety/test/test_checks.py \
-  humanoid_control/humanoid_safety/test/test_imu_time_contract.py \
-  humanoid_control/humanoid_safety/test/test_motor_monitor.py \
-  humanoid_control/humanoid_safety/test/test_status_qos.py -q
+  deprecated/wbc_control_node/test/test_bridge.py \
+  control/motor_control_hybrid/test/test_tracking_node.py \
+  deprecated/wbc_prototype/test_wbc_model.py \
+  safety/humanoid_safety/test/test_checks.py \
+  safety/humanoid_safety/test/test_imu_time_contract.py \
+  safety/humanoid_safety/test/test_motor_monitor.py \
+  safety/humanoid_safety/test/test_status_qos.py -q
 ```
 
 **160 passed**, including the opt-in DDS test for frozen ROS time, replayed IMU rejection, and retained estop delivery. New tests cover acquisition-time preservation, frozen-state timestamps, monitoring provenance, terminal autostart cleanup, unchanged estop QoS, and command admission while feedback work is blocked. The latter uses isolated domain 193 and real separate executors. `git diff --check` passed.

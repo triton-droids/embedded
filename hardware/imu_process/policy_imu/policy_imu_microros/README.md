@@ -161,7 +161,7 @@ Terminal 3, build the existing package and test Tracking in quaternion mode:
 
 ```bash
 source /opt/ros/jazzy/setup.bash
-colcon build --base-paths humanoid_control --packages-up-to motor_control_hybrid
+colcon build --base-paths control --packages-up-to motor_control_hybrid
 source install/setup.bash
 # Use your existing policy Python environment. This session's temporary deps:
 export PYTHONPATH="/tmp/body-imu-policy-python${PYTHONPATH:+:$PYTHONPATH}"

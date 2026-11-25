@@ -25,7 +25,7 @@ if [[ "$(git -C "$source_dir" rev-parse HEAD)" != 89d61d845d91a3e1e48bd4dda7a7b2
   exit 1
 fi
 git -C "$source_dir" submodule update --init --recursive
-for patch_file in "$repo"/experimental/tsid-1.7.1-*.patch; do
+for patch_file in "$repo"/third_party/tsid/tsid-1.7.1-*.patch; do
   if patch --batch --forward --dry-run -d "$source_dir" -p1 < "$patch_file" >/dev/null 2>&1; then
     patch --batch --forward -d "$source_dir" -p1 < "$patch_file"
   elif ! patch --batch --reverse --dry-run -d "$source_dir" -p1 < "$patch_file" >/dev/null 2>&1; then

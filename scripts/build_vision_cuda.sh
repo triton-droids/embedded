@@ -6,7 +6,7 @@ cd "$repo_root"
 trtexec_bin="${TRTEXEC:-/usr/src/tensorrt/bin/trtexec}"
 engine_dir="$repo_root/.deps/tensorrt"
 mkdir -p "$engine_dir"
-"$trtexec_bin" --onnx=humanoid_vision/models/yolov8n-face-lindevs.onnx \
+"$trtexec_bin" --onnx=perception/humanoid_vision/models/yolov8n-face-lindevs.onnx \
   --saveEngine="$engine_dir/yolov8n-face-fp16.engine.tmp" \
   --fp16 --skipInference --memPoolSize=workspace:512 \
   --builderOptimizationLevel="${TRT_OPTIMIZATION_LEVEL:-0}" \

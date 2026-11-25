@@ -12,9 +12,9 @@ import yaml
 def main():
     repo = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--model', type=Path, default=repo / 'humanoid_control/motor_control_hybrid/models/'
+    parser.add_argument('--model', type=Path, default=repo / 'control/motor_control_hybrid/models/'
                         '20260914_170827/20260914_170827.onnx')
-    parser.add_argument('--output', type=Path, default=repo / 'humanoid_control/'
+    parser.add_argument('--output', type=Path, default=repo / 'control/'
                         'motor_control_hybrid/config/motors.yaml')
     args = parser.parse_args()
     model = args.model.resolve()

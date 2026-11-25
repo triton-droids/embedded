@@ -3,7 +3,7 @@
 The relay now belongs to `humanoid_safety`; the old executable is a compatibility
 wrapper. The unified modes are `ros2 launch humanoid_safety safety.launch.py
 mode:=web|rviz|monitor` (choose one value). They consume `/joint_states` by default
-and inherit ROS network/domain settings. See the [safety monitor guide](../humanoid_control/humanoid_safety/README.md)
+and inherit ROS network/domain settings. See the [safety monitor guide](../safety/humanoid_safety/README.md)
 for current Web/RViz commands, topics and mode behavior. The legacy commands below
 remain supported.
 
@@ -27,7 +27,7 @@ Build once from the repository root, after building the policy dependencies:
 ```bash
 source /opt/ros/humble/setup.bash
 source rosenv/bin/activate
-colcon build --symlink-install --base-paths humanoid_control humanoid_leg_description \
+colcon build --symlink-install --base-paths control description/humanoid_leg_description \
   --packages-select motor_control_hybrid humanoid_leg_description
 source install/setup.bash
 ```
@@ -115,7 +115,7 @@ the resulting TF rotation, run from the sourced repository root:
 ```bash
 ROS_DOMAIN_ID=87 ROS_LOCALHOST_ONLY=1 RUN_ROS_INTEGRATION=1 \
   /usr/bin/python3 -m pytest -q \
-  humanoid_control/motor_control_hybrid/test/test_pose_monitor_integration.py
+  control/motor_control_hybrid/test/test_pose_monitor_integration.py
 ```
 
 Use an unused domain ID. This test requires permission to create local DDS

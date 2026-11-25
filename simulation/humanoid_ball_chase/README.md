@@ -1,7 +1,7 @@
 # humanoid_ball_chase
 
 Independent MuJoCo D435 camera/mount and football pursuit package. It reuses
-`humanoid_sim` peripherals, `humanoid_vision/track_node`, the existing C++ motor
+`humanoid_sim` peripherals, `perception/humanoid_vision/track_node`, the existing C++ motor
 scheduler, Web monitor, safety supervisor, and policy node.
 
 **Current boundary:** visual detection, moving camera TF, depth projection, head
@@ -10,7 +10,7 @@ yaw/pitch tracking and bounded pursuit velocity commands are implemented. The bu
 it does not accept a base velocity command. Consequently the default launch
 (`controller:=policy`) does not make the robot walk toward the ball.
 `controller:=model_walk` runs the model-based walking controller instead and
-feeds it `/ball_chase/cmd_vel` (see `humanoid_control/walking_controller/README.md`):
+feeds it `/ball_chase/cmd_vel` (see `control/walking_controller/README.md`):
 the robot then walks to the ball and stops in front of it. The ball world
 model (`world_model:=true`, default; see "Ball world model") keeps chasing a
 ball that is briefly unseen and aims slightly ahead of a moving ball. There is
@@ -242,7 +242,7 @@ for ball motion, and the estimate survives frames without a detection.
   walking controller package's `leg_odometry` (body IMU attitude + stance-foot
   kinematics, what the robot has) publishes `odom → base_footprint →
   base_link` instead; the chase results are the same (see
-  `humanoid_control/walking_controller/README.md`, "Leg odometry").
+  `control/walking_controller/README.md`, "Leg odometry").
 * **Kick** (`kick:=true`, needs `controller:=model_walk`; `kick.py`). Within
   0.9 m of a still ball the chase hands over to a slow approach that turns
   until the ball sits ahead of the foot on its side, walks up until the ball is
@@ -464,7 +464,7 @@ scripts/ball_chase_walk.sh scene:=hard enable_vio:=true   # terminal 2
 ```
 
 `imu_yaw_error_deg` / `imu_yaw_error_period_s` add a sinusoidal heading error to
-the simulated BNO085. Details and accuracy: [`humanoid_localization`](../../humanoid_control/humanoid_localization/README.md).
+the simulated BNO085. Details and accuracy: [`humanoid_localization`](../../perception/humanoid_localization/README.md).
 On the Orin Nano the simulated chase has little timing margin: with the Isaac
 YOLO container (with or without cuVSLAM), and also with the built-in detector
 when timing diagnostics run, the robot fell while turning; the built-in detector
@@ -525,7 +525,7 @@ that foot, expressed in the same gravity-aligned frame. Joint source age and loc
 receipt age must each be <=0.15 s; missing, invalid or stale geometry holds final
 approach and forbids a kick. After standing, the original tight kick window is
 checked again. `shoot_urdf_path` defaults to the installed
-`humanoid_leg_description/urdf/human_offset_corrected.urdf`, and
+`description/humanoid_leg_description/urdf/human_offset_corrected.urdf`, and
 `shoot_base_forward_axis` defaults to `positive_y`, matching this simulation.
 The model, joint names and axis must match any other deployment. Inspect
 `world_model.last_foot_admission` and `world_model.kick.foot_reference_xy`.

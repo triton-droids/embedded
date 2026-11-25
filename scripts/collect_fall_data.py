@@ -110,8 +110,8 @@ def main():
                      'simulation/humanoid_sim/humanoid_sim/imu_nodes.py',
                      'simulation/humanoid_sim/launch/sim.launch.py',
                      'simulation/humanoid_sim/config/sim.yaml',
-                     'humanoid_control/humanoid_safety/config/safety.yaml',
-                     'humanoid_control/motor_control_hybrid/config/motors.yaml']:
+                     'safety/humanoid_safety/config/safety.yaml',
+                     'control/motor_control_hybrid/config/motors.yaml']:
         target = snapshot/relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(repo/relative, target)

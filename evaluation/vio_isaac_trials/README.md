@@ -6,7 +6,7 @@ Trial scripts, measured results and videos for two features on
 - **Localization without simulator odometry**: body IMU (simulated BNO085 game
   rotation vector) plus cuVSLAM passive stereo VO, fused by
   `humanoid_localization/vio_localizer` into `/localization/odom`
-  (package README: `humanoid_control/humanoid_localization/README.md`).
+  (package README: `perception/humanoid_localization/README.md`).
 - **Isaac ROS YOLO as the chase detector**: the td-perception YOLO11n engine in
   the Isaac ROS NITROS pipeline (`scripts/run_isaac_yolo.sh`), with
   `ball_chase_vision detector:=isaac` choosing the chased class by id.

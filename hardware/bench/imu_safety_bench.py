@@ -6,7 +6,7 @@ which check tripped the e-stop and why.
 
 Setup:
     pip install pyserial
-    Keep this folder at humanoid_control/humanoid_safety/bench/ so it uses the
+    Keep this folder at safety/humanoid_safety/bench/ so it uses the
     package's checks.py directly (or put a copy of checks.py next to this file).
 Run:
     python imu_safety_bench.py --port /dev/cu.usbmodem1101   # Mac
@@ -33,7 +33,7 @@ import serial
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 # Finds checks.py next to this file, one folder up, or (when this folder sits at
-# humanoid_control/humanoid_safety/bench/) in the package itself.
+# safety/humanoid_safety/bench/) in the package itself.
 sys.path[:0] = [HERE, os.path.dirname(HERE),
                 os.path.join(os.path.dirname(HERE), "humanoid_safety")]
 from checks import (  # noqa: E402

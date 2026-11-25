@@ -15,10 +15,10 @@ merged into this branch in `f15528ca`.
 - [Launch shortcuts](../launch/README.md)
 - [Development container](devcontainer.md)
 - [Remote RViz and fake-motor visualization](remote_rviz.md)
-- [Safety, Web monitoring and ROS visualization](../humanoid_control/humanoid_safety/README.md)
+- [Safety, Web monitoring and ROS visualization](../safety/humanoid_safety/README.md)
 - [Ball chase: camera, football detection, Isaac ROS detector, A*](../simulation/humanoid_ball_chase/README.md)
-- [Model-based walking controller package](../humanoid_control/walking_controller/README.md)
-- [Localization: body IMU + cuVSLAM stereo VO](../humanoid_control/humanoid_localization/README.md)
+- [Model-based walking controller package](../control/walking_controller/README.md)
+- [Localization: body IMU + cuVSLAM stereo VO](../perception/humanoid_localization/README.md)
 - [VIO and Isaac ROS detection trials](../evaluation/vio_isaac_trials/README.md)
 
 ## Shared control and models
@@ -30,7 +30,7 @@ merged into this branch in `f15528ca`.
 - [Motor registry and model alignment audit](motor_configuration_audit.md)
 - [Self-collision monitor](self_collision_monitor.md)
 - [Active C++ control library](../libraries/control_core/README.md)
-- [Leg model and mesh assets](../humanoid_leg_description/README.md)
+- [Leg model and mesh assets](../description/humanoid_leg_description/README.md)
 - [Vision build and algorithm reference](humanoid_vision_instructions.md)
 - [Vision-control roadmap](vision_control_plan.md) (planned work)
 - [Model-based walking controller](model_based_walking_design.md) (LIPM MPC + TSID, walks in simulation; see the package README)
@@ -50,6 +50,8 @@ simulation guide for supported execution paths.
 ## Default build boundaries
 
 - `hardware/` and `legacy/` are excluded with `COLCON_IGNORE`.
+- `deprecated/wbc_control_node` is still built; the directory layout is in the
+  [repository README](../README.md#repository-layout).
 - No physical CAN node, serial IMU reader, micro-ROS Agent or RealSense driver
   is installed or launched by the default simulation composition.
 - The simulation build does not fetch ENCOS drivers or require RobStride,

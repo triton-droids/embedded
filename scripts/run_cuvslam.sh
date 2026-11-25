@@ -36,8 +36,8 @@ command -v docker >/dev/null || { echo "Docker is required." >&2; exit 1; }
 if [[ "$mode" == build ]]; then
   : "${ISAAC_ROS_BASE_IMAGE:?Set ISAAC_ROS_BASE_IMAGE to an Isaac ROS 4.6 JetPack 7.2 Jazzy development image; see README.md}"
   exec docker build --build-arg "BASE_IMAGE=$ISAAC_ROS_BASE_IMAGE" \
-    -t "$image" -f "$repo_dir/humanoid_control/humanoid_localization/docker/Dockerfile.cuvslam" \
-    "$repo_dir/humanoid_control/humanoid_localization/docker"
+    -t "$image" -f "$repo_dir/perception/humanoid_localization/docker/Dockerfile.cuvslam" \
+    "$repo_dir/perception/humanoid_localization/docker"
 fi
 docker image inspect "$image" >/dev/null 2>&1 || { echo "Run '$0 build' first" >&2; exit 1; }
 config=cyclonedds_sim.xml localhost_only=1 split_env=()
@@ -47,7 +47,7 @@ if [[ -n "${DDS_PEER_IP:-}" ]]; then  # Two-host split (scripts/ball_chase_split
   split_env=(-e DDS_LOCAL_IP="$DDS_LOCAL_IP" -e DDS_PEER_IP="$DDS_PEER_IP")
 fi
 name="${ISAAC_CONTAINER_NAME:-humanoid_cuvslam}"
-launch="${ISAAC_LAUNCH:-/workspaces/humanoid/humanoid_control/humanoid_localization/launch/cuvslam.launch.py}"
+launch="${ISAAC_LAUNCH:-/workspaces/humanoid/perception/humanoid_localization/launch/cuvslam.launch.py}"
 cpuset=()
 [[ -n "${ISAAC_CPUSET:-}" ]] && cpuset=(--cpuset-cpus "$ISAAC_CPUSET")
 exec docker run --rm --name "$name" --runtime nvidia "${cpuset[@]}" \

@@ -5,7 +5,7 @@ attempt (M1 stand, §10; flat-foot rocking, §11) stalled; measuring the RL gait
 showed that both feet roll on their edges in double support, which unlocks the
 lateral CoM. A LIPM MPC + TSID WBC built on that steps in place and walks
 forward with a variable step length. Current design and results:
-[humanoid_control/walking_controller/README.md](../humanoid_control/walking_controller/README.md).
+[control/walking_controller/README.md](../control/walking_controller/README.md).
 §10–§11 below are kept as history. **Date:** 2026-11-08.
 **Scope:** MuJoCo simulation first; hardware is out of scope for this document.
 
@@ -249,7 +249,7 @@ WAIT_RELEASE ─► STAND ─► (goal) ─► WALK ─► (goal reached / stop)
 
 ## 5. Packaging and launch
 
-- New package `humanoid_control/walking_controller` (ament_python):
+- New package `control/walking_controller` (ament_python):
   - `planning/` (footsteps, DCM, swing) — no ROS, unit tested
   - `wbc.py` — TSID problem, importing the reusable parts of
     `wbc_control_node.controller` (or moving them to a shared module)
@@ -286,7 +286,7 @@ M3 is the go/no-go point for this approach (§4.4).
 - WBC tests: on the gantry pose and a few random configurations, the QP is
   feasible, the torques are within limits and the contact forces are inside the
   cone; TSID dynamics match MuJoCo's mass matrix and gravity (existing approach
-  in `experimental/test_wbc_model.py`).
+  in `deprecated/wbc_prototype/test_wbc_model.py`).
 - Simulation tests: one headless smoke test per milestone in CI-sized form
   (single seed, short duration); full seed sweeps run manually and are recorded
   under `docs/reports/`.

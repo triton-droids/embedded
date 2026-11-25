@@ -47,7 +47,7 @@ compile_commands.json
 data/fall_collection/
 data/fall_training/
 # Local raw simulation experiment output
-experimental/reference_warp/results/
+local_test/reference_warp_results/
 # Ball-chase TensorRT engines (scripts/build_ball_chase_engines.sh), device-specific
 simulation/humanoid_ball_chase/assets/*.engine
 simulation/humanoid_ball_chase/assets/*.engine.json

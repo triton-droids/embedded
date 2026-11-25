@@ -2,7 +2,7 @@
 
 This document retains algorithm/build details from the original robot stack.
 Physical RealSense/MCU startup sections are historical; this checkout uses
-[simulated camera tracking](../humanoid_vision/TRACKING.md), with physical
+[simulated camera tracking](../perception/humanoid_vision/TRACKING.md), with physical
 launch recipes archived in `hardware/`.
 
 Before using these commands, open a terminal inside your checkout and set its
@@ -26,7 +26,7 @@ tested before a RoboCup ball model is installed.
 ## Current Package Layout
 
 ```text
-humanoid_vision/
+perception/humanoid_vision/
 ├── algorithm/
 │   ├── include/humanoid_vision/
 │   │   ├── types.hpp
@@ -87,7 +87,7 @@ source install/setup.bash
 ## Humble compatibility and headless camera check
 
 The package supports both the Humble `cv_bridge.h` and Jazzy
-`cv_bridge.hpp` headers through `humanoid_vision/cv_bridge_compat.hpp`.
+`cv_bridge.hpp` headers through `perception/humanoid_vision/cv_bridge_compat.hpp`.
 The bundled face model remains the pipeline test model.
 
 Run the CPU face regression test after building:
@@ -334,7 +334,7 @@ Run reference-image checks and a warm benchmark on the host:
 ```bash
 build/humanoid_vision/test_yolo_face \
   .deps/tensorrt/yolov8n-face-fp16.engine \
-  humanoid_vision/algorithm/test/data/lena.jpg /tmp/face-cuda.jpg \
+  perception/humanoid_vision/algorithm/test/data/lena.jpg /tmp/face-cuda.jpg \
   --cuda --reference-face --benchmark
 ```
 

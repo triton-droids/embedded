@@ -12,7 +12,7 @@ import onnx
 from onnx import helper, numpy_helper
 
 root = Path(__file__).resolve().parent.parent
-source = root / 'humanoid_vision/models/yolov8n-face-lindevs.onnx'
+source = root / 'perception/humanoid_vision/models/yolov8n-face-lindevs.onnx'
 expected = '8d0bfb0c3383c5bd7a78dd24ef79a21e2aa456619b6ab5e53867092d1c7dc414'
 if hashlib.sha256(source.read_bytes()).hexdigest() != expected:
     raise ValueError('Source model changed; review the graph before conversion')

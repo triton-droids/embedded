@@ -27,7 +27,7 @@ from launch_ros.descriptions import ComposableNode
 from launch_ros.parameter_descriptions import ParameterValue
 
 ASSETS = '/workspaces/humanoid/simulation/humanoid_ball_chase/assets'
-CUVSLAM_PARAMS = '/workspaces/humanoid/humanoid_control/humanoid_localization/config/cuvslam.yaml'
+CUVSLAM_PARAMS = '/workspaces/humanoid/perception/humanoid_localization/config/cuvslam.yaml'
 
 
 def generate_launch_description():

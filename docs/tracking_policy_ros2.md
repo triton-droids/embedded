@@ -119,7 +119,7 @@ zeros. The no-motor default explicitly labels its feedback as `zero`.
 ## Exact model contract
 
 Default model:
-`~/Documents/Github/embedded/humanoid_control/motor_control_hybrid/models/20260914_170827/20260914_170827.onnx`
+`~/Documents/Github/embedded/control/motor_control_hybrid/models/20260914_170827/20260914_170827.onnx`
 
 The inputs are `obs: float32[1,56]` and `time_step: float32[1,1]`. Observation
 normalization is already embedded in the ONNX graph.
@@ -245,7 +245,7 @@ Run the configuration/CAN transformation tests without physical CAN I/O:
 source /opt/ros/humble/setup.bash
 source rosenv/bin/activate
 source install/setup.bash
-python -m unittest discover -s humanoid_control/motor_control_hybrid/test \
+python -m unittest discover -s control/motor_control_hybrid/test \
   -p test_motor_configuration.py -v
 ```
 
@@ -351,8 +351,8 @@ source rosenv/bin/activate
 source install/setup.bash
 python -m pip install 'pytest>=7,<9'
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q \
-  humanoid_control/motor_control_hybrid/test/test_tracking_onnx.py \
-  humanoid_control/motor_control_hybrid/test/test_tracking_node.py \
+  control/motor_control_hybrid/test/test_tracking_onnx.py \
+  control/motor_control_hybrid/test/test_tracking_node.py \
   "hardware/attitude_sensing_pkg/test/test_imu_read.py"
 ```
 

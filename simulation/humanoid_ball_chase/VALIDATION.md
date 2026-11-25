@@ -37,7 +37,7 @@ No physical hardware was operated, and locomotion chase remains unimplemented.
   Intermittent source-age stops are still observed under CPU load; the node
   sends zero until a fresh observation arrives. This is not a real-time guarantee.
   Source/receipt checks remain active; the initial 0.35 s budget was later made configurable for CPU inference, as detailed below.
-- Both axes reuse the existing `humanoid_vision/track_node`. The simulation
+- Both axes reuse the existing `perception/humanoid_vision/track_node`. The simulation
   pitch sign is +1 because positive rotation about the joint -X axis looks down. This sign was
   verified by actual measured pitch, not inferred from the hardware linkage.
 
