@@ -31,6 +31,30 @@ mesh paths with the folder's absolute path.
 MuJoCo rejects STL files over 200,000 faces, and every simplified mesh is under that limit.
 MuJoCo also names mesh assets by file name, and every mesh file name is unique.
 
+## Pan-tilt head
+
+An STS3215 + RealSense D435 pan-tilt head sits on the two top 1010 rails (both URDFs, between the `HEAD BEGIN/END`
+markers). Its CAD and print files are in `mechanical/sts3215_d435_pantilt_dual_horn` on the `cyclonedds-default` branch;
+`export_full_body_head.py` there writes the head meshes and the block into both URDFs and re-expands the xacro. Rerun it
+rather than editing the block by hand.
+
+```text
+torso_link
+└── head_base_link        head_mount_joint (fixed): x 0, y 0.0324, z 0.3914 (adapter plate on the rails, tray front
+    │                     flush with the front rail)
+    └── neck_yaw_link     neck_yaw_joint, z axis, ±100°, + turns the camera to the robot's left
+        └── neck_pitch_link   neck_pitch_joint, x axis, ±75°, + tilts the camera up (axis 0.141 m above the plate)
+            ├── camera_link   D435 depth origin, ROS convention (x forward, y left, z up)
+            └── head_imu_link
+```
+
+- 0.605 kg in total. Printed parts are PETG at 60 % effective density; servos, camera and bearings use catalogue
+  masses. Each head link has one visual mesh per material (off-white print, black servos, orange horns,
+  aluminium D435, green board, steel bearings) and one collision mesh with every part.
+- `camera_link` is the last camera frame in the URDF; the RealSense driver publishes the optical frames under it.
+- MuJoCo: `make_mjcf.py` welds `neck_yaw_joint` and `neck_pitch_joint` (no STS3215 in the motor registry yet), so
+  the MJCF keeps 18 motors and 22 hinges. The 10 s standing test still holds (tilt under 4°).
+
 ## MuJoCo (simplified, with motors)
 
 ```bash
@@ -99,7 +123,7 @@ reference when validating the simplified model. Run only one detailed instance p
   three child joints (pelvis, both shoulders) carry the turn. All other links keep their CAD frames.
 - `pelvis_link` is fixed to the torso. Its top face sits flush on the torso bottom.
 - At zero pose the robot stands upright, with legs straight, soles flat and arms hanging down. It is 1.05 m tall from sole to
-  torso top (no head) and 0.68 m wide across the arms.
+  torso top (without the head) and 0.68 m wide across the arms.
 
 Every joint sign was checked by forward kinematics (`humanoid_full_body_description/scripts/reorient.py` on
 `sim-experimental-cyclonedds`). The meanings are those of the motor registry (`motor_control_hybrid/config/motors.yaml`),
@@ -156,7 +180,7 @@ motor models are from the hardware.
 
 ## Mass properties
 
-Total **31.9 kg**: torso 9.0 kg (with the two battery packs), pelvis 3.5 kg, each arm 3.3 kg, each leg 6.4 kg.
+Total **32.5 kg**: pan-tilt head 0.6 kg, torso 9.0 kg (with the two battery packs), pelvis 3.5 kg, each arm 3.3 kg, each leg 6.4 kg.
 These values come from the CAD export, with two material corrections, and nothing has been weighed:
 
 - **Shoulder mounts** (`base_link_333` / `314`, the three-lobed brackets on the torso sides) changed from 6061 to printed ASA,

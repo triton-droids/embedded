@@ -16,7 +16,7 @@ simplified/scripts/stand.py. Without the deletion every joint would have two mot
 
 Joints: 22 hinges + the free joint. 18 are motorised; the 4 others are passive,
 driven through the four-bar: `*_ankle_joint` (the foot) and `*_ankle_rod_joint`.
-The motorless upper-arm twist is already welded in the XML.
+The motorless upper-arm twist and the two neck joints are already welded in the XML.
 
 Run the checkpoint: mjlab/.venv/bin/python -m humanoid_mjlab.robot
 """
@@ -36,7 +36,7 @@ ROBOT_XML = EMBEDDED / "simplified" / "mjcf" / "full_body.xml"
 # Base (free joint at the torso_link origin) height: soles 1 mm above z = 0 at the
 # zero pose, as in the XML.
 BASE_HEIGHT = 0.666
-TOTAL_MASS = 31.933  # kg, README "Mass properties"
+TOTAL_MASS = 32.538  # kg, README "Mass properties" (31.933 + 0.605 pan-tilt head)
 
 PEAK_TORQUE = {"rs-02": 17.0, "rs-03": 60.0, "rs-04": 120.0}  # N*m, peak
 

@@ -11,7 +11,7 @@ motors written into the MJCF instead of added by humanoid_sim at runtime:
 - ankle: the RS-02 drives the four-bar crank (`*_ankle_crank_joint`, the motor axis), not the foot. The crank and rod
   are passive hinges and an equality connect pins the rod's lower eye to the heel lever, so MuJoCo transmits the
   17 N*m motor torque to the foot through the exact linkage geometry (the foot torque varies with the ankle angle),
-- the motorless `*_upper_arm_twist_joint` is welded,
+- the motorless `*_upper_arm_twist_joint` and the head's `neck_yaw_joint` / `neck_pitch_joint` are welded,
 - each sole gets a 15 mm box contact from the foot mesh; the robot collides with the floor only (no self-collision).
 
 Run after changing the URDF:  python3 scripts/make_mjcf.py
@@ -40,6 +40,8 @@ for s in ("left", "right"):
 LEG_JOINTS = [f"{s}_{j}_joint" for s in ("left", "right") for j in ("hip1", "hip2", "thigh", "knee", "ankle")]
 LINKAGE_JOINTS = [f"{s}_ankle_{j}_joint" for s in ("left", "right") for j in ("crank", "rod")]
 WELDED_JOINTS = [f"{s}_upper_arm_twist_joint" for s in ("left", "right")]
+# The STS3215 pan-tilt head has no motor model in the registry yet: held rigid at q = 0.
+WELDED_JOINTS += ["neck_yaw_joint", "neck_pitch_joint"]
 LEG_DAMPING, LEG_ARMATURE = 1.0, 0.01       # policy MJCF
 ARM_DAMPING, ARM_ARMATURE = 0.5, 0.01
 LINKAGE_DAMPING, LINKAGE_ARMATURE = 0.01, 0.001
