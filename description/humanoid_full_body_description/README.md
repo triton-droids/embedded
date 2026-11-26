@@ -1,7 +1,7 @@
 # humanoid_full_body_description
 
 Full-body humanoid URDF: the upper body plus the articulated lower body at the nominal five-hole pelvis mount.
-22 links, 20 actuated joints. Fixed base at `torso_link`.
+27 links: 22 body links, 20 actuated body joints, plus the pan-tilt head (5 links, 2 joints, see "Pan-tilt head"). Fixed base at `torso_link`.
 
 Two variants with identical kinematics and inertials, a light **simplified** model (default) and the original
 **detailed** CAD meshes. See [MODELS.md](MODELS.md) for the comparison and when to use which.
@@ -92,9 +92,34 @@ the `rpy` of the 10 leg joint origins, so that the old pose equals the new joint
 Link geometry and joint positions are unchanged. Only the child frames are rotated about each joint axis.
 The arm joints were already at a sensible zero (hanging down), so they were not changed.
 
+## Pan-tilt head
+
+An STS3215 + RealSense D435 pan-tilt head sits on the two top 1010 rails. Both URDFs carry the same block between the
+`HEAD BEGIN/END` markers. It is written by `mechanical/sts3215_d435_pantilt_dual_horn/export_full_body_head.py`
+(`--layout sim-experimental`), which also writes the head meshes. Rerun it rather than editing the block.
+
+```text
+torso_link
+└── head_base_link        head_mount_joint (fixed): x 0, y 0.0324, z 0.3914 (adapter plate on the rails,
+    │                     tray front flush with the front rail)
+    └── neck_yaw_link     neck_yaw_joint, z axis, ±100°, + turns the camera to the robot's left
+        └── neck_pitch_link   neck_pitch_joint, x axis, ±75°, + tilts the camera up (axis 0.141 m above the plate)
+            ├── camera_link   D435 depth origin, ROS convention (x forward, y left, z up)
+            └── head_imu_link
+```
+
+- 0.605 kg. Printed parts are PETG at 60 % effective density; servos, camera and bearings use catalogue masses.
+- One visual mesh per material (off-white print, black servos, orange horns, aluminium D435, green board, steel
+  bearings) and one collision mesh per link.
+- `camera_link` is the last camera frame in the URDF; the RealSense driver publishes the optical frames under it.
+- `make_sim_mjcf.py` welds `neck_yaw_joint` and `neck_pitch_joint` in the MJCF and in both WBC models (no STS3215 motor
+  model yet), so the simulation keeps 18 motors and the controller models their joint counts.
+- The SRDF has 79 head pairs from `collisions_updater` (3 adjacent, 76 never); the body pairs are unchanged.
+
 ## Mass properties (from the CAD export, not measured)
 
-Total 31.9 kg: torso 9.0, pelvis 3.5, each arm 3.3, each leg 6.4. Height at the zero pose 1.05 m (sole to torso top, no head).
+Total 32.5 kg: head 0.6, torso 9.0, pelvis 3.5, each arm 3.3, each leg 6.4. Height at the zero pose 1.05 m (sole to torso top,
+without the head). The 31.9 kg in the test results below is the model before the head was added.
 
 The shoulder mounts (`base_link_333` / `base_link_314`, the three-lobed brackets bolted to the torso frame) were changed
 from 6061 aluminium to printed ASA, which made the robot 1.0 kg lighter (−500 g each, 652 → 152 g). The torso mass, COM and inertia were recomputed

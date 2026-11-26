@@ -10,9 +10,9 @@ ros2 launch humanoid_full_body_moveit_config inspect.launch.py model:=detailed
 
 ## What is identical
 
-- 22 links and 20 joints, with the same joint origins and axes, so forward kinematics agree to 0.01 µm.
+- 27 links and 22 movable joints (with the pan-tilt head), with the same joint origins and axes, so forward kinematics agree to 0.01 µm.
 - The joint zero: at `q = 0` the robot stands upright, with legs straight, soles flat and arms hanging down.
-- Mass, COM and inertia of every link (total 31.9 kg). Both files carry the same corrections: ASA shoulder mounts and
+- Mass, COM and inertia of every link (total 32.5 kg with the 0.6 kg head). Both files carry the same corrections: ASA shoulder mounts and
   PLA forearm parts at 20% infill.
 - The MoveIt configuration: planning groups, group states and the SRDF self-collision matrix.
 

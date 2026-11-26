@@ -57,6 +57,9 @@ RENAME_BODY = {"torso_link": "torso", "pelvis_link": "hip", "left_foot_link": "l
 ARM_MOTORS = {"shoulder_pitch": "rs-03", "shoulder_roll": "rs-03", "shoulder_yaw": "rs-02", "elbow": "rs-02"}
 ARM_JOINTS = [f"{s}_{j}_joint" for s in ("left", "right") for j in ARM_MOTORS]
 WELDED_ARM_JOINTS = [f"{s}_upper_arm_twist_joint" for s in ("left", "right")]
+# STS3215 pan-tilt head: no motor model in the simulation yet, so the simulation and both WBC models hold it
+# rigid at q = 0 (the URDF keeps the joints for MoveIt and robot_state_publisher).
+WELDED_HEAD_JOINTS = ["neck_yaw_joint", "neck_pitch_joint"]
 ANKLE_DRIVE_RANGE = (-1.134, 1.309)  # rad, ankle_mapping four-bar with at least 10 Nm at the foot
 PEAK_TORQUE_NM = {"rs-02": 17.0, "rs-03": 60.0, "rs-04": 120.0}  # as walking_controller/robot.py
 ARM_DAMPING, ARM_ARMATURE = 0.5, 0.01
@@ -121,7 +124,7 @@ def write_wbc_model(urdf_text, model, data, out_dir, arms=False):
             for tag in ("axis", "limit"):
                 if joint.find(tag) is not None:
                     joint.remove(joint.find(tag))
-        elif joint.get("name") in WELDED_ARM_JOINTS or (
+        elif joint.get("name") in WELDED_ARM_JOINTS + WELDED_HEAD_JOINTS or (
                 joint.get("type") != "fixed" and joint.get("name") not in LEG_JOINTS and not arms):
             joint.set("type", "fixed")
             for tag in ("axis", "limit"):
@@ -224,7 +227,7 @@ def main():
         visual = geom.meshname and spec.mesh(geom.meshname).file.startswith("visual/")
         geom.group, geom.contype, geom.conaffinity = (2, 0, 0) if visual else (3, 1, 1)
 
-    for joint in [j for j in spec.joints if j.name in WELDED_ARM_JOINTS]:
+    for joint in [j for j in spec.joints if j.name in WELDED_ARM_JOINTS + WELDED_HEAD_JOINTS]:
         spec.delete(joint)
     for joint in spec.joints:
         if joint.name in LINKAGE_JOINTS:

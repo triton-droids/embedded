@@ -32,6 +32,20 @@
     <mesh name="right_foot_link" file="visual/right_foot_link.stl"/>
     <mesh name="right_ankle_crank_link" file="visual/right_ankle_crank_link.stl"/>
     <mesh name="right_ankle_rod_link" file="visual/right_ankle_rod_link.stl"/>
+    <mesh name="head_base_link_print" file="visual/head_base_link_print.stl"/>
+    <mesh name="head_base_link_servo" file="visual/head_base_link_servo.stl"/>
+    <mesh name="head_base_link_bearing" file="visual/head_base_link_bearing.stl"/>
+    <mesh name="head_base_link" file="collision/head_base_link.stl"/>
+    <mesh name="neck_yaw_link_print" file="visual/neck_yaw_link_print.stl"/>
+    <mesh name="neck_yaw_link_horn" file="visual/neck_yaw_link_horn.stl"/>
+    <mesh name="neck_yaw_link_servo" file="visual/neck_yaw_link_servo.stl"/>
+    <mesh name="neck_yaw_link_bearing" file="visual/neck_yaw_link_bearing.stl"/>
+    <mesh name="neck_yaw_link" file="collision/neck_yaw_link.stl"/>
+    <mesh name="neck_pitch_link_print" file="visual/neck_pitch_link_print.stl"/>
+    <mesh name="neck_pitch_link_horn" file="visual/neck_pitch_link_horn.stl"/>
+    <mesh name="neck_pitch_link_camera" file="visual/neck_pitch_link_camera.stl"/>
+    <mesh name="neck_pitch_link_pcb" file="visual/neck_pitch_link_pcb.stl"/>
+    <mesh name="neck_pitch_link" file="collision/neck_pitch_link.stl"/>
     <mesh name="torso_link_collision" file="collision/torso_link.stl"/>
     <mesh name="pelvis_link_collision" file="collision/pelvis_link.stl"/>
     <mesh name="left_pelvis_hip_connector_link_collision" file="collision/left_pelvis_hip_connector_link.stl"/>
@@ -58,6 +72,9 @@
     <mesh name="right_link_002_collision" file="collision/right_link_002.stl"/>
     <mesh name="right_link_003_collision" file="collision/right_link_003.stl"/>
     <mesh name="right_link_004_collision" file="collision/right_link_004.stl"/>
+    <mesh name="head_base_link_collision" content_type="model/stl" file="collision/head_base_link.stl"/>
+    <mesh name="neck_yaw_link_collision" content_type="model/stl" file="collision/neck_yaw_link.stl"/>
+    <mesh name="neck_pitch_link_collision" content_type="model/stl" file="collision/neck_pitch_link.stl"/>
   </asset>
 
   <worldbody>
@@ -220,6 +237,31 @@
             </body>
           </body>
         </body>
+        <body name="head_base_link" pos="0 0.0324 0.3914">
+          <inertial pos="0.00268163 -0.00975065 0.0252509" quat="0.451212 0.503097 -0.658944 0.330295" mass="0.2956" diaginertia="0.0010157 0.000732937 0.000640973"/>
+          <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" rgba="0.9 0.9 0.87 1" mesh="head_base_link_print"/>
+          <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" rgba="0.1 0.1 0.11 1" mesh="head_base_link_servo"/>
+          <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" rgba="0.72 0.74 0.78 1" mesh="head_base_link_bearing"/>
+          <geom type="mesh" group="3" rgba="0.72 0.74 0.78 1" mesh="head_base_link_collision"/>
+          <body name="neck_yaw_link">
+            <inertial pos="0.0228211 -0.0099071 0.11579" quat="0.578505 0.444648 0.498609 0.467983" mass="0.1833" diaginertia="0.000771486 0.000642587 0.000223756"/>
+            <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" rgba="0.9 0.9 0.87 1" mesh="neck_yaw_link_print"/>
+            <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" rgba="1 0.63 0.06 1" mesh="neck_yaw_link_horn"/>
+            <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" rgba="0.1 0.1 0.11 1" mesh="neck_yaw_link_servo"/>
+            <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" rgba="0.72 0.74 0.78 1" mesh="neck_yaw_link_bearing"/>
+            <geom type="mesh" group="3" rgba="0.72 0.74 0.78 1" mesh="neck_yaw_link_collision"/>
+            <body name="neck_pitch_link" pos="0 0 0.141">
+              <inertial pos="0.0128245 -0.0049966 0.00439511" quat="0.192644 0.62748 0.189589 0.730214" mass="0.1265" diaginertia="0.000235941 0.000230432 3.78218e-05"/>
+              <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" rgba="0.9 0.9 0.87 1" mesh="neck_pitch_link_print"/>
+              <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" rgba="1 0.63 0.06 1" mesh="neck_pitch_link_horn"/>
+              <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" rgba="0.58 0.6 0.64 1" mesh="neck_pitch_link_camera"/>
+              <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" rgba="0.08 0.42 0.24 1" mesh="neck_pitch_link_pcb"/>
+              <geom type="mesh" group="3" rgba="0.08 0.42 0.24 1" mesh="neck_pitch_link_collision"/>
+              <body name="camera_link" pos="-0.0175 0.0083 0" quat="0.707107 0 0 0.707107"/>
+              <body name="head_imu_link" pos="0 -0.0325 0.0098"/>
+            </body>
+          </body>
+        </body>
       </body>
     </body>
   </worldbody>
@@ -246,6 +288,9 @@
     <exclude body1="torso" body2="right_link_001"/>
     <exclude body1="torso" body2="right_link_002"/>
     <exclude body1="torso" body2="right_link_003"/>
+    <exclude body1="torso" body2="head_base_link"/>
+    <exclude body1="torso" body2="neck_yaw_link"/>
+    <exclude body1="torso" body2="neck_pitch_link"/>
     <exclude body1="hip" body2="left_pelvis_hip_connector_link"/>
     <exclude body1="hip" body2="left_thigh_link"/>
     <exclude body1="hip" body2="left_shank_link"/>
@@ -268,6 +313,9 @@
     <exclude body1="hip" body2="right_link_002"/>
     <exclude body1="hip" body2="right_link_003"/>
     <exclude body1="hip" body2="right_link_004"/>
+    <exclude body1="hip" body2="head_base_link"/>
+    <exclude body1="hip" body2="neck_yaw_link"/>
+    <exclude body1="hip" body2="neck_pitch_link"/>
     <exclude body1="left_pelvis_hip_connector_link" body2="left_hip_link"/>
     <exclude body1="left_pelvis_hip_connector_link" body2="left_thigh_link"/>
     <exclude body1="left_pelvis_hip_connector_link" body2="left_shank_link"/>
@@ -290,6 +338,9 @@
     <exclude body1="left_pelvis_hip_connector_link" body2="right_link_002"/>
     <exclude body1="left_pelvis_hip_connector_link" body2="right_link_003"/>
     <exclude body1="left_pelvis_hip_connector_link" body2="right_link_004"/>
+    <exclude body1="left_pelvis_hip_connector_link" body2="head_base_link"/>
+    <exclude body1="left_pelvis_hip_connector_link" body2="neck_yaw_link"/>
+    <exclude body1="left_pelvis_hip_connector_link" body2="neck_pitch_link"/>
     <exclude body1="left_hip_link" body2="left_thigh_link"/>
     <exclude body1="left_hip_link" body2="left_shank_link"/>
     <exclude body1="left_hip_link" body2="left_foot"/>
@@ -311,6 +362,9 @@
     <exclude body1="left_hip_link" body2="right_link_002"/>
     <exclude body1="left_hip_link" body2="right_link_003"/>
     <exclude body1="left_hip_link" body2="right_link_004"/>
+    <exclude body1="left_hip_link" body2="head_base_link"/>
+    <exclude body1="left_hip_link" body2="neck_yaw_link"/>
+    <exclude body1="left_hip_link" body2="neck_pitch_link"/>
     <exclude body1="left_thigh_link" body2="left_shank_link"/>
     <exclude body1="left_thigh_link" body2="left_foot"/>
     <exclude body1="left_thigh_link" body2="right_pelvis_hip_connector_link"/>
@@ -325,6 +379,9 @@
     <exclude body1="left_thigh_link" body2="right_link_002"/>
     <exclude body1="left_thigh_link" body2="right_link_003"/>
     <exclude body1="left_thigh_link" body2="right_link_004"/>
+    <exclude body1="left_thigh_link" body2="head_base_link"/>
+    <exclude body1="left_thigh_link" body2="neck_yaw_link"/>
+    <exclude body1="left_thigh_link" body2="neck_pitch_link"/>
     <exclude body1="left_shank_link" body2="left_foot"/>
     <exclude body1="left_shank_link" body2="left_ankle_crank_link"/>
     <exclude body1="left_shank_link" body2="left_ankle_rod_link"/>
@@ -339,6 +396,9 @@
     <exclude body1="left_shank_link" body2="right_link_002"/>
     <exclude body1="left_shank_link" body2="right_link_003"/>
     <exclude body1="left_shank_link" body2="right_link_004"/>
+    <exclude body1="left_shank_link" body2="head_base_link"/>
+    <exclude body1="left_shank_link" body2="neck_yaw_link"/>
+    <exclude body1="left_shank_link" body2="neck_pitch_link"/>
     <exclude body1="left_foot" body2="left_ankle_crank_link"/>
     <exclude body1="left_foot" body2="left_ankle_rod_link"/>
     <exclude body1="left_foot" body2="right_pelvis_hip_connector_link"/>
@@ -353,6 +413,9 @@
     <exclude body1="left_foot" body2="right_link_002"/>
     <exclude body1="left_foot" body2="right_link_003"/>
     <exclude body1="left_foot" body2="right_link_004"/>
+    <exclude body1="left_foot" body2="head_base_link"/>
+    <exclude body1="left_foot" body2="neck_yaw_link"/>
+    <exclude body1="left_foot" body2="neck_pitch_link"/>
     <exclude body1="left_ankle_crank_link" body2="left_ankle_rod_link"/>
     <exclude body1="left_ankle_crank_link" body2="right_pelvis_hip_connector_link"/>
     <exclude body1="left_ankle_crank_link" body2="right_hip_link"/>
@@ -367,6 +430,9 @@
     <exclude body1="left_ankle_crank_link" body2="right_link_002"/>
     <exclude body1="left_ankle_crank_link" body2="right_link_003"/>
     <exclude body1="left_ankle_crank_link" body2="right_link_004"/>
+    <exclude body1="left_ankle_crank_link" body2="head_base_link"/>
+    <exclude body1="left_ankle_crank_link" body2="neck_yaw_link"/>
+    <exclude body1="left_ankle_crank_link" body2="neck_pitch_link"/>
     <exclude body1="left_ankle_rod_link" body2="right_pelvis_hip_connector_link"/>
     <exclude body1="left_ankle_rod_link" body2="right_hip_link"/>
     <exclude body1="left_ankle_rod_link" body2="left_base_link"/>
@@ -378,6 +444,9 @@
     <exclude body1="left_ankle_rod_link" body2="right_link_002"/>
     <exclude body1="left_ankle_rod_link" body2="right_link_003"/>
     <exclude body1="left_ankle_rod_link" body2="right_link_004"/>
+    <exclude body1="left_ankle_rod_link" body2="head_base_link"/>
+    <exclude body1="left_ankle_rod_link" body2="neck_yaw_link"/>
+    <exclude body1="left_ankle_rod_link" body2="neck_pitch_link"/>
     <exclude body1="right_pelvis_hip_connector_link" body2="right_hip_link"/>
     <exclude body1="right_pelvis_hip_connector_link" body2="right_thigh_link"/>
     <exclude body1="right_pelvis_hip_connector_link" body2="right_shank_link"/>
@@ -393,6 +462,9 @@
     <exclude body1="right_pelvis_hip_connector_link" body2="right_link_001"/>
     <exclude body1="right_pelvis_hip_connector_link" body2="right_link_002"/>
     <exclude body1="right_pelvis_hip_connector_link" body2="right_link_003"/>
+    <exclude body1="right_pelvis_hip_connector_link" body2="head_base_link"/>
+    <exclude body1="right_pelvis_hip_connector_link" body2="neck_yaw_link"/>
+    <exclude body1="right_pelvis_hip_connector_link" body2="neck_pitch_link"/>
     <exclude body1="right_hip_link" body2="right_thigh_link"/>
     <exclude body1="right_hip_link" body2="right_shank_link"/>
     <exclude body1="right_hip_link" body2="right_foot"/>
@@ -407,6 +479,9 @@
     <exclude body1="right_hip_link" body2="right_link_001"/>
     <exclude body1="right_hip_link" body2="right_link_002"/>
     <exclude body1="right_hip_link" body2="right_link_003"/>
+    <exclude body1="right_hip_link" body2="head_base_link"/>
+    <exclude body1="right_hip_link" body2="neck_yaw_link"/>
+    <exclude body1="right_hip_link" body2="neck_pitch_link"/>
     <exclude body1="right_thigh_link" body2="right_shank_link"/>
     <exclude body1="right_thigh_link" body2="right_foot"/>
     <exclude body1="right_thigh_link" body2="left_base_link"/>
@@ -418,6 +493,9 @@
     <exclude body1="right_thigh_link" body2="right_link_001"/>
     <exclude body1="right_thigh_link" body2="right_link_002"/>
     <exclude body1="right_thigh_link" body2="right_link_003"/>
+    <exclude body1="right_thigh_link" body2="head_base_link"/>
+    <exclude body1="right_thigh_link" body2="neck_yaw_link"/>
+    <exclude body1="right_thigh_link" body2="neck_pitch_link"/>
     <exclude body1="right_shank_link" body2="right_foot"/>
     <exclude body1="right_shank_link" body2="right_ankle_crank_link"/>
     <exclude body1="right_shank_link" body2="right_ankle_rod_link"/>
@@ -430,6 +508,9 @@
     <exclude body1="right_shank_link" body2="right_link_001"/>
     <exclude body1="right_shank_link" body2="right_link_002"/>
     <exclude body1="right_shank_link" body2="right_link_003"/>
+    <exclude body1="right_shank_link" body2="head_base_link"/>
+    <exclude body1="right_shank_link" body2="neck_yaw_link"/>
+    <exclude body1="right_shank_link" body2="neck_pitch_link"/>
     <exclude body1="right_foot" body2="right_ankle_crank_link"/>
     <exclude body1="right_foot" body2="right_ankle_rod_link"/>
     <exclude body1="right_foot" body2="left_base_link"/>
@@ -441,6 +522,9 @@
     <exclude body1="right_foot" body2="right_link_001"/>
     <exclude body1="right_foot" body2="right_link_002"/>
     <exclude body1="right_foot" body2="right_link_003"/>
+    <exclude body1="right_foot" body2="head_base_link"/>
+    <exclude body1="right_foot" body2="neck_yaw_link"/>
+    <exclude body1="right_foot" body2="neck_pitch_link"/>
     <exclude body1="right_ankle_crank_link" body2="right_ankle_rod_link"/>
     <exclude body1="right_ankle_crank_link" body2="left_base_link"/>
     <exclude body1="right_ankle_crank_link" body2="left_link_001"/>
@@ -452,6 +536,9 @@
     <exclude body1="right_ankle_crank_link" body2="right_link_002"/>
     <exclude body1="right_ankle_crank_link" body2="right_link_003"/>
     <exclude body1="right_ankle_crank_link" body2="right_link_004"/>
+    <exclude body1="right_ankle_crank_link" body2="head_base_link"/>
+    <exclude body1="right_ankle_crank_link" body2="neck_yaw_link"/>
+    <exclude body1="right_ankle_crank_link" body2="neck_pitch_link"/>
     <exclude body1="right_ankle_rod_link" body2="left_base_link"/>
     <exclude body1="right_ankle_rod_link" body2="left_link_001"/>
     <exclude body1="right_ankle_rod_link" body2="left_link_002"/>
@@ -461,6 +548,9 @@
     <exclude body1="right_ankle_rod_link" body2="right_link_001"/>
     <exclude body1="right_ankle_rod_link" body2="right_link_002"/>
     <exclude body1="right_ankle_rod_link" body2="right_link_003"/>
+    <exclude body1="right_ankle_rod_link" body2="head_base_link"/>
+    <exclude body1="right_ankle_rod_link" body2="neck_yaw_link"/>
+    <exclude body1="right_ankle_rod_link" body2="neck_pitch_link"/>
     <exclude body1="left_base_link" body2="left_link_001"/>
     <exclude body1="left_base_link" body2="left_link_002"/>
     <exclude body1="left_base_link" body2="left_link_003"/>
@@ -470,6 +560,9 @@
     <exclude body1="left_base_link" body2="right_link_002"/>
     <exclude body1="left_base_link" body2="right_link_003"/>
     <exclude body1="left_base_link" body2="right_link_004"/>
+    <exclude body1="left_base_link" body2="head_base_link"/>
+    <exclude body1="left_base_link" body2="neck_yaw_link"/>
+    <exclude body1="left_base_link" body2="neck_pitch_link"/>
     <exclude body1="left_link_001" body2="left_link_002"/>
     <exclude body1="left_link_001" body2="left_link_003"/>
     <exclude body1="left_link_001" body2="left_link_004"/>
@@ -478,6 +571,9 @@
     <exclude body1="left_link_001" body2="right_link_002"/>
     <exclude body1="left_link_001" body2="right_link_003"/>
     <exclude body1="left_link_001" body2="right_link_004"/>
+    <exclude body1="left_link_001" body2="head_base_link"/>
+    <exclude body1="left_link_001" body2="neck_yaw_link"/>
+    <exclude body1="left_link_001" body2="neck_pitch_link"/>
     <exclude body1="left_link_002" body2="left_link_003"/>
     <exclude body1="left_link_002" body2="left_link_004"/>
     <exclude body1="left_link_002" body2="right_base_link"/>
@@ -485,27 +581,52 @@
     <exclude body1="left_link_002" body2="right_link_002"/>
     <exclude body1="left_link_002" body2="right_link_003"/>
     <exclude body1="left_link_002" body2="right_link_004"/>
+    <exclude body1="left_link_002" body2="head_base_link"/>
+    <exclude body1="left_link_002" body2="neck_yaw_link"/>
+    <exclude body1="left_link_002" body2="neck_pitch_link"/>
     <exclude body1="left_link_003" body2="left_link_004"/>
     <exclude body1="left_link_003" body2="right_base_link"/>
     <exclude body1="left_link_003" body2="right_link_001"/>
     <exclude body1="left_link_003" body2="right_link_002"/>
     <exclude body1="left_link_003" body2="right_link_003"/>
     <exclude body1="left_link_003" body2="right_link_004"/>
+    <exclude body1="left_link_003" body2="head_base_link"/>
+    <exclude body1="left_link_003" body2="neck_yaw_link"/>
+    <exclude body1="left_link_003" body2="neck_pitch_link"/>
     <exclude body1="left_link_004" body2="right_base_link"/>
     <exclude body1="left_link_004" body2="right_link_001"/>
     <exclude body1="left_link_004" body2="right_link_002"/>
     <exclude body1="left_link_004" body2="right_link_003"/>
     <exclude body1="left_link_004" body2="right_link_004"/>
+    <exclude body1="left_link_004" body2="head_base_link"/>
+    <exclude body1="left_link_004" body2="neck_yaw_link"/>
+    <exclude body1="left_link_004" body2="neck_pitch_link"/>
     <exclude body1="right_base_link" body2="right_link_001"/>
     <exclude body1="right_base_link" body2="right_link_002"/>
     <exclude body1="right_base_link" body2="right_link_003"/>
     <exclude body1="right_base_link" body2="right_link_004"/>
+    <exclude body1="right_base_link" body2="head_base_link"/>
+    <exclude body1="right_base_link" body2="neck_yaw_link"/>
+    <exclude body1="right_base_link" body2="neck_pitch_link"/>
     <exclude body1="right_link_001" body2="right_link_002"/>
     <exclude body1="right_link_001" body2="right_link_003"/>
     <exclude body1="right_link_001" body2="right_link_004"/>
+    <exclude body1="right_link_001" body2="head_base_link"/>
+    <exclude body1="right_link_001" body2="neck_yaw_link"/>
+    <exclude body1="right_link_001" body2="neck_pitch_link"/>
     <exclude body1="right_link_002" body2="right_link_003"/>
     <exclude body1="right_link_002" body2="right_link_004"/>
+    <exclude body1="right_link_002" body2="head_base_link"/>
+    <exclude body1="right_link_002" body2="neck_yaw_link"/>
+    <exclude body1="right_link_002" body2="neck_pitch_link"/>
     <exclude body1="right_link_003" body2="right_link_004"/>
+    <exclude body1="right_link_003" body2="head_base_link"/>
+    <exclude body1="right_link_003" body2="neck_yaw_link"/>
+    <exclude body1="right_link_003" body2="neck_pitch_link"/>
+    <exclude body1="right_link_004" body2="head_base_link"/>
+    <exclude body1="head_base_link" body2="neck_yaw_link"/>
+    <exclude body1="head_base_link" body2="neck_pitch_link"/>
+    <exclude body1="neck_yaw_link" body2="neck_pitch_link"/>
   </contact>
 
   <equality>
