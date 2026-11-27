@@ -1,6 +1,3 @@
-# Local dependency checkout (installed separately).
-/mjlab/
-
 # Python environments and generated caches.
 __pycache__/
 *.py[cod]
@@ -11,3 +8,14 @@ __pycache__/
 MUJOCO_LOG.TXT
 /simplified_sim.png
 /simplified_stand.png
+# Local agent handoff and progress notes
+/AGENTS.md
+/CLAUDE.md
+
+# Vendored mjlab checkout and local rollout outputs (videos, telemetry, plots).
+/mjlab/
+*.mp4
+*.npz
+/humanoid_*_20261126.json
+/diag_*.json
+/humanoid_left_leg_diagnostic_*.png

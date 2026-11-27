@@ -14,6 +14,11 @@ and mjlab's IdealPdActuatorCfg adds one <motor> per joint again, computing
 tau = clamp(kp * (q_ref - q) + kd * (dq_ref - dq), -peak, peak) like
 simplified/scripts/stand.py. Without the deletion every joint would have two motors.
 
+Frame adaptation: the source robot faces +Y. `get_spec` rotates the complete torso
+subtree -90 degrees about Z relative to `floating_base`, so mjlab's root frame has
++X forward, +Y left and +Z up. The root/IMU frame keeps identity orientation at
+reset; all CAD link-local frames, joint axes and ankle anchors stay unchanged.
+
 Joints: 22 hinges + the free joint. 18 are motorised; the 4 others are passive,
 driven through the four-bar: `*_ankle_joint` (the foot) and `*_ankle_rod_joint`.
 The motorless upper-arm twist and the two neck joints are already welded in the XML.
@@ -118,8 +123,19 @@ ZERO_POSE = EntityCfg.InitialStateCfg(
 
 
 def get_spec() -> mujoco.MjSpec:
-    """The robot XML without its <motor>s (mjlab adds them from ACTUATORS)."""
+    """Adapt the robot to mjlab's +X-forward root frame and replace its motors."""
     spec = mujoco.MjSpec.from_file(str(ROBOT_XML))
+    # The torso is the sole body subtree below floating_base and is coincident
+    # with it in the source XML. Rotate that subtree, not the free joint's initial
+    # yaw: the latter would leave physical forward along body-frame +Y.
+    torso = spec.body("torso_link")
+    rotation = np.array([np.sqrt(0.5), 0.0, 0.0, -np.sqrt(0.5)])  # wxyz
+    rotated_quat = np.empty(4)
+    mujoco.mju_mulQuat(rotated_quat, rotation, torso.quat)
+    torso.quat[:] = rotated_quat
+    rotated_pos = np.empty(3)
+    mujoco.mju_rotVecQuat(rotated_pos, torso.pos, rotation)
+    torso.pos[:] = rotated_pos
     for actuator in list(spec.actuators):
         spec.delete(actuator)
     return spec
@@ -157,6 +173,23 @@ def checkpoint() -> None:
     mass = float(model.body_mass.sum())
     check(abs(mass - TOTAL_MASS) < 0.01, f"mass {mass:.3f} kg (expected {TOTAL_MASS})")
     check(not entity.is_fixed_base, "floating base (free joint)")
+
+    # Source torso +Y is physical forward. Verify its direction in the *root*
+    # frame, rather than world space, so a root yaw cannot mask a bad adaptation.
+    root_rot = data.xmat[model.body("floating_base").id].reshape(3, 3)
+    torso_rot = data.xmat[model.body("torso_link").id].reshape(3, 3)
+    forward_b = root_rot.T @ torso_rot[:, 1]
+    up_b = root_rot.T @ torso_rot[:, 2]
+    check(
+        bool(np.allclose(forward_b, [1.0, 0.0, 0.0], atol=1e-8))
+        and bool(np.allclose(up_b, [0.0, 0.0, 1.0], atol=1e-8)),
+        "root frame: +X forward and +Z up",
+    )
+    left_right = (
+        data.site_xpos[model.site("left_foot").id]
+        - data.site_xpos[model.site("right_foot").id]
+    )
+    check((root_rot.T @ left_right)[1] > 0.0, "left foot on root-frame +Y side")
 
     # Actuators: exactly one motor per motorised joint, none on passive joints.
     hinge_names = [

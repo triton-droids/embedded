@@ -196,7 +196,7 @@ def main() -> None:
     with mujoco.viewer.launch_passive(sim.mj_model, cpu) as viewer:
         viewer.cam.lookat[:] = [0.0, 0.0, 0.5]
         viewer.cam.distance = 2.5
-        viewer.cam.azimuth = 90.0  # robot faces +y: look at its front
+        viewer.cam.azimuth = 0.0  # mjlab robot faces +x: look at its front
         viewer.cam.elevation = -10.0
         while viewer.is_running():
             start = time.time()

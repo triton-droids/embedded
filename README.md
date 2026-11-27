@@ -86,6 +86,21 @@ python3 scripts/stand.py --headless    # 10 s standing test; without --headless 
   ankle kp 20 tips the robot over within 2 s, so `stand.py` uses `--ankle-kp 150 --ankle-kd 3`. It then stands with about
   2° lean, using under 35% of peak torque.
 
+## mjlab coordinate convention
+
+The mjlab adapter in [`humanoid_mjlab/src/humanoid_mjlab/robot.py`](humanoid_mjlab/src/humanoid_mjlab/robot.py)
+rotates the complete `torso_link` subtree by -90 degrees about Z relative to
+`floating_base`. This makes the **mjlab floating-root frame +X forward, +Y left,
++Z up**, with identity root orientation at the standing reset. A forward velocity
+command therefore uses positive `lin_vel_x` and zero `lin_vel_y`.
+
+The source URDF/MJCF and all CAD link-local frames retain their original conventions
+(torso +Y forward). Joint signs, inertias and ankle-linkage anchors are preserved.
+Use the floating-root frame for mjlab velocity commands and heading calculations.
+
+Verify the adapted model with `mjlab/.venv/bin/python -m humanoid_mjlab.robot`,
+then run `mjlab/.venv/bin/python -m humanoid_mjlab.stand --headless` for the standing check.
+
 ## Simplified vs detailed
 
 ### Identical in both
