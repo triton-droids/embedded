@@ -14555,10 +14555,10 @@
 
   <link name="neck_yaw_link">
     <inertial>
-      <origin xyz="0.0228211 -0.0099071 0.11579" rpy="0 0 0"/>
-      <mass value="0.1833"/>
-      <inertia ixx="2.3008e-04" ixy="2.8095e-05" ixz="-4.5993e-05"
-               iyy="7.6666e-04" iyz="-1.8255e-05" izz="6.4109e-04"/>
+      <origin xyz="0.0205729 0.0286503 0.115838" rpy="0 0 0"/>
+      <mass value="0.1829"/>
+      <inertia ixx="3.2549e-04" ixy="-5.9250e-06" ixz="-5.6147e-05"
+               iyy="7.5074e-04" iyz="-1.0050e-04" izz="7.2102e-04"/>
     </inertial>
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -14668,7 +14668,7 @@
   <joint name="neck_pitch_joint" type="revolute">
     <parent link="neck_yaw_link"/>
     <child link="neck_pitch_link"/>
-    <origin xyz="0 0 0.141" rpy="0 0 0"/>
+    <origin xyz="0 0.05 0.141" rpy="0 0 0"/>
     <axis xyz="1 0 0"/>
     <limit lower="-1.3090" upper="1.3090" effort="1.9" velocity="4.7"/>
     <dynamics damping="0.05"/>

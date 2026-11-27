@@ -103,7 +103,7 @@ torso_link
 └── head_base_link        head_mount_joint (fixed): x 0, y 0.0324, z 0.3914 (adapter plate on the rails,
     │                     tray front flush with the front rail)
     └── neck_yaw_link     neck_yaw_joint, z axis, ±100°, + turns the camera to the robot's left
-        └── neck_pitch_link   neck_pitch_joint, x axis, ±75°, + tilts the camera up (axis 0.141 m above the plate)
+        └── neck_pitch_link   neck_pitch_joint, x axis, ±75°, + tilts the camera up (axis 50 mm ahead of the yaw axis, 0.141 m above the plate)
             ├── camera_link   D435 depth origin, ROS convention (x forward, y left, z up)
             └── head_imu_link
 ```
