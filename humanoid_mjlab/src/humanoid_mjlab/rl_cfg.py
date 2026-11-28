@@ -10,10 +10,11 @@ from mjlab.rl import (
 )
 
 
-def make_rl_cfg() -> RslRlOnPolicyRunnerCfg:
+def make_rl_cfg(*, navigation: bool = False) -> RslRlOnPolicyRunnerCfg:
+    hidden_dims = (768, 512, 256) if navigation else (512, 256, 128)
     return RslRlOnPolicyRunnerCfg(
         actor=RslRlModelCfg(
-            hidden_dims=(512, 256, 128),
+            hidden_dims=hidden_dims,
             activation="elu",
             obs_normalization=True,
             distribution_cfg={
@@ -23,7 +24,7 @@ def make_rl_cfg() -> RslRlOnPolicyRunnerCfg:
             },
         ),
         critic=RslRlModelCfg(
-            hidden_dims=(512, 256, 128),
+            hidden_dims=hidden_dims,
             activation="elu",
             obs_normalization=True,
         ),
@@ -41,7 +42,7 @@ def make_rl_cfg() -> RslRlOnPolicyRunnerCfg:
             desired_kl=0.01,
             max_grad_norm=1.0,
         ),
-        experiment_name="humanoid_forward",
+        experiment_name="humanoid_navigation" if navigation else "humanoid_forward",
         save_interval=50,  # iterations between checkpoints
         num_steps_per_env=24,
         max_iterations=5_000,

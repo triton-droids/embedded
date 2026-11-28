@@ -6,6 +6,8 @@ this robot is set here.
 
 from dataclasses import dataclass
 
+import torch
+
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs import mdp as envs_mdp
 from mjlab.managers.observation_manager import ObservationTermCfg
@@ -27,6 +29,7 @@ from mjlab.tasks.velocity.velocity_env_cfg import make_velocity_env_cfg
 from humanoid_mjlab.crouch import joint_target_bounds, walking_robot_cfg
 
 FORWARD_SPEED = 0.5  # m/s, root frame +X
+NAV_YAW_RATE = 0.6  # rad/s, positive turns left
 FOOT_CLEARANCE = 0.10  # m, mjlab G1 clearance and swing-height target
 MIN_TORSO_HEIGHT = 0.50  # m; normal crouch holds the torso origin near 0.66 m
 FOOT_SITES = ("left_foot", "right_foot")
@@ -84,6 +87,35 @@ class FixedVelocityCommandCfg(UniformVelocityCommandCfg):
         return FixedVelocityCommand(self, env)
 
 
+class NavigationVelocityCommand(FixedVelocityCommand):
+    def _resample_command(self, env_ids: torch.Tensor) -> None:
+        super()._resample_command(env_ids)
+        # Include zero-forward turns and exact straight walking in the training mix.
+        pivot = torch.rand(len(env_ids), device=self.device) < self.cfg.pivot_fraction
+        pivot &= ~(self.is_forward_env[env_ids] | self.is_standing_env[env_ids])
+        self.vel_command_b[env_ids[pivot], 0] = 0.0
+
+
+@dataclass(kw_only=True)
+class NavigationVelocityCommandCfg(FixedVelocityCommandCfg):
+    pivot_fraction: float = 0.2
+
+    def build(self, env) -> NavigationVelocityCommand:
+        return NavigationVelocityCommand(self, env)
+
+
+def track_planar_velocity(env, std: float, command_name: str):
+    command = env.command_manager.get_command(command_name)
+    actual = env.scene["robot"].data.root_link_lin_vel_b[:, :2]
+    return torch.exp(-(command[:, :2] - actual).square().sum(dim=1) / std**2)
+
+
+def track_yaw_rate(env, std: float, command_name: str):
+    command = env.command_manager.get_command(command_name)
+    actual = env.scene["robot"].data.root_link_ang_vel_b[:, 2]
+    return torch.exp(-(command[:, 2] - actual).square() / std**2)
+
+
 def motor_joints() -> SceneEntityCfg:
     """The 18 motor joints, without the four passive ankle joints."""
     return SceneEntityCfg("robot", joint_names=tuple(ACTION_SCALE))
@@ -112,7 +144,7 @@ def single_support_air_time(
     return reward * exactly_one_grounded
 
 
-def make_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
+def make_env_cfg(play: bool = False, *, navigation: bool = False) -> ManagerBasedRlEnvCfg:
     cfg = make_velocity_env_cfg()
 
     # Robot and flat ground.
@@ -149,6 +181,22 @@ def make_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
             ang_vel_z=(0.0, 0.0),
         ),
     )
+
+    if navigation:
+        cfg.commands["twist"] = NavigationVelocityCommandCfg(
+            entity_name="robot",
+            resampling_time_range=(1.0, 3.0),
+            heading_command=False,
+            rel_heading_envs=0.0,
+            rel_world_envs=0.0,
+            rel_standing_envs=0.15,
+            rel_forward_envs=0.25,
+            ranges=UniformVelocityCommandCfg.Ranges(
+                lin_vel_x=(0.0, FORWARD_SPEED),
+                lin_vel_y=(0.0, 0.0),
+                ang_vel_z=(-NAV_YAW_RATE, NAV_YAW_RATE),
+            ),
+        )
 
     # Foot sensors. The terrain scan is not needed on flat ground.
     foot_height = next(s for s in cfg.scene.sensors if s.name == "foot_height_scan")
@@ -199,6 +247,16 @@ def make_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
         rewards[name].params["target_height"] = FOOT_CLEARANCE
     del rewards["angular_momentum"]  # needs a sensor the robot model does not have
     # G1's self-collision cost is omitted: this model disables self-collision.
+
+    if navigation:
+        # Score XY and yaw directly. The existing upright and roll/pitch terms
+        # continue to penalize tipping while leaving commanded yaw free.
+        rewards["track_linear_velocity"].func = track_planar_velocity
+        rewards["track_linear_velocity"].weight = 3.0
+        rewards["track_linear_velocity"].params["std"] = 0.25
+        rewards["track_angular_velocity"].func = track_yaw_rate
+        rewards["track_angular_velocity"].weight = 3.0
+        rewards["track_angular_velocity"].params["std"] = 0.30
 
     # Resets: fitted crouch, zero velocity, including consistent passive joints.
     cfg.events["reset_base"].params["pose_range"] = {}

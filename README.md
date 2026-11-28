@@ -101,6 +101,57 @@ Use the floating-root frame for mjlab velocity commands and heading calculations
 Verify the adapted model with `mjlab/.venv/bin/python -m humanoid_mjlab.robot`,
 then run `mjlab/.venv/bin/python -m humanoid_mjlab.stand --headless` for the standing check.
 
+## mjlab navigation training and evaluation
+
+The navigation actor uses the same 66 inputs as forward walking: body-frame
+linear and angular velocity, projected gravity, offsets and velocities for
+18 motor joints, 18 previous actions, and the three-value body-frame twist
+command. The actor and critic use hidden layers of 768, 512, and 256 units.
+PPO samples forward walking up to 0.5 m/s, turns up to ±0.6 rad/s, pivot turns,
+and standing. The navigation rewards increase the weights of planar velocity
+and yaw-rate tracking to 3 and use error scales of 0.25 m/s and 0.30 rad/s.
+Each tracking term scores 3 at zero error. At an instantaneous error of
+0.10 m/s or 0.10 rad/s the scores are 2.56 and 2.68, respectively. mjlab's
+training logs divide the episode totals by the configured episode duration,
+so short episodes can log low values even when individual steps track well.
+The upright and roll/pitch terms remain active.
+
+The Antioch run used mjlab revision `a982b2105607524dd5f3567e12ae6cbc325113de`.
+With that checkout and its CUDA environment in `mjlab/`:
+
+```bash
+export PYTHONPATH=humanoid_mjlab/src MUJOCO_GL=disable
+mjlab/.venv/bin/python -m humanoid_mjlab.train Mjlab-Velocity-Flat-Humanoid-Navigation \
+  --env.scene.num-envs 2048 --agent.logger tensorboard --agent.run-name rrtstar_nav_v1
+```
+
+Set `CHECKPOINT` to a trained file under
+`logs/rsl_rl/humanoid_navigation/<run>/model_*.pt`. The benchmark reports
+planar velocity and yaw-rate RMSE, mean tracking rewards, drift, and early
+terminations for straight, slow, stop, walking turns, and pivot commands. Use `--profile forward` for a
+checkpoint from the original forward task.
+
+```bash
+mjlab/.venv/bin/python -m humanoid_mjlab.evaluate_navigation benchmark \
+  --checkpoint "$CHECKPOINT" --output /tmp/mjlab-benchmark.json
+```
+
+Plan and follow an obstacle detour on a static map. Map coordinates are in meters
+and rectangles use `[xmin,ymin,xmax,ymax]`. The robot spawns at map `start`
+with its default +X heading. Clearance covers the footprint radius and tracking
+margin. The path follower checks the simulated root motion against these map
+obstacles, which are virtual. Goal success means the root entered the goal
+tolerance; the walk-then-stop benchmark measures braking separately.
+
+```bash
+cat > /tmp/mjlab-map.json <<'JSON'
+{"bounds":[0,0,6,5],"obstacles":[[2.5,0,3.5,3]],"start":[1,1],"goal":[5,1]}
+JSON
+python -m humanoid_mjlab.plan_path /tmp/mjlab-map.json --clearance 0.5
+mjlab/.venv/bin/python -m humanoid_mjlab.evaluate_navigation navigate /tmp/mjlab-map.json \
+  --clearance 0.5 --checkpoint "$CHECKPOINT" --output /tmp/mjlab-navigation.json
+```
+
 ## Simplified vs detailed
 
 ### Identical in both

@@ -13,3 +13,12 @@ register_mjlab_task(
     rl_cfg=make_rl_cfg(),
     runner_cls=VelocityOnPolicyRunner,
 )
+
+
+register_mjlab_task(
+    task_id="Mjlab-Velocity-Flat-Humanoid-Navigation",
+    env_cfg=make_env_cfg(navigation=True),
+    play_env_cfg=make_env_cfg(play=True, navigation=True),
+    rl_cfg=make_rl_cfg(navigation=True),
+    runner_cls=VelocityOnPolicyRunner,
+)
