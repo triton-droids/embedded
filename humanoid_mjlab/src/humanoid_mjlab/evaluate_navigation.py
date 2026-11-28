@@ -208,7 +208,10 @@ def main() -> int:
             ):
                 raise ValueError("tracking error limit must be finite and at least the positive goal tolerance")
             map_ = PlanningMap.load(args.map, args.clearance)
-            path = plan_path(map_, step_size=args.step_size, iterations=args.iterations, seed=args.seed)
+            path = plan_path(
+                map_, step_size=args.step_size, iterations=args.iterations, seed=args.seed,
+                tracking_buffer=args.tracking_buffer,
+            )
         report = (
             {"status": "search_exhausted"}
             if map_ is not None and path is None
@@ -221,6 +224,12 @@ def main() -> int:
             "mode": args.mode,
             "result": report,
         }
+        if map_ is not None:
+            result.update(
+                clearance_m=map_.clearance,
+                tracking_buffer_m=args.tracking_buffer,
+                planning_clearance_m=map_.clearance + args.tracking_buffer,
+            )
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result, indent=2) + "\n")
         print(args.output)

@@ -11,8 +11,8 @@ class NavigationTests(unittest.TestCase):
             (0.0, 0.0, 6.0, 5.0), ((2.5, 0.0, 3.5, 3.0),),
             (1.0, 1.0), (5.0, 1.0), 0.3,
         )
-        short = plan_path(world, iterations=150)
-        long = plan_path(world, iterations=900)
+        short = plan_path(world, iterations=150, tracking_buffer=0)
+        long = plan_path(world, iterations=900, tracking_buffer=0)
         self.assertIsNotNone(short)
         self.assertIsNotNone(long)
         self.assertEqual((long[0], long[-1]), (world.start, world.goal))
@@ -21,6 +21,23 @@ class NavigationTests(unittest.TestCase):
             sum(math.dist(a, b) for a, b in zip(long, long[1:])),
             sum(math.dist(a, b) for a, b in zip(short, short[1:])),
         )
+
+    def test_plan_reserves_tracking_buffer(self):
+        bounds = (0.0, 0.0, 6.0, 5.0)
+        obstacles = ((2.5, 0.0, 3.5, 3.0),)
+        start, goal = (1.0, 1.0), (5.0, 1.0)
+        world = PlanningMap(bounds, obstacles, start, goal, 0.50)
+        path = plan_path(world)
+        planning_world = PlanningMap(bounds, obstacles, start, goal, 0.75)
+        self.assertIsNotNone(path)
+        self.assertTrue(all(planning_world.edge_clear(a, b) for a, b in zip(path, path[1:])))
+        self.assertEqual(world.clearance, 0.50)
+
+    def test_plan_rejects_start_inside_tracking_buffer(self):
+        world = PlanningMap((0.0, 0.0, 4.0, 4.0), (), (0.6, 1.0), (3.0, 1.0), 0.50)
+        self.assertEqual(plan_path(world, tracking_buffer=0), [world.start, world.goal])
+        with self.assertRaisesRegex(ValueError, "tracking buffer.*start"):
+            plan_path(world)
 
     def test_unreachable_goal(self):
         world = PlanningMap(

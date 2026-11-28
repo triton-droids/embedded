@@ -4,11 +4,12 @@ import argparse
 import json
 import math
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 Point = tuple[float, float]
 Rectangle = tuple[float, float, float, float]
+DEFAULT_TRACKING_BUFFER = 0.25  # meters beyond the execution clearance
 
 
 def _offset(box: Rectangle, margin: float) -> Rectangle:
@@ -112,10 +113,17 @@ class _Node:
 
 def plan_path(
     map_: PlanningMap, *, step_size: float = 0.5, iterations: int = 2000, seed: int = 42,
+    tracking_buffer: float = DEFAULT_TRACKING_BUFFER,
 ) -> list[Point] | None:
     """Choose lower-cost parents, rewire neighbors, and return the best goal connection."""
     if not math.isfinite(step_size) or step_size <= 0 or iterations < 1:
         raise ValueError("step size and iteration budget must be positive")
+    if not math.isfinite(tracking_buffer) or tracking_buffer < 0:
+        raise ValueError("tracking buffer must be finite and nonnegative")
+    try:
+        map_ = replace(map_, clearance=map_.clearance + tracking_buffer)
+    except ValueError as exc:
+        raise ValueError(f"with the {tracking_buffer:g} m tracking buffer, {exc}") from exc
     start, goal = map_.start, map_.goal
     if start == goal:
         return [start]
@@ -179,6 +187,10 @@ def plan_path(
 def add_planning_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("map", type=Path, help="JSON map with bounds, obstacles, start and goal in meters")
     parser.add_argument("--clearance", type=float, required=True, help="Footprint radius plus margin, in meters")
+    parser.add_argument(
+        "--tracking-buffer", type=float, default=DEFAULT_TRACKING_BUFFER,
+        help="Extra planning clearance from obstacles and map edges in meters (default: %(default)s)",
+    )
     parser.add_argument("--step-size", type=float, default=0.5)
     parser.add_argument("--iterations", type=int, default=2000)
     parser.add_argument("--seed", type=int, default=42)
@@ -191,12 +203,17 @@ def main() -> int:
     args = parser.parse_args()
     try:
         map_ = PlanningMap.load(args.map, args.clearance)
-        path = plan_path(map_, step_size=args.step_size, iterations=args.iterations, seed=args.seed)
+        path = plan_path(
+            map_, step_size=args.step_size, iterations=args.iterations, seed=args.seed,
+            tracking_buffer=args.tracking_buffer,
+        )
         encoded = json.dumps({
             "status": "planned" if path is not None else "search_exhausted",
             "waypoints_xy_m": path or [],
             "length_m": math.fsum(math.dist(a, b) for a, b in zip(path, path[1:])) if path else None,
             "clearance_m": map_.clearance,
+            "tracking_buffer_m": args.tracking_buffer,
+            "planning_clearance_m": map_.clearance + args.tracking_buffer,
         }, indent=2)
         if args.output:
             args.output.write_text(encoded + "\n")

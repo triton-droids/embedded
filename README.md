@@ -126,7 +126,8 @@ mjlab/.venv/bin/python -m humanoid_mjlab.train Mjlab-Velocity-Flat-Humanoid-Navi
 ```
 
 Set `CHECKPOINT` to a trained file under
-`logs/rsl_rl/humanoid_navigation/<run>/model_*.pt`. The benchmark reports
+`logs/rsl_rl/humanoid_navigation/<run>/model_*.pt`. Archived runs put weights in
+`runs/<run>/checkpoints/` and recordings in `runs/<run>/videos/`. The benchmark reports
 planar velocity and yaw-rate RMSE, mean tracking rewards, drift, and early
 terminations for straight, slow, stop, walking turns, and pivot commands. Use `--profile forward` for a
 checkpoint from the original forward task.
@@ -138,10 +139,15 @@ mjlab/.venv/bin/python -m humanoid_mjlab.evaluate_navigation benchmark \
 
 Plan and follow an obstacle detour on a static map. Map coordinates are in meters
 and rectangles use `[xmin,ymin,xmax,ymax]`. The robot spawns at map `start`
-with its default +X heading. Clearance covers the footprint radius and tracking
-margin. The path follower checks the simulated root motion against these map
-obstacles, which are virtual. Goal success means the root entered the goal
-tolerance; the walk-then-stop benchmark measures braking separately.
+with its default +X heading. Set `--clearance` to the footprint radius plus
+the minimum separation you want during execution. RRT* keeps an additional
+`--tracking-buffer` (0.25 m by default) from obstacles and map borders so the
+robot has room for tracking error. With `--clearance 0.5`, planned segments
+stay at least 0.75 m from those boundaries. A corridor must accommodate that
+planning clearance on both sides. The path follower checks the simulated
+root motion against the execution clearance on the virtual map. Goal success
+means the root entered the goal tolerance. The walk-then-stop benchmark
+measures braking.
 
 ```bash
 cat > /tmp/mjlab-map.json <<'JSON'
