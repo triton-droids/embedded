@@ -158,6 +158,13 @@ mjlab/.venv/bin/python -m humanoid_mjlab.evaluate_navigation navigate /tmp/mjlab
   --clearance 0.5 --checkpoint "$CHECKPOINT" --output /tmp/mjlab-navigation.json
 ```
 
+Add `--follower pd` to steer toward a visible point ahead on the route and
+damp turns using the measured yaw rate. This controller brakes before the
+goal and requires a settled stop within the goal tolerance. To compare
+stopping behavior across controllers, pass `--goal-hold 1` to both runs and
+compare their goal-entry speeds and the distance traveled after entering
+the goal tolerance.
+
 ## Simplified vs detailed
 
 ### Identical in both

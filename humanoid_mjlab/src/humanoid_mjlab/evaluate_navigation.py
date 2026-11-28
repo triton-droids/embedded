@@ -5,7 +5,7 @@ import json
 import math
 from pathlib import Path
 
-from humanoid_mjlab.path_follower import PathFollower, Twist, angle_error
+from humanoid_mjlab.path_follower import LookaheadFollower, PathFollower, Twist, angle_error
 from humanoid_mjlab.plan_path import PlanningMap, Point, add_planning_args, plan_path
 
 
@@ -50,7 +50,15 @@ def run(args, map_: PlanningMap | None, path: list[Point] | None) -> dict:
     class ReplayCommand(FixedVelocityCommand):
         def _update_command(self, env_ids=None) -> None:
             if follower is not None:
-                command = follower.update(*pose(self.robot, self._env))
+                point, heading = pose(self.robot, self._env)
+                if isinstance(follower, LookaheadFollower):
+                    vx, vy = self.robot.data.root_link_lin_vel_b[0, :2].tolist()
+                    yaw = float(self.robot.data.root_link_ang_vel_w[0, 2])
+                    command = follower.update(
+                        point, heading, planar_speed=math.hypot(vx, vy), measured_yaw_rate=yaw,
+                    )
+                else:
+                    command = follower.update(point, heading)
             else:
                 command = schedule[0][1] if schedule else (0.0, 0.0, 0.0)
                 for start, candidate in schedule[1:]:
@@ -91,12 +99,21 @@ def run(args, map_: PlanningMap | None, path: list[Point] | None) -> dict:
         linear_reward, yaw_reward = 0.0, 0.0
         velocity_sum = [0.0, 0.0, 0.0]
         lateral_peak = 0.0
+        goal_entry_speed = None
+        goal_entry_time = None
+        goal_hold = getattr(args, "goal_hold", 0.0)
+        distance_after_goal_entry = 0.0
         samples = 0
         status = "completed"
         for tick in range(math.ceil(args.duration / env.step_dt)):
             if follower and follower.status != "tracking":
-                status = follower.status
-                break
+                holding = (
+                    follower.status == "reached_goal" and goal_entry_time is not None
+                    and elapsed - goal_entry_time + 1e-9 < goal_hold
+                )
+                if not holding:
+                    status = follower.status
+                    break
             actions = policy(obs)
             if not bool(torch.isfinite(actions).all()):
                 status = "invalid_action"
@@ -118,21 +135,35 @@ def run(args, map_: PlanningMap | None, path: list[Point] | None) -> dict:
             for i, value in enumerate((vx, vy, yaw)):
                 velocity_sum[i] += value
             samples += 1
-            distance += math.dist(previous, point)
+            travel = math.dist(previous, point)
+            distance += travel
+            if follower is not None:
+                if goal_entry_speed is not None:
+                    distance_after_goal_entry += travel
+                elif math.dist(point, map_.goal) <= follower.tolerance:
+                    goal_entry_speed = math.hypot(vx, vy)
+                    goal_entry_time = elapsed
+            clearance_breached_during_hold = (
+                follower is not None and follower.status == "reached_goal"
+                and not map_.edge_clear(previous, point)
+            )
             yaw_displacement += angle_error(heading, previous_heading)
             dx, dy = point[0] - start[0], point[1] - start[1]
             lateral = -math.sin(initial_heading) * dx + math.cos(initial_heading) * dy
             lateral_peak = max(lateral_peak, abs(lateral))
             previous, previous_heading = point, heading
+            if clearance_breached_during_hold:
+                status = "clearance_violation"
+                break
             if bool(done[0]):
                 status = "terminated"
                 break
-            if follower and follower.status != "tracking":
-                status = follower.status
-                break
-        if follower and status == "completed":
-            status = "timeout"
-        return {
+        if follower:
+            if status == "completed":
+                status = "timeout" if follower.status == "tracking" else follower.status
+            if status == "reached_goal" and math.dist(previous, map_.goal) > follower.tolerance:
+                status = "goal_tolerance_lost"
+        report = {
             "status": status,
             "seconds": elapsed,
             "initial_xy_m": start,
@@ -149,6 +180,13 @@ def run(args, map_: PlanningMap | None, path: list[Point] | None) -> dict:
             "mean_twist_body": [value / samples for value in velocity_sum] if samples else None,
             "last_twist_body": (vx, vy, yaw) if samples else None,
         }
+        if follower is not None:
+            report.update(
+                goal_entry_speed_mps=goal_entry_speed,
+                distance_after_goal_entry_m=distance_after_goal_entry if goal_entry_speed is not None else None,
+                observed_seconds_after_goal_entry=elapsed - goal_entry_time if goal_entry_time is not None else None,
+            )
+        return report
 
     try:
         runner = VelocityOnPolicyRunner(wrapped, asdict(agent_cfg), device=args.device)
@@ -156,10 +194,14 @@ def run(args, map_: PlanningMap | None, path: list[Point] | None) -> dict:
         policy = runner.get_inference_policy(device=args.device)
         with torch.inference_mode():
             if map_ is not None and path is not None:
-                follower = PathFollower(
-                    map_, path, speed=args.speed, yaw_rate=args.yaw_rate,
-                    tolerance=args.goal_tolerance, max_tracking_error=args.max_tracking_error,
-                )
+                follower_options = {
+                    "speed": args.speed, "yaw_rate": args.yaw_rate,
+                    "tolerance": args.goal_tolerance, "max_tracking_error": args.max_tracking_error,
+                }
+                if getattr(args, "follower", "waypoint") == "pd":
+                    follower = LookaheadFollower(map_, path, step_dt=env.step_dt, **follower_options)
+                else:
+                    follower = PathFollower(map_, path, **follower_options)
                 report = episode([])
                 report.update(
                     waypoints_xy_m=path,
@@ -192,6 +234,14 @@ def main() -> int:
     navigate.add_argument("--yaw-rate", type=float, default=0.6)
     navigate.add_argument("--goal-tolerance", type=float, default=0.07)
     navigate.add_argument("--max-tracking-error", type=float, default=0.18)
+    navigate.add_argument(
+        "--goal-hold", type=float, default=0.0,
+        help="Observe motion until at least this many seconds after entering the goal tolerance",
+    )
+    navigate.add_argument(
+        "--follower", choices=("waypoint", "pd"), default="waypoint",
+        help="Use the waypoint controller or try lookahead, yaw damping and goal braking",
+    )
     args = parser.parse_args()
     if not args.checkpoint.is_file():
         parser.error(f"checkpoint not found: {args.checkpoint}")
@@ -202,6 +252,8 @@ def main() -> int:
         if args.mode == "navigate":
             if not (0 < args.speed <= 0.5 and 0 < args.yaw_rate <= 0.6):
                 raise ValueError("speed and yaw rate must be within the navigation training ranges")
+            if not math.isfinite(args.goal_hold) or args.goal_hold < 0:
+                raise ValueError("goal hold time must be finite and nonnegative")
             if not (
                 0 < args.goal_tolerance <= args.max_tracking_error
                 and math.isfinite(args.max_tracking_error)
@@ -229,6 +281,8 @@ def main() -> int:
                 clearance_m=map_.clearance,
                 tracking_buffer_m=args.tracking_buffer,
                 planning_clearance_m=map_.clearance + args.tracking_buffer,
+                follower=args.follower,
+                goal_hold_s=args.goal_hold,
             )
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result, indent=2) + "\n")

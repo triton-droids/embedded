@@ -1,7 +1,7 @@
 import math
 import unittest
 
-from humanoid_mjlab.path_follower import PathFollower
+from humanoid_mjlab.path_follower import LookaheadFollower, PathFollower
 from humanoid_mjlab.plan_path import PlanningMap, plan_path
 
 
@@ -64,6 +64,31 @@ class NavigationTests(unittest.TestCase):
         follower = self._follower(world)
         self.assertEqual(follower.update(world.goal, 0.0), (0.0, 0.0, 0.0))
         self.assertEqual(follower.status, "clearance_violation")
+
+    def test_pd_damps_turn_and_limits_started_speed(self):
+        world = PlanningMap((-1, -1, 3, 3), (), (0, 0), (2, 0), 0.3)
+        follower = self._pd_follower(world)
+        forward, _, undamped = follower.update(world.start, -0.2)
+        _, _, damped = follower.update(world.start, -0.2, measured_yaw_rate=0.3)
+        self.assertAlmostEqual(forward, follower.acceleration * follower.step_dt)
+        self.assertGreater(damped, 0.0)
+        self.assertLess(damped, undamped)
+
+    def test_pd_waits_for_the_robot_to_settle_at_the_goal(self):
+        world = PlanningMap((-1, -1, 3, 3), (), (0, 0), (2, 0), 0.3)
+        follower = self._pd_follower(world)
+        self.assertEqual(follower.update(world.goal, 0.0, planar_speed=0.15), (0.0, 0.0, 0.0))
+        self.assertEqual(follower.status, "tracking")
+        for _ in range(16):
+            follower.update(world.goal, 0.0)
+        self.assertEqual(follower.status, "reached_goal")
+
+    @staticmethod
+    def _pd_follower(world):
+        return LookaheadFollower(
+            world, [world.start, world.goal], speed=0.35, yaw_rate=0.6,
+            tolerance=0.07, max_tracking_error=0.18, step_dt=0.02,
+        )
 
     @staticmethod
     def _follower(world):
