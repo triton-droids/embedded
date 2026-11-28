@@ -23,7 +23,8 @@ from motor_control_interfaces.srv import ExecuteMotorOperation, GetMotorFeedback
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from robstride_dynamics import CommunicationType, Motor, ParameterType, RobstrideBus
-from motor_control_hybrid.motor_configuration import validate_registry
+from motor_control_hybrid.motor_configuration import (
+    CAN_TIMEOUT_INDEX, CAN_TIMEOUT_TICKS_PER_S, parameter_payload, validate_registry)
 from motor_control_hybrid.can_transport import NonblockingRobstrideBus, LatestCommandMailbox
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool, String
@@ -101,12 +102,27 @@ class PythonCanNode(Node):
         self.enable_reports = {}
         self.enable_report_lock = threading.Lock()
         self._awaiting_enable_ack = threading.Event()
+        # Verified ENABLE: joint -> (submitted_at, last read request) while its
+        # firmware parameters are written and read back; the ENABLE frame is
+        # sent only after every value matches. TX-thread owned.
+        self.firmware_pending = {}
+        # (joint, index) -> (value bytes, host monotonic receipt) of type-17 replies.
+        self.param_readback = {}
+        # joint -> host monotonic time its enable was confirmed (Motor mode).
+        self.enabled_at = {}
         self.tx_period_s = 1.0 / publish_rate if publish_rate > 0.0 else 0.02
         self._tx_wakeup = threading.Event()
         self.transport_fault = threading.Event()
         self.running = True
         self.timing = {'tx_cycles': 0, 'tx_max_work_ms': 0.0, 'tx_errors': 0,
                        'rx_frames': 0, 'rx_ignored': 0}
+        for joint, settings in self.motor_settings.items():
+            for index, _, name, value in settings.firmware_writes:
+                seconds = value / CAN_TIMEOUT_TICKS_PER_S
+                if index == CAN_TIMEOUT_INDEX and seconds <= self.command_timeout_s:
+                    raise ValueError(f'{joint}: firmware_can_timeout_s must exceed '
+                                     f'command_timeout_s ({self.command_timeout_s}); '
+                                     'the host watchdog acts first')
         self._joint_by_motor = {
             (bus.channel, self.motor_name_by_joint[joint]): joint
             for joint, bus in self.bus_by_joint.items()}
@@ -232,6 +248,60 @@ class PythonCanNode(Node):
             except Exception as e:
                 self.get_logger().error(f'Failed to connect {iface}: {e}')
 
+    def _apply_firmware_parameters(self, bus, joint_name: str, motor_name: str, write=True):
+        """Write (motor still disabled) and request readback of firmware parameters."""
+        writes = getattr(self.motor_settings[joint_name], 'firmware_writes', ())
+        for index, kind, name, value in writes:
+            if write:
+                dtype = np.uint32 if kind == 'u32' else np.float32
+                self._write_parameter(bus, joint_name, motor_name, (index, dtype, name), value)
+            bus.read_parameter(motor_name, index)
+        return bool(writes)
+
+    def _process_firmware_readback(self):
+        """Send the deferred ENABLE once every firmware parameter reads back as written.
+
+        A missing reply is re-requested every 50 ms; a wrong value never enables
+        the motor and the ENABLE simply expires with its command deadline.
+        """
+        if not getattr(self, 'firmware_pending', None):
+            return
+        now = time.monotonic()
+        for joint, (submitted_at, requested_at) in list(self.firmware_pending.items()):
+            if joint not in self.enable_pending:
+                self.firmware_pending.pop(joint, None)
+                continue
+            bus, motor_name = self.bus_by_joint[joint], self.motor_name_by_joint[joint]
+            verified = True
+            for index, kind, name, value in self.motor_settings[joint].firmware_writes:
+                with self.state_lock:
+                    reply = self.param_readback.get((joint, index))
+                if reply is None or reply[1] < submitted_at:
+                    verified = False
+                elif reply[0] != parameter_payload(kind, value):
+                    verified = False
+                    self.get_logger().error(
+                        f'{joint}: {name} reads back {reply[0].hex()}, wrote {value}; '
+                        'motor stays disabled', throttle_duration_sec=1.0)
+            if verified:
+                # Arm before I/O: the Motor-mode ack (which may arrive before
+                # bus.enable returns) must be newer than this, not the request.
+                self.firmware_pending.pop(joint, None)
+                self.enable_pending[joint] = time.monotonic()
+            try:
+                with self.bus_locks[bus.channel]:
+                    if verified:
+                        bus.enable(motor_name)
+                    elif now - requested_at >= 0.05:
+                        self.firmware_pending[joint] = (submitted_at, now)
+                        self._apply_firmware_parameters(bus, joint, motor_name, write=False)
+            except Exception as exc:
+                self.get_logger().error(f'{joint}: firmware readback I/O failed: {exc}',
+                                        throttle_duration_sec=1.0)
+                continue
+            if verified:
+                self.get_logger().info(f'{joint}: firmware parameters verified; enable sent')
+
     def _clamp(self, value: float, min_value: float, max_value: float) -> float:
         return max(min(value, max_value), min_value)
 
@@ -314,6 +384,16 @@ class PythonCanNode(Node):
                     continue
                 sample = bus.decode_feedback(frame)
                 if sample is None:
+                    reply = (bus.decode_parameter_reply(frame)
+                             if hasattr(bus, 'decode_parameter_reply') else None)
+                    if reply is not None:
+                        joint = self._joint_by_motor.get((bus.channel, reply.motor_name))
+                        if joint is not None:
+                            with self.state_lock:
+                                self.param_readback[(joint, reply.index)] = (
+                                    reply.value, time.monotonic())
+                            self._tx_wakeup.set()
+                        continue
                     self.timing['rx_ignored'] += 1
                     continue
                 self.timing['rx_frames'] += 1
@@ -323,7 +403,12 @@ class PythonCanNode(Node):
                     received_at = time.monotonic() - age
                     source_stamp = self.get_clock().now().nanoseconds * 1e-9 - age
                     with self.state_lock:
+                        previous = self.raw_feedback.get(joint)
                         self.raw_feedback[joint] = (sample, received_at, source_stamp)
+                    if previous is not None:
+                        # Raises (latching the transport fault) on an impossible step.
+                        self.motor_settings[joint].check_feedback_step(
+                            (previous[0].position, previous[1]), (sample.position, received_at))
                 if sample.fault_bits:
                     raise RuntimeError(f'{sample.motor_name}: status fault bits 0x{sample.fault_bits:02x}')
                 if age > self.feedback_timeout_s:
@@ -418,6 +503,7 @@ class PythonCanNode(Node):
             self._tx_wakeup.clear()
             self._expire_commands()
             self._drain_command_queue()
+            self._process_firmware_readback()
             self._process_enable_reports()
             if self.estop_active.is_set() or self.transport_fault.is_set():
                 self._enforce_estop()
@@ -452,12 +538,17 @@ class PythonCanNode(Node):
         with self.enable_report_lock:
             reports = self.enable_reports.copy()
             self.enable_reports.clear()
+        firmware_pending = getattr(self, 'firmware_pending', {})
         for joint, (received_at, mode) in reports.items():
+            if joint in firmware_pending:
+                continue  # our ENABLE frame has not been sent yet; ignore stale Motor mode
             submitted_at = self.enable_pending.get(joint)
             if (submitted_at is not None and received_at >= submitted_at and mode == 2
                     and time.monotonic() < self.command_deadlines.get(joint, 0)):
                 self.enable_pending.pop(joint, None)
                 self.inhibited_since.pop(joint, None)
+                if hasattr(self, 'enabled_at'):
+                    self.enabled_at[joint] = received_at
         if not self.enable_pending:
             self._awaiting_enable_ack.clear()
 
@@ -466,6 +557,8 @@ class PythonCanNode(Node):
             return
         self.command_deadlines.clear()
         self.enable_pending.clear()
+        getattr(self, 'firmware_pending', {}).clear()
+        getattr(self, 'enabled_at', {}).clear()
         self._awaiting_enable_ack.clear()
         self.inhibited_since.update({joint: time.monotonic() for joint in self.bus_by_joint})
         with self.active_command_lock:
@@ -547,7 +640,13 @@ class PythonCanNode(Node):
                     with self.bus_locks[bus.channel]:
                         motor_name = self.motor_name_by_joint[joint_name]
                         self._set_mode_raw(bus, motor_name, 0)
-                        bus.enable(motor_name)
+                        # Arm before I/O: a readback reply may arrive before the call returns.
+                        if getattr(self.motor_settings[joint_name], 'firmware_writes', ()):
+                            now = time.monotonic()
+                            self.firmware_pending[joint_name] = (now, now)  # ENABLE deferred
+                            self._apply_firmware_parameters(bus, joint_name, motor_name)
+                        else:
+                            bus.enable(motor_name)
                         self.current_mode_by_joint[joint_name] = None
                     self.pending_disable.discard(joint_name)
                     self.command_deadlines[joint_name] = cmd['deadline']
@@ -559,6 +658,8 @@ class PythonCanNode(Node):
                         self.active_commands.pop(joint_name, None)
                     self.command_deadlines.pop(joint_name, None)
                     self.enable_pending.pop(joint_name, None)
+                    getattr(self, 'firmware_pending', {}).pop(joint_name, None)
+                    getattr(self, 'enabled_at', {}).pop(joint_name, None)
                     self.inhibited_since[joint_name] = time.monotonic()
                     self.pending_disable.add(joint_name)
                     with self.bus_locks[bus.channel]:
@@ -610,6 +711,8 @@ class PythonCanNode(Node):
             if now >= deadline:
                 self.command_deadlines.pop(joint, None)
                 self.enable_pending.pop(joint, None)
+                getattr(self, 'firmware_pending', {}).pop(joint, None)
+                getattr(self, 'enabled_at', {}).pop(joint, None)
                 self.inhibited_since[joint] = now
                 with self.active_command_lock:
                     self.active_commands.pop(joint, None)
@@ -641,7 +744,21 @@ class PythonCanNode(Node):
         mode = cmd['mode']
 
         try:
-            cmd = self.motor_settings[joint_name].command(cmd)
+            with self.state_lock:
+                raw = self.raw_feedback.get(joint_name)
+            enabled_at = getattr(self, 'enabled_at', {}).get(joint_name)
+            # Velocity mode rewrites run_mode while enabled; only MIT joints are checked.
+            if (raw is not None and enabled_at is not None and raw[1] > enabled_at
+                    and raw[0].mode != 2 and self.current_mode_by_joint.get(joint_name) != 2):
+                # Status mode left Motor/run without our DISABLE: the motor-side CAN
+                # watchdog, undervoltage or a fault reset it. Stop everything.
+                self.transport_fault.set()
+                self._estop_disable_pending.set()
+                raise RuntimeError(f'{joint_name}: motor left run mode (status mode '
+                                   f'{raw[0].mode}) without a host DISABLE')
+            measured = (raw[0].position if raw is not None
+                        and 0.0 <= time.monotonic() - raw[1] <= self.feedback_timeout_s else None)
+            cmd = self.motor_settings[joint_name].command(cmd, measured)
             with self.bus_locks[bus.channel]:
                 if mode == MotorCommand.MODE_VELOCITY:
                     self._send_velocity_command(bus, joint_name, motor_name, cmd)
@@ -851,10 +968,13 @@ class PythonCanNode(Node):
             for joint_name, (pos, vel, tq, temp, timestamp) in self.state_buffer.items():
                 if time.monotonic() - timestamp > self.feedback_timeout_s:
                     continue
+                raw = self.raw_feedback.get(joint_name)
                 telemetry.append(dict(
                     self.motor_identity[joint_name],
                     source_stamp=self.telemetry_stamps[joint_name],
-                    temperature_c=float(temp)))
+                    temperature_c=float(temp),
+                    # Status-frame fault bits of the latest raw sample (0 = none).
+                    fault_bits=int(raw[0].fault_bits) if raw is not None else 0))
                 motor_index = self.motor_index_map.get(joint_name)
                 if motor_index is None:
                     continue

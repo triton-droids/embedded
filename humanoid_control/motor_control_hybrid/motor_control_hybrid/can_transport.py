@@ -35,6 +35,14 @@ class MotorFeedback:
     timestamp: float
 
 
+@dataclass(frozen=True)
+class ParameterReply:
+    motor_name: str
+    index: int
+    value: bytes  # data bytes 4..7, little endian
+    timestamp: float
+
+
 class NonblockingRobstrideBus(RobstrideBus):
     """Audited private-protocol encoding, zero-wait TX and one RX owner."""
 
@@ -53,7 +61,9 @@ class NonblockingRobstrideBus(RobstrideBus):
             receive_own_messages=False,
             can_filters=[{'can_id': (kind << 24) | self.host_id,
                           'can_mask': (31 << 24) | 255, 'extended': True}
-                         for kind in (CommunicationType.OPERATION_STATUS, CommunicationType.FAULT_REPORT)])
+                         for kind in (CommunicationType.OPERATION_STATUS,
+                                      CommunicationType.FAULT_REPORT,
+                                      CommunicationType.READ_PARAMETER)])
         self.channel_handler.socket.setblocking(False)
         self._motor_by_id = {motor.id: name for name, motor in self.motors.items()}
 
@@ -92,6 +102,26 @@ class NonblockingRobstrideBus(RobstrideBus):
         data = struct.pack('>HHHH', encode(position, -pmax, pmax), encode(velocity, -vmax, vmax),
                            encode(kp, 0, kpmax), encode(kd, 0, kdmax))
         self.transmit(CommunicationType.OPERATION_CONTROL, encode(torque, -tmax, tmax), self.motors[motor].id, data)
+
+    def read_parameter(self, motor, index):
+        """Request one parameter; the type-17 reply is decoded by decode_parameter_reply."""
+        self.transmit(CommunicationType.READ_PARAMETER, self.host_id, self.motors[motor].id,
+                      struct.pack('<HHL', index, 0, 0))
+
+    def decode_parameter_reply(self, frame):
+        """Type-17 reply routed like status: (motor_name, index, value bytes, timestamp)."""
+        if (frame.is_error_frame or not frame.is_extended_id or frame.is_remote_frame
+                or frame.is_fd or frame.dlc != 8 or len(frame.data) != 8):
+            return None
+        if ((frame.arbitration_id >> 24) & 31) != CommunicationType.READ_PARAMETER:
+            return None
+        if frame.arbitration_id & 255 != self.host_id:
+            return None
+        name = self._motor_by_id.get((frame.arbitration_id >> 8) & 255)
+        if name is None:
+            return None
+        index = struct.unpack('<H', bytes(frame.data[:2]))[0]
+        return ParameterReply(name, index, bytes(frame.data[4:8]), frame.timestamp)
 
     def enable(self, motor):
         self.transmit(CommunicationType.ENABLE, self.host_id, self.motors[motor].id)

@@ -1,5 +1,20 @@
 # Model PD gains and joint-angle limits from tracking ONNX / saved training XML.
 # Hardware polarity, zero offsets and linkage mapping are preserved.
+# model: checked against the CAD (humanoid_leg_description visual STLs): the
+#   hip1/knee housings are ~120 mm (RS04 120x120), hip2/thigh ~82-94 mm (RS03).
+# max_torque_nm: model peak torque, the same value the simulator used for
+#   training when it was null.
+# hard_min/max_position: first CAD self-contact sweeping one joint with the
+#   others at zero (see docs/motor_safety_limits.md); null = no contact found
+#   (thigh yaw is free, the ankle only grazes ~1 mm). min/max_position must lie
+#   inside them. Cables, the ankle linkage rods and two-joint poses are not in
+#   the sweep, so these are upper bounds, not safe operating limits.
+# FIRMWARE_CAN_TIMEOUT_S (or per-motor firmware_can_timeout_s, null = leave
+#   the motor's value): motor-side CAN watchdog, written to canTimeout (0x7028,
+#   20000 = 1 s per the RobStride manual) at every ENABLE and read back before
+#   the ENABLE frame is sent. A motor that hears nothing for this long resets
+#   (unpowered). Must exceed the CAN node's command_timeout_s (0.5 s).
+#   See docs/motor_safety_limits.md.
 # hardware_verified remains false until physical calibration is verified.
 motor_control_node:
   ros__parameters:
@@ -65,6 +80,13 @@ motor_control_node:
       - 1.0
       observation_names: command,base_ang_vel,joint_pos,joint_vel,actions,gravity
     MAX_VEL_RAD_S: 4.5
+    # Coarse guard: a position frame may not ask for more than this
+    # |target - measured| (motor coordinates). The tracking policy uses large
+    # errors on purpose (MuJoCo closed loop: ankles p99
+    # 1.1 rad, max 1.2 rad; a 0.5 rad or torque-budget clamp makes it fall),
+    # so this only stops grossly wrong targets.
+    MAX_POSITION_ERROR_RAD: 2.0
+    FIRMWARE_CAN_TIMEOUT_S: 1.0
     motors:
       left_hip1_joint:
         can_interface: can1
@@ -74,9 +96,11 @@ motor_control_node:
         actuator_type: null
         direction: -1
         encoder_offset_rad: 0.0
-        max_torque_nm: null
+        max_torque_nm: 120.0  # rs-04 peak (RobStride product page)
         min_position: -1.57
         max_position: 1.57
+        hard_min_position: -1.99  # CAD sweep: first contact
+        hard_max_position: 1.955
         kp: 100.0
         kd: 1.0
       left_hip2_joint:
@@ -87,9 +111,11 @@ motor_control_node:
         actuator_type: null
         direction: 1
         encoder_offset_rad: 0.0
-        max_torque_nm: null
+        max_torque_nm: 60.0  # rs-03 peak (RobStride product page)
         min_position: -1.57
         max_position: 0.436332
+        hard_min_position: -2.758  # CAD sweep: first contact
+        hard_max_position: 0.445
         kp: 100.0
         kd: 1.0
       left_thigh_joint:
@@ -100,9 +126,11 @@ motor_control_node:
         actuator_type: null
         direction: 1
         encoder_offset_rad: 0.0
-        max_torque_nm: null
+        max_torque_nm: 60.0  # rs-03 peak (RobStride product page)
         min_position: -0.785398
         max_position: 0.785398
+        hard_min_position: null  # CAD sweep: no contact
+        hard_max_position: null
         kp: 100.0
         kd: 1.0
       left_knee_joint:
@@ -113,9 +141,11 @@ motor_control_node:
         actuator_type: null
         direction: 1
         encoder_offset_rad: 0.0
-        max_torque_nm: null
+        max_torque_nm: 120.0  # rs-04 peak (RobStride product page)
         min_position: -2.0944
         max_position: 0.0
+        hard_min_position: -2.304  # CAD sweep: first contact
+        hard_max_position: 2.321
         kp: 80.0
         kd: 1.0
       left_ankle_joint:
@@ -126,9 +156,11 @@ motor_control_node:
         actuator_type: null
         direction: 1
         encoder_offset_rad: 0.0
-        max_torque_nm: null
+        max_torque_nm: 17.0  # rs-02 peak (RobStride product page)
         min_position: -0.6
         max_position: 0.6
+        hard_min_position: null  # CAD sweep: no contact
+        hard_max_position: null
         kp: 20.0
         kd: 1.0
         ankle_mapping: &id001
@@ -148,9 +180,11 @@ motor_control_node:
         actuator_type: null
         direction: 1
         encoder_offset_rad: 0.0
-        max_torque_nm: null
+        max_torque_nm: 120.0  # rs-04 peak (RobStride product page)
         min_position: -1.57
         max_position: 1.57
+        hard_min_position: -1.99  # CAD sweep: first contact
+        hard_max_position: 1.955
         kp: 100.0
         kd: 1.0
       right_hip2_joint:
@@ -161,9 +195,11 @@ motor_control_node:
         actuator_type: null
         direction: -1
         encoder_offset_rad: 0.0
-        max_torque_nm: null
+        max_torque_nm: 60.0  # rs-03 peak (RobStride product page)
         min_position: -0.436332
         max_position: 1.57
+        hard_min_position: -0.445  # CAD sweep: first contact
+        hard_max_position: 2.793
         kp: 100.0
         kd: 1.0
       right_thigh_joint:
@@ -174,9 +210,11 @@ motor_control_node:
         actuator_type: null
         direction: -1
         encoder_offset_rad: 0.0
-        max_torque_nm: null
+        max_torque_nm: 60.0  # rs-03 peak (RobStride product page)
         min_position: -0.785398
         max_position: 0.785398
+        hard_min_position: null  # CAD sweep: no contact
+        hard_max_position: null
         kp: 100.0
         kd: 1.0
       right_knee_joint:
@@ -187,9 +225,11 @@ motor_control_node:
         actuator_type: null
         direction: -1
         encoder_offset_rad: 0.0
-        max_torque_nm: null
+        max_torque_nm: 120.0  # rs-04 peak (RobStride product page)
         min_position: -2.0944
         max_position: 0.0
+        hard_min_position: -2.304  # CAD sweep: first contact
+        hard_max_position: 2.321
         kp: 80.0
         kd: 1.0
       right_ankle_joint:
@@ -200,9 +240,11 @@ motor_control_node:
         actuator_type: null
         direction: -1
         encoder_offset_rad: 0.0
-        max_torque_nm: null
+        max_torque_nm: 17.0  # rs-02 peak (RobStride product page)
         min_position: -0.6
         max_position: 0.6
+        hard_min_position: null  # CAD sweep: no contact
+        hard_max_position: null
         kp: 20.0
         kd: 1.0
         ankle_mapping: *id001

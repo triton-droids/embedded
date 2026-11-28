@@ -31,16 +31,31 @@ from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool, String
 
 HOST = 255
+PMAX = 4 * math.pi  # MIT position range of every audited profile (can_transport.PROTOCOL_PROFILES)
+SLEW = 10.0  # rad/s, well below the RS02/03/04 no-load speeds
 
 
 class FakeMotors:
-    """Answers like RobStride firmware: a type-2 status after each command."""
+    """Answers like RobStride firmware: a type-2 status after each command.
+
+    Type-18 writes are stored and type-17 reads answered from that memory, so
+    the verified ENABLE (canTimeout written and read back first) is exercised.
+    An ENABLE that arrives before canTimeout holds a written value is recorded
+    in unsafe_enables.
+    """
 
     def __init__(self, channel, devices):
         self.bus = can.Bus(interface='socketcan', channel=channel, receive_own_messages=False)
         self.devices = set(devices)
         self.enabled = {d: False for d in devices}
         self.raw = {d: [32767, 32767, 32767] for d in devices}  # position, velocity, torque
+        # The reported position slews toward the commanded one at SLEW rad/s
+        # (a real motor cannot teleport; the driver's feedback-jump guard
+        # rejects steps no motor can make).
+        self.position = {d: 0.0 for d in devices}
+        self.updated = {d: time.monotonic() for d in devices}
+        self.params = {d: {} for d in devices}  # index -> value bytes 4..7
+        self.unsafe_enables = []
         self.trace = []
         self.running = True
         self.thread = threading.Thread(target=self.loop, daemon=True)
@@ -65,7 +80,16 @@ class FakeMotors:
             if device not in self.devices:
                 continue  # our own replies or unrelated traffic
             self.trace.append((time.monotonic(), msg.arbitration_id, bytes(msg.data).hex()))
-            if kind == 3:
+            index = struct.unpack('<H', bytes(msg.data[:2]))[0]
+            if kind == 18:
+                self.params[device][index] = bytes(msg.data[4:8])
+            elif kind == 17:
+                self.bus.send(can.Message(
+                    arbitration_id=(17 << 24) | (device << 8) | HOST, is_extended_id=True,
+                    data=bytes(msg.data[:4]) + self.params[device].get(index, bytes(4))))
+            elif kind == 3:
+                if self.params[device].get(0x7028, bytes(4)) == bytes(4):
+                    self.unsafe_enables.append(device)
                 self.enabled[device] = True
                 self.reply(device)
             elif kind == 4:
@@ -73,7 +97,13 @@ class FakeMotors:
                 self.reply(device)
             elif kind == 1:
                 p, v, _kp, _kd = struct.unpack('>HHHH', msg.data)
-                self.raw[device] = [p, v, extra]
+                now = time.monotonic()
+                target = (p / 65535.0 * 2 - 1) * PMAX
+                step = SLEW * (now - self.updated[device])
+                self.position[device] += max(-step, min(step, target - self.position[device]))
+                self.updated[device] = now
+                raw = int(round((self.position[device] / PMAX + 1) / 2 * 65535.0))
+                self.raw[device] = [max(0, min(65535, raw)), v, extra]
                 self.reply(device)
 
     def stop(self):
@@ -165,7 +195,8 @@ def run_backend(executable, registry_path, channel, joints, devices):
     node.destroy_node()
     rclpy.shutdown()
     trace = [row for row in motors.trace if row[0] >= started]
-    return dict(trace=trace, states=states, timing=timing[-1] if timing else None, log=out)
+    return dict(trace=trace, states=states, timing=timing[-1] if timing else None, log=out,
+                unsafe_enables=list(motors.unsafe_enables))
 
 
 def collapse(trace):
@@ -196,6 +227,10 @@ def main():
     raw = yaml.safe_load(open(args.registry))
     params = raw.get('motor_control_node', {}).get('ros__parameters', raw)
     params['hardware_verified'] = True  # vcan-only copy
+    # The tracking-error clamp makes motion frames follow the feedback timing,
+    # which differs between backends; widen it here so frames stay comparable.
+    # Its behaviour is covered by the unit tests of both backends.
+    params['MAX_POSITION_ERROR_RAD'] = 4.0
     params['default_can_interface'] = args.channel
     for cfg in params['motors'].values():
         cfg['can_interface'] = args.channel
@@ -210,6 +245,8 @@ def main():
         results[backend] = run_backend(backend, registry_path, args.channel, joints, devices)
         print(f'{backend}: {len(results[backend]["trace"])} frames, '
               f'{len(results[backend]["states"])} joint_states, timing={results[backend]["timing"]}')
+        unsafe = results[backend]['unsafe_enables']
+        print(f'{backend}: ENABLE before canTimeout was written: {sorted(set(unsafe)) or "none"}')
 
     # Lifecycle and parameter frames (enable, disable, run-mode / velocity
     # parameters) must form the identical ordered sequence. Motion frames
@@ -227,12 +264,25 @@ def main():
         motion_b = {x for x in b if int(x[0], 16) >> 24 == 1}
         union = motion_a | motion_b
         overlap = len(motion_a & motion_b) / len(union) if union else 1.0
-        ok = life_a == life_b and overlap >= 0.95 and len(life_a) > 0
+        # Verified enable: canTimeout (0x7028) written (18) and read (17) before ENABLE (3).
+        def ordered(seq):
+            kinds = [(int(x[0], 16) >> 24, x[1][:4]) for x in seq]
+            try:
+                write, read = kinds.index((18, '2870')), kinds.index((17, '2870'))
+                enable = [kind for kind, _ in kinds].index(3)
+            except ValueError:
+                return False
+            return write < read < enable
+        verified = ordered(a) and ordered(b)
+        # Both backends must actually drive the motor (an empty overlap is not a match).
+        ok = (life_a == life_b and overlap >= 0.95 and len(life_a) > 0 and verified
+              and len(motion_a) > 0 and len(motion_b) > 0)
         mismatches += not ok
         kinds = sorted({int(x[0], 16) >> 24 for x in a + b})
         print(f'motor {device}: {"OK  " if ok else "DIFF"} lifecycle/parameter frames '
               f'{len(life_a)} vs {len(life_b)} {"identical" if life_a == life_b else "DIFFER"}; '
-              f'motion frames {len(motion_a)} vs {len(motion_b)}, overlap {overlap:.1%}; types {kinds}')
+              f'motion frames {len(motion_a)} vs {len(motion_b)}, overlap {overlap:.1%}; types {kinds}; '
+              f'canTimeout write/read before ENABLE: {verified}')
         if life_a != life_b:
             first = next((i for i, (x, y) in enumerate(zip(life_a, life_b)) if x != y),
                          min(len(life_a), len(life_b)))
@@ -253,7 +303,10 @@ def main():
     json.dump({b: dict(collapsed={str(k): v for k, v in collapse(r['trace']).items()},
                        timing=r['timing'], log=r['log'][-4000:])
                for b, r in results.items()}, open(args.out, 'w'), indent=1)
-    ok = mismatches == 0 and len(sp) == len(sc) == len(joints) and state_diff < 1e-9
+    # The fake motor slews at SLEW rad/s, so its final position depends on when
+    # each backend's last frame arrived.
+    ok = (mismatches == 0 and len(sp) == len(sc) == len(joints) and state_diff < 0.1
+          and not any(r['unsafe_enables'] for r in results.values()))
     print('PASS' if ok else 'FAIL', f'(details in {args.out})')
     sys.exit(0 if ok else 1)
 

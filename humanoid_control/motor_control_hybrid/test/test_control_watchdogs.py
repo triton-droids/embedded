@@ -65,6 +65,7 @@ def can_node():
     node.get_logger = lambda: node.logger
     node._set_mode_raw = Mock()
     node._try_read_feedback = Mock()
+    node.firmware_pending, node.param_readback, node.enabled_at = {}, {}, {}
     return node
 
 
@@ -230,7 +231,7 @@ def test_blocked_rx_cannot_block_actual_tx_worker(can_node, monkeypatch):
     bus.channel_handler.recv.side_effect = lambda **kwargs: (
         rx_entered.set(), release_rx.wait(1.0), None)[-1]
     bus.write_operation_frame.side_effect = lambda *args: target_sent.set()
-    node.motor_settings['a'].command = lambda value: value
+    node.motor_settings['a'].command = lambda value, measured=None: value
     node.running = True
     node.tx_period_s = 0.02
     node.feedback_timeout_s = 0.1
@@ -499,7 +500,7 @@ def test_named_telemetry_keeps_feedback_stamp_and_legacy_topic(can_node):
     payload = json.loads(node.telemetry_pub.publish.call_args.args[0].data)
     assert payload['schema_version'] == 1
     assert payload['motors'][0] == dict(node.motor_identity['a'],
-                                       source_stamp=99.98, temperature_c=31.)
+                                       source_stamp=99.98, temperature_c=31., fault_bits=0)
     assert json.loads(node.motor_status_pub.publish.call_args.args[0].data)['0']['temperature'] == 31.
     node._publish_motor_status()
     assert json.loads(node.telemetry_pub.publish.call_args.args[0].data)['motors'][0]['source_stamp'] == 99.98
@@ -514,3 +515,188 @@ def test_telemetry_source_stamp_preserves_received_feedback_age(can_node):
         node._update_state('a', .1, .2, .3, 31., received_at=9.98)
     assert node.telemetry_stamps['a'] == pytest.approx(99.98)
     assert node.state_buffer['a'][4] == 9.98
+
+
+def _feed_rx(node, monkeypatch, positions):
+    """Run the production RX loop over raw positions received 2 ms apart."""
+    from motor_control_hybrid.can_transport import MotorFeedback
+    from motor_control_hybrid.motor_configuration import MotorSettings
+    node.motor_settings = {n: MotorSettings.from_config({'model': 'rs-03'}, {}) for n in ('a', 'b')}
+    node.feedback_timeout_s = 0.1
+    node.state_buffer = {}
+    node._joint_by_motor = {('can1', 'motor_1'): 'a'}
+    node._estop_disable_pending = threading.Event()
+    node.timing.update(rx_frames=0, rx_ignored=0)
+    bus = node.buses['can1']
+    now = time.time()
+    samples = iter([MotorFeedback('motor_1', p, 0.0, 0.0, 30.0, 2, 0, now - 0.01 + 0.002 * i)
+                    for i, p in enumerate(positions)])
+
+    def recv(timeout):
+        try:
+            return next(samples)
+        except StopIteration:
+            node.running = False
+            return None
+    bus.channel_handler.recv.side_effect = recv
+    bus.decode_feedback.side_effect = lambda frame: frame
+    node.running = True
+    monkeypatch.setattr('motor_control_hybrid.python_can_node.rclpy.ok', lambda: True)
+    monkeypatch.setattr('motor_control_hybrid.python_can_node.time.sleep', lambda s: None)
+    node._can_rx_loop(bus)
+
+
+def test_rx_latches_fault_on_coordinate_jump(can_node, monkeypatch):
+    # 0.8 rad in 2 ms (an external mechanical-zero write) is impossible motion.
+    _feed_rx(can_node, monkeypatch, [0.8, 0.8, 0.0])
+    assert can_node.transport_fault.is_set() and can_node._estop_disable_pending.is_set()
+    assert 'jumped' in can_node.logger.error.call_args.args[0]
+
+
+def test_rx_accepts_physical_motion(can_node, monkeypatch):
+    _feed_rx(can_node, monkeypatch, [0.0, 0.03, 0.06, 0.09])  # 15 rad/s
+    assert not can_node.transport_fault.is_set(), can_node.logger.error.call_args
+    assert can_node.state_buffer['a'][0] == pytest.approx(0.09)
+
+
+def _verified_enable_node(can_node):
+    from motor_control_hybrid.motor_configuration import MotorSettings
+    node = can_node
+    node.motor_settings = {n: MotorSettings.from_config(
+        {'model': 'rs-03', 'firmware_can_timeout_s': 1.0}, {}) for n in ('a', 'b')}
+    node._write_parameter = Mock()
+    return node
+
+
+def test_enable_is_deferred_until_can_timeout_reads_back(can_node):
+    node = _verified_enable_node(can_node)
+    bus = node.bus_by_joint['a']
+    command(node, MotorCommand.MODE_ENABLE)  # includes a stale Motor-mode report
+    bus.enable.assert_not_called()
+    assert 'a' in node.enable_pending
+    bus.read_parameter.assert_called_with('motor_1', 0x7028)
+    # A wrong value never enables the motor.
+    node.param_readback[('a', 0x7028)] = (bytes.fromhex('00000000'), time.monotonic())
+    node._process_firmware_readback()
+    bus.enable.assert_not_called()
+    node.param_readback[('a', 0x7028)] = ((20000).to_bytes(4, 'little'), time.monotonic())
+    node._process_firmware_readback()
+    bus.enable.assert_called_once_with('motor_1')
+    assert 'a' not in node.firmware_pending and 'a' in node.enable_pending
+
+
+def test_motor_leaving_run_mode_latches_fault(can_node):
+    from motor_control_hybrid.motor_configuration import MotorSettings
+    node = can_node
+    node.motor_settings = {n: MotorSettings.from_config({'model': 'rs-03'}, {}) for n in ('a', 'b')}
+    node.feedback_timeout_s = 0.1
+    node._estop_disable_pending = threading.Event()
+    node.inhibited_since.clear()
+    node.enabled_at['a'] = time.monotonic() - 0.2
+    node.current_mode_by_joint['a'] = 0
+    # Fresh status after the enable shows reset mode (0): the motor watchdog fired.
+    node.raw_feedback['a'] = (SimpleNamespace(position=0.0, mode=0), time.monotonic(), 0.0)
+    node._send_active_command(dict(joint='a', mode=2, position=0.0, velocity=0.0,
+                                   acceleration=0.0, torque=0.0, kp=10, kd=1))
+    assert node.transport_fault.is_set() and node._estop_disable_pending.is_set()
+    node.bus_by_joint['a'].write_operation_frame.assert_not_called()
+
+
+
+def _run_virtual_motor(can_node, monkeypatch, honour_writes):
+    """Worker loops against a simulated motor that stores type-18 writes.
+
+    Returns the frame kinds per device in arrival order and whether an ENABLE
+    reached the motor before its canTimeout held the written value.
+    """
+    import struct
+    import uuid
+    import can
+    from robstride_dynamics import Motor
+    from motor_control_hybrid.can_transport import NonblockingRobstrideBus
+    from motor_control_hybrid.motor_configuration import MotorSettings
+
+    node = can_node
+    transport = NonblockingRobstrideBus('virtual', {'motor_1': Motor(1, 'rs-04')}, {})
+    transport._motor_by_id = {1: 'motor_1'}
+    channel = f'firmware-{uuid.uuid4()}'
+    monkeypatch.setattr('motor_control_hybrid.python_can_node.rclpy.ok', lambda: True)
+    memory, kinds, unsafe_enable = {}, [], []
+    with can.ThreadSafeBus(interface='virtual', channel=channel) as local, \
+            can.Bus(interface='virtual', channel=channel) as peer:
+        transport.channel_handler = local
+        node.bus_by_joint = {'a': transport}
+        node.motor_name_by_joint = {'a': 'motor_1'}
+        node.current_mode_by_joint = {'a': None}
+        node.inhibited_since = {'a': float('-inf')}
+        node.bus_locks = {'virtual': threading.Lock()}
+        node.motor_settings = {'a': MotorSettings.from_config(
+            {'model': 'rs-04', 'firmware_can_timeout_s': 1.0}, {})}
+        node._joint_by_motor = {('virtual', 'motor_1'): 'a'}
+        node.state_buffer = {}
+        node.feedback_timeout_s = 0.1
+        node.command_timeout_s = 0.8
+        node.default_kp, node.default_kd, node.max_vel_rad_s = 10, 0.2, 4.5
+        node.tx_period_s = 0.02
+        node.timing.update(tx_cycles=0, tx_max_work_ms=0, rx_frames=0, rx_ignored=0)
+        node._estop_disable_pending = threading.Event()
+        node.running = True
+        node._cmd_callback(stamp(MotorCommand(joint_name=['a'], mode=[3])))
+        rx = threading.Thread(target=node._can_rx_loop, args=(transport,))
+        tx = threading.Thread(target=node._can_tx_loop)
+        rx.start()
+        tx.start()
+        try:
+            deadline = time.monotonic() + 0.6
+            while time.monotonic() < deadline:
+                frame = peer.recv(timeout=0.05)
+                if frame is None:
+                    continue
+                kind = (frame.arbitration_id >> 24) & 31
+                device, host = frame.arbitration_id & 255, (frame.arbitration_id >> 8) & 255
+                kinds.append(kind)
+                index = struct.unpack('<H', bytes(frame.data[:2]))[0]
+                if kind == 18 and honour_writes:
+                    memory[index] = bytes(frame.data[4:8])
+                elif kind == 17:
+                    peer.send(can.Message(
+                        arbitration_id=(17 << 24) | (device << 8) | host, is_extended_id=True,
+                        data=bytes(frame.data[:4]) + memory.get(index, bytes(4))))
+                elif kind == 3:
+                    if memory.get(0x7028) != (20000).to_bytes(4, 'little'):
+                        unsafe_enable.append(True)
+                    peer.send(can.Message(
+                        arbitration_id=(2 << 24) | (((2 << 14) | device) << 8) | host,
+                        is_extended_id=True, data=struct.pack('>HHHH', 32767, 32767, 32767, 250)))
+        finally:
+            node.running = False
+            node._tx_wakeup.set()
+            tx.join(1)
+            rx.join(1)
+    return kinds, bool(unsafe_enable), node
+
+
+def test_virtual_motor_enable_after_verified_can_timeout(can_node, monkeypatch):
+    kinds, unsafe, node = _run_virtual_motor(can_node, monkeypatch, honour_writes=True)
+    assert 3 in kinds and not unsafe
+    assert kinds.index(18) < kinds.index(17) < kinds.index(3)
+    assert 'a' not in node.enable_pending  # Motor-mode ack completed the enable
+
+
+def test_virtual_motor_that_ignores_writes_is_never_enabled(can_node, monkeypatch):
+    kinds, unsafe, node = _run_virtual_motor(can_node, monkeypatch, honour_writes=False)
+    assert 3 not in kinds and not unsafe
+    assert kinds.count(17) >= 2  # readback retried
+
+
+def test_enable_ack_arriving_during_the_enable_send_is_accepted(can_node):
+    """A motor answers ENABLE before bus.enable returns; that ack must count."""
+    node = _verified_enable_node(can_node)
+    bus = node.bus_by_joint['a']
+    bus.enable.side_effect = lambda motor: node.enable_reports.update(a=(time.monotonic(), 2))
+    node._cmd_callback(stamp(MotorCommand(joint_name=['a'], mode=[MotorCommand.MODE_ENABLE])))
+    node._drain_command_queue()
+    node.param_readback[('a', 0x7028)] = ((20000).to_bytes(4, 'little'), time.monotonic())
+    node._process_firmware_readback()
+    node._process_enable_reports()
+    assert 'a' not in node.enable_pending and 'a' not in node.inhibited_since

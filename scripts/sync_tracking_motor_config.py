@@ -50,8 +50,11 @@ def main():
         motors[name] = {key: old.get(key) for key in hardware_keys}
         motors[name].update(min_position=limits[0], max_position=limits[1],
                             kp=kp[index], kd=kd[index])
-        if 'ankle_mapping' in old:
-            motors[name]['ankle_mapping'] = old['ankle_mapping']
+        # Hardware safety fields are kept only when present (null means "none").
+        for key in ('hard_min_position', 'hard_max_position', 'max_kp', 'max_kd',
+                    'max_position_error_rad', 'max_motor_speed_rad_s', 'ankle_mapping'):
+            if key in old:
+                motors[name][key] = old[key]
     params = {
         # A new simulation sync always requires hardware review before CAN use.
         'hardware_verified': False,
@@ -64,7 +67,8 @@ def main():
         'MAX_VEL_RAD_S': previous.get('MAX_VEL_RAD_S', 4.5),
         'motors': motors,
     }
-    for key in ('default_can_interface', 'default_master_id', 'KP', 'KD'):
+    for key in ('MAX_POSITION_ERROR_RAD', 'MAX_KP', 'MAX_KD',
+                'default_can_interface', 'default_master_id', 'KP', 'KD'):
         if key in previous:
             params[key] = previous[key]
     header = ('# Synced from the tracking ONNX export and its saved training XML.\n'

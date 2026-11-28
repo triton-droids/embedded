@@ -188,7 +188,10 @@ def generate_launch_description():
         name='safety_node',
         condition=IfCondition(LaunchConfiguration('enable_safety')),
         output='screen',
-        parameters=[LaunchConfiguration('safety_config_file')],
+        # The supervisor's joint lists, limits and torque limits must come from
+        # the same registry the CAN node drives, not the package default.
+        parameters=[LaunchConfiguration('safety_config_file'),
+                    {'motor_config_file': LaunchConfiguration('motor_config_file')}],
     )
 
     # -------------------- Fake motor node --------------------

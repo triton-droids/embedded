@@ -76,7 +76,7 @@ TEST(RobstrideCodec, FeedbackDecodingMatchesPython) {
     const auto it = models.find(device);
     return it == models.end() ? std::nullopt : robstride::profile_for(it->second);
   };
-  int status = 0, faults = 0;
+  int status = 0, faults = 0, parameters = 0;
   for (const auto& r : vectors()["decode"]) {
     const auto data = unhex(r["data"].as<std::string>());
     robstride::Feedback fb;
@@ -96,12 +96,19 @@ TEST(RobstrideCodec, FeedbackDecodingMatchesPython) {
     } else if (want == "fault") {
       EXPECT_EQ(res, robstride::Decoded::kFault);
       ++faults;
+    } else if (want == "parameter") {
+      ASSERT_EQ(res, robstride::Decoded::kParameter) << r["id"].as<uint32_t>();
+      ++parameters;
+      EXPECT_EQ(fb.motor_id, r["motor_id"].as<int>());
+      EXPECT_EQ(fb.param_index, r["index"].as<int>());
+      EXPECT_EQ(fb.param_value, r["value"].as<uint32_t>());
     } else {
       EXPECT_EQ(res, robstride::Decoded::kIgnored) << r["id"].as<uint32_t>();
     }
   }
   EXPECT_GT(status, 50);
   EXPECT_GT(faults, 3);
+  EXPECT_GT(parameters, 3);
 }
 
 TEST(RobstrideCodec, MalformedFramesAreIgnoredAndErrorFramesReported) {
@@ -172,3 +179,86 @@ TEST(RobstrideRegistry, DeployedRegistryParsesAndRulesMatchPython) {
 }
 
 }  // namespace
+
+// Driver-side motion guards; same cases as test_motor_configuration.MotionSafetyLimitTest.
+namespace {
+robstride::MotorSettings guarded(const std::string& extra = "{}") {
+  YAML::Node cfg = YAML::Load("{model: rs-03, min_position: -1, max_position: 1, kp: 100, "
+                              "kd: 1, max_torque_nm: 40}");
+  for (const auto& kv : YAML::Load(extra)) cfg[kv.first.as<std::string>()] = kv.second;
+  return robstride::settings_from_config(cfg, YAML::Load("{MAX_POSITION_ERROR_RAD: 0.3}"));
+}
+robstride::MotorCommandValues target(double position, double kp = 100, double ff = 0) {
+  robstride::MotorCommandValues c;
+  c.position = position;
+  c.torque = ff;
+  c.kp = kp;
+  c.kd = 1;
+  return c;
+}
+}  // namespace
+
+TEST(RobstrideGuards, TargetStaysNearMeasuredPositionWithoutTorqueBudget) {
+  robstride::AnkleState state;
+  EXPECT_NEAR(guarded().command(target(0.9), state, true, 0.0).position, 0.3, 1e-12);
+  const auto c = guarded().command(target(-0.9, 200, 10), state, true, 0.0);
+  EXPECT_DOUBLE_EQ(c.kp, 100);
+  EXPECT_NEAR(c.position, -0.3, 1e-12);  // MAX_POSITION_ERROR_RAD, not a torque budget
+  EXPECT_NEAR(guarded("{max_torque_nm: 5}").command(target(-0.9), state, true, 0.0).position, -0.3,
+              1e-12);
+  const auto probe = guarded().command(target(0.9, 100, 5), state, true, std::nullopt);
+  EXPECT_DOUBLE_EQ(probe.kp, 0.0);  // no feedback: zero-gain, zero-torque probe
+  EXPECT_DOUBLE_EQ(probe.kd, 0.0);
+  EXPECT_DOUBLE_EQ(probe.torque, 0.0);
+  EXPECT_NO_THROW(guarded().command(target(0.1), state, false, std::nullopt));
+}
+
+TEST(RobstrideGuards, FeedbackJumpAndRegistryLimits) {
+  const auto s = guarded();
+  EXPECT_NO_THROW(s.check_feedback_step(0.0, 1.0, 0.1, 1.002));
+  EXPECT_THROW(s.check_feedback_step(0.0, 1.0, 0.8, 1.002), std::runtime_error);
+  EXPECT_NO_THROW(s.check_feedback_step(0.0, 1.0, 0.8, 1.5));
+  EXPECT_THROW(guarded("{model: rs-02, max_torque_nm: 20}"), std::invalid_argument);
+  EXPECT_THROW(guarded("{hard_min_position: -0.9}"), std::invalid_argument);
+  EXPECT_NO_THROW(guarded("{hard_min_position: -1.2, hard_max_position: null}"));
+}
+
+TEST(RobstrideGuards, CanTimeoutSecondsBecomeManualTicks) {
+  const auto none = YAML::Load("{}");
+  const auto w = robstride::parse_firmware_writes(YAML::Load("{}"),
+                                                  YAML::Load("{FIRMWARE_CAN_TIMEOUT_S: 1.0}"));
+  ASSERT_EQ(w.size(), 1u);
+  EXPECT_EQ(w[0].index, 0x7028);
+  EXPECT_FALSE(w[0].is_float);
+  EXPECT_DOUBLE_EQ(w[0].value, 20000);  // 20000 = 1 s
+  EXPECT_DOUBLE_EQ(
+      robstride::parse_firmware_writes(YAML::Load("{firmware_can_timeout_s: 0.75}"), none)[0].value,
+      15000);
+  EXPECT_TRUE(robstride::parse_firmware_writes(YAML::Load("{firmware_can_timeout_s: null}"),
+                                               YAML::Load("{FIRMWARE_CAN_TIMEOUT_S: 1.0}"))
+                  .empty());
+  for (const char* bad : {"{firmware_can_timeout_s: 0}", "{firmware_can_timeout_s: 5.5}",
+                          "{firmware_can_timeout_s: true}", "{firmware_can_timeout_s: '1'}"}) {
+    EXPECT_THROW(robstride::parse_firmware_writes(YAML::Load(bad), none), std::invalid_argument)
+        << bad;
+  }
+  EXPECT_EQ(hex(robstride::write_uint32(0xFD, 1, 0x7028, 20000).data), "28700000204e0000");
+}
+
+TEST(RobstrideCodec, ParameterReadRequestAndReply) {
+  const auto req = robstride::read_parameter(0xFD, 1, 0x7028);
+  EXPECT_EQ(req.id, (17u << 24) | (0xFDu << 8) | 1u);
+  EXPECT_EQ(hex(req.data), "2870000000000000");
+  const auto reply = unhex("28700000204e0000");
+  robstride::Feedback fb;
+  const auto lookup = [](int) { return robstride::profile_for("rs-04"); };
+  EXPECT_EQ(robstride::decode((17u << 24) | (1u << 8) | 0xFDu, true, false, false, 8, reply.data(),
+                              0xFD, lookup, fb),
+            robstride::Decoded::kParameter);
+  EXPECT_EQ(fb.motor_id, 1);
+  EXPECT_EQ(fb.param_index, 0x7028);
+  EXPECT_EQ(fb.param_value, 20000u);
+  EXPECT_EQ(robstride::decode((17u << 24) | (1u << 8) | 0x01u, true, false, false, 8, reply.data(),
+                              0xFD, lookup, fb),
+            robstride::Decoded::kIgnored);  // another host
+}

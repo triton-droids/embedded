@@ -105,7 +105,13 @@ for _ in range(400):
         result = 'ignored' if sample is None else 'status'
     except RuntimeError:
         result, sample = 'fault', None
+    reply = bus.decode_parameter_reply(msg) if result == 'ignored' else None
+    if reply is not None:
+        result = 'parameter'
     row = dict(id=frame_id, data=data.hex(), result=result)
+    if reply is not None:
+        row.update(motor_id=int(reply.motor_name.split('_')[1]), index=reply.index,
+                   value=int.from_bytes(reply.value, 'little'))
     if sample is not None:
         row.update(motor_id=int(sample.motor_name.split('_')[1]), position=sample.position,
                    velocity=sample.velocity, torque=sample.torque,

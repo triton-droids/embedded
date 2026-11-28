@@ -41,6 +41,7 @@ def node(monkeypatch):
     n.last_tick = None
     n.intervals, n.inference_ms, n.work_ms = (deque() for _ in range(3))
     n.angles_pub, n.actions_pub, n.command_pub = Mock(), Mock(), Mock()
+    n.start_tolerance, n.started = 0.3, False
     return n
 
 
@@ -148,3 +149,13 @@ def test_imu_filter_uses_capture_time_and_rejects_reordered_samples(node):
     assert node.imu is accepted
     assert node.filter.update.call_count == 1
     assert node.rejected_imu_timestamps == 1
+
+
+def test_refuses_to_start_far_from_first_target(node):
+    node.policy.run = Mock(return_value=(np.ones(10), np.full(10, .5)))  # 0.5 rad from q=0
+    faults = []
+    node.latch_fault = faults.append
+    node.tick()
+    node.command_pub.publish.assert_not_called()
+    assert faults and faults[0].startswith('Start pose')
+

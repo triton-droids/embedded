@@ -206,10 +206,12 @@ struct Bus {
     if (fd < 0) {
       throw std::runtime_error(channel + ": socket(): " + std::strerror(errno));
     }
-    // Receive only status (type 2) and fault (type 21) frames for this host.
-    can_filter filters[2];
-    for (int i = 0; i < 2; ++i) {
-      const uint32_t kind = i == 0 ? robstride::kOperationStatus : robstride::kFaultReport;
+    // Receive only status (2), fault (21) and parameter-read (17) frames for this host.
+    can_filter filters[3];
+    const uint32_t kinds[3] = {robstride::kOperationStatus, robstride::kFaultReport,
+                               robstride::kReadParameter};
+    for (int i = 0; i < 3; ++i) {
+      const uint32_t kind = kinds[i];
       filters[i].can_id = ((kind << 24) | static_cast<uint32_t>(host)) | CAN_EFF_FLAG;
       filters[i].can_mask = ((31u << 24) | 255u) | CAN_EFF_FLAG;  // as python-can
     }
@@ -428,6 +430,15 @@ class RobstrideCanNode : public rclcpp::Node {
     const robstride::Registry reg = robstride::parse_registry(YAML::LoadFile(path));
     max_vel_rad_s_ = reg.max_vel_rad_s;
     for (const auto& cfg : reg.joints) {
+      for (const auto& w : cfg.firmware_writes) {
+        if (w.index == robstride::kCanTimeoutIndex &&
+            w.value / robstride::kCanTimeoutTicksPerS <= command_timeout_s_) {
+          throw std::invalid_argument(cfg.name + ": firmware_can_timeout_s must exceed "
+                                      "command_timeout_s; the host watchdog acts first");
+        }
+      }
+    }
+    for (const auto& cfg : reg.joints) {
       auto& bus = buses_[cfg.can_interface];
       if (!bus) {
         bus = std::make_unique<Bus>();
@@ -553,12 +564,32 @@ class RobstrideCanNode : public rclcpp::Node {
           rx_ignored_++;
           continue;
         }
+        if (res == robstride::Decoded::kParameter) {
+          const std::string& joint = bus.joint_by_device.at(fb.motor_id);
+          {
+            std::lock_guard<std::mutex> lock(state_lock_);
+            param_readback_[{joint, fb.param_index}] = {fb.param_value, mono()};
+          }
+          tx_wakeup_.set();
+          continue;
+        }
         rx_frames_++;
         const double age = stamp > 0 ? std::max(0.0, wall() - stamp) : 0.0;
         JointRuntime& j = *joint_by_name_.at(bus.joint_by_device.at(fb.motor_id));
         if (age <= feedback_timeout_s_) {
-          std::lock_guard<std::mutex> lock(state_lock_);
-          raw_feedback_[j.cfg.name] = RawSample{fb, mono() - age, now_ros() - age};
+          std::optional<RawSample> previous;
+          const double received = mono() - age;
+          {
+            std::lock_guard<std::mutex> lock(state_lock_);
+            const auto it = raw_feedback_.find(j.cfg.name);
+            if (it != raw_feedback_.end()) previous = it->second;
+            raw_feedback_[j.cfg.name] = RawSample{fb, received, now_ros() - age};
+          }
+          // Throws (latching the transport fault) on an impossible step.
+          if (previous) {
+            j.cfg.settings.check_feedback_step(previous->fb.position, previous->received_at,
+                                               fb.position, received);
+          }
         }
         if (fb.fault_bits) {
           char bits[8];
@@ -597,6 +628,7 @@ class RobstrideCanNode : public rclcpp::Node {
       tx_wakeup_.clear();
       expire_commands();
       drain_command_queue();
+      process_firmware_readback();
       process_enable_reports();
       if (estop_active_ || transport_fault_) {
         enforce_estop();
@@ -650,6 +682,83 @@ class RobstrideCanNode : public rclcpp::Node {
     RCLCPP_INFO(get_logger(), "%s submitted for %s", label.c_str(), joint.c_str());
   }
 
+  // Write (when `write`) and request readback of the firmware parameters; the
+  // bus lock is held by the caller. Returns whether there are any.
+  bool request_firmware_parameters(JointRuntime& j, bool write) {
+    const int host = j.bus->host_id, id = j.cfg.motor_id;
+    for (const auto& w : j.cfg.firmware_writes) {
+      if (write) {
+        send(j, w.is_float ? robstride::write_float(host, id, w.index, w.value)
+                           : robstride::write_uint32(host, id, w.index,
+                                                     static_cast<uint32_t>(w.value)));
+      }
+      send(j, robstride::read_parameter(host, id, w.index));
+    }
+    return !j.cfg.firmware_writes.empty();
+  }
+
+  // python_can_node._process_firmware_readback: send the deferred ENABLE once
+  // every parameter reads back as written; re-request every 50 ms.
+  void process_firmware_readback() {
+    const double now = mono();
+    for (auto it = firmware_pending_.begin(); it != firmware_pending_.end();) {
+      if (!enable_pending_.count(it->first)) {
+        it = firmware_pending_.erase(it);
+        continue;
+      }
+      JointRuntime& j = *joint_by_name_.at(it->first);
+      bool verified = true;
+      for (const auto& w : j.cfg.firmware_writes) {
+        std::optional<std::pair<uint32_t, double>> reply;
+        {
+          std::lock_guard<std::mutex> lock(state_lock_);
+          const auto found = param_readback_.find({it->first, w.index});
+          if (found != param_readback_.end()) reply = found->second;
+        }
+        uint32_t expected = static_cast<uint32_t>(w.value);
+        if (w.is_float) {
+          const float f = static_cast<float>(w.value);
+          std::memcpy(&expected, &f, sizeof(expected));
+        }
+        if (!reply || reply->second < it->second.first) {
+          verified = false;
+        } else if (reply->first != expected) {
+          verified = false;
+          RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 1000,
+                                "%s: parameter 0x%04x reads back %u, wrote %u; "
+                                "motor stays disabled",
+                                it->first.c_str(), w.index, reply->first, expected);
+        }
+      }
+      if (verified) {
+        // Arm before I/O: the Motor-mode ack must be newer than this ENABLE.
+        enable_pending_[it->first] = mono();
+      }
+      try {
+        std::lock_guard<std::mutex> lock(j.bus->lock);
+        if (verified) {
+          send(j, robstride::enable_frame(j.bus->host_id, j.cfg.motor_id));
+        } else if (now - it->second.second >= 0.05) {
+          it->second.second = now;
+          request_firmware_parameters(j, false);
+        }
+      } catch (const std::exception& exc) {
+        RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 1000,
+                              "%s: firmware readback I/O failed: %s", it->first.c_str(),
+                              exc.what());
+        ++it;
+        continue;
+      }
+      if (verified) {
+        RCLCPP_INFO(get_logger(), "%s: firmware parameters verified; enable sent",
+                    it->first.c_str());
+        it = firmware_pending_.erase(it);
+      } else {
+        ++it;
+      }
+    }
+  }
+
   void process_enable_reports() {
     // Complete enables on fresh healthy Motor-mode status. Type-2 status mode 2
     // means Motor/run, distinct from run_mode parameter 2 (velocity control).
@@ -659,6 +768,9 @@ class RobstrideCanNode : public rclcpp::Node {
       reports.swap(enable_reports_);
     }
     for (const auto& entry : reports) {
+      if (firmware_pending_.count(entry.first)) {
+        continue;  // our ENABLE frame has not been sent yet; ignore stale Motor mode
+      }
       const auto pending = enable_pending_.find(entry.first);
       const auto deadline = command_deadlines_.find(entry.first);
       if (pending != enable_pending_.end() && entry.second.first >= pending->second &&
@@ -666,6 +778,7 @@ class RobstrideCanNode : public rclcpp::Node {
           mono() < (deadline == command_deadlines_.end() ? 0.0 : deadline->second)) {
         enable_pending_.erase(pending);
         inhibited_since_.erase(entry.first);
+        enabled_at_[entry.first] = entry.second.first;
       }
     }
     if (enable_pending_.empty()) {
@@ -679,6 +792,8 @@ class RobstrideCanNode : public rclcpp::Node {
     }
     command_deadlines_.clear();
     enable_pending_.clear();
+    firmware_pending_.clear();
+    enabled_at_.clear();
     awaiting_enable_ack_ = false;
     const double now = mono();
     for (const auto& j : joints_) {
@@ -715,6 +830,8 @@ class RobstrideCanNode : public rclcpp::Node {
         const std::string joint = it->first;
         it = command_deadlines_.erase(it);
         enable_pending_.erase(joint);
+        firmware_pending_.erase(joint);
+        enabled_at_.erase(joint);
         inhibited_since_[joint] = now;
         {
           std::lock_guard<std::mutex> lock(active_command_lock_);
@@ -793,7 +910,14 @@ class RobstrideCanNode : public rclcpp::Node {
           {
             std::lock_guard<std::mutex> lock(j.bus->lock);
             set_mode_raw(j, 0);
-            send(j, robstride::enable_frame(j.bus->host_id, j.cfg.motor_id));
+            // Arm before I/O: a readback reply may arrive before the send returns.
+            if (!j.cfg.firmware_writes.empty()) {
+              const double now = mono();
+              firmware_pending_[cmd.joint] = {now, now};  // ENABLE deferred until readback
+              request_firmware_parameters(j, true);
+            } else {
+              send(j, robstride::enable_frame(j.bus->host_id, j.cfg.motor_id));
+            }
             current_mode_[cmd.joint].reset();
           }
           pending_disable_.erase(cmd.joint);
@@ -808,6 +932,8 @@ class RobstrideCanNode : public rclcpp::Node {
           }
           command_deadlines_.erase(cmd.joint);
           enable_pending_.erase(cmd.joint);
+          firmware_pending_.erase(cmd.joint);
+          enabled_at_.erase(cmd.joint);
           inhibited_since_[cmd.joint] = mono();
           pending_disable_.insert(cmd.joint);
           {
@@ -865,10 +991,32 @@ class RobstrideCanNode : public rclcpp::Node {
     }
     JointRuntime& j = *found->second;
     try {
+      std::optional<double> measured;
+      std::optional<RawSample> latest;
+      {
+        std::lock_guard<std::mutex> state(state_lock_);
+        const auto it = raw_feedback_.find(active.joint);
+        const double age = it == raw_feedback_.end() ? -1.0 : mono() - it->second.received_at;
+        if (age >= 0.0 && age <= feedback_timeout_s_) measured = it->second.fb.position;
+        if (it != raw_feedback_.end()) latest = it->second;
+      }
+      // Status left Motor/run without our DISABLE (motor CAN watchdog, undervoltage,
+      // fault): stop everything. Velocity mode rewrites run_mode, so MIT joints only.
+      const auto enabled = enabled_at_.find(active.joint);
+      const auto mode_it = current_mode_.find(active.joint);
+      const bool velocity_mode = mode_it != current_mode_.end() && mode_it->second == 2;
+      if (latest && enabled != enabled_at_.end() && latest->received_at > enabled->second &&
+          latest->fb.mode != 2 && !velocity_mode) {
+        latch_transport_fault();
+        throw std::runtime_error(active.joint + ": motor left run mode (status mode " +
+                                 std::to_string(latest->fb.mode) + ") without a host DISABLE");
+      }
+      const bool position_mode = active.mode == MotorCommand::MODE_POSITION ||
+                                 active.mode == MotorCommand::MODE_MOTION;
       robstride::MotorCommandValues c;
       {
         std::lock_guard<std::mutex> lock(j.ankle_lock);
-        c = j.cfg.settings.command(active.values, j.ankle);
+        c = j.cfg.settings.command(active.values, j.ankle, position_mode, measured);
       }
       std::lock_guard<std::mutex> lock(j.bus->lock);
       auto& mode_now = current_mode_[active.joint];
@@ -990,6 +1138,12 @@ class RobstrideCanNode : public rclcpp::Node {
     }
   }
 
+  // Status-frame fault bits of the latest raw sample (0 = none); state_lock_ held.
+  int raw_fault_bits(const std::string& joint) const {
+    const auto it = raw_feedback_.find(joint);
+    return it == raw_feedback_.end() ? 0 : it->second.fb.fault_bits;
+  }
+
   void get_feedback(const GetMotorFeedback::Request& req, GetMotorFeedback::Response& res) {
     // Bounded cache lookup: service callbacks never touch the CAN socket.
     auto& fb = res.feedback;
@@ -1087,7 +1241,8 @@ class RobstrideCanNode : public rclcpp::Node {
                   << "\", \"motor_id\": " << j->cfg.motor_id << ", \"model\": \""
                   << json_escape(j->cfg.model) << "\", \"source_stamp\": "
                   << json_number(telemetry_stamps_[j->cfg.name])
-                  << ", \"temperature_c\": " << json_number(s.temperature) << "}";
+                  << ", \"temperature_c\": " << json_number(s.temperature)
+                  << ", \"fault_bits\": " << raw_fault_bits(j->cfg.name) << "}";
         first_telemetry = false;
       }
     }
@@ -1162,6 +1317,9 @@ class RobstrideCanNode : public rclcpp::Node {
   std::map<std::string, double> inhibited_since_;
   std::set<std::string> pending_disable_;
   std::map<std::string, double> enable_pending_;
+  // Verified ENABLE (python_can_node.firmware_pending): joint -> (submitted, last request).
+  std::map<std::string, std::pair<double, double>> firmware_pending_;
+  std::map<std::string, double> enabled_at_;  // joint -> Motor-mode ack receipt
   std::map<std::string, std::string> submitted_state_;
   std::map<std::string, std::optional<int>> current_mode_;
 
@@ -1172,6 +1330,8 @@ class RobstrideCanNode : public rclcpp::Node {
   std::map<std::string, Sample> state_buffer_;
   std::map<std::string, double> telemetry_stamps_;
   std::map<std::string, RawSample> raw_feedback_;
+  // (joint, index) -> (type-17 value, host monotonic receipt).
+  std::map<std::pair<std::string, int>, std::pair<uint32_t, double>> param_readback_;
 
   std::mutex timing_lock_;
   uint64_t tx_cycles_{0};

@@ -122,7 +122,25 @@ def test_connect_sets_nonblocking_socket_and_filters_without_hardware(bus, monke
     monkeypatch.setattr('motor_control_hybrid.can_transport.can.ThreadSafeBus', factory)
     bus.connect()
     handler.socket.setblocking.assert_called_once_with(False)
-    assert len(factory.call_args.kwargs['can_filters']) == 2
+    filters = factory.call_args.kwargs['can_filters']
+    # Status (2), fault (21) and parameter-read replies (17), all for this host.
+    assert sorted(f['can_id'] >> 24 for f in filters) == [2, 17, 21]
+
+
+def test_parameter_read_request_and_reply(bus):
+    import can
+    bus.read_parameter('one', 0x7028)
+    frame = bus.channel_handler.send.call_args.args[0]
+    assert frame.arbitration_id == (17 << 24) | (bus.host_id << 8) | bus.motors['one'].id
+    assert bytes(frame.data) == bytes.fromhex('2870000000000000')
+    reply = can.Message(arbitration_id=(17 << 24) | (bus.motors['one'].id << 8) | bus.host_id,
+                        is_extended_id=True, data=bytes.fromhex('28700000204e0000'))
+    parsed = bus.decode_parameter_reply(reply)
+    assert (parsed.motor_name, parsed.index, parsed.value) == ('one', 0x7028, bytes.fromhex('204e0000'))
+    assert bus.decode_feedback(reply) is None  # never scaled into joint feedback
+    other_host = can.Message(arbitration_id=(17 << 24) | (bus.motors['one'].id << 8) | 0x01,
+                             is_extended_id=True, data=bytes(8))
+    assert bus.decode_parameter_reply(other_host) is None
 
 
 def test_lifecycle_exact_identifier_payload_and_no_fault_clear(bus):

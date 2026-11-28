@@ -30,34 +30,41 @@ safety_node:
     imu_stuck_samples: 50
 
     # ---- Motor, joint, CAN and battery checks (checks/motors.py, joints.py,
-    # comms.py, power.py). All off until tested on the robot. Joint lists,
+    # comms.py, power.py). Motor, joint and CAN-link checks are on; the battery
+    # check stays off until something publishes /battery_state. Joint lists,
     # position limits and per-joint max_torque_nm come from
-    # motor_control_hybrid/config/motors.yaml unless motor_config_file is set.
+    # motor_control_hybrid/config/motors.yaml unless motor_config_file is set
+    # (hybrid_control.launch.py passes its own motor_config_file).
     joint_states_topic: /joint_states
     motor_telemetry_topic: /motor_telemetry
     can_timing_topic: /can_timing
     battery_topic: /battery_state
     motor_config_file: ""
 
-    motor_temperature_enabled: false
+    motor_temperature_enabled: true
     motor_max_temp_c: 80.0
     motor_reset_temp_c: 70.0
-    # python_can_node does not publish per-motor fault bits yet; it stops
-    # itself and reports transport_fault, which can_link_enabled catches.
-    motor_fault_enabled: false
-    motor_torque_enabled: false
+    # No CAN backend puts fault_bits in /motor_telemetry yet, so this check
+    # stays quiet until one does; the backends already stop on a fault and
+    # report transport_fault.
+    motor_fault_enabled: true
+    motor_torque_enabled: true
     motor_max_torque_nm: 60.0  # Used where motors.yaml max_torque_nm is null.
     motor_torque_confirm_samples: 5
-    motor_feedback_enabled: false
+    motor_feedback_enabled: true
+    # Every joint in motors.yaml must report, so a motor that is not connected
+    # trips the estop once startup_grace_s has passed.
     motor_feedback_timeout_s: 0.25
 
-    joint_position_enabled: false
+    # Trips just outside the trained min/max_position (knee > +0.05 rad is
+    # hyperextension: the CAD has no hard stop there).
+    joint_position_enabled: true
     joint_position_margin_rad: 0.05
-    joint_velocity_enabled: false
+    joint_velocity_enabled: true
     joint_max_velocity_rad_s: 8.0
     joint_velocity_confirm_samples: 3
 
-    can_link_enabled: false
+    can_link_enabled: true
     can_timeout_s: 3.0  # /can_timing is published at 1 Hz.
 
     # Nothing publishes /battery_state yet. Set voltages for the real pack.

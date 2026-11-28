@@ -51,6 +51,10 @@ class TrackingPolicyNode(Node):
             # skip: drop such samples; latch only if they persist for input_timeout_s.
             'imu_accel_outlier': 'latch',
             'imu_to_body_rotation': [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+            # joint_states mode: refuse to start when the first target is further
+            # than this from the measured pose (no full-gain lunge into the gait).
+            # In simulation the first target is up to 0.25 rad away (an ankle).
+            'start_pose_tolerance_rad': 0.5,
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -69,6 +73,10 @@ class TrackingPolicyNode(Node):
             raise ValueError('This tracking export requires 50 Hz and timeout in (0, 1] s')
         if not np.isfinite(self.calibration_seconds) or not 0 <= self.calibration_seconds <= 10:
             raise ValueError('calibration_seconds must be in [0, 10]')
+        self.start_tolerance = float(param('start_pose_tolerance_rad'))
+        if not (np.isfinite(self.start_tolerance) and self.start_tolerance > 0):
+            raise ValueError('start_pose_tolerance_rad must be > 0')
+        self.started = False
         self.feedback_mode = str(param('joint_feedback_mode'))
         if self.feedback_mode not in ('zero', 'joint_states'):
             raise ValueError('joint_feedback_mode must be zero or joint_states')
@@ -318,6 +326,17 @@ class TrackingPolicyNode(Node):
                     return
                 if not np.isfinite(actions).all() or not np.isfinite(targets).all():
                     raise ValueError('Non-finite policy output')
+                if not self.started:
+                    if joints is not None:
+                        gap = np.abs(np.asarray(targets, dtype=float) - np.asarray(q, dtype=float))
+                        if gap.max() > self.start_tolerance:
+                            worst = int(np.argmax(gap))
+                            self.latch_fault(
+                                f'Start pose: {self.policy.names[worst]} is {gap[worst]:.3f} '
+                                f'rad from the first target (limit {self.start_tolerance:.3f}); '
+                                'move the robot to the reference pose first')
+                            return
+                    self.started = True
                 angles = JointState()
                 angles.header.stamp = self.time_message(source_stamp)
                 angles.header.frame_id = 'policy_body'
